@@ -10,6 +10,8 @@
 - 合并目标：`main`
 - 交付 PR：[#1 chore: establish Intelligent Travel Assistant project baseline](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1)
 - 合并提交：`f10b1736b4f00386d653f430b24109e91fc888ec`
+- 归档 PR：[#2 docs: archive B-000 project baseline](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2)
+- 归档提交：`a21300c8c70764eb4aafc798bc54878373b5e3a0`
 - 环境边界：`local`
 - 批准状态：用户已批准目标、范围、非目标、验收标准、风险边界和工程决策
 - 批准日期：2026-08-13
@@ -386,7 +388,7 @@ source_records
 
 主要风险：
 
-- GitHub 远程、push、PR、CI、review 和 squash merge 已完成；最终 `main` CI 运行 `31702571823` 通过。
+- GitHub 远程、push、PR、CI、review、squash merge 和归档已完成；归档提交的 `main` CI 运行 `31703994453` 通过。
 - `zonghe-anli` 的消失属于外部状态变化，原因未知。
 - 默认 `python` 和 `py` 启动器不符合基线，必须统一使用 uv。
 - 当前 pnpm 来自 Codex bundled runtime，项目必须通过 Corepack 固定版本，不能依赖该路径。
