@@ -5,7 +5,7 @@
 - 任务编号：`B-000`
 - 任务等级：L
 - 状态：`ACTIVE`
-- 当前 Step：`Step 15 - GitHub 交付（review 修复验证中）`
+- 当前 Step：`Step 16 - 合并后收口（待批准）`
 - 当前分支：`chore/b-000-project-baseline`
 - 目标分支：`chore/b-000-project-baseline`
 - 目标 PR：`chore: establish Intelligent Travel Assistant project baseline`
@@ -68,7 +68,7 @@ Intelligent Travel Assistant 工程底座。
 - 根运行时版本、Node workspace、空锁文件、忽略规则和本地密钥契约已经建立。
 - 前后端依赖声明和锁文件、健康骨架、测试、统一门禁及本地可审查的 CI 配置已经建立。
 - Step 13 独立 QA和 Step 14 最终用户 UAT、本地提交已通过。
-- Step 15 已创建 Draft PR #1；前两次 CI 暴露 Windows 冷启动版本探测问题，提交 `c229233` 后第三次 CI 通过，最终 review 修复正在验证。
+- Step 15 已创建 Draft PR #1；前两次 CI 暴露 Windows 冷启动版本探测问题，提交 `c229233` 后第三次 CI 通过；提交 `b1d7ce0` 关闭六项 review finding 后第四次 CI 通过，最终复审无新阻塞问题。
 - 尚未创建或验证真实外部服务配置。
 
 ## 已批准项目决策
@@ -428,7 +428,7 @@ source_records
 | Step 12 | 建立 CI 配置 | DONE |
 | Step 13 | 执行全量门禁和独立 QA | DONE |
 | Step 14 | 用户 UAT 和本地提交 | DONE |
-| Step 15 | 经授权完成 push、PR、CI 和 review | TODO |
+| Step 15 | 经授权完成 push、PR、CI 和 review | DONE |
 | Step 16 | 经授权合并并完成文档收口 | TODO |
 
 ## Git 与 PR 目标

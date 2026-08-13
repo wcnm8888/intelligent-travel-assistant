@@ -85,7 +85,7 @@ AGENTS.md
 
 - 当前活动任务：`B-000 项目与工程基线`
 - 当前分支：`chore/b-000-project-baseline`
-- 最近完成：Step 15 的私有仓库、bootstrap main、任务分支、Draft PR #1 和第三次远程 CI；最终 review 修复正在验证
-- 当前明确未完成：Step 15 最终 review 收口、merge、任务归档和真实外部服务接入
+- 最近完成：Step 15 的私有仓库、bootstrap main、任务分支、Draft PR #1、远程 CI 和最终 review
+- 当前明确未完成：merge、任务归档和真实外部服务接入
 - 当前没有可运行的旅行规划业务能力；健康页只提供本地工程诊断
-- 下一步：等待用户批准执行 B-000 Step 15 review 修复的后续动作；不得自动合并，也不得从 roadmap 自动开始 F-001 或其他候选任务
+- 下一步：等待用户批准执行 B-000 Step 16 合并后收口；不得自动合并，也不得从 roadmap 自动开始 F-001 或其他候选任务
