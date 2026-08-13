@@ -1,0 +1,11 @@
+{
+  "name": "intelligent-travel-assistant",
+  "private": true,
+  "description": "Local-first travel decision assistant for mainland China independent travel.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": "22.16.0",
+    "pnpm": "11.19.0"
+  }
+}
