@@ -19,7 +19,7 @@
 - Agent 领域规格：[agent-domain-spec.md](./agent-domain-spec.md)
 - 项目路线：[roadmap.md](./project-management/roadmap.md)
 - 验收证据：[evidence.md](./project-management/evidence.md)
-- 历史归档：`docs/archive/`（计划在任务或阶段关闭时创建）
+- 历史归档：[docs/archive/](./archive/)
 
 ## 推荐读取路径
 
@@ -55,7 +55,7 @@ AGENTS.md
 | 项目进度 | 当前 | 当前状态、最近完成、阻塞和下一批准动作 | Step 收口或阻塞变化 | 只保留最近摘要 | [progress.md](./project-management/progress.md) |
 | 验收证据 | 当前 | 可复现的最终验证结论、环境和命令索引 | 产生可保留的验收证据 | 允许按任务保留 | [evidence.md](./project-management/evidence.md) |
 | 决策记录 | 当前 | 长期有效的重要决策、理由、取舍和后果 | 产生或废止重要决策 | 追加决策记录 | [decisions.md](./decisions.md) |
-| 历史归档 | 计划：Step 16 | 已关闭任务卡和确需保留的阶段材料 | 任务或阶段关闭 | 只读归档 | `docs/archive/` |
+| 历史归档 | 当前 | 已关闭任务卡和确需保留的阶段材料 | 任务或阶段关闭 | 只读归档 | [docs/archive/](./archive/) |
 
 ## 当前事实与历史分离
 
@@ -83,9 +83,8 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：`B-000 项目与工程基线`
-- 当前分支：`chore/b-000-project-baseline`
-- 最近完成：Step 15 的私有仓库、bootstrap main、任务分支、Draft PR #1、远程 CI 和最终 review
-- 当前明确未完成：merge、任务归档和真实外部服务接入
+- 当前活动任务：无
+- 最近完成：B-000 已由 PR #1 squash merge 到 `main`，最终合并提交和 Windows CI 已通过，任务卡及计划已归档
+- 当前明确未完成：旅行规划业务和真实外部服务接入
 - 当前没有可运行的旅行规划业务能力；健康页只提供本地工程诊断
-- 下一步：等待用户批准执行 B-000 Step 16 合并后收口；不得自动合并，也不得从 roadmap 自动开始 F-001 或其他候选任务
+- 下一步：等待用户从 roadmap 选择候选任务；不得自动开始 F-001 或其他候选任务

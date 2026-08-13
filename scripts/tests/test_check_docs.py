@@ -144,6 +144,62 @@ class DocumentationChecksTest(unittest.TestCase):
         )
         self.assertIn("status-consistency", self._categories())
 
+    def test_closed_task_state_allows_zero_active_roadmap_rows(self) -> None:
+        self._write(
+            "docs/project-management/current-task.md",
+            "# Current Task\n\n当前无活动任务。\n",
+        )
+        self._write(
+            "docs/project-management/implementation-plan.md",
+            "# Plan\n\n当前无活动任务，因此没有正在执行的 Step。\n",
+        )
+        self._write(
+            "docs/project-management/progress.md",
+            "# Progress\n\n- 当前任务：无\n- 下一批准动作：用户从 roadmap 选择候选任务\n",
+        )
+        self._write(
+            "docs/README.md",
+            "# Docs\n\n- 当前活动任务：无\n- 下一步：等待用户从 roadmap 选择候选任务。\n",
+        )
+        self._write(
+            "docs/project-management/roadmap.md",
+            "# Roadmap\n\n| Priority | Task | Status | Goal | Dependency |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| 0 | B-000 | DONE | Baseline | None |\n",
+        )
+        self.assertEqual(collect_issues(self.root), [])
+
+    def test_closed_task_state_rejects_active_roadmap_row(self) -> None:
+        self._write(
+            "docs/project-management/current-task.md",
+            "# Current Task\n\n当前无活动任务。\n",
+        )
+        self.assertIn("status-consistency", self._categories())
+
+    def test_closed_task_state_rejects_stale_progress(self) -> None:
+        self._write(
+            "docs/project-management/current-task.md",
+            "# Current Task\n\n当前无活动任务。\n",
+        )
+        self._write(
+            "docs/project-management/implementation-plan.md",
+            "# Plan\n\n当前无活动任务，因此没有正在执行的 Step。\n",
+        )
+        self._write(
+            "docs/README.md",
+            "# Docs\n\n- 当前活动任务：无\n",
+        )
+        self.assertIn("status-consistency", self._categories())
+
+    def test_active_task_state_rejects_zero_active_roadmap_rows(self) -> None:
+        self._write(
+            "docs/project-management/roadmap.md",
+            "# Roadmap\n\n| Priority | Task | Status | Goal | Dependency |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| 0 | B-000 | DONE | Baseline | None |\n",
+        )
+        self.assertIn("status-consistency", self._categories())
+
     def test_markdown_trailing_whitespace_fails(self) -> None:
         self._write("docs/product-brief.md", "# Product\n\nTrailing  \n")
         self.assertIn("trailing-whitespace", self._categories())
