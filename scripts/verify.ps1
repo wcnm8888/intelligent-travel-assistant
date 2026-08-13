@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$VersionParserSelfTest
+    [switch]$VersionParserSelfTest,
+    [switch]$PythonVersionProbe
 )
 
 Set-StrictMode -Version Latest
@@ -10,6 +11,7 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ExpectedPython = "Python 3.13.3"
 $ExpectedNode = "v22.16.0"
 $ExpectedPnpm = "11.19.0"
+$env:UV_BUILD_CONSTRAINT = Join-Path $ProjectRoot "backend\build-constraints.txt"
 
 function Invoke-NativeGate {
     param(
@@ -74,6 +76,12 @@ if (Test-NativeVersionOutput "$ExpectedPython`n$ExpectedPython" $ExpectedPython)
 }
 if ($VersionParserSelfTest) {
     Write-Host "Version parser self-test passed." -ForegroundColor Green
+    exit 0
+}
+if ($PythonVersionProbe) {
+    Assert-NativeVersion "Python" {
+        uv run --quiet --project backend --frozen python --version
+    } $ExpectedPython
     exit 0
 }
 

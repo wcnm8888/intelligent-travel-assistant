@@ -88,7 +88,8 @@ Step 9 解析的核心直接前端依赖为 React `19.2.8`、Vite `8.2.1`、Type
 - Node 版本执行：`.npmrc` 开启严格 engine、精确保存和严格 peer dependency，包管理器通过 `packageManager` 固定。
 - 编辑器基础：`.editorconfig`、`.gitattributes` 已建立。
 - 本地统一入口：`scripts/verify.ps1` 固定检查运行时、锁文件、依赖同步、前后端门禁、构建和文档契约，并传播任一子门禁的非零退出码。
-- 文档与仓库检查：`scripts/check_docs.py` 校验必需文档、Markdown 相对链接和基础格式、当前 Step 一致性、空凭证模板、敏感模式、Git 忽略规则及 CI 契约；其 10 项单元测试位于 `scripts/tests/`。
+- Python 构建隔离：`backend/build-constraints.txt` 以精确版本和哈希约束 hatchling 及其构建传递依赖；统一验证通过 `UV_BUILD_CONSTRAINT` 应用该文件。
+- 文档与仓库检查：`scripts/check_docs.py` 校验必需文档、Markdown 相对链接和基础格式、当前 Step 一致性、空凭证模板、构建约束、敏感模式、Git 忽略规则及结构化 CI 契约；其 16 项单元测试位于 `scripts/tests/`。
 - CI：`.github/workflows/ci.yml` 使用 `windows-latest` 复现本地统一门禁；Python 和 Node 分别读取根版本文件，uv 固定为 `0.6.14`，业务 provider 凭证保持为空。
 - CI 供应链：`actions/checkout`、`actions/setup-python`、`actions/setup-node` 和 `astral-sh/setup-uv` 固定到完整提交 SHA 并保留版本注释；仓库权限仅为 `contents: read`，checkout 不保留 Git 凭证。
 

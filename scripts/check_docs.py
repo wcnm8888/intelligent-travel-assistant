@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote
 
+import yaml
+
 REQUIRED_DOCUMENTS = (
     "AGENTS.md",
     "README.md",
@@ -30,6 +32,7 @@ REQUIRED_DOCUMENTS = (
 )
 
 CI_WORKFLOW = ".github/workflows/ci.yml"
+BUILD_CONSTRAINTS = "backend/build-constraints.txt"
 EXPECTED_CI_ACTIONS = {
     "actions/checkout",
     "actions/setup-node",
@@ -99,6 +102,7 @@ ACTION_USE = re.compile(
     r"(?P<action>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?P<ref>\S+)",
     re.MULTILINE,
 )
+REMOTE_ACTION_USE = re.compile(r"(?P<action>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?P<ref>\S+)")
 FULL_COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
 
 
@@ -375,7 +379,7 @@ def check_ci_contract(root: Path) -> list[Issue]:
         if fragment not in text:
             issues.append(Issue("ci-contract", CI_WORKFLOW, f"missing required {label}"))
 
-    if re.search(r"(?i)\bsecrets\s*\.", text):
+    if re.search(r"(?i)\bsecrets\s*(?:\.|\[)", text):
         issues.append(
             Issue(
                 "ci-secret-boundary",
@@ -384,7 +388,38 @@ def check_ci_contract(root: Path) -> list[Issue]:
             )
         )
 
-    if re.search(r"(?im)^permissions:\s*write-all\s*$|^[ \t]+[\w-]+:\s*write\s*$", text):
+    try:
+        workflow = yaml.safe_load(text)
+    except yaml.YAMLError:
+        workflow = None
+        issues.append(Issue("ci-contract", CI_WORKFLOW, "workflow YAML must parse"))
+
+    def permissions_are_read_only(value: object) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return value == "read-all"
+        if not isinstance(value, dict):
+            return False
+        return all(permission == "read" for permission in value.values())
+
+    permission_values: list[object] = []
+    all_uses: list[str] = []
+    if isinstance(workflow, dict):
+        permission_values.append(workflow.get("permissions"))
+        jobs = workflow.get("jobs")
+        if isinstance(jobs, dict):
+            for job in jobs.values():
+                if not isinstance(job, dict):
+                    continue
+                permission_values.append(job.get("permissions"))
+                steps = job.get("steps")
+                if isinstance(steps, list):
+                    for step in steps:
+                        if isinstance(step, dict) and isinstance(step.get("uses"), str):
+                            all_uses.append(step["uses"])
+
+    if any(not permissions_are_read_only(value) for value in permission_values):
         issues.append(
             Issue(
                 "ci-permission-boundary",
@@ -407,8 +442,20 @@ def check_ci_contract(root: Path) -> list[Issue]:
                 )
             )
 
-    action_uses = list(ACTION_USE.finditer(text))
+    action_uses = [
+        match for value in all_uses if (match := REMOTE_ACTION_USE.fullmatch(value)) is not None
+    ]
     observed_actions = {match.group("action") for match in action_uses}
+    parsed_remote_uses = {match.group(0) for match in action_uses}
+    unexpected_uses = sorted(set(all_uses) - parsed_remote_uses)
+    for action in unexpected_uses:
+        issues.append(
+            Issue(
+                "ci-contract",
+                CI_WORKFLOW,
+                f"unsupported local, Docker or malformed action reference: {action}",
+            )
+        )
     for action in sorted(EXPECTED_CI_ACTIONS - observed_actions):
         issues.append(Issue("ci-contract", CI_WORKFLOW, f"missing required action: {action}"))
     for action in sorted(observed_actions - EXPECTED_CI_ACTIONS):
@@ -430,6 +477,61 @@ def check_ci_contract(root: Path) -> list[Issue]:
     return issues
 
 
+def check_build_constraints(root: Path) -> list[Issue]:
+    path = root / BUILD_CONSTRAINTS
+    if not path.is_file():
+        return [
+            Issue(
+                "missing-required-project-file",
+                BUILD_CONSTRAINTS,
+                "Python build constraint lock does not exist",
+            )
+        ]
+
+    text = _read_text(path)
+    issues: list[Issue] = []
+    required_packages = {
+        "hatchling",
+        "packaging",
+        "pathspec",
+        "pluggy",
+        "tomlkit",
+        "trove-classifiers",
+    }
+    for package in sorted(required_packages):
+        line = re.search(rf"(?m)^{re.escape(package)}==[^\s\\]+", text)
+        if line is None:
+            issues.append(
+                Issue(
+                    "build-constraint",
+                    BUILD_CONSTRAINTS,
+                    f"{package} must be pinned to an exact version",
+                )
+            )
+    if text.count("--hash=sha256:") < len(required_packages) * 2:
+        issues.append(
+            Issue(
+                "build-constraint",
+                BUILD_CONSTRAINTS,
+                "each build dependency must retain both locked distribution hashes",
+            )
+        )
+
+    verification = _read_text(root / "scripts/verify.ps1")
+    if (
+        "UV_BUILD_CONSTRAINT" not in verification
+        or "backend\\build-constraints.txt" not in verification
+    ):
+        issues.append(
+            Issue(
+                "build-constraint",
+                "scripts/verify.ps1",
+                "unified verification must apply the Python build constraint lock",
+            )
+        )
+    return issues
+
+
 def collect_issues(root: Path) -> list[Issue]:
     return [
         *check_required_documents(root),
@@ -438,6 +540,7 @@ def collect_issues(root: Path) -> list[Issue]:
         *check_status_consistency(root),
         *check_ignore_contract(root),
         *check_ci_contract(root),
+        *check_build_constraints(root),
     ]
 
 

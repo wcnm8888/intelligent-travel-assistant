@@ -5,7 +5,7 @@
 - 任务编号：`B-000`
 - 任务等级：L
 - 状态：`ACTIVE`
-- 当前 Step：`Step 15 - GitHub 交付（待批准）`
+- 当前 Step：`Step 15 - GitHub 交付（review 修复验证中）`
 - 当前分支：`chore/b-000-project-baseline`
 - 目标分支：`chore/b-000-project-baseline`
 - 目标 PR：`chore: establish Intelligent Travel Assistant project baseline`
@@ -44,7 +44,7 @@ Intelligent Travel Assistant 工程底座。
 - 项目路径：`E:\Agent\comprehensive-cases\13-intelligent-travel-assistant`。
 - 本地 Git 仓库已初始化，默认分支为 `main`。
 - bootstrap 根提交为 `4dfe6b2 chore: initialize repository`，提交树为空。
-- 当前没有 Git 远程。
+- 私有远程仓库：`wcnm8888/intelligent-travel-assistant`；`origin` 已配置。
 - Agent1 保留在 `E:\Agent\开发实践\Agent1-旅行推荐`，只作学习基线。
 - `E:\Agent\zonghe-anli` 当前不存在；本任务不恢复、不重建、不追查无关文件。
 - 高德和和风天气账户、应用和 Key 尚未创建。
@@ -67,8 +67,8 @@ Intelligent Travel Assistant 工程底座。
 - 测试策略、项目 roadmap 和验收证据入口已经建立。
 - 根运行时版本、Node workspace、空锁文件、忽略规则和本地密钥契约已经建立。
 - 前后端依赖声明和锁文件、健康骨架、测试、统一门禁及本地可审查的 CI 配置已经建立。
-- Step 13 独立 QA和 Step 14 最终用户 UAT、本地提交已通过；尚未执行远程 CI。
-- 尚无 GitHub 远程、PR 或远程 CI 证据。
+- Step 13 独立 QA和 Step 14 最终用户 UAT、本地提交已通过。
+- Step 15 已创建 Draft PR #1；前两次 CI 暴露 Windows 冷启动版本探测问题，提交 `c229233` 后第三次 CI 通过，最终 review 修复正在验证。
 - 尚未创建或验证真实外部服务配置。
 
 ## 已批准项目决策
@@ -385,7 +385,7 @@ source_records
 
 主要风险：
 
-- 尚无 GitHub 远程，push、PR 和远程 CI 阶段暂时阻塞。
+- GitHub 远程、push、Draft PR 和一次成功远程 CI 已完成；review 修复复验和 merge 尚未完成。
 - `zonghe-anli` 的消失属于外部状态变化，原因未知。
 - 默认 `python` 和 `py` 启动器不符合基线，必须统一使用 uv。
 - 当前 pnpm 来自 Codex bundled runtime，项目必须通过 Corepack 固定版本，不能依赖该路径。

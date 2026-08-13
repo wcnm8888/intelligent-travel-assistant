@@ -9,9 +9,9 @@
 - 当前任务：`B-000`
 - 当前阶段：工程基线启动
 - 当前分支：`chore/b-000-project-baseline`
-- 最近完成：Step 14，用户 UAT 通过，B-000 基线已精确暂存并创建本地交付提交
-- 当前阻塞：无；GitHub 远程交付将在 Step 15 前需要单独授权
-- 下一批准动作：Step 15，GitHub 交付；需要先配置远程并获得 push、PR 和远程 CI 授权
+- 最近完成：Step 15 的私有仓库、bootstrap main、任务分支、Draft PR #1 和第三次远程 CI；review 修复正在验证
+- 当前阻塞：无；最终 review 修复必须通过本地门禁和新的远程 CI
+- 下一批准动作：Step 15 review 修复的后续动作；不得自动合并
 
 ## 已验证事实
 
@@ -26,7 +26,7 @@
 ## 当前边界
 
 - 任务分支已创建；B-000 项目文件已形成单一、本地交付提交
-- 前后端健康骨架、依赖锁、统一门禁、本地 Chromium 闭环、CI 配置、独立 QA、最终用户 UAT 和本地提交已完成；远程 CI 尚未完成
+- 前后端健康骨架、依赖锁、统一门禁、本地 Chromium 闭环、CI 配置、独立 QA、最终用户 UAT、本地提交、私有远程、Draft PR 和一次成功远程 CI 已完成；review 收口尚未完成
 - 后端 Ruff format/check、mypy、7 项 pytest 和本地 `GET /api/health` 请求已通过；这些是 Step 8 实施验证，不替代 Step 13 独立 QA
 - 前端 Prettier、ESLint、TypeScript、8 项 Vitest、peer 检查和生产构建已通过；这些是 Step 9 实施验证，不替代 Step 10 浏览器 UAT 或 Step 13 独立 QA
 - Step 10 已验证 loading/disabled、success、error、retry recovery、390px 无水平溢出、键盘聚焦和仅本机请求；服务验证后已关闭，端口 5173/8000 已释放
@@ -41,7 +41,7 @@
 - 前端依赖已安装在被忽略的 `node_modules`，构建产物位于被忽略的 `frontend/dist`；未执行缓存清理
 - 尚未调用任何真实外部 API
 - 尚未创建高德或和风天气账户和 Key
-- 未配置 Git 远程，未 push、未创建 PR
+- `origin` 已配置为私有仓库，`main` 和任务分支已推送，Draft PR #1 已创建；尚未 merge
 
 ## 权威入口
 

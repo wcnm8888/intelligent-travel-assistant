@@ -178,6 +178,9 @@ B-000 变更直接提交到 `main`。外部服务、业务功能、远程 Git �
 - 目标：经授权 push、创建 PR、运行 CI 和完成 review。
 - PR：`chore: establish Intelligent Travel Assistant project baseline` → `main`。
 - 停止条件：没有远程、未授权、CI 失败或 diff 存在越界内容。
+- 远程事实：已创建私有仓库 `wcnm8888/intelligent-travel-assistant`，bootstrap 提交为远程 `main`，任务分支已推送，Draft PR #1 指向 `main`。
+- CI 事实：前两次 Windows 运行因 uv 冷启动版本探测失败；提交 `ec04215` 和 `c229233` 修复后，第三次运行 `31699542476` 通过。
+- review 状态：最终 review 发现构建依赖约束、健康请求超时、CI 安全契约、冷启动回归覆盖和状态文档问题；用户已批准集中修复，等待新的本地及远程验证。
 - 状态：TODO。
 
 ## Step 16：合并后收口
@@ -188,7 +191,7 @@ B-000 变更直接提交到 `main`。外部服务、业务功能、远程 Git �
 
 ## 当前唯一下一步
 
-等待用户批准 Step 15：GitHub 交付。没有远程且未经授权时，不得 push 或创建 PR。
+等待用户批准 Step 15 review 修复的后续动作。不得自动合并或进入 Step 16。
 
 ## 回滚和暂停规则
 

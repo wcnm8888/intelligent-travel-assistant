@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -11,7 +12,12 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from check_docs import CI_WORKFLOW, REQUIRED_DOCUMENTS, collect_issues  # noqa: E402
+from check_docs import (  # noqa: E402
+    BUILD_CONSTRAINTS,
+    CI_WORKFLOW,
+    REQUIRED_DOCUMENTS,
+    collect_issues,
+)
 
 
 class DocumentationChecksTest(unittest.TestCase):
@@ -62,6 +68,19 @@ class DocumentationChecksTest(unittest.TestCase):
             "| 0 | B-000 | ACTIVE | Baseline | None |\n",
         )
         self._write(".env.example", "DEEPSEEK_API_KEY=\n")
+        self._write(
+            BUILD_CONSTRAINTS,
+            "hatchling==1.32.0 \\\n+    --hash=sha256:a \\\n+    --hash=sha256:b\n"
+            "packaging==26.3 \\\n+    --hash=sha256:c \\\n+    --hash=sha256:d\n"
+            "pathspec==1.1.1 \\\n+    --hash=sha256:e \\\n+    --hash=sha256:f\n"
+            "pluggy==1.6.0 \\\n+    --hash=sha256:g \\\n+    --hash=sha256:h\n"
+            "tomlkit==0.15.1 \\\n+    --hash=sha256:i \\\n+    --hash=sha256:j\n"
+            "trove-classifiers==2026.6.1.19 \\\n+    --hash=sha256:k \\\n+    --hash=sha256:l\n",
+        )
+        self._write(
+            "scripts/verify.ps1",
+            '$env:UV_BUILD_CONSTRAINT = Join-Path $ProjectRoot "backend\\build-constraints.txt"\n',
+        )
         self._write(
             CI_WORKFLOW,
             "name: CI\n\n"
@@ -182,6 +201,59 @@ class DocumentationChecksTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Version parser self-test passed.", result.stdout)
+
+    def test_python_version_probe_runs_in_an_isolated_cold_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as environment:
+            result = subprocess.run(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(SCRIPTS_DIR / "verify.ps1"),
+                    "-PythonVersionProbe",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "UV_PROJECT_ENVIRONMENT": environment},
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Python: Python 3.13.3", result.stdout)
+
+    def test_ci_bracket_secret_reference_fails(self) -> None:
+        path = self.root / CI_WORKFLOW
+        text = path.read_text(encoding="utf-8").replace(
+            'DEEPSEEK_API_KEY: ""',
+            "DEEPSEEK_API_KEY: ${{ secrets['DEEPSEEK_API_KEY'] }}",
+        )
+        path.write_text(text, encoding="utf-8")
+        self.assertIn("ci-secret-boundary", self._categories())
+
+    def test_ci_job_write_all_permission_fails(self) -> None:
+        path = self.root / CI_WORKFLOW
+        text = path.read_text(encoding="utf-8").replace(
+            "    runs-on: windows-latest",
+            "    permissions: write-all\n    runs-on: windows-latest",
+        )
+        path.write_text(text, encoding="utf-8")
+        self.assertIn("ci-permission-boundary", self._categories())
+
+    def test_ci_local_or_docker_action_fails(self) -> None:
+        path = self.root / CI_WORKFLOW
+        text = path.read_text(encoding="utf-8").replace(
+            "    steps:",
+            "    steps:\n      - uses: docker://alpine:latest",
+        )
+        path.write_text(text, encoding="utf-8")
+        self.assertIn("ci-contract", self._categories())
+
+    def test_build_constraint_drift_fails(self) -> None:
+        path = self.root / BUILD_CONSTRAINTS
+        text = path.read_text(encoding="utf-8").replace("hatchling==1.32.0", "hatchling>=1.27")
+        path.write_text(text, encoding="utf-8")
+        self.assertIn("build-constraint", self._categories())
 
 
 if __name__ == "__main__":

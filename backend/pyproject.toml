@@ -23,8 +23,10 @@ packages = ["src/intelligent_travel_assistant"]
 dev = [
     "httpx2>=2.10.0",
     "mypy>=2.3.0",
+    "pyyaml>=6.0.3",
     "pytest>=9.1.1",
     "ruff>=0.16.2",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [tool.pytest.ini_options]

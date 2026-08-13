@@ -25,10 +25,15 @@ function isHealthPayload(value: unknown): value is HealthPayload {
 
 export async function fetchHealth(
   request: typeof fetch = fetch,
+  timeoutMs = 5_000,
 ): Promise<HealthPayload> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const response = await request("/api/health", {
       headers: { Accept: "application/json" },
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -43,5 +48,7 @@ export async function fetchHealth(
     return payload;
   } catch {
     throw new HealthCheckError();
+  } finally {
+    window.clearTimeout(timeout);
   }
 }

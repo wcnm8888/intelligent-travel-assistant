@@ -18,7 +18,7 @@
 
 - 任务状态：`ACTIVE`
 - 最终验收结论：`NOT_RUN`
-- 当前阶段：工程基线仍在实施；前后端健康骨架、本地 Chromium 闭环、统一验证、本地可审查的 CI 配置、独立 QA、最终用户 UAT和本地提交已完成，远程 CI 尚未完成；
+- 当前阶段：工程基线仍在实施；前后端健康骨架、本地 Chromium 闭环、统一验证、独立 QA、最终用户 UAT、本地提交、私有远程、Draft PR 和一次成功远程 CI 已完成，最终 review 修复正在验证；
 - 已完成 Step 的检查属于实施进度验证，不是 B-000 最终验收证据；Step 8 已通过后端 Ruff、mypy、pytest 和本地健康请求；
 - Step 8 红绿证明：受控注入未批准健康状态后，健康契约测试失败；恢复固定 `ok` 状态后全套 7 项测试通过；
 - Step 9 已通过 Prettier、ESLint、TypeScript、8 项 Vitest、peer 检查和生产构建；受控移除重试触发后恢复测试失败，恢复实现后全套门禁重新通过；
@@ -32,8 +32,10 @@
 - Step 13 范围与安全：`git diff --check` 通过，0 暂存、0 远程；50 个未跟踪文件均位于批准结构内，provider 凭证仅为空模板，运行时无旅行规划或真实 provider 客户端；Agent1 和 `E:\Vibe coding` 未被本 Step 写入；
 - Step 13 结论：`PASS`，无阻塞缺陷；另记录一个非阻塞关注项：文件数 50 超过原 40 个停止阈值。该数量已在用户批准 Step 13 前披露，本 Step 没有新增文件；
 - Step 14 用户 UAT：用户确认成功、错误、重试恢复、文案和窄屏表现均符合预期，结论为 `PASS`；
-- Step 14 本地交付：统一门禁、精确文件清单、staged diff、空凭证与敏感信息边界审查通过，B-000 基线形成单一、本地提交；未配置远程、未 push、未创建 PR；
-- 当前不能宣称 B-000 远程 CI、GitHub review、merge 或真实外部服务通过。
+- Step 14 本地交付：统一门禁、精确文件清单、staged diff、空凭证与敏感信息边界审查通过，B-000 基线形成单一、本地提交；
+- Step 15 远程交付：私有仓库、远程 `main`、任务分支和 Draft PR #1 已创建；运行 `31698367871` 与 `31698957491` 因 Windows uv 冷启动版本探测失败，提交 `c229233` 后运行 `31699542476` 通过；
+- Step 15 review：发现并获准修复构建依赖约束、健康请求超时、CI 安全契约、冷启动回归覆盖和状态文档问题；新证据尚待提交后复验；
+- 当前不能宣称 B-000 最终 GitHub review、merge 或真实外部服务通过。
 
 ## 每个任务的证据结构
 
@@ -90,16 +92,16 @@ B-000 关闭前至少需要：
 
 | 类别 | 必需证据 | 当前状态 |
 | --- | --- | --- |
-| 运行时 | Python 3.13.3、Node.js 22.16.0 和包管理版本检查 | PARTIAL：Step 13 本地与独立 QA 通过，待远程 CI |
+| 运行时 | Python 3.13.3、Node.js 22.16.0 和包管理版本检查 | PASS：本地、独立 QA 和 Windows 远程 CI 通过 |
 | 后端 | 健康 API 测试、成功请求和错误边界 | PASS：实现者与 Step 13 独立 QA 均通过 |
 | 前端 | loading/success/error/retry 组件测试和本地浏览器结果 | PASS：实现者、独立 QA 和最终用户 UAT 均通过 |
-| 统一门禁 | format、lint、typecheck、test、build、docs、CI contract | PARTIAL：Step 13 独立 QA 通过，待远程 CI |
+| 统一门禁 | format、lint、typecheck、test、build、docs、CI contract | PARTIAL：一次 Windows 远程 CI 通过；review 修复待新的远程复验 |
 | 安全 | `.env.local` 忽略、敏感模式和 staged diff 检查 | PASS：ignore、空凭证、敏感模式、独立 QA 和 staged diff 审查通过 |
 | 离线边界 | 默认测试不访问真实第三方服务 | PASS：运行时审查无 provider 客户端，Chromium 请求清单仅包含本机 |
 | 范围 | 无旅行业务逻辑、无 Agent1 或目标外修改 | PASS：范围符合；另记录文件数超过原估算与阈值的非阻塞关注项 |
 | 独立 QA | 负向测试、diff 和文档一致性审查 | PASS：Step 13 完成，无阻塞缺陷 |
 | 用户 UAT | 本地启动、后端故障、重试恢复、文案和窄屏表现 | PASS |
-| GitHub 交付 | push、PR、远程 CI、review、merge | BLOCKED：无远程且尚未授权 |
+| GitHub 交付 | push、PR、远程 CI、review、merge | PARTIAL：私有远程、Draft PR 和一次 CI 通过；review 修复与 merge 未完成 |
 
 GitHub 交付是否是 B-000 最终完成的阻塞项，仍按已批准任务卡的 Step 15–16 和用户授权处理。没有授权时保持 `BLOCKED`，不得伪造远程证据。
 
