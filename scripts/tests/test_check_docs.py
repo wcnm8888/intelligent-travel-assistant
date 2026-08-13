@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -158,6 +159,24 @@ class DocumentationChecksTest(unittest.TestCase):
         )
         path.write_text(text, encoding="utf-8")
         self.assertIn("ci-contract", self._categories())
+
+    def test_version_parser_accepts_ci_diagnostics_and_rejects_drift(self) -> None:
+        result = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(SCRIPTS_DIR / "verify.ps1"),
+                "-VersionParserSelfTest",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Version parser self-test passed.", result.stdout)
 
 
 if __name__ == "__main__":

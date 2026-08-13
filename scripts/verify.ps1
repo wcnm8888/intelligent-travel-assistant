@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$VersionParserSelfTest
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -25,6 +27,22 @@ function Invoke-NativeGate {
     }
 }
 
+function Test-NativeVersionOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Output,
+        [Parameter(Mandatory = $true)]
+        [string]$Expected
+    )
+
+    $MatchingLines = @(
+        $Output -split "`r?`n" |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ -eq $Expected }
+    )
+    return $MatchingLines.Count -eq 1
+}
+
 function Assert-NativeVersion {
     param(
         [Parameter(Mandatory = $true)]
@@ -39,10 +57,24 @@ function Assert-NativeVersion {
     if ($LASTEXITCODE -ne 0) {
         throw "$Name version check failed with exit code $LASTEXITCODE."
     }
-    if ($Output -ne $Expected) {
+    if (-not (Test-NativeVersionOutput $Output $Expected)) {
         throw "$Name version mismatch. Expected '$Expected', received '$Output'."
     }
-    Write-Host "${Name}: $Output" -ForegroundColor Green
+    Write-Host "${Name}: $Expected" -ForegroundColor Green
+}
+
+if (-not (Test-NativeVersionOutput "Using managed runtime`n$ExpectedPython" $ExpectedPython)) {
+    throw "Version parser self-test failed for diagnostic output."
+}
+if (Test-NativeVersionOutput "Python 3.12.0" $ExpectedPython) {
+    throw "Version parser self-test accepted an incorrect version."
+}
+if (Test-NativeVersionOutput "$ExpectedPython`n$ExpectedPython" $ExpectedPython) {
+    throw "Version parser self-test accepted duplicate version lines."
+}
+if ($VersionParserSelfTest) {
+    Write-Host "Version parser self-test passed." -ForegroundColor Green
+    exit 0
 }
 
 Push-Location $ProjectRoot
