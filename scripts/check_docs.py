@@ -241,6 +241,9 @@ def _extract_step(text: str, pattern: str, source: str) -> tuple[int | None, Iss
 
 
 def check_status_consistency(root: Path) -> list[Issue]:
+    current_task_path = root / "docs/project-management/current-task.md"
+    current_task_text = _read_text(current_task_path) if current_task_path.is_file() else ""
+    no_active_task = re.search(r"^当前无活动任务。?$", current_task_text, re.MULTILINE) is not None
     sources = {
         "current-task": (
             "docs/project-management/current-task.md",
@@ -256,15 +259,42 @@ def check_status_consistency(root: Path) -> list[Issue]:
 
     issues: list[Issue] = []
     steps: dict[str, int] = {}
-    for name, (relative, pattern) in sources.items():
-        path = root / relative
-        if not path.is_file():
-            continue
-        step, issue = _extract_step(_read_text(path), pattern, relative)
-        if issue is not None:
-            issues.append(issue)
-        elif step is not None:
-            steps[name] = step
+    if no_active_task:
+        idle_sources = {
+            "current-task": (
+                "docs/project-management/current-task.md",
+                r"^当前无活动任务。?$",
+            ),
+            "implementation-plan": (
+                "docs/project-management/implementation-plan.md",
+                r"^当前无活动任务，因此没有正在执行的 Step。$",
+            ),
+            "progress": (
+                "docs/project-management/progress.md",
+                r"^- 当前任务：无$",
+            ),
+            "docs-map": ("docs/README.md", r"^- 当前活动任务：无$"),
+        }
+        for name, (relative, pattern) in idle_sources.items():
+            path = root / relative
+            if path.is_file() and re.search(pattern, _read_text(path), re.MULTILINE) is None:
+                issues.append(
+                    Issue(
+                        "status-consistency",
+                        relative,
+                        f"{name} does not declare the no-active-task state",
+                    )
+                )
+    else:
+        for name, (relative, pattern) in sources.items():
+            path = root / relative
+            if not path.is_file():
+                continue
+            step, issue = _extract_step(_read_text(path), pattern, relative)
+            if issue is not None:
+                issues.append(issue)
+            elif step is not None:
+                steps[name] = step
 
     if len(set(steps.values())) > 1:
         summary = ", ".join(f"{name}=Step {step}" for name, step in sorted(steps.items()))
@@ -273,7 +303,7 @@ def check_status_consistency(root: Path) -> list[Issue]:
         )
 
     current_step = steps.get("current-task")
-    task_path = root / "docs/project-management/current-task.md"
+    task_path = current_task_path
     if current_step is not None and task_path.is_file():
         rows = {
             int(match.group("step")): match.group("status")
@@ -300,12 +330,13 @@ def check_status_consistency(root: Path) -> list[Issue]:
     roadmap = root / "docs/project-management/roadmap.md"
     if roadmap.is_file():
         active_rows = re.findall(r"^\|[^\n]*\|\s*ACTIVE\s*\|", _read_text(roadmap), re.MULTILINE)
-        if len(active_rows) != 1:
+        expected_active_rows = 0 if no_active_task else 1
+        if len(active_rows) != expected_active_rows:
             issues.append(
                 Issue(
                     "status-consistency",
                     roadmap.relative_to(root).as_posix(),
-                    "expected exactly one ACTIVE roadmap row",
+                    f"expected exactly {expected_active_rows} ACTIVE roadmap row(s)",
                 )
             )
     return issues
