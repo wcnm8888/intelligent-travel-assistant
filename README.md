@@ -4,7 +4,7 @@ Intelligent Travel Assistant 是一个面向中国大陆境内自由行的本地
 
 ## 当前状态
 
-`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 合并到 `main` 并完成归档。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、React 健康诊断页、统一本地门禁和 GitHub Actions CI。当前没有活动任务，也没有旅行规划业务或真实外部服务调用；F-001 仅是 roadmap 候选，必须由用户另行选择并批准。
+`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、React 健康诊断页、统一本地门禁和 GitHub Actions CI。当前没有活动任务，也没有旅行规划业务或真实外部服务调用；F-001 仅是 roadmap 候选，必须由用户另行选择并批准。
 
 - 运行边界：仅本地运行，后续允许经显式配置访问外部 API。
 - 当前任务状态：[current-task.md](./docs/project-management/current-task.md)
@@ -132,7 +132,7 @@ uv run --project backend --frozen python scripts/check_docs.py --root .
 
 [GitHub Actions workflow](./.github/workflows/ci.yml) 在 pull request、`main` 分支 push 和手动触发时使用 Windows runner 调用同一个 `scripts/verify.ps1`。workflow 使用根版本文件和 frozen lockfile，仓库权限仅为 `contents: read`，checkout 不保留 Git 凭证，所有第三方 Action 固定到完整提交 SHA。
 
-默认 CI 将 DeepSeek、高德和和风天气凭证显式保持为空，不引用 GitHub Secrets，也不执行 live smoke。依赖缓存缺失时，运行时安装和依赖同步可能访问 GitHub Releases 或已配置的软件包仓库；这不等于访问业务 provider。PR #1 和最终合并提交 `f10b173` 均已在 Windows runner 上通过统一门禁。
+默认 CI 将 DeepSeek、高德和和风天气凭证显式保持为空，不引用 GitHub Secrets，也不执行 live smoke。依赖缓存缺失时，运行时安装和依赖同步可能访问 GitHub Releases 或已配置的软件包仓库；这不等于访问业务 provider。PR #1、收口 PR #2 及其归档提交 `a21300c` 均已在 Windows runner 上通过统一门禁。
 
 ## 本地配置边界
 

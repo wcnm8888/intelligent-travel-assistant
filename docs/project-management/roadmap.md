@@ -32,7 +32,7 @@ B-000 已完成且归档。F-001 虽是推荐的下一用户价值任务，但�
 ## B-000：项目与工程基线
 
 - 状态：`DONE`
-- 结果：文档、前后端健康骨架、依赖锁定、离线测试、统一门禁和 CI 配置已交付；PR #1 squash merge 为 `f10b173`，最终 `main` CI 通过。
+- 结果：文档、前后端健康骨架、依赖锁定、离线测试、统一门禁和 CI 配置已由 PR #1 交付；PR #2 完成归档收口，最终 `main` CI 通过。
 - 归档任务卡：[B-000 project baseline](../archive/task-cards/B-000-project-baseline.md)。
 - 非目标仍未实现：旅行规划业务、真实 provider 调用、SQLite 业务 Schema和正式产品 UI。
 

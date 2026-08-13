@@ -4,9 +4,9 @@
 
 - 当前任务：无
 - 最近完成：`B-000 项目与工程基线`
-- 交付结果：[PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 已于 2026-08-13 squash merge 到 `main`
-- 合并提交：`f10b1736b4f00386d653f430b24109e91fc888ec`
-- 最终远程验证：Windows CI 运行 `31702571823` 通过，用时 2 分 44 秒
+- 基线交付：[PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1)，squash merge 提交 `f10b1736b4f00386d653f430b24109e91fc888ec`
+- 归档收口：[PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2)，squash merge 提交 `a21300c8c70764eb4aafc798bc54878373b5e3a0`
+- 归档远程验证：PR #2 的 `main` Windows CI 运行 `31703994453` 通过，用时 2 分 45 秒
 - 当前阻塞：下一任务尚未由用户选择；高德与和风天气账户、应用及 Key 尚未创建
 - 下一批准动作：用户从 roadmap 选择候选任务；不得自动开始 F-001
 
