@@ -161,6 +161,11 @@ class DocumentationChecksTest(unittest.TestCase):
         self.assertIn("ci-contract", self._categories())
 
     def test_version_parser_accepts_ci_diagnostics_and_rejects_drift(self) -> None:
+        verification_script = (SCRIPTS_DIR / "verify.ps1").read_text(encoding="utf-8")
+        self.assertIn(
+            "uv run --quiet --project backend --frozen python --version",
+            verification_script,
+        )
         result = subprocess.run(
             [
                 "powershell.exe",

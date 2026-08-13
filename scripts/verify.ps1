@@ -84,7 +84,9 @@ try {
 
     Write-Host ""
     Write-Host "==> Runtime versions" -ForegroundColor Cyan
-    Assert-NativeVersion "Python" { uv run --project backend --frozen python --version } $ExpectedPython
+    Assert-NativeVersion "Python" {
+        uv run --quiet --project backend --frozen python --version
+    } $ExpectedPython
     Assert-NativeVersion "Node.js" { node --version } $ExpectedNode
     Assert-NativeVersion "pnpm" { corepack pnpm --version } $ExpectedPnpm
 
