@@ -1,0 +1,48 @@
+[project]
+name = "intelligent-travel-assistant-api"
+version = "0.1.0"
+description = "Local FastAPI service for Intelligent Travel Assistant."
+requires-python = ">=3.13.3,<3.14"
+dependencies = [
+    "fastapi>=0.141.1",
+    "pydantic-settings>=2.15.0",
+    "uvicorn>=0.52.2",
+]
+
+[project.scripts]
+ita-api = "intelligent_travel_assistant.main:run"
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/intelligent_travel_assistant"]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.10.0",
+    "mypy>=2.3.0",
+    "pyyaml>=6.0.3",
+    "pytest>=9.1.1",
+    "ruff>=0.16.2",
+    "types-pyyaml>=6.0.12.20250915",
+]
+
+[tool.pytest.ini_options]
+addopts = ["--strict-config", "--strict-markers"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+files = ["src", "tests"]

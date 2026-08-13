@@ -1,0 +1,76 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+.envrc
+.direnv/
+.npmrc.local
+.pypirc
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.hypothesis/
+.tox/
+.nox/
+build/
+dist/
+*.egg-info/
+.uv-cache/
+
+# Node.js and frontend
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.vite/
+frontend/dist/
+frontend/coverage/
+coverage/
+
+# Tests and local runtime artifacts
+.cache/
+.tmp/
+tmp/
+logs/
+*.log
+test-results/
+playwright-report/
+.playwright-cli/
+output/playwright/
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+*.sqlite3
+*.sqlite3-journal
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local Codex and agent artifacts
+.gstack/
+.gbrain-source
