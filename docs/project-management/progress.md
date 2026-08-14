@@ -5,9 +5,9 @@
 - 当前任务：`F-001 单城市双日旅行计划垂直切片`
 - 任务状态：`ACTIVE`
 - 当前分支：`feat/f-001-single-city-two-day-plan`
-- 已完成 Step：Step 0 至 Step 43
+- 已完成 Step：Step 0 至 Step 44
 - 当前阻塞：真实 ready/partial 数据 UAT 尚未通过；范围停止阈值已由用户明确批准本次 120 文件单 PR 例外
-- 下一批准动作：Step 44，经用户批准后推送功能分支并创建 Draft PR；不得自动进行 live 回归或远程写入
+- 下一批准动作：Step 45，等待远程 CI 并仅修复阻塞问题；不得自动进行 live 回归、ready-for-review 或合并
 
 ## 最近完成
 
@@ -63,6 +63,7 @@
 - Step 41 关闭默认测试读取本地 dotenv/误触真实 provider 的风险，拆分 DeepSeek provider Schema 与本地候选错误，增加安全诊断枚举，补齐生成/repair 上下文，收紧日期、时间窗、POI 来源、天气地点与 timeout 契约，并修复过期页脚。后端 756 项、前端 64 项及各自格式、lint、typecheck、测试和构建门禁通过；没有真实 provider 调用。
 - Step 42 将 Step 41 的实现事实同步到 API、Agent、架构、测试、roadmap、决策和证据文档。用户批准 F-001 作为一个完整垂直切片由单一 PR 交付并接受当前 120 个变更文件的范围例外；该例外不授权新增能力或 live 调用，也不降低 review、CI、安全门禁。
 - Step 43 在冻结 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下重跑统一离线门禁，后端 756 项、前端 64 项、文档检查器 23 项及全部静态、构建和文档契约通过；120 个批准文件经精确暂存和安全审查后形成单一本地提交，未调用真实 provider、推送或创建 PR。
+- Step 44 将功能分支推送至私有仓库并创建面向 `main` 的 Draft PR #4；PR 正文保留真实 UAT `FAIL`、F-001 `PARTIAL`、120 文件范围例外及 live 回归需单独授权的说明。Windows offline verification 已触发，结果留待 Step 45。
 
 ## 当前能力边界
 
@@ -74,10 +75,10 @@
 
 ## 最近基线证据
 
-- 当前 Step 相关验证：Step 43 提交前统一离线门禁、120 文件 staged diff 和秘密边界检查已通过；Step 39 真实失败态桌面/窄屏安全展示证据仍有效，但 ready/partial 真实 UAT 仍为 `FAIL`；当前等待 Step 44 单独批准；
+- 当前 Step 相关验证：Step 43 提交前统一离线门禁、120 文件 staged diff 和秘密边界检查已通过；Draft PR #4 已创建并保持 draft；Step 39 真实失败态桌面/窄屏安全展示证据仍有效，但 ready/partial 真实 UAT 仍为 `FAIL`；当前等待 Step 45 单独批准；
 - 最近离线门禁：测试组合明确不加载 `.env.local` 且拒绝非 loopback 网络；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下统一 `scripts/verify.ps1` 一次通过，包含后端 756 项 pytest、前端 64 项 Vitest、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；
 - 远程基线：`main` 提交 `50980887dadc0500d98dcd29966a5da2da74b2e2` 的 Windows CI 运行 `31704781850` 成功；
-- 当前没有开放 PR；F-001 已形成一个本地提交但尚未推送。
+- 当前开放 Draft PR #4；功能分支已推送，远程 CI 结果待 Step 45 核对。
 
 ## 权威入口
 

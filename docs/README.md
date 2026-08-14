@@ -90,9 +90,9 @@ AGENTS.md
 
 - 当前活动任务：`F-001 单城市双日旅行计划垂直切片`
 - 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
-- 当前已完成 Step：F-001 Step 0 至 Step 43；最近完成 Step 42 长期文档/证据同步与 Step 43 本地单提交交付
-- 当前明确未完成：通过式真实数据 UAT、推送、PR 与远程交付门禁；120 文件范围停止阈值已由用户批准本次单 PR 例外
+- 当前已完成 Step：F-001 Step 0 至 Step 44；最近完成 Step 43 本地单提交与 Step 44 Draft PR #4 交付
+- 当前明确未完成：通过式真实数据 UAT、远程 CI/review 与合并门禁；120 文件范围停止阈值已由用户批准本次单 PR 例外
 - 当前产品 UI 已通过专用 synthetic executor 经真实本机 POST/GET/retry 严格渲染五种结果；三家配置齐备时任务 API 使用真实 provider 执行器，默认无凭证时执行器保持禁用，不会调用 provider
 - Step 38 已完成：一个杭州双日真实计划触达三家 provider 且 live 契约通过；计划经确定性校验进入 `conflict`，同一预算内的高德公交路线窄探针通过，全程无原始响应、持久缓存或真实高德截图
 - Step 39 已执行：唯一真实浏览器任务因 DeepSeek `provider_schema_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论为 `FAIL`，没有重试或第二次提交
-- 下一步：等待用户批准执行 F-001 Step 44 推送功能分支并创建 Draft PR；任何 live 回归或远程写入仍需对应授权
+- 下一步：等待用户批准执行 F-001 Step 45 等待远程 CI 并修复阻塞问题；任何 live 回归、ready-for-review 或合并仍需对应授权

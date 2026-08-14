@@ -18,7 +18,7 @@
 
 - 任务状态：`ACTIVE`
 - 当前结论：`PARTIAL`。Step 38 已完成受控真实 API 冒烟；Step 39 已执行但真实数据 UAT 因 DeepSeek Schema 异常 `FAIL`；Step 40 独立 QA、Step 41 离线阻塞修复和 Step 42 文档收口已完成，尚无通过式真实 UAT 或 Git/PR 交付；
-- 分支：`feat/f-001-single-city-two-day-plan`，已形成单一本地提交，未推送、无开放 PR；
+- 分支：`feat/f-001-single-city-two-day-plan`，已推送；开放 Draft PR #4，目标为 `main`；
 - Step 34 自动化：10 类 Agent 输出 scorecard、目录顺序不变性、四终态各 10 次重复裁决通过；新增 15 项、专项相关 107 项通过。统一门禁包括 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0、后端 729 项 pytest、前端 61 项 Vitest、文档检查器 23 项测试、Ruff format/check、strict mypy、Vite build 和 17 份必需文档契约；
 - Step 35 自动化：新增任务执行端口、五终态 synthetic executor 和轮询可达后继回归；专项后端 20 项、前端 62 项及相关静态门禁通过。Playwright Chromium 经真实本机 POST/GET/retry 验证 ready、partial attempt 2、conflict、needs_input 和 failed，`390×844` 下 `scrollWidth=375`、控制台 0 error/0 warning；动态业务请求仅访问本机 `/api`；
 - Step 36 全量门禁：在项目根目录运行 `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1` 一次通过；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，后端 737 项 pytest、前端 62 项 Vitest、文档检查器 23 项测试，以及锁文件、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build、17 份必需文档和 19 个 Markdown 文件契约全部通过；
@@ -43,6 +43,7 @@
 - Step 42 范围与文档决策（2026-08-14）：用户批准 F-001 作为一个完整垂直切片由单一 PR 交付，并接受当前 120 个变更文件的范围例外。长期 API/Agent/架构/测试契约、roadmap、任务状态、progress 和 evidence 已同步；文档检查器 23 项测试、17 份必需文档/19 个 Markdown 契约及 `git diff --check` 通过，暂存区为空；该例外不授权范围扩张、额外 live 调用或降低质量门禁；
 - Step 43 本地交付（2026-08-14）：统一 `scripts/verify.ps1` 一次通过，运行时为 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，后端 756 项 pytest、前端 64 项 Vitest、文档检查器 23 项及锁、依赖、Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约全部绿色；
 - Step 43 范围与安全：120 个批准文件精确暂存，staged diff 与 `git diff --check` 通过；`.env.local` 保持忽略，Git 未跟踪 `.env.local`、PEM、Key 或 P8 文件，未发现 provider 原始响应或范围外路径。形成单一本地提交，未调用真实 provider、未推送或创建 PR；
+- Step 44 远程交付（2026-08-14）：功能分支已推送并设置 upstream；创建 Draft PR #4 `feat: deliver single-city two-day travel planning slice`，base/head 为 `main`/`feat/f-001-single-city-two-day-plan`。PR 正文明确记录 Step 39 真实 UAT `FAIL`、F-001 `PARTIAL`、120 文件范围例外和新的 live 回归需单独授权；Windows offline verification 已触发，最终结果不在本 Step 宣称通过；
 - 官方来源：[DeepSeek 模型与价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing)、[DeepSeek 用户协议](https://cdn.deepseek.com/policies/zh-CN/deepseek-terms-of-use.html)、[DeepSeek 开放平台服务协议](https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html)、[高德服务升级与配额](https://lbs.amap.com/upgrade)、[高德开放平台服务协议](https://lbs.amap.com/pages/terms/)、[和风天气定价](https://dev.qweather.com/docs/finance/pricing/)、[和风天气注明来源](https://dev.qweather.com/docs/terms/attribution/)、[和风天气实时预警响应契约](https://dev.qweather.com/docs/api/warning/weather-alert/)；
 - Step 27 浏览器：本地 Microsoft Edge 使用本机 synthetic partial/failed 响应验证 retry 恢复、双击只产生一次请求、attempt 2、旧终态清理和返回修改焦点；`390×844` 下输入区域折叠、结果优先且无水平溢出，干净会话控制台 0 error/0 warning；
 - 请求边界：Step 35 浏览器业务请求仅为同源任务 API；DeepSeek、高德与和风 adapter 专项测试使用进程内 mock transport。Step 40 发现默认 API 测试组合根可能因 `.env.local` 装配真实执行器；Step 41 已用导入前 `APP_ENV=test`、禁用 dotenv source 和非 loopback socket 阻断关闭该风险，并由统一入口复验；
