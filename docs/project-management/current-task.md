@@ -11,7 +11,7 @@
 - PR 目标：一个 PR 交付首个可验证的旅行计划端到端闭环
 - 建议 PR 标题：`feat: deliver single-city two-day travel planning slice`
 - 批准日期：2026-08-13
-- 当前 Step：`Step 45 - 等待远程 CI 并修复阻塞问题（待批准）`
+- 当前 Step：`Step 46 - 经用户批准后合并（待批准）`
 
 用户已经确认本任务的目标、范围、非目标、输入输出、状态模型、验收标准、风险边界和十二项工程决策，并授权执行 Step 0。后续仍坚持每次只执行一个单独批准的 Step；批准任务卡不等于授权真实 API 调用、提交、推送、创建 PR 或合并。
 
@@ -53,6 +53,8 @@ Step 42 已同步 Step 41 的架构、Agent、API、测试和证据事实。用�
 Step 43 已按用户批准的 120 文件清单完成精确暂存和本地单提交交付。提交前统一 `scripts/verify.ps1` 在冻结运行时下一次通过，秘密、忽略规则、范围、staged diff 和文档状态检查通过；未调用真实 provider、未推送或创建 PR。下一步为待单独批准的 Step 44。
 
 Step 44 已将 `feat/f-001-single-city-two-day-plan` 推送到私有仓库并创建面向 `main` 的 Draft PR #4。PR 正文明确保留 Step 39 真实 UAT `FAIL`、F-001 当前 `PARTIAL`、120 文件范围例外和任何 live 回归必须重新单独授权的边界；远程 CI 已触发但结果留给 Step 45。未调用真实 provider、未合并或执行其他远程写入。
+
+Step 45 已完成 Draft PR #4 的远程 CI 核对。Windows offline verification 全部通过，没有失败检查或需修复的阻塞问题；状态文档同步后，同一远程门禁已对最终 PR head 复验通过。PR 仍保持 Draft，真实 ready/partial UAT 仍为 `FAIL`，本 Step 未调用真实 provider、标记 ready 或合并。
 
 ## 范围
 
@@ -352,7 +354,7 @@ LLM 负责需求理解、受控工具选择、候选计划和解释；代码负�
 | Step 42 | 更新 evidence、progress、架构和决策文档 | DONE |
 | Step 43 | 精确暂存并创建本地提交 | DONE |
 | Step 44 | 经用户批准后推送并创建 Draft PR | DONE |
-| Step 45 | 等待远程 CI 并修复阻塞问题 | TODO |
+| Step 45 | 等待远程 CI 并修复阻塞问题 | DONE |
 | Step 46 | 经用户批准后合并 | TODO |
 | Step 47 | 归档 F-001 并完成文档收口 | TODO |
 

@@ -5,10 +5,10 @@
 - 当前任务：`F-001 单城市双日旅行计划垂直切片`
 - 任务等级：`L`
 - 当前分支：`feat/f-001-single-city-two-day-plan`
-- 已完成：Step 0 至 Step 44。
+- 已完成：Step 0 至 Step 45。
 - Step 38 已完成：严格按一次杭州双日计划、DeepSeek 最多 3 次、高德最多 16 次、和风最多 4 次、总费用不超过 12 元的授权执行。三家服务均返回可解析结果；计划经确定性校验进入 `conflict`，另以同一授权预算内 1 次高德公交路线窄探针补齐路线 live 契约。
 - Step 39 已按同一调用和 12 元费用边界执行；唯一任务因 DeepSeek `provider_schema_invalid` 安全失败，UAT 结论为 `FAIL`，未重试或再次提交。
-- Step 41 已完成离线阻塞修复和独立全量门禁；Step 42 已同步长期文档、证据和 120 文件单 PR 范围例外；Step 43 已形成单一本地提交；Step 44 已推送分支并创建 Draft PR #4。当前等待用户批准 Step 45 处理远程 CI，不得自动调用 provider、合并或执行 live 回归。
+- Step 41 已完成离线阻塞修复和独立全量门禁；Step 42 已同步长期文档、证据和 120 文件单 PR 范围例外；Step 43 已形成单一本地提交；Step 44 已推送分支并创建 Draft PR #4；Step 45 的远程 Windows 离线门禁已通过。当前等待用户批准 Step 46，不得自动调用 provider、标记 ready 或合并。
 
 任务卡、范围、验收与完整 Step 状态以 [current-task.md](./current-task.md) 为准。本文件只维护执行顺序、当前 Step 输入输出、验证和停止条件，不复制完整任务卡。
 
@@ -455,6 +455,13 @@
 - 创建 Draft PR #4：`feat: deliver single-city two-day travel planning slice`，PR 正文包含完整切片范围、统一门禁、120 文件例外、Step 39 真实 UAT `FAIL` 和 live 回归需重新授权的边界；
 - GitHub Actions 已触发 Windows offline verification；本 Step 不等待或处置结果，Step 45 仍需用户单独批准；
 - 未调用真实 API、未把 PR 标记 ready、未合并。
+
+### Step 45：等待远程 CI 并修复阻塞问题
+
+- `DONE`；Draft PR #4 的 Windows offline verification 运行 `31807998195` 在 4 分 45 秒内通过，setup、统一验证和 teardown 全部成功；
+- 没有失败检查、外部检查或需修复的 CI finding，因此未修改业务代码；
+- 状态文档提交推送后，同一 Windows 离线门禁已对最终 PR head 复验通过；
+- PR 继续保持 Draft，Step 39 真实 UAT `FAIL` 与单独授权 live 回归边界不变；下一步为待单独批准的 Step 46。
 
 ## 后续 Step 摘要
 
