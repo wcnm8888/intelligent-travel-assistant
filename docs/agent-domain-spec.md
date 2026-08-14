@@ -94,7 +94,7 @@ Agent 不直接接收原始 HTTP 请求，而接收应用层提供的结构化�
 
 ## 工具目录
 
-工具保持单动作、无隐藏决策。下列是端口方向，不代表 B-000 已实现：
+工具保持单动作、无隐藏决策。F-001 已在应用端口冻结 `resolve_city`、`search_pois`、`get_weather_forecast`、`get_current_weather_alerts` 和 `calculate_routes` 五个项目工具名，并建立离线 fake、应用编排及 DeepSeek、高德和和风 HTTP adapter。三家配置全部就绪时，组合根装配真实规划执行器；配置不完整时执行器禁用。模型始终没有自主工具注册或开放式工具循环。预算和确定性校验由应用/领域代码直接执行，不作为模型自由调用工具。`generate_plan_candidate` 是应用对 DeepSeek 的规划端口，不是模型可自由调用的工具。下表是后续完整目标方向，不代表表中所有工具已授权给 F-001：
 
 | 工具 | 职责 | 主要输入 | 主要输出 | 失败语义 |
 | --- | --- | --- | --- | --- |
@@ -122,6 +122,24 @@ Repository 工具不直接交给模型自由调用。应用层根据 Agent 的�
 - provider adapter 负责 DeepSeek 鉴权、传输、超时、限流、响应解析和错误映射；
 - 领域层不接触 DeepSeek 消息、tool call 或 SDK 类型；
 - 模型不可用时，应用可以返回已获取的数据和结构化失败，但不能伪造计划成功。
+
+F-001 当前具体端口为 `DeepSeekPort.generate_plan_candidate` 和 `repair_plan_candidate`。输入上下文只包含项目自有的结构化城市、日期、人数、预算、两日时间窗、自由偏好、交通方式、住宿锚点、地点、逐日天气/当前预警以及已验证 observation；`activity_source_ids` 只列出允许活动引用的 POI 来源。端口输出是未信任的 `ModelTextOutput`，只有本地 `DeepSeekCandidateResolver` 严格解析后才能形成只含意图摘要、逐日候选活动、解释和警告的 `PlanCandidate`。候选不包含 provider、retryable、工具调用或终态字段。
+
+Step 14 的 `OfflinePlanningOrchestrator` 已证明离线候选链可以只依赖上述窄端口运行：城市/POI/DeepSeek 是形成候选的关键链路，天气、预警和路线缺失按 partial 保留；每次状态变化都经应用状态机。该编排器不把 `PlanCandidate` 当作最终计划，happy 路径停在 `validating`，并且没有模型自主工具循环、完整路线补全或终态校验。
+
+Step 15 已在每个编排端口调用前接入应用治理：五个工具和 DeepSeek 生成/修复能力分别受阶段、逻辑调用预算和剩余总时限约束，route permit 活跃上限为 2。治理器只接受 typed capability，不接受模型提供的任意字符串；DeepSeek 不能自行扩大调用能力或绕过状态机。adapter 的 HTTP timeout 小于对应治理窗口；provider 已返回的稳定 timeout 不会被返回后 deadline 覆盖。
+
+Step 16 将模型文本明确置于不信任边界：generation 与 repair 共享同一冻结 JSON Schema；重复键、类型、严格双日日期顺序、日期/时间、候选 POI 和 POI 来源引用均由本地代码校验；模型提供的终态、provider、工具调用、路线和新事实一律拒绝。可修复结构错误与 `finish_reason=length` 最多进入一次 repair，提示控制文本不重放；第二次失败转换为安全 `model_output_invalid`。adapter envelope 失败保持 `provider_schema_invalid`，可选 `diagnostic_code` 只使用项目自有无值枚举；原始文本不进入 outcome、领域对象、公开错误或日志。
+
+Step 17 将 Agent 候选与最终事实明确分离：应用按住宿锚点和活动次序推导完整路线链，DeepSeek 不能提供路线结果或 verified 来源；每段高德结果必须匹配预期端点、模式和自身来源。随后确定性代码统一校验时间、路线、预算、POI、天气和 freshness，并经状态机裁决 `ready`、`partial` 或 `conflict`。模型解释不能删除 unknown、降级信息或硬冲突。
+
+Step 28 的 DeepSeek adapter 只把冻结结构化上下文编码为 user data，并固定非 thinking JSON 输出；observation 和无效候选不能进入 system prompt。adapter 不向模型注册工具，每个端口调用只有一次 HTTP 尝试，且响应仍须先成为未信任 `ModelTextOutput`，再经过 Step 16 本地严格解析。它不读取环境、不拥有终态裁决权，也不证明真实模型可用。
+
+Step 29 的高德 adapter 只实现应用明确调用的城市解析和 POI 搜索，不把第三方 HTTP API 或任意 typecode 暴露给模型。F-001 类别映射冻结为景区与博物馆；城市归属、坐标类型、稳定地点 ID、坏记录过滤和错误分类都由 adapter 确定性完成。模型只能看到已通过端口转换的候选与来源，不能选择异城 POI、修改 city adcode 或把缺坐标补成事实。
+
+Step 30 在同一 adapter 实现应用显式调用的步行/公共交通单路段路线。起终点、模式、provider-native 坐标和 citycode 均来自 typed 应用请求；adapter 不允许任意路线模式，不向模型暴露 HTTP 参数，也不把 provider 票价转成预算事实。唯一合法路线经端点、距离、时长和来源校验后才进入 `RouteLeg`；空结果或坏响应保持安全的 provider 失败语义。
+
+Step 31 的和风 adapter 只接受 typed 双日预报或当前预警请求；应用提供的 provider-native GCJ-02 坐标经确定性舍入后进入固定端点，模型不能选择 Host、路径、JWT 字段、语言或预报天数。adapter 严格映射日期、温度、昼夜条件、预警时效和来源；缺日、过期或坏记录保持 partial/unavailable，不允许模型把它们补成天气事实。私钥和 Bearer JWT 永不进入模型上下文、领域结果或工具描述。
 
 ## 编排循环
 

@@ -14,6 +14,8 @@
 - 长期决策：[decisions.md](./decisions.md)
 - 产品说明：[product-brief.md](./product-brief.md)
 - 系统架构：[architecture.md](./architecture.md)
+- API 契约：[api-contract.md](./api-contract.md)
+- 验收样例：[acceptance-cases.md](./acceptance-cases.md)
 - 技术栈：[tech-stack.md](./tech-stack.md)
 - 交互设计：[design-spec.md](./design-spec.md)
 - Agent 领域规格：[agent-domain-spec.md](./agent-domain-spec.md)
@@ -45,8 +47,11 @@ AGENTS.md
 | 文档地图 | 当前 | 文档职责、权威关系、入口和状态 | 文档新增、归档、改名或职责变化 | 不保留历史正文 | 本文件 |
 | 产品说明 | 当前 | 用户、场景、目标、范围、成功标准和非目标 | 产品方向或范围获批准变更 | 不保留历史正文 | [product-brief.md](./product-brief.md) |
 | 架构 | 当前 | 当前模块、依赖方向、数据流、部署和外部边界 | 架构边界获批准变更 | 不保留历史正文 | [architecture.md](./architecture.md) |
+| API 契约 | 当前 | F-001 HTTP 路由、公开 DTO、状态、幂等和稳定错误码 | 公开 API、DTO 或错误语义变化 | 不保留历史正文 | [api-contract.md](./api-contract.md) |
+| 验收样例 | 当前 | F-001 固定 synthetic 请求、代表性终态和禁止行为 | 验收 case、固定输入或预期结果变化 | 不保留历史正文 | [acceptance-cases.md](./acceptance-cases.md) |
 | 技术栈 | 当前 | 运行时、框架、关键依赖及版本策略 | 技术选型或版本基线变化 | 不保留历史正文 | [tech-stack.md](./tech-stack.md) |
 | 设计规格 | 当前 | 当前已批准的轻量 Web UI 流程和状态契约 | 用户流程或设计基线变化 | 不保留历史正文 | [design-spec.md](./design-spec.md) |
+| F-001 UI 参考稿 | 已冻结 | Step 22 已批准的桌面/窄屏实现参考，不是生产 React 实现 | 用户批准设计变更或实现发现契约冲突 | 冻结结论和允许偏差由设计规格维护 | [f-001-ui-reference.html](./design/f-001-ui-reference.html) |
 | Agent 领域规格 | 当前 | 编排 Agent、状态机、领域工具、人机确认和 MCP 边界 | Agent 职责或工具边界变化 | 不保留历史正文 | [agent-domain-spec.md](./agent-domain-spec.md) |
 | 测试策略 | 当前 | 测试分层、替身策略、真实 API 隔离和质量门禁 | 风险或测试策略变化 | 不保留历史正文 | [testing-strategy.md](./testing-strategy.md) |
 | 项目路线 | 当前 | 候选任务、优先级、依赖和阶段目标 | 用户确认优先级或范围变化 | 只保留短摘要 | [roadmap.md](./project-management/roadmap.md) |
@@ -83,8 +88,11 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：无
+- 当前活动任务：`F-001 单城市双日旅行计划垂直切片`
 - 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
-- 当前明确未完成：旅行规划业务和真实外部服务接入
-- 当前没有可运行的旅行规划业务能力；健康页只提供本地工程诊断
-- 下一步：等待用户从 roadmap 选择候选任务；不得自动开始 F-001 或其他候选任务
+- 当前已完成 Step：F-001 Step 0 至 Step 43；最近完成 Step 42 长期文档/证据同步与 Step 43 本地单提交交付
+- 当前明确未完成：通过式真实数据 UAT、推送、PR 与远程交付门禁；120 文件范围停止阈值已由用户批准本次单 PR 例外
+- 当前产品 UI 已通过专用 synthetic executor 经真实本机 POST/GET/retry 严格渲染五种结果；三家配置齐备时任务 API 使用真实 provider 执行器，默认无凭证时执行器保持禁用，不会调用 provider
+- Step 38 已完成：一个杭州双日真实计划触达三家 provider 且 live 契约通过；计划经确定性校验进入 `conflict`，同一预算内的高德公交路线窄探针通过，全程无原始响应、持久缓存或真实高德截图
+- Step 39 已执行：唯一真实浏览器任务因 DeepSeek `provider_schema_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论为 `FAIL`，没有重试或第二次提交
+- 下一步：等待用户批准执行 F-001 Step 44 推送功能分支并创建 Draft PR；任何 live 回归或远程写入仍需对应授权

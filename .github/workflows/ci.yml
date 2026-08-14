@@ -23,7 +23,10 @@ jobs:
       CI: "true"
       DEEPSEEK_API_KEY: ""
       AMAP_API_KEY: ""
-      QWEATHER_API_KEY: ""
+      QWEATHER_API_HOST: ""
+      QWEATHER_PROJECT_ID: ""
+      QWEATHER_CREDENTIAL_ID: ""
+      QWEATHER_PRIVATE_KEY_PATH: ""
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

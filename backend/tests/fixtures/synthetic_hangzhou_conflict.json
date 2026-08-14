@@ -1,0 +1,160 @@
+{
+  "synthetic": true,
+  "case_id": "hangzhou_two_day_conflict",
+  "fixed_now": "2026-08-13T10:00:00+08:00",
+  "request_file": "synthetic_hangzhou_request.json",
+  "expectations": {
+    "expected_status": "conflict",
+    "plan_required": true,
+    "retryable": false,
+    "known_total": "4500.00",
+    "unknown_count": 0,
+    "required_error_codes": ["constraint_conflict"],
+    "required_violation_codes": ["known_cost_exceeds_budget"],
+    "required_uncertainty_codes": [],
+    "required_providers": ["deepseek", "system", "user"],
+    "forbidden_claims": ["预算充足", "自动放宽预算", "计划已通过"]
+  },
+  "response": {
+    "job_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+    "trace_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3",
+    "client_request_id": "11111111-1111-4111-8111-111111111111",
+    "status": "conflict",
+    "attempt": 1,
+    "request_summary": {
+      "city": "杭州",
+      "start_date": "2026-08-15",
+      "end_date": "2026-08-16",
+      "travelers": 2,
+      "budget": {"amount": "4000.00", "currency": "CNY"}
+    },
+    "resolved_destination": null,
+    "plan": {
+      "plan_id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc3",
+      "city_adcode": "330100",
+      "start_date": "2026-08-15",
+      "end_date": "2026-08-16",
+      "locations": [
+        {
+          "location_id": "90000000-0000-4000-8000-000000000021",
+          "provider": "user",
+          "provider_place_id": null,
+          "name": "预算冲突住宿锚点",
+          "category": "accommodation_anchor",
+          "address": "synthetic 用户输入",
+          "city_adcode": "330100",
+          "coordinates": null,
+          "source_ids": ["10000000-0000-4000-8000-000000000003"]
+        }
+      ],
+      "days": [
+        {
+          "local_date": "2026-08-15",
+          "accommodation_location_id": "90000000-0000-4000-8000-000000000021",
+          "activities": [],
+          "routes": [],
+          "weather": null
+        },
+        {
+          "local_date": "2026-08-16",
+          "accommodation_location_id": "90000000-0000-4000-8000-000000000021",
+          "activities": [],
+          "routes": [],
+          "weather": null
+        }
+      ],
+      "budget_summary": {
+        "budget": {"amount": "4000.00", "currency": "CNY"},
+        "known_total": {"amount": "4500.00", "currency": "CNY"},
+        "unknown_count": 0,
+        "assessment": "over_budget",
+        "cost_items": [
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000021",
+            "category": "accommodation",
+            "confidence": "user_provided",
+            "amount": {"amount": "3100.00", "currency": "CNY"},
+            "description": "synthetic 冲突样例中的用户住宿费用",
+            "source_ids": ["10000000-0000-4000-8000-000000000003"]
+          },
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000022",
+            "category": "intercity_transport",
+            "confidence": "user_provided",
+            "amount": {"amount": "1000.00", "currency": "CNY"},
+            "description": "用户提供的城际往返费用",
+            "source_ids": ["10000000-0000-4000-8000-000000000003"]
+          },
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000023",
+            "category": "meal",
+            "confidence": "estimated",
+            "amount": {"amount": "400.00", "currency": "CNY"},
+            "description": "100元每人每天的两日餐饮估算",
+            "source_ids": ["20000000-0000-4000-8000-000000000003"]
+          }
+        ]
+      }
+    },
+    "violations": [
+      {
+        "code": "known_cost_exceeds_budget",
+        "severity": "error",
+        "message": "已知费用4500元超过用户总预算4000元",
+        "affected_refs": ["cccccccc-cccc-4ccc-8ccc-ccccccccccc3"]
+      }
+    ],
+    "warnings": ["synthetic 冲突样例，不代表真实杭州价格"],
+    "uncertainties": [],
+    "sources": [
+      {
+        "source_id": "10000000-0000-4000-8000-000000000003",
+        "provider": "user",
+        "source_type": "synthetic_user_input_override",
+        "provider_record_id": null,
+        "fetched_at": "2026-08-13T10:00:00+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["仅用于制造确定性预算冲突"]
+      },
+      {
+        "source_id": "20000000-0000-4000-8000-000000000003",
+        "provider": "system",
+        "source_type": "estimation_rule",
+        "provider_record_id": null,
+        "fetched_at": "2026-08-13T10:00:00+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 估算规则"]
+      },
+      {
+        "source_id": "70000000-0000-4000-8000-000000000003",
+        "provider": "deepseek",
+        "source_type": "synthetic_plan_candidate",
+        "provider_record_id": "synthetic-conflicting-output",
+        "fetched_at": "2026-08-13T10:00:05+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 模型候选不能覆盖代码冲突"]
+      }
+    ],
+    "errors": [
+      {
+        "code": "constraint_conflict",
+        "message": "已知费用超过预算，需要用户调整输入",
+        "field": "total_budget",
+        "provider": null,
+        "retryable": false
+      }
+    ],
+    "retryable": false,
+    "created_at": "2026-08-13T10:00:00+08:00",
+    "updated_at": "2026-08-13T10:00:06+08:00"
+  }
+}

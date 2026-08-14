@@ -1,0 +1,63 @@
+{
+  "synthetic": true,
+  "case_id": "hangzhou_two_day_needs_input",
+  "fixed_now": "2026-08-13T10:00:00+08:00",
+  "request_file": "synthetic_hangzhou_request.json",
+  "expectations": {
+    "expected_status": "needs_input",
+    "plan_required": false,
+    "retryable": false,
+    "known_total": null,
+    "unknown_count": null,
+    "required_error_codes": ["input_invalid"],
+    "required_violation_codes": [],
+    "required_uncertainty_codes": [],
+    "required_providers": ["user"],
+    "forbidden_claims": ["已生成计划", "已自动选择住宿", "住宿位置已确认"]
+  },
+  "response": {
+    "job_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5",
+    "trace_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5",
+    "client_request_id": "11111111-1111-4111-8111-111111111111",
+    "status": "needs_input",
+    "attempt": 1,
+    "request_summary": {
+      "city": "杭州",
+      "start_date": "2026-08-15",
+      "end_date": "2026-08-16",
+      "travelers": 2,
+      "budget": {"amount": "4000.00", "currency": "CNY"}
+    },
+    "resolved_destination": null,
+    "plan": null,
+    "violations": [],
+    "warnings": ["synthetic 输入澄清样例；未调用任何外部服务"],
+    "uncertainties": [],
+    "sources": [
+      {
+        "source_id": "10000000-0000-4000-8000-000000000005",
+        "provider": "user",
+        "source_type": "user_input",
+        "provider_record_id": null,
+        "fetched_at": "2026-08-13T10:00:00+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 用户住宿区域输入"]
+      }
+    ],
+    "errors": [
+      {
+        "code": "input_invalid",
+        "message": "住宿区域无法唯一定位，请用户确认更具体的区域或 POI。",
+        "field": "accommodation.area_or_poi",
+        "provider": null,
+        "retryable": false
+      }
+    ],
+    "retryable": false,
+    "created_at": "2026-08-13T10:00:00+08:00",
+    "updated_at": "2026-08-13T10:00:06+08:00"
+  }
+}

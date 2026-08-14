@@ -4,7 +4,7 @@ Intelligent Travel Assistant 是一个面向中国大陆境内自由行的本地
 
 ## 当前状态
 
-`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、React 健康诊断页、统一本地门禁和 GitHub Actions CI。当前没有活动任务，也没有旅行规划业务或真实外部服务调用；F-001 仅是 roadmap 候选，必须由用户另行选择并批准。
+`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、统一本地门禁和 GitHub Actions CI。当前活动任务是 `F-001：单城市双日旅行计划垂直切片`；进程内任务 Repository、五种终态结果快照、POST/GET/retry、单编排 Agent、三家 provider adapter、按全量配置条件启用的真实规划执行器，以及 React 旅行需求和结果工作台均已实现。synthetic 五终态浏览器闭环和 Step 41 全量离线门禁已通过；Step 38 取得一次脱敏 live 契约证据，但 Step 39 尚未取得 ready/partial 真实计划 UAT。
 
 - 运行边界：仅本地运行，后续允许经显式配置访问外部 API。
 - 当前任务状态：[current-task.md](./docs/project-management/current-task.md)
@@ -93,16 +93,16 @@ uv run --directory backend --frozen pytest
 
 健康接口只报告进程可用性，不初始化 DeepSeek、高德或和风天气，也不代表旅行规划能力或外部服务可用。
 
-## 前端健康诊断页
+## 前端旅行需求工作台
 
-先按上节启动后端，再在项目根目录执行：
+在项目根目录执行：
 
 ```powershell
 corepack pnpm install --frozen-lockfile
 corepack pnpm --filter @intelligent-travel-assistant/frontend dev
 ```
 
-前端只监听 `http://127.0.0.1:5173`，并将 `/api` 代理到本机后端。前端分项门禁是：
+前端只监听 `http://127.0.0.1:5173`，并将 `/api` 代理到本机后端。当前页面会把通过校验的单城市双日请求 POST 到同源 `/api/trip-plans`，随后按 `job_id` 有界轮询并显示服务端真实阶段；15 次自动刷新后暂停，用户可手动继续。三家 provider 配置齐备时，后端会在进程内执行真实规划并发布确定性终态；任一配置缺失时不会调用 provider，任务保持安全的本地状态。前端分项门禁是：
 
 ```powershell
 corepack pnpm --filter @intelligent-travel-assistant/frontend format:check
@@ -112,7 +112,7 @@ corepack pnpm --filter @intelligent-travel-assistant/frontend test
 corepack pnpm --filter @intelligent-travel-assistant/frontend build
 ```
 
-诊断页覆盖加载、连接成功、连接失败和手动重试。Step 10 已在本地 Chromium 中验证 `200 → 后端停止/502 → 后端重启/200` 恢复序列、390px 窄屏无水平溢出和键盘按钮聚焦；Step 14 用户 UAT 再次确认成功、错误、重试恢复、文案和窄屏表现符合预期。它不包含旅行输入、地图、景点或假数据。
+旅行需求表单覆盖城市、开始日期、人数、总预算、兴趣、节奏、市内交通、住宿区域/POI、可选住宿费用、餐饮预算和补充要求；餐饮默认 `100 元/人/天` 且可修改，未知住宿与城际费用映射为 `null`，不会按 0 处理。Step 23–25 已验证输入、轮询、严格终态 DTO，以及 ready/partial 的双日活动、天气、路线和预算卡；Step 26 已展示来源/freshness、warnings、uncertainties、violations、conflict、needs_input 和 failed 安全状态；Step 27 已接通 partial/failed 受控 retry、三次上限、防重复请求和窄屏输入折叠；Step 28–31 已实现 DeepSeek、高德和和风 HTTP adapter，Step 32 已把它们纳入凭证安全的本地启动组合根。预算和路线裁决完全来自服务端快照，前端不重算；unknown 费用显示为“未知”且无金额。桌面与 390px 本地浏览器闭环只访问本机资源。B-000 健康客户端和测试仍保留，但健康诊断页已让位于产品工作台。
 
 ## 统一验证
 
@@ -136,15 +136,17 @@ uv run --project backend --frozen python scripts/check_docs.py --root .
 
 ## 本地配置边界
 
-- 可提交模板是 [`.env.example`](./.env.example)，其中第三方 Key 均为空；
+- 可提交模板是 [`.env.example`](./.env.example)，其中第三方凭证与私钥路径均为空；
 - 真实本地值应写入被 Git 忽略的 `.env.local`，不得提交、截图或复制到文档；
+- DeepSeek 和高德各使用一个后端 Key；和风只接受账户专属 Host、项目 ID、凭据 ID和绝对 Ed25519 私钥路径，不接受旧 `QWEATHER_API_KEY`；
+- 三方配置全空时 provider 状态为 `disabled` 且健康接口可用；配置完整且本地校验通过时为 `ready`；部分配置或非法私钥以稳定错误码拒绝启动，不回显值或路径；
 - 健康检查必须在没有 DeepSeek、高德和和风天气 Key 时工作；
 - 后端默认地址固定为 `127.0.0.1:8000`，不默认监听局域网；
 - Node workspace 使用 `corepack pnpm`，不要依赖 Codex 捆绑运行时提供的裸 `pnpm` 路径。
 
 ## 外部服务状态
 
-高德开放平台和和风天气的账户、应用及 Key 尚未创建，项目也尚未接入 DeepSeek、高德或和风天气。创建账户、配置真实凭证和执行真实 API 验证不属于当前 Step，后续必须单独授权并遵守配额、脱敏和失败隔离规则。
+用户已自行创建 DeepSeek、高德和和风天气账户及本项目专用凭证；真实凭证只存在于 Git 忽略的 `.env.local` 与仓库外私钥文件中。项目已把三家 adapter 按全量配置条件接入任务执行器，并在 Step 38 的一次性授权内完成脱敏 live 契约验证。Step 39 的唯一真实浏览器任务因 DeepSeek `provider_schema_invalid` 安全失败，失败态桌面/窄屏展示有效，但尚无通过式真实数据 UAT。任何后续真实调用仍须单独授权并遵守配额、attribution、脱敏、费用和失败隔离规则。
 
 ## 明确非目标
 

@@ -19,6 +19,8 @@ REQUIRED_DOCUMENTS = (
     "docs/README.md",
     "docs/product-brief.md",
     "docs/architecture.md",
+    "docs/api-contract.md",
+    "docs/acceptance-cases.md",
     "docs/tech-stack.md",
     "docs/design-spec.md",
     "docs/agent-domain-spec.md",
@@ -42,8 +44,12 @@ EXPECTED_CI_ACTIONS = {
 PROVIDER_CREDENTIALS = (
     "AMAP_API_KEY",
     "DEEPSEEK_API_KEY",
-    "QWEATHER_API_KEY",
+    "QWEATHER_API_HOST",
+    "QWEATHER_PROJECT_ID",
+    "QWEATHER_CREDENTIAL_ID",
+    "QWEATHER_PRIVATE_KEY_PATH",
 )
+DEPRECATED_PROVIDER_CREDENTIALS = ("QWEATHER_API_KEY",)
 
 IGNORED_DIRECTORIES = {
     ".git",
@@ -172,7 +178,11 @@ def check_markdown(root: Path) -> list[Issue]:
         text = _read_text(path)
         if len(HEADING_ONE.findall(text)) != 1:
             issues.append(
-                Issue("markdown-structure", relative, "expected exactly one level-one heading")
+                Issue(
+                    "markdown-structure",
+                    relative,
+                    "expected exactly one level-one heading",
+                )
             )
 
         for line_number, line in enumerate(text.splitlines(), start=1):
@@ -192,7 +202,11 @@ def check_markdown(root: Path) -> list[Issue]:
             resolved = (path.parent / link_path).resolve()
             if not resolved.exists():
                 issues.append(
-                    Issue("broken-relative-link", relative, f"target does not exist: {link_path}")
+                    Issue(
+                        "broken-relative-link",
+                        relative,
+                        f"target does not exist: {link_path}",
+                    )
                 )
     return issues
 
@@ -253,8 +267,14 @@ def check_status_consistency(root: Path) -> list[Issue]:
             "docs/project-management/implementation-plan.md",
             r"等待用户批准 Step (\d+)",
         ),
-        "progress": ("docs/project-management/progress.md", r"下一批准动作：Step (\d+)"),
-        "docs-map": ("docs/README.md", r"等待用户批准执行 B-000 Step (\d+)"),
+        "progress": (
+            "docs/project-management/progress.md",
+            r"下一批准动作：Step (\d+)",
+        ),
+        "docs-map": (
+            "docs/README.md",
+            r"等待用户批准执行 [A-Z]+-\d{3} Step (\d+)",
+        ),
     }
 
     issues: list[Issue] = []
@@ -299,7 +319,11 @@ def check_status_consistency(root: Path) -> list[Issue]:
     if len(set(steps.values())) > 1:
         summary = ", ".join(f"{name}=Step {step}" for name, step in sorted(steps.items()))
         issues.append(
-            Issue("status-consistency", "", f"current Step differs across documents: {summary}")
+            Issue(
+                "status-consistency",
+                "",
+                f"current Step differs across documents: {summary}",
+            )
         )
 
     current_step = steps.get("current-task")
@@ -360,6 +384,8 @@ def check_ignore_contract(root: Path) -> list[Issue]:
     issues: list[Issue] = []
     for relative in (
         ".env.local",
+        "local-secrets/qweather-ed25519.pem",
+        "local-secrets/qweather-ed25519.key",
         ".playwright-cli/session.json",
         "backend/.venv/pyvenv.cfg",
         "frontend/dist/index.html",
@@ -373,8 +399,50 @@ def check_ignore_contract(root: Path) -> list[Issue]:
 
     if _git_check_ignore(root, ".env.example"):
         issues.append(
-            Issue("ignore-contract", ".env.example", "credential template must remain committable")
+            Issue(
+                "ignore-contract",
+                ".env.example",
+                "credential template must remain committable",
+            )
         )
+    return issues
+
+
+def check_environment_template(root: Path) -> list[Issue]:
+    path = root / ".env.example"
+    if not path.is_file():
+        return [
+            Issue(
+                "missing-required-project-file",
+                ".env.example",
+                "credential template does not exist",
+            )
+        ]
+
+    text = _read_text(path)
+    issues: list[Issue] = []
+    for variable in PROVIDER_CREDENTIALS:
+        empty_assignment = re.compile(
+            rf"^{re.escape(variable)}=[ \t]*$",
+            re.MULTILINE,
+        )
+        if empty_assignment.search(text) is None:
+            issues.append(
+                Issue(
+                    "environment-template",
+                    ".env.example",
+                    f"{variable} must exist as an empty placeholder",
+                )
+            )
+    for variable in DEPRECATED_PROVIDER_CREDENTIALS:
+        if re.search(rf"^{re.escape(variable)}=", text, re.MULTILINE):
+            issues.append(
+                Issue(
+                    "environment-template",
+                    ".env.example",
+                    f"deprecated field {variable} must not be present",
+                )
+            )
     return issues
 
 
@@ -491,7 +559,11 @@ def check_ci_contract(root: Path) -> list[Issue]:
         issues.append(Issue("ci-contract", CI_WORKFLOW, f"missing required action: {action}"))
     for action in sorted(observed_actions - EXPECTED_CI_ACTIONS):
         issues.append(
-            Issue("ci-contract", CI_WORKFLOW, f"unexpected action in baseline CI: {action}")
+            Issue(
+                "ci-contract",
+                CI_WORKFLOW,
+                f"unexpected action in baseline CI: {action}",
+            )
         )
     for match in action_uses:
         action = match.group("action")
@@ -570,6 +642,7 @@ def collect_issues(root: Path) -> list[Issue]:
         *check_text_files(root),
         *check_status_consistency(root),
         *check_ignore_contract(root),
+        *check_environment_template(root),
         *check_ci_contract(root),
         *check_build_constraints(root),
     ]

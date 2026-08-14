@@ -30,7 +30,14 @@ def test_health_returns_stable_contract() -> None:
 
 
 def test_health_does_not_require_provider_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    for variable in ("DEEPSEEK_API_KEY", "AMAP_API_KEY", "QWEATHER_API_KEY"):
+    for variable in (
+        "DEEPSEEK_API_KEY",
+        "AMAP_API_KEY",
+        "QWEATHER_API_HOST",
+        "QWEATHER_PROJECT_ID",
+        "QWEATHER_CREDENTIAL_ID",
+        "QWEATHER_PRIVATE_KEY_PATH",
+    ):
         monkeypatch.delenv(variable, raising=False)
 
     with TestClient(create_app(make_test_settings())) as client:

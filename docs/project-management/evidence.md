@@ -14,6 +14,41 @@
 
 ## 当前证据状态
 
+### F-001：单城市双日旅行计划垂直切片（进行中）
+
+- 任务状态：`ACTIVE`
+- 当前结论：`PARTIAL`。Step 38 已完成受控真实 API 冒烟；Step 39 已执行但真实数据 UAT 因 DeepSeek Schema 异常 `FAIL`；Step 40 独立 QA、Step 41 离线阻塞修复和 Step 42 文档收口已完成，尚无通过式真实 UAT 或 Git/PR 交付；
+- 分支：`feat/f-001-single-city-two-day-plan`，已形成单一本地提交，未推送、无开放 PR；
+- Step 34 自动化：10 类 Agent 输出 scorecard、目录顺序不变性、四终态各 10 次重复裁决通过；新增 15 项、专项相关 107 项通过。统一门禁包括 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0、后端 729 项 pytest、前端 61 项 Vitest、文档检查器 23 项测试、Ruff format/check、strict mypy、Vite build 和 17 份必需文档契约；
+- Step 35 自动化：新增任务执行端口、五终态 synthetic executor 和轮询可达后继回归；专项后端 20 项、前端 62 项及相关静态门禁通过。Playwright Chromium 经真实本机 POST/GET/retry 验证 ready、partial attempt 2、conflict、needs_input 和 failed，`390×844` 下 `scrollWidth=375`、控制台 0 error/0 warning；动态业务请求仅访问本机 `/api`；
+- Step 36 全量门禁：在项目根目录运行 `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1` 一次通过；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，后端 737 项 pytest、前端 62 项 Vitest、文档检查器 23 项测试，以及锁文件、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build、17 份必需文档和 19 个 Markdown 文件契约全部通过；
+- Step 37 初次就绪审计（2026-08-14）：当时项目内不存在 `.env.local`，六项 provider 配置全部未配置。随后用户自行创建三家账户与凭证；当前 `.env.local` 已被 Git 忽略，无网络启动检查仅输出非敏感状态 `deepseek=ready`、`amap=ready`、`qweather=ready`、`executor=ready`。该证据不证明服务端鉴权或 live 合约；
+- Step 37 费用结论：DeepSeek 2026-08-17 峰谷价下同一调用预算的三家高峰保守上界约 9.274 元、空闲约 4.666 元；用户批准把一次受控 smoke 总费用上限由 5 元提高到 12 元，调用次数保持 DeepSeek 3、高德 16、和风 4，执行前必须重新核价；
+- Step 37 代码补充收口：和风 `metadata.attributions` 现以严格 Schema 原样进入领域/公开来源，固定和风链接和 DeepSeek AI 生成披露按来源显示；真实执行器只在三家 adapter 全量就绪时装配，并通过 fake 端口完成住宿 POI、天气、候选、四段路线、预算、状态与 Repository 离线闭环。当时记录的统一门禁计数为后端 744 项、前端 63 项、文档检查器 23 项；Step 40 发现默认 test app 会固定加载 `.env.local`，因此“未读取凭证或访问 provider”的历史断言不再有充分隔离证据。没有证据表明当时实际发生额外 live 调用，但该门禁必须在 Step 41 修复隔离后重跑；
+- Step 37 高德边界：用户根据高德工程师电话沟通明确确认个人、非商业、本地查询和组合展示合法，无需企业许可；原始响应和持久缓存禁止，转换结果只在进程内保存且重启即失，不公开部署或传播真实数据截图。前端存在高德来源时固定展示“数据来源：高德地图”及官方链接；该证据记录用户明确决策及电话沟通事实，不表述为书面许可书；
+- Step 38 live smoke（2026-08-14）：执行前本地无网络检查为 `deepseek=ready`、`amap=ready`、`qweather=ready`、`executor=ready`。严格只创建一个杭州双日计划；任务首轮终态为 `conflict` 且含结构化计划，脱敏来源计数为高德 3、和风 2、DeepSeek 1、system 1、user 1，无 provider 错误码；确定性校验报告 1 项日程冲突和 2 项路线冲突；
+- Step 38 路线补充证据：候选日程冲突使正常路线补全按设计跳过。为补齐 live 路线契约，仅在同一授权与高德调用预算内执行 1 次固定杭州测试坐标的公交路线探针，结果 `ok`、有数据、距离与时长为正、错误分类为空；未创建第二个计划，未增加 DeepSeek 或和风调用；
+- Step 38 安全边界：没有记录凭证、真实地点、路线值、请求正文或上游响应；没有保存原始响应、持久缓存或真实高德数据截图。Step 38 live 服务契约结论为 `PASS`，但具体计划不能作为 ready 计划或真实数据 UAT 通过证据；
+- Step 39 真实 UAT（2026-08-14）：用户批准沿用一次杭州双日计划、DeepSeek 3、高德 16、和风 4、总费用 12 元上限。桌面只产生一个任务 POST；终态为 `failed`、`attempt=1`、`retryable=false`，唯一错误码为 DeepSeek `provider_schema_invalid`，公开来源脱敏计数为 user 1、system 1、高德 3、和风 2；
+- Step 39 停止与安全：Schema 异常后没有 retry、第二次 POST 或额外 provider 调用。桌面和 `390×844` 均无水平溢出，来源与时效、高德/和风归因、安全失败文案可见；无 DeepSeek 来源时不展示 AI 披露，无 retry 动作，控制台 0 error/0 warning，DOM 无秘密标记；
+- Step 39 产物边界：未保存截图、provider 原始响应、持久缓存、真实地点或路线明细；本次 Playwright 临时 YAML/控制台文件已精确移除，进程与 `8000/5173` 监听均关闭。另发现页脚显示过期 `F-001 · STEP 35`；
+- Step 39 结论：执行完成但 UAT 为 `FAIL`。安全失败和窄屏展示有效，DeepSeek Schema 阻塞使系统没有 ready/partial 真实计划，必须在后续审查/修复 Step 处置后重新取得 live 调用授权；
+- Step 40 独立 QA（2026-08-14）：审查工作区相对 `main` 的全部修改及未跟踪文件，确认 HEAD 仍为 F-001 分支创建时的 main 基线，无提交、推送或 PR。工作区共 119 个变更文件，粗略净新增约 2.44 万行，超过任务卡约 70 文件/5000 行停止阈值；
+- Step 40 DeepSeek 结论：公开 `provider_schema_invalid` 同时可由 adapter envelope 异常和本地候选二次失败产生；安全 `candidate_resolution_error=model_output_invalid` 在发布层丢失，且没有不含原文的安全子原因，因此无法从 Step 39 现有证据判定精确失败字段。未读取、恢复或保存原始响应；
+- Step 40 代码阻塞：默认测试应用加载 `.env.local` 并可能装配真实执行器；DeepSeek 上下文缺少两日窗口、自由文本和真实天气/预警，repair 请求缺少候选 Schema；重复 day offset 未在 provider 前拒绝，天气地点 ID 与查询坐标语义不一致，模型截断/timeout、来源约束和候选日期顺序存在测试或实现缺口；
+- Step 40 离线验证：没有运行可能读取 `.env.local` 的默认统一入口。先以进程内护栏禁用 dotenv source并断言六项 provider 配置为空，再运行全量后端 `744 passed`；冻结运行时为 Python 3.13.3、Node 22.16.0、pnpm 11.19.0，前端 `63 passed`，Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build、uv lock、peer、CI 格式、文档检查器 `23 passed` 和审查前文档契约均通过。按授权只同步四份项目管理文档后，文档检查器仅报告 `docs/README.md` 仍为 Step 40；该文件未在本 Step 修改；
+- Step 40 结论：审查证据充分，建议进入 Step 41 最小修复；当前阻塞再次 live UAT、提交和 PR。修复后必须先在真正不加载本地凭证的默认统一入口重跑，再单独申请一次受控 live 回归；
+- Step 41 离线修复（2026-08-14）：pytest 在导入应用前固定 test composition，不读取 `.env.local`，并自动拒绝非 loopback socket；默认 API 组合根验证三家 provider 均 disabled、执行器为空，显式外网连接负例被阻断。DeepSeek provider envelope 与本地候选失败分别映射为 `provider_schema_invalid`/`model_output_invalid`，安全 `diagnostic_code` 不含原文；generation/repair Schema、截断单次修复、用户时间窗/自由文本/交通/住宿/天气上下文、日期顺序、POI 来源、天气坐标和 timeout 竞争均有离线回归；
+- Step 41 自动化：Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0；在项目根运行 `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1` 一次通过，包含后端 756 项 pytest、前端 64 项 Vitest、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build、17 份必需文档和 19 个 Markdown 契约。全程未读取本地凭证、未访问真实 provider、未保存原始响应、未提交或推送；Step 41 后工作区共 120 个变更文件；
+- Step 42 范围与文档决策（2026-08-14）：用户批准 F-001 作为一个完整垂直切片由单一 PR 交付，并接受当前 120 个变更文件的范围例外。长期 API/Agent/架构/测试契约、roadmap、任务状态、progress 和 evidence 已同步；文档检查器 23 项测试、17 份必需文档/19 个 Markdown 契约及 `git diff --check` 通过，暂存区为空；该例外不授权范围扩张、额外 live 调用或降低质量门禁；
+- Step 43 本地交付（2026-08-14）：统一 `scripts/verify.ps1` 一次通过，运行时为 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，后端 756 项 pytest、前端 64 项 Vitest、文档检查器 23 项及锁、依赖、Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约全部绿色；
+- Step 43 范围与安全：120 个批准文件精确暂存，staged diff 与 `git diff --check` 通过；`.env.local` 保持忽略，Git 未跟踪 `.env.local`、PEM、Key 或 P8 文件，未发现 provider 原始响应或范围外路径。形成单一本地提交，未调用真实 provider、未推送或创建 PR；
+- 官方来源：[DeepSeek 模型与价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing)、[DeepSeek 用户协议](https://cdn.deepseek.com/policies/zh-CN/deepseek-terms-of-use.html)、[DeepSeek 开放平台服务协议](https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html)、[高德服务升级与配额](https://lbs.amap.com/upgrade)、[高德开放平台服务协议](https://lbs.amap.com/pages/terms/)、[和风天气定价](https://dev.qweather.com/docs/finance/pricing/)、[和风天气注明来源](https://dev.qweather.com/docs/terms/attribution/)、[和风天气实时预警响应契约](https://dev.qweather.com/docs/api/warning/weather-alert/)；
+- Step 27 浏览器：本地 Microsoft Edge 使用本机 synthetic partial/failed 响应验证 retry 恢复、双击只产生一次请求、attempt 2、旧终态清理和返回修改焦点；`390×844` 下输入区域折叠、结果优先且无水平溢出，干净会话控制台 0 error/0 warning；
+- 请求边界：Step 35 浏览器业务请求仅为同源任务 API；DeepSeek、高德与和风 adapter 专项测试使用进程内 mock transport。Step 40 发现默认 API 测试组合根可能因 `.env.local` 装配真实执行器；Step 41 已用导入前 `APP_ENV=test`、禁用 dotenv source 和非 loopback socket 阻断关闭该风险，并由统一入口复验；
+- 真实性边界：Step 38 只证明执行时三家鉴权与所触达 live Schema 可用，并证明一次高德公交路线契约；不证明持续可用、全部端点、结果质量或下一次费用。唯一计划的确定性终态是 `conflict`；
+- 未覆盖：ready/partial 真实计划、通过式真实数据 UAT、Step 39 原始失败的精确上游字段、长期配额和费用稳定性、提交、PR、CI 和合并。新的 live 回归仍需单独授权。
+
 ### B-000：项目与工程基线
 
 - 任务状态：`DONE`

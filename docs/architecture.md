@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文件定义 Intelligent Travel Assistant 当前批准的目标架构。B-000 只建立工程基线和接口边界；除健康检查骨架外，本文描述的旅行业务模块、状态机、Repository 和外部适配器都尚未实现。
+本文件定义 Intelligent Travel Assistant 当前批准的目标架构。B-000 建立了工程基线和健康检查；F-001 已冻结 provider-neutral 契约、领域校验和 provider 端口，并建立离线 fake、显式状态机、应用编排、调用治理、DeepSeek 本地严格解析/单次修复、最终确定性裁决、进程内 Repository、任务资源 API、React 旅行需求表单、受控轮询与 retry、五种终态界面，以及按完整本地配置条件装配的 DeepSeek、高德、和风 HTTP adapter 和真实规划执行器。synthetic 五终态已通过真实本机浏览器闭环；Step 38 取得一次脱敏 live 契约证据，Step 39 尚未取得 ready/partial 真实计划 UAT。
 
 ## 系统目标
 
@@ -89,6 +89,9 @@ backend/
       dependencies/
     application/
       commands/
+      ports/
+        models.py
+        providers.py
       services/
       state_machine/
     domain/
@@ -101,12 +104,8 @@ backend/
       orchestrator/
       prompts/
       tool_catalog/
-    ports/
-      llm.py
-      map.py
-      weather.py
-      repositories.py
     adapters/
+      fakes/
       deepseek/
       amap/
       qweather/
@@ -144,7 +143,7 @@ docs/
 
 ## 核心数据模型方向
 
-以下是领域概念，不是 B-000 中要实现的数据库 Schema：
+以下领域概念已在 F-001 Step 3 冻结为 provider-neutral 契约方向，但不是数据库 Schema；动态规则和业务实现仍在后续 Step：
 
 | 模型 | 关键内容 | 核心约束 |
 | --- | --- | --- |
@@ -163,6 +162,55 @@ docs/
 | `DecisionRecord` | decision ID、提议、校验结果和确认状态 | 可解释且关联 trace |
 
 金额使用十进制定点语义；默认币种为人民币 `CNY`，但币种仍作为显式字段。日期和时间使用目的地当地上下文；需要绝对时间时使用带时区值。
+
+### F-001 纯领域基础
+
+Step 5 已在 `domain/foundation.py` 建立不依赖框架的最小领域基础：
+
+- `Money` 和 `CostEntry`：非负 CNY、两位精度、unknown/known/verified 语义；
+- `SourceRecord` 和 `SourceCatalog`：带时区获取时间、有效期顺序、来源 ID 唯一和引用存在性；
+- `Coordinates` 和 `Location`：坐标范围、六位 adcode、非空来源；
+- `RouteLeg`：不同起终点、非负距离、正时长和来源；
+- `WeatherForecast`：最低温不高于最高温，并保留地点和来源；
+- `PlanStructure`：单城市地点目录以及住宿、活动、路线和天气地点引用完整性。
+
+该领域包只依赖 Python 标准库，并由 AST 测试禁止 FastAPI、Pydantic、HTTP、数据库和 provider SDK 依赖。公开 `contracts` 负责序列化，纯 `domain` 负责不变量；应用服务已显式完成请求、候选、终态与公开 DTO 之间的映射，领域层仍不依赖传输模型。
+
+Step 6 在 `domain/trip_request.py` 增加 `TripRequestInput`，负责城市、双日日期、人数、偏好和自由文本的规范化与确定性校验：
+
+- 应用边界必须显式传入评估时刻，领域代码不读取系统当前时间；
+- 评估时刻转换为上海 UTC+08:00 后计算包含边界的 D+1 至 D+5；
+- 公开请求只传 `start_date`，应用映射时派生 `end_date = start_date + 1 day`，领域层仍验证严格顺序和连续性；
+- Windows Python 基线没有内置 IANA tzdata，因此当前及未来五天的上海民用时间使用标准库固定 UTC+08:00 表达，不新增运行依赖；
+- 输入文本先做首尾空白清理，再检查长度和规范化后的重复偏好；不会改变公开 DTO 字段或隐式放宽类型。
+
+Step 7 在 `domain/schedule.py` 增加纯领域时间规则：
+
+- `DailyAvailability` 只接受 day offset 0/1 和无时区的目的地本地时间，开始时间必须严格早于结束时间；
+- `ActivityTimeSlot` 以本地日期和无时区 wall-clock time 表达单日活动，零时长、反向和跨夜活动均拒绝；
+- `TwoDayTimePlan` 要求窗口恰好覆盖 offset 0/1，活动必须属于双日范围并完整落在对应窗口内；
+- 重叠检测按日期分组后在副本上排序，相邻活动允许首尾相接，任何正时长交叠均拒绝，调用方输入顺序保持不变；
+- 窗口按 `day_offset` 匹配而非元组位置，避免反序输入导致日期错绑。
+
+Step 8 在 `domain/route_validation.py` 增加路线链裁决：
+
+- `DailyRoutePlan` 根据“住宿锚点 → 按时间顺序的活动地点 → 住宿锚点”建立期望路线链；
+- 相邻地点相同时不要求无意义的自环路线；不同地点之间必须存在正的可用交通分钟；
+- 已提供路线必须按顺序匹配期望链，额外段、反向段、错端点或乱序段属于确定性冲突；
+- 提供链可以是期望链的有序子序列，未匹配段以 `RouteValidationStatus.MISSING` 和 `ExpectedRouteLeg` 返回，不冒充完整验证；
+- 路线时长可恰好填满“窗口开始至首活动、活动之间、末活动至窗口结束”的间隔，超出一分钟即拒绝；
+- 校验器不调用高德、不补路、不重排活动，也不调整用户时间。
+
+Step 9 在 `domain/budget.py` 增加预算汇总与裁决：
+
+- `BudgetCostItem` 保留费用 ID、类别、可信状态、金额和来源，继续强制 unknown 无金额、known 有金额、verified 有来源；
+- `summarize_budget` 仅累加 verified、estimated 和 user_provided 金额，unknown 只增加 `unknown_count`，不会按零参与合计；
+- 金额先精确转换为整数分后相加，再还原为两位 CNY `Decimal`，不受进程全局 Decimal context 精度影响；
+- `known_total > budget` 时始终为 `over_budget`；否则存在 unknown 为 `budget_indeterminate`；全部已知且不超预算才是 `within_budget`；
+- 已知合计恰好等于预算视为未超支，但若仍有 unknown，结果继续不可判定；
+- 汇总保留调用方费用顺序，不获取或推测任何价格。
+
+自动排程、provider 结果、状态执行和编排仍属于后续 Step。
 
 ## 外部结果契约
 
@@ -187,6 +235,162 @@ source_records: list[SourceRecord]
 - 无法确定有效期时 `valid_until` 为空并产生警告；
 - provider 原始错误映射为稳定项目错误码，原始信息只在脱敏诊断中保留；
 - 适配器必须校验响应 Schema、单位、坐标、时间和枚举后再返回领域数据。
+
+F-001 Step 10 已在 `domain/provider_result.py` 固化 provider-neutral 基础：
+
+- `ProviderResult` 只接受 DeepSeek、高德和和风三类外部 provider；有可用数据时必须提供带时区获取时间和同 provider 来源；
+- `ok` 要求数据且无错误，`partial` 要求可用数据、稳定错误和安全警告，`unavailable` 要求无数据/时间/来源且必须有稳定错误；
+- `ProviderErrorCategory` 将 timeout、rate limited、server、auth、schema、empty result 和 unknown 映射为项目错误码；只有 timeout、rate limited 和 server 可重试；
+- 错误对象不保存 provider 原始 message、异常或 body；警告只允许单行短文本，并拒绝 URL、Authorization 和常见 Key/Token/Secret 标记；
+- 有数据但 `valid_until` 为空时必须明确警告有效期未知；freshness 使用显式评估时刻，`evaluated_at <= valid_until` 为 fresh，之后为 stale；
+- 本模型不定义 provider 端口、不依赖 SDK/HTTP，也不执行重试或外部调用。
+
+F-001 Step 11 已在 `application/ports/` 固化三组窄端口：
+
+- `AmapPort`：`resolve_city`、`search_pois` 和单段 `calculate_routes`；
+- `QWeatherPort`：`get_weather_forecast` 和 `get_current_weather_alerts`；
+- `DeepSeekPort`：`generate_plan_candidate` 和 `repair_plan_candidate` 只返回 provider-neutral 的未信任 `ModelTextOutput`；应用层严格解析后才能形成 `PlanCandidate`，模型不得宣告 ready/partial/conflict/failed 等终态；
+- 所有方法均为异步、只接收一个冻结 typed request，并返回带具体 payload 类型的 `ProviderResult`；
+- 端口 DTO 使用项目自有 dataclass/领域值，不包含裸 dict/Any、Key、JWT、Header、Base URL、HTTP/SDK request 或 provider 私有响应；
+- 端口层禁止依赖 FastAPI、Pydantic、HTTP 客户端、SDK、settings、config、adapters、infrastructure 或环境变量；鉴权、传输和重试仍由后续 adapter 负责。
+
+F-001 Step 12 已在 `adapters/fakes/` 建立三组端口级测试替身：
+
+- 每个端口方法拥有独立的有序 `ProviderResult` 脚本，调用按适配器全局序号记录冻结 typed request 快照；
+- 未配置脚本与脚本耗尽使用不同稳定错误，不提供默认成功、循环返回或隐式兜底；
+- fake 配置强制 provider 匹配、synthetic 警告和 `synthetic_` 来源类型；不可用结果虽没有来源，也必须带 synthetic 警告；
+- fake 不读取环境变量，不访问网络，不 sleep、不自动重试，也不包含真实 provider 转换逻辑；
+- 生产入口不默认装配 fake。它们只服务后续离线状态机与编排测试，不能作为真实服务可用性证据。
+
+F-001 Step 14 已在 `application/services/` 建立最小离线编排边界：
+
+- `OfflinePlanningOrchestrator` 只通过构造函数接收 `AmapPort`、`QWeatherPort` 和 `DeepSeekPort`，不读取配置或选择具体 adapter；
+- 顺序收集城市、POI、天气和当前预警，生成候选后只请求首两个活动间的一段路线；完整住宿往返路线补全仍属于后续 Step；
+- 城市、POI 或 DeepSeek 不可用时进入 `failed`；天气、预警、路线不可用或任一可用结果为 partial 时进入 `partial`；
+- happy 候选停在 `validating`，只有后续确定性校验才能裁决为 `ready`、`partial` 或 `conflict`；
+- 编排 outcome 冻结并保留原始 typed `ProviderResult`，应用层不改写 provider 来源、错误类别或时效信息；
+- 当前编排已接入调用预算、deadline 和一次候选结构修复，但不执行 HTTP retry、Repository 或真实传输行为。
+
+F-001 Step 15 已在 `application/tooling/` 建立调用治理边界：
+
+- 五个 `PlanningToolName` 与 DeepSeek 候选生成/修复组成唯一 capability 集；能力必须匹配允许阶段，字符串构造的未知能力不能进入调用；
+- 每个逻辑调用在端口执行前 reserve permit 并消耗独立预算，拒绝不会触发端口；route permit 同时受活跃数量 2 的限制；
+- 高德/和风 6 秒、DeepSeek 35 秒和任务 90 秒以冻结策略表达；调用前剩余总时限必须覆盖完整单次窗口；
+- 调用完成时再次检查单次与总时限，并输出冻结调用快照；时钟由应用边界注入且必须单调、有限，不读取 wall clock；
+- 当前策略不创建线程、不 sleep、不执行 HTTP timeout 或重试。它无法主动取消永不返回的 await；真实 adapter 必须在传输层配置客户端 timeout，应用层再对其映射结果和总时限进行裁决。
+
+F-001 Step 16 已在 `application/planning/` 建立模型输出信任边界：
+
+- 端口返回的模型文本只在应用解析/修复协调中作为隔离数据存在，不能直接进入领域候选、终态、来源或日志；
+- 本地解析使用精确字段集合并拒绝重复 JSON 键、错误类型、时区时间、非严格双日日期顺序、候选集外地点，以及 POI 白名单以外的活动来源；
+- 模型无权提供 provider、状态、工具调用、路线或新事实；提示控制标记属于不可修复错误，不会把危险文本重放给 repair；
+- generation 与 repair 共享唯一冻结候选 Schema；结构性错误或 `finish_reason=length` 最多调用一次 `repair_plan_candidate`，两者拥有独立预算 1 并共同受任务 90 秒总时限约束；
+- 修复后仍无效时稳定发布 `model_output_invalid`；adapter HTTP/envelope Schema 失败保持 `provider_schema_invalid`，可选诊断只保存项目自有无值枚举，错误结果不携带原始文本；
+- 规划上下文显式携带两日窗口、自由偏好、交通方式、住宿锚点、逐日天气/当前预警和 POI-only `activity_source_ids`，不得用占位摘要替代已取得的天气事实；
+- 本边界仍完全 provider-neutral，不导入 DeepSeek SDK、HTTP、Prompt 模板、配置或凭证。
+
+F-001 Step 17 已完成候选到确定性终态的应用边界：
+
+- 请求显式携带住宿锚点、两日时间窗口、费用项和数据评估时刻；应用不设置隐藏住宿、窗口、费用或 freshness 默认值；
+- 路线补全从纯领域 `expected_legs()` 推导住宿往返链，缺坐标不调用 provider，其他路段逐个受现有预算、阶段和 deadline 治理；
+- 每个路线结果必须绑定预期起终点、请求模式和本次响应来源；无效或不可用结果不进入路线链，也不转换为零分钟；
+- 最终校验复用两日时间、路线连续性和 Decimal 预算规则，并验证 POI 城市/候选、天气日期/地点、来源引用及显式 freshness；
+- 零 issue 才可 `ready`；事实缺失/unknown/过期为 `partial`；超预算、时间/路线硬冲突或引用越权为 `conflict`，且 conflict 优先；
+- 所有终态仍经同一状态机从 `validating` 进入，DeepSeek 和 provider 不能声明或覆盖裁决。
+
+F-001 Step 18 已在 `application/repositories/` 与 `adapters/repositories/` 建立临时任务边界：
+
+- 应用层 Protocol 只暴露原子创建/复用、按 job ID 读取、受版本保护的推进和 retry；具体适配器不泄漏给 API 或 Agent；
+- 规范化 typed 请求排除 `client_request_id` 后序列化为排序 canonical JSON，并仅保留 SHA-256 摘要；请求正文、Prompt、provider 数据和凭证不进入指纹；
+- 单进程适配器用异步锁原子化 client ID 预留，同 ID/同请求返回已有不可变快照，同 ID/异请求稳定冲突；
+- job 以 version 防止并发丢失更新，普通推进和 retry 都委托唯一状态机；retry 最多 3 个 attempt，并保留 job/client ID、更新 trace；
+- 该实现不跨重启、不跨进程，不包含 SQLite、migration、后台 worker 或 HTTP；F-002 的 SQLite adapter 必须实现同一应用端口而不改变本任务幂等语义。
+
+F-001 Step 19 已在 `api/` 建立进程内任务的 HTTP adapter：
+
+- `app.py` 是唯一组合根，每个应用实例默认获得独立的 `InMemoryPlanningJobRepository`；测试可注入应用端口，不需要 provider 配置；
+- POST、GET 和 retry 路由只依赖 `PlanningJobRepository` 与可选的窄 `PlanningJobExecutor` 应用端口，不导入离线编排服务、provider 端口/fake、数据库或网络客户端；
+- job 到 `TripPlanResponse` 的映射只公开请求摘要和可观察任务字段，不公开规范化请求、指纹或内部 version；
+- Repository 的幂等、未找到、retry 策略和未知错误分别映射为固定 409、404、409 和 500 envelope；请求 Schema 错误统一映射为 422，原始验证细节不返回；
+- 未注入 executor 时 POST 只登记 `draft`；注入时只有新建 job 会通过 FastAPI background task 调度一次，幂等复用不重复调度，retry 成功后重新调度同一 job。该机制不是持久化队列，进程退出会丢失在途任务。
+
+F-001 Step 20 已建立终态结果快照和 API 映射边界：
+
+- `PlanningJobResult` 只接受 ready、partial、conflict、needs_input、failed，并冻结各状态的 plan、诊断和 retryable 组合；
+- 结果快照校验全部公开来源/地点引用和敏感赋值文本；Repository 还验证计划日期、预算及 resolved destination 与原请求/计划一致；
+- 只有 `record_result` 能把合法前置状态推进到终态并原子保存载荷；普通状态推进不能创建无载荷终态；
+- GET/重复 POST 从快照恢复完整公开结果；retry 清空旧快照后返回 normalizing，避免展示上一 attempt 的计划和错误；
+- Step 35 已用只供验收的 `SyntheticPlanningJobExecutor` 把五个冻结结果沿合法状态路径写入 job，并通过真实浏览器 POST/GET/retry 验证边界；默认应用不注入该 fake。Step 37 已实现 `ProviderPlanningJobExecutor`，三家 adapter 全部就绪时才由组合根装配并写入真实编排终态。
+
+F-001 Step 24 已建立浏览器侧任务跟踪边界：
+
+- 严格 TypeScript client 只调用同源 `POST /api/trip-plans` 和 `GET /api/trip-plans/{job_id}`，拒绝额外字段、非法日期时间、未知错误码和不一致任务标识；
+- 前端只展示服务端实际返回的 `draft`、`normalizing`、`collecting`、`planning`、`enriching_routes`、`validating` 或终态，并校验允许的状态跃迁，不从计时器推测进度；
+- 每两秒最多自动刷新 15 次，终态立即停止，超限后暂停并允许用户手动继续；新请求、卸载和重置通过 `AbortController` 取消在途工作；
+- 未装配 executor 时后端 POST 只产生 `draft`；装配 synthetic 或真实执行器时，前端只消费服务端返回的合法阶段和终态。测试中的阶段推进使用可编程 HTTP 替身或 synthetic executor，不冒充 live provider 能力。
+
+F-001 Step 25 已建立终态结果展示边界：
+
+- 前端对 resolved destination、双日计划、活动、天气、预警、路线、预算、费用、来源引用和诊断字段逐层执行严格 guard，并校验计划日期、目的地、预算和地点引用与请求摘要一致；
+- ready/partial 结果组件只消费服务端快照，金额保持 Decimal 字符串展示，前端不重新裁决预算、路线或终态；`unknown` 无金额并显示为“未知”；
+- 窄屏按冻结设计优先展示结果，桌面保持输入/结果双栏；
+- 浏览器终态证据来自本机拦截的冻结后端 synthetic fixture，不代表 POST 已具备执行规划的能力。
+
+F-001 Step 26 已建立诊断、来源和失败展示边界：
+
+- 前端复核五种终态的 plan/diagnostics/retryable 组合，拒绝重复来源 ID 和所有悬空来源引用；conflict 允许按后端契约携带计划但不强制 resolved destination；
+- 所有来源逐条展示 provider、类型、获取时间、有效截止和 freshness；warnings、uncertainties、violations 和安全 errors 不混成成功结论；
+- conflict 不展示未通过校验的候选为可执行行程；needs_input 指向缺失字段；failed 不显示原始响应、凭证或内部异常；
+- Step 26 只展示 retryable 恢复边界；真实 retry 调用已在 Step 27 受控接通。
+
+F-001 Step 27 已建立前端重试和窄屏恢复边界：
+
+- 只有服务端声明 retryable 的 partial/failed 且 attempt 小于 3 才出现重试入口；client 只调用同源任务 retry 资源；
+- 重试同步加锁并立即移除旧终态，服务端快照必须复用 job/client ID、递增一次 attempt、更换 trace，且清空上一尝试的计划、来源和诊断；后续轮询不得改变该 attempt/trace；
+- 409、网络失败、非法快照和三次上限均稳定停止，不自动递归重试、不创建替代 job，也不恢复陈旧计划；
+- 920px 以下非初始状态结果优先并折叠输入，展开入口保留 `aria-expanded`；返回修改根据安全字段映射恢复焦点，桌面双栏不变。
+
+F-001 Step 28 已在 `adapters/providers/` 建立 DeepSeek 传输边界：
+
+- adapter 实现现有 `DeepSeekPort`，使用异步 `httpx2` 调用正式 `/chat/completions`，固定 `deepseek-v4-flash`、关闭 thinking、JSON object 输出、8000 token 上限、35 秒 timeout、禁止 redirect 和环境代理；
+- API Key 和配置由构造函数显式注入，配置对象隐藏 Key；adapter 不读取环境，由组合根按全量配置条件装配，缺少真实凭证不影响健康检查或任务资源 API；
+- 结构化 planning context、observation 和待修复输出只作为不可信 user data 发送；system prompt 不接受 provider 文本，模型没有 tool call 能力；
+- 每个生成/修复端口调用只执行一次 HTTP 尝试，不 sleep 或自动重试。应用层仍独立治理逻辑生成/修复预算与总 deadline，HTTP 失败矩阵与扩展重试策略留给 Step 33；
+- 只有通过状态码、大小、JSON、模型、唯一 choice、结束原因、角色、无 tool/reasoning 内容和非空文本校验的响应才形成 `ModelTextOutput`；上游错误 body、异常和凭证不进入 `ProviderResult`、日志或文档；
+- 成功结果的模型来源没有可证明的固定有效期，因此 `valid_until` 保持为空并携带明确警告；本离线证据不证明真实 DeepSeek 服务、模型权限或响应质量。
+
+F-001 Step 29–30 已在同一 provider adapter 包建立高德城市、POI 与路线传输边界：
+
+- `AmapAdapter` 当前实现 `resolve_city`、`search_pois` 与 `calculate_routes`；正式 Host 固定为 `restapi.amap.com`，地理编码使用 v3，POI 与路线规划使用 v5 2.0，客户端 timeout 为 6 秒；
+- 城市解析必须得到唯一城市级结果；普通城市要求 `level=市`，北京、上海、天津、重庆兼容 provider 把 `city` 返回空数组并把直辖市放在 `province` 的结构差异；
+- POI 搜索按 city adcode 强限制，只取第一页且最多 25 条；F-001 项目类别只映射 `scenic_area -> 110000` 与 `museum -> 140100`，不允许任意项目字符串穿透为 provider typecode；
+- 高德 POI ID 经固定 namespace UUIDv5 转为稳定项目 ID；provider 区县 adcode 必须属于请求城市，结果的项目 `city_adcode` 保持城市级语义；异城、Schema 坏记录和重复 ID 有剩余候选时产生 partial，无剩余候选则不可用；
+- 高德原生坐标显式标为 `provider_native`；缺失坐标保留 `None`，后续路线/天气按事实缺失降级，不由 adapter 猜测；
+- 城市解析保留高德 `citycode`，公共交通请求显式提供 `city1/city2`；F-001 单城市切片将同一已解析 citycode 传到两端，不执行隐藏反向地理编码，也不从 adcode 猜 citycode；
+- 路线只接收项目允许的步行/公共交通模式与 provider-native 坐标；分别调用 v5 walking 和 transit integrated，要求唯一选项及响应回显端点与请求精确一致；距离按整数米保留，`cost.duration` 秒数以纯整数向上取整为分钟，provider 附带票价不进入预算事实；
+- `RouteLeg.source_ids` 与对应 `SourceRecord.source_id` 使用同一 ID；路线有效期未知并明确警告，无路线 infocode 映射为 `empty_result`，坏 Schema 不进入领域层；
+- HTTP 状态和 HTTP 200 内的 `infocode` 都映射为项目安全错误，每个端口调用只执行一次 HTTP 尝试；Key、上游 info/body 和异常不进入领域结果、日志或来源；
+- adapter 配置仍由构造函数注入并由组合根按全量配置条件装配。本地实现不证明账户、Web Service Key、POI 2.0 权限、配额或持续 live 数据质量。
+
+F-001 Step 31 建立和风天气 JWT、预报与预警传输边界：
+
+- `QWeatherAdapter` 实现 `get_weather_forecast` 与 `get_current_weather_alerts`，只接受账户专属 `*.qweatherapi.com` Host；httpx2 固定 6 秒 timeout、禁 redirect/环境代理且每个端口调用一次 HTTP 尝试；
+- 鉴权使用 Ed25519 PKCS8 私钥生成 15 分钟 JWT，Header 仅含 `alg/kid`，Payload 仅含 `sub/iat/exp`，并只在 Bearer Header 中传输；adapter 不支持旧 API Key，也不读取环境或私钥文件；
+- 中国大陆按和风官方坐标约定复用高德 GCJ-02/provider-native 坐标，确定性四舍五入到两位；当前逐日预报使用 `/weather/v1/daily/{latitude}/{longitude}`，固定取 7 日、本地时间和中文，再只映射请求双日；
+- 预报日期、时区、摄氏温度和昼夜条件全部通过本地 Schema；缺日/坏记录只产生带来源的 partial，不补造事实；预报响应没有固定有效期，保持 unknown validity；
+- 当前预警使用 `/weatheralert/v1/current/{latitude}/{longitude}`；`zeroResult=true` 是带来源的成功空快照，重复、坏格式或 `expireTime <= fetched_at` 的记录不作为当前预警，非空结果的 `valid_until` 取最早失效时间；
+- HTTP/传输/Schema 错误映射为项目稳定分类，私钥、JWT、上游 body 与异常不进入结果；Step 37 补充收口要求 `metadata.attributions` 安全且非空并原样进入领域/公开来源，缺失或非法即拒绝结果，UI 与对应天气/预警共同展示固定和风链接与原始归因；
+- Step 31 本身只建立 adapter，没有进入 `app.py`；随后 Step 32 完成私钥路径读取、JWT 环境字段、启动检查和组合根装配。两者都不证明账户、凭据、Host、额度、权限或 live 数据质量。
+
+F-001 Step 32 建立本地配置与组合根边界：
+
+- 本地运行的 `Settings` 只自动读取项目根部被 Git 忽略的 `.env.local` 和当前进程环境；`APP_ENV=test` 时明确禁用 dotenv source，只接受测试进程环境，第三方敏感字段不参与对象 `repr`；
+- DeepSeek 和高德以各自 Key 为独立配置组；和风以账户 Host、项目 ID、凭据 ID和绝对 Ed25519 私钥路径为一个原子配置组；
+- 配置组全空时标记 `disabled`，FastAPI 和精确健康契约仍可启动；完整且通过 adapter 本地校验时标记 `ready` 并在应用组合根创建 adapter；部分配置或非法 Key/Host/ID/路径/PEM 使启动以稳定错误码失败；
+- 和风 PEM 仅在组合根按显式绝对路径读取，读取前限制为普通文件和 16 KiB 上限；PEM 内容、Key、账号标识和路径不进入启动报告、异常文本或 `repr`；
+- 启动检查只做本地结构、文件和密码材料校验，不发网络请求，不证明授权、配额、条款、Host 可达性或 provider 可用性；Step 32 当时尚未接入任务 POST，Step 37 补充收口按下述全量就绪条件完成了执行器装配。
+
+Step 37 补充收口已把真实 provider 执行器接入组合根：仅当 DeepSeek、高德、和风三组 adapter 全部存在时，任务 POST/retry 才调度 `ProviderPlanningJobExecutor`；否则执行器保持 `None`。执行器通过应用端口驱动既有单编排器，先把住宿文本解析为同城高德 POI 锚点，再收集景点/天气/预警、请求 DeepSeek 候选、补全路线、执行确定性预算和终态校验，最后经 Repository 唯一写入口发布。该路径已由离线 fake 测试证明，并在 Step 38 取得一次受控 live 契约证据；不代表持续可用或 ready/partial 真实计划已通过 UAT。
 
 ## 外部服务职责
 
@@ -236,6 +440,10 @@ LLM 输出必须先通过 Schema 和领域校验。校验器结果是硬边界�
 
 ## 显式状态机
 
+F-001 当前子集以 [api-contract.md](./api-contract.md) 和代码中的 `ALLOWED_PLANNING_TRANSITIONS` 为准，包含新增的 `enriching_routes`，且不包含局部重规划状态。下表还展示 F-002/F-003 之后的目标扩展，不能作为 F-001 已实现状态。
+
+Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转换的应用层裁决入口。它直接读取冻结转换表，不维护第二份状态图；输入和结果均为冻结 typed value。`partial` 与 `failed` 的恢复边只有在显式 retry 且任务被标记为可重试时才成立，其他普通边拒绝 retry 触发。状态机本身无任务存储、attempt、trace、provider 或时钟副作用；完整轨迹与持久化仍由后续应用用例负责。
+
 | 状态 | 含义 | 允许的主要下一状态 |
 | --- | --- | --- |
 | `draft` | 用户仍在输入 | `normalizing` |
@@ -273,15 +481,15 @@ LLM 输出必须先通过 Schema 和领域校验。校验器结果是硬边界�
 - `provider_rate_limited`：第三方限流；
 - `provider_timeout`：调用超时；
 - `provider_unavailable`：服务不可用；
-- `provider_schema_invalid`：响应不能通过项目 Schema；
+- `provider_schema_invalid`：provider HTTP/响应 envelope 不能通过 adapter Schema；
 - `data_missing`：请求成功但关键数据缺失；
 - `data_stale`：数据超过允许时效；
-- `model_output_invalid`：模型输出格式或字段不合法；
+- `model_output_invalid`：模型输出 JSON、日期/时间、POI/来源引用或字段不合法，唯一一次修复后仍失败；
 - `constraint_conflict`：计划违反不能自动解决的约束；
 - `budget_incomplete`：存在未知费用，无法判断完整预算；
 - `confirmation_required`：变更超过自动重规划边界。
 
-重试只用于明确可重试的网络、超时或限流错误，并设置次数、退避和总时限。鉴权失败、Schema 不合法、硬约束冲突和用户确认不能通过盲目重试解决。
+重试只用于明确可重试的网络、超时或限流错误，并设置次数、退避和总时限。鉴权失败、Schema 不合法、硬约束冲突和用户确认不能通过盲目重试解决。公开错误可附项目自有的安全 `diagnostic_code`，但不得记录 provider 原文、字段值、Prompt、凭证、异常或堆栈。
 
 ## 可观测性
 
@@ -334,6 +542,8 @@ MCP 不是 MVP 的必需组件。第一版优先使用进程内端口和适配�
 - API：离线集成测试；
 - Web UI：组件状态和用户流程测试；
 - live smoke：独立标记、显式凭证、默认关闭，不进入普通 CI。
+
+pytest 在导入应用前固定 `APP_ENV=test`，禁止读取 `.env.local`，并由自动 fixture 拒绝非 loopback socket；这两层护栏共同防止本机已有真实凭证时默认测试误装配 provider 或产生费用。
 
 详细选择、门禁和证据规则由 B-000 Step 6 的 `testing-strategy.md` 定义。
 

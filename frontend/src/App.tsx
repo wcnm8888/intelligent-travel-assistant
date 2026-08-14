@@ -1,150 +1,146 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 
-import { fetchHealth, type HealthPayload } from "./health";
+import { PlanningStage } from "./PlanningStage";
+import { TripRequestForm } from "./TripRequestForm";
+import type { TripPlanningApi } from "./tripPlanningApi";
+import {
+  DEFAULT_POLLING_POLICY,
+  useTripPlanningJob,
+  type PollingPolicy,
+} from "./useTripPlanningJob";
 import "./styles.css";
 
-type HealthState =
-  | { phase: "loading" }
-  | { phase: "success"; payload: HealthPayload }
-  | { phase: "error" };
-
 interface AppProps {
-  checkHealth?: () => Promise<HealthPayload>;
+  createClientRequestId?: () => string;
+  tripPlanApi?: TripPlanningApi;
+  pollingPolicy?: PollingPolicy;
 }
 
-export function App({ checkHealth = fetchHealth }: AppProps) {
-  const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<HealthState>({ phase: "loading" });
+export function App({
+  createClientRequestId,
+  tripPlanApi,
+  pollingPolicy = DEFAULT_POLLING_POLICY,
+}: AppProps) {
+  const { state, start, resume, retry, reset } = useTripPlanningJob(
+    tripPlanApi,
+    pollingPolicy,
+  );
+  const [requestExpanded, setRequestExpanded] = useState(false);
+  const requestPanel = useRef<HTMLElement>(null);
+  const busy =
+    state.phase === "submitting" ||
+    state.phase === "retrying" ||
+    state.phase === "tracking";
+  const resultFirst = state.phase !== "idle";
+  const requestCollapsed = resultFirst && !requestExpanded;
 
-  useEffect(() => {
-    let isCurrent = true;
-
-    void checkHealth().then(
-      (payload) => {
-        if (isCurrent) setState({ phase: "success", payload });
-      },
-      () => {
-        if (isCurrent) setState({ phase: "error" });
-      },
-    );
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [attempt, checkHealth]);
-
-  const isLoading = state.phase === "loading";
-  const retry = () => {
-    setState({ phase: "loading" });
-    setAttempt((value) => value + 1);
+  const returnToRequest = (field: string | null = null) => {
+    reset();
+    setRequestExpanded(true);
+    const target =
+      field === "accommodation.area_or_poi" ? "accommodation" : field;
+    window.setTimeout(() => {
+      const permitted = new Set([
+        "city",
+        "startDate",
+        "travelers",
+        "totalBudget",
+        "transportModes",
+        "accommodation",
+        "oneNightCost",
+        "mealBudgetPerPersonPerDay",
+        "freeText",
+      ]);
+      const safeTarget = target && permitted.has(target) ? target : "city";
+      requestPanel.current
+        ?.querySelector<HTMLElement>(`[data-field="${safeTarget}"]`)
+        ?.focus();
+    }, 0);
   };
 
   return (
-    <main className="shell">
-      <div className="topographic-lines" aria-hidden="true" />
+    <div className="product-shell">
+      <a
+        className="skip-link"
+        href="#trip-request-form"
+        onClick={() => setRequestExpanded(true)}
+      >
+        跳到旅行需求表单
+      </a>
 
-      <header className="masthead">
-        <div className="wordmark">
-          <span className="wordmark-mark" aria-hidden="true">
-            行
-          </span>
-          <div>
-            <p className="eyebrow">INTELLIGENT TRAVEL ASSISTANT</p>
-            <p className="wordmark-title">本地旅行控制台</p>
-          </div>
+      <header className="product-header">
+        <div className="product-wordmark">
+          <p>LOCAL TRAVEL DECISION DESK</p>
+          <h1>
+            旅笺 <span>Intelligent Travel Assistant</span>
+          </h1>
         </div>
-        <span className="environment-badge">LOCAL · 仅本机</span>
+        <dl className="runtime-facts">
+          <div>
+            <dt>运行方式</dt>
+            <dd>仅本机</dd>
+          </div>
+          <div>
+            <dt>当前范围</dt>
+            <dd>单城市 · 双日</dd>
+          </div>
+          <div>
+            <dt>币种</dt>
+            <dd>CNY</dd>
+          </div>
+        </dl>
       </header>
 
-      <section className="hero" aria-labelledby="diagnostic-title">
-        <div className="hero-copy">
-          <p className="section-index">工程诊断 / 01</p>
-          <h1 id="diagnostic-title">出发以前，先确认系统在线。</h1>
-          <p className="hero-description">
-            这里不会生成行程，也不会连接任何旅行数据服务。它只验证浏览器能否抵达本机
-            FastAPI 服务。
-          </p>
-        </div>
-
-        <div className="compass" aria-hidden="true">
-          <span>N</span>
-          <i />
-        </div>
-      </section>
-
-      <section className="diagnostic-grid" aria-label="本地服务状态">
-        <article className={`status-panel status-panel--${state.phase}`}>
-          <div className="panel-heading">
-            <div>
-              <p className="panel-kicker">CONNECTION STATUS</p>
-              <h2>本地 API</h2>
-            </div>
-            <span className="status-light" aria-hidden="true" />
-          </div>
-
-          <div className="status-message" aria-live="polite" aria-atomic="true">
-            {state.phase === "loading" && (
-              <div role="status">
-                <p className="status-title">正在检查本地 API</p>
-                <p>请求已发往 127.0.0.1，请稍候。</p>
-              </div>
-            )}
-
-            {state.phase === "success" && (
-              <div role="status">
-                <p className="status-title">连接正常</p>
-                <p>前端已就绪，后端健康响应有效。</p>
-                <dl className="service-facts">
-                  <div>
-                    <dt>服务标识</dt>
-                    <dd>{state.payload.service}</dd>
-                  </div>
-                  <div>
-                    <dt>响应状态</dt>
-                    <dd>{state.payload.status.toUpperCase()}</dd>
-                  </div>
-                </dl>
-              </div>
-            )}
-
-            {state.phase === "error" && (
-              <div role="alert">
-                <p className="status-title">后端暂时无法连接</p>
-                <p>请确认本地 FastAPI 已启动，然后重新检查。</p>
-              </div>
-            )}
-          </div>
-
+      <main
+        className={`planning-workspace${
+          resultFirst ? " planning-workspace--result" : ""
+        }`}
+      >
+        <section
+          className="request-panel"
+          data-collapsed={requestCollapsed}
+          id="trip-request-form"
+          aria-label="旅行需求"
+          ref={requestPanel}
+          tabIndex={-1}
+        >
           <button
-            className="check-button"
+            className="request-panel-toggle"
             type="button"
-            disabled={isLoading}
-            onClick={retry}
+            aria-controls="trip-request-fields"
+            aria-expanded={!requestCollapsed}
+            onClick={() => setRequestExpanded((current) => !current)}
           >
-            <span>{isLoading ? "检查进行中" : "重新检查"}</span>
-            <span aria-hidden="true">→</span>
+            <span>{requestCollapsed ? "查看旅行需求" : "收起旅行需求"}</span>
+            <span aria-hidden="true">{requestCollapsed ? "+" : "−"}</span>
           </button>
-        </article>
-
-        <aside className="boundary-panel" aria-labelledby="boundary-title">
-          <p className="panel-kicker">BOUNDARY NOTE</p>
-          <h2 id="boundary-title">本页能证明什么</h2>
-          <ul>
-            <li>React 前端可以运行</li>
-            <li>本机后端健康接口可达</li>
-            <li>失败后可以由用户重试</li>
-          </ul>
-          <div className="boundary-warning">
-            <span aria-hidden="true">!</span>
-            <p>不代表天气、地图、模型或旅行规划能力已经可用。</p>
+          <div className="request-panel-body" id="trip-request-fields">
+            <TripRequestForm
+              onSubmit={(request) => {
+                setRequestExpanded(false);
+                void start(request);
+              }}
+              createClientRequestId={createClientRequestId}
+              submitting={busy}
+            />
           </div>
-        </aside>
-      </section>
+        </section>
 
-      <footer className="footer-note">
-        <span>B-000 · PROJECT BASELINE</span>
-        <span>数据请求范围：本机 /api/health</span>
+        <PlanningStage
+          state={state}
+          onResume={() => void resume()}
+          onRetry={() => {
+            setRequestExpanded(false);
+            void retry();
+          }}
+          onReset={returnToRequest}
+        />
+      </main>
+
+      <footer className="product-footer">
+        <span>F-001 · 单城市双日计划</span>
+        <span>计划、来源、时效与冲突均来自服务端终态 · 不推测缺失事实</span>
       </footer>
-    </main>
+    </div>
   );
 }
