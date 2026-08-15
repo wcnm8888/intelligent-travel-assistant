@@ -5,14 +5,14 @@
 - 所属任务：`F-001 单城市双日旅行计划垂直切片`
 - 变更类型：架构变更控制
 - 任务等级：`L` 级任务内的高风险跨层变更
-- 当前状态：`IMPLEMENTED / OFFLINE_VERIFICATION_COMPLETE / REVIEW_FINDINGS_RESOLVED / DELIVERY_PENDING`
+- 当前状态：`IMPLEMENTED / REVIEWED / READY_FOR_REVIEW`
 - 关联决策：`D-009`
 - 当前分支：`feat/f-001-cr1-deterministic-scheduling`
-- 当前 Draft PR：[#4](https://github.com/wcnm8888/intelligent-travel-assistant/pull/4)
+- 当前 stacked PR：[#5](https://github.com/wcnm8888/intelligent-travel-assistant/pull/5)，base 为 `feat/f-001-single-city-two-day-plan`；上层 PR：[#4](https://github.com/wcnm8888/intelligent-travel-assistant/pull/4)
 - 设计 Step：补充 `Step 45G`
-- 实施 Step：补充 `Step 45H`，已完成纯离线实现；Step 45I 独立 QA 已完成，最小修复、提交和 stacked PR 仍待批准
+- 实施 Step：补充 `Step 45H`，已完成实现；Step 45I–45X 已完成 QA、修复、提交、远程 CI、UAT 和文档收口；等待 stacked 合并
 
-本变更卡的获批详细设计已经由 Step 45H 实现。实现没有改变公开 API、Repository 或 UI Schema，也没有调用真实 provider。Step 45I 未发现 P0/P1 生产缺陷，但发现阻塞交付的 P2 测试缺口和文档漂移；需先单独批准最小离线修复，新的 live UAT、提交、推送和 stacked PR 写入仍必须分别获得授权。
+本变更卡的获批详细设计已经由 Step 45H 实现。实现没有破坏公开 API 端点或 DTO 字段形状，但记录了路线数值安全上界和 `planning → needs_input` 的兼容性语义调整。PR #5 已完成提交、推送、Windows CI 和独立远程 review；Step 45T 真实 UAT 为 PASS（完整双日 partial，非关键 unknown 未按 0），当前等待按 stacked 顺序合并。
 
 ## 用户目标和工程价值
 

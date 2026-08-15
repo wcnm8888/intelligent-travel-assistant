@@ -296,7 +296,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-009：将精确时间骨架迁移给确定性代码
 
-- 状态：`IMPLEMENTED_OFFLINE`；F-001-CR1 已在 stacked implementation branch 实现，独立 QA、提交、PR 和 live 复验尚未完成
+- 状态：`IMPLEMENTED_AND_REVIEWED`；F-001-CR1 已在 stacked implementation branch 实现，PR #5 已提交、推送、远程 CI 与独立 review 通过，Step 45T live UAT 为 PASS，等待 stacked 合并
 - 日期：2026-08-15
 - 适用范围：F-001 双日候选的活动时间责任边界
 
@@ -318,7 +318,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 ### 当前后果
 
 - 生产编排已迁移到 `PlanProposal → route facts → deterministic scheduler → PlanCandidate`；旧精确时间 parser 只保留迁移回归，不再是正常路径；
-- 在 F-001-CR1 策略获批并完成离线实施前，不再继续纯 Prompt 调优或申请新的 live UAT；
-- Step 46、ready-for-review 和合并继续阻塞。
+- 在 F-001-CR1 策略获批并完成实现、review 和受控 UAT 后，不再继续纯 Prompt 调优；新的 live 调用仍须单独授权；
+- Step 46 仍需用户批准，处理顺序为 PR #5 合并到功能分支，再复验并合并 PR #4 到 `main`；F-001 在归档前保持 `PARTIAL`。
 
 批准的实施边界为：每日最多 2 项；时长 `60/120/180` 分钟且景区、博物馆缺省 120 分钟；步行/公交每段缓冲 10/15 分钟；每天最多移除一次最低优先级 optional 并公开 warning；required 容量不足为 conflict、unknown 时长为 needs_input；无可用路线为 failed，只有携带合法 `RouteLeg` 的 partial 数据可形成 partial 计划。交付采用 stacked PR，并批准 Step 45H 的 24–34 文件、1200–2200 行范围例外。详细设计见 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md)。

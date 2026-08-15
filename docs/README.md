@@ -58,7 +58,7 @@ AGENTS.md
 | 项目路线 | 当前 | 候选任务、优先级、依赖和阶段目标 | 用户确认优先级或范围变化 | 只保留短摘要 | [roadmap.md](./project-management/roadmap.md) |
 | 当前任务 | 当前 | 唯一活动任务卡、批准范围、验收标准和 Step 地图 | 当前任务、批准状态或 Step 变化 | 不混入已关闭任务历史 | [current-task.md](./project-management/current-task.md) |
 | 当前计划 | 当前 | 当前任务的可验证执行步骤、结果和停止条件 | 当前任务计划或 Step 结果变化 | 不追加逐轮日志 | [implementation-plan.md](./project-management/implementation-plan.md) |
-| F-001-CR1 变更卡 | 已离线实施、待审查 | D-009 确定性排程迁移的职责、DTO、算法、失败策略、范围和实施证据 | 独立 QA、提交、stacked PR 或变更关闭 | 作为 F-001 任务内变更控制记录，任务关闭时随实施计划归档 | [f-001-cr1-deterministic-scheduling.md](./project-management/f-001-cr1-deterministic-scheduling.md) |
+| F-001-CR1 变更卡 | 已实现、已审查、待 stacked 合并 | D-009 确定性排程迁移的职责、DTO、算法、失败策略、范围和实施证据 | 变更交付状态或任务关闭 | 作为 F-001 任务内变更控制记录，任务关闭时随实施计划归档 | [f-001-cr1-deterministic-scheduling.md](./project-management/f-001-cr1-deterministic-scheduling.md) |
 | 项目进度 | 当前 | 当前状态、最近完成、阻塞和下一批准动作 | Step 收口或阻塞变化 | 只保留最近摘要 | [progress.md](./project-management/progress.md) |
 | 验收证据 | 当前 | 可复现的最终验证结论、环境和命令索引 | 产生可保留的验收证据 | 允许按任务保留 | [evidence.md](./project-management/evidence.md) |
 | 决策记录 | 当前 | 长期有效的重要决策、理由、取舍和后果 | 产生或废止重要决策 | 追加决策记录 | [decisions.md](./decisions.md) |
@@ -92,8 +92,8 @@ AGENTS.md
 
 - 当前活动任务：`F-001 单城市双日旅行计划垂直切片`
 - 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
-- 当前已完成 Step：F-001 Step 0 至 Step 45，以及补充 Step 45A–45U；D-009 已由 stacked Draft PR #5 交付并通过既有 review/远程 CI，Step 45T 是最新 live UAT且结论为 `PASS`
-- 当前明确未完成：Step 45N–45U 精确提交/推送与新 head 远程复验、PR ready、stacked PR 处理、合并与归档门禁；120 文件范围停止阈值已由用户批准本次单 PR 例外
+- 当前已完成 Step：F-001 Step 0 至 Step 45，以及补充 Step 45A–45X；D-009 已由 stacked PR #5 提交、远程复验并完成独立 review，Step 45T 是最新 live UAT 且结论为 `PASS`
+- 当前明确未完成：按 stacked 顺序合并 PR #5、复验并处理 PR #4、最后合并到 `main` 和归档门禁；PR #5 已 ready-for-review，PR #4 仍为 Draft
 - 当前产品 UI 已通过专用 synthetic executor 经真实本机 POST/GET/retry 严格渲染五种结果；三家配置齐备时任务 API 使用真实 provider 执行器，默认无凭证时执行器保持禁用，不会调用 provider
 - Step 38 已完成：一个杭州双日真实计划触达三家 provider 且 live 契约通过；计划经确定性校验进入 `conflict`，同一预算内的高德公交路线窄探针通过，全程无原始响应、持久缓存或真实高德截图
 - Step 45A 已执行：唯一真实任务因 DeepSeek 本地候选校验以 `model_output_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论仍为 `FAIL`，没有重试或第二次提交
@@ -109,4 +109,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- 下一步：形式上等待用户批准执行 F-001 Step 46，但该合并 Step 继续受未提交/远程复验阻塞；建议先批准 Step 45V 精确暂存、提交、推送并更新 stacked Draft PR #5，不得自动执行
+- 下一步：等待用户批准执行 F-001 Step 46，按“PR #5 → 功能分支 → PR #4 → main”顺序处理；不得先合并 PR #4，也不得把 F-001 标记为 DONE

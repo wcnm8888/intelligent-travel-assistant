@@ -5,9 +5,9 @@
 - 当前任务：`F-001 单城市双日旅行计划垂直切片`
 - 任务状态：`ACTIVE`
 - 当前分支：`feat/f-001-cr1-deterministic-scheduling`
-- 已完成 Step：Step 0 至 Step 45，以及补充 Step 45A–45U；Step 45T 是最新 live 结论，UAT `PASS`
-- 当前阻塞：stacked Draft PR #5 已交付且既有 CI/review 通过，但 Step 45N–45U 收口尚未提交、推送或按新 head 远程复验
-- 下一批准动作：Step 46 继续阻塞；建议先执行 Step 45V 精确暂存、提交、推送并更新 stacked Draft PR #5
+- 已完成 Step：Step 0 至 Step 45，以及补充 Step 45A–45X；Step 45T 是最新 live 结论，UAT `PASS`
+- 当前阻塞：PR #5 已提交、推送、远程 CI 通过并 ready-for-review；仍需用户批准按 stacked 顺序合并 PR #5、复验 PR #4，之后才能处理 Step 46/归档
+- 下一批准动作：Step 46（顺序为 PR #5 → `feat/f-001-single-city-two-day-plan` → PR #4 → `main`）
 
 ## 最近完成
 
@@ -106,11 +106,11 @@
 
 ## 最近基线证据
 
-- 当前 Step 相关验证：Draft PR #4 和 stacked Draft PR #5 均存在；PR #5 head `bb52adea871c6cadc21ceaa5ef4255b79c3904cb` 的既有 Windows offline verification 已通过，Step 45L 独立 review 和 Step 45T 真实 UAT `PASS` 已完成；Step 45U 收口仍待提交、推送和新 head 远程复验，因此 Step 46 继续阻塞；
+- 当前 Step 相关验证：PR #4 仍为 Draft，PR #5 已 ready-for-review；PR #5 head `749acc905ff3739c9af87d800540e5513fea2765` 的 Windows offline verification run `31879377928` 已通过，Step 45W 独立 review 和 Step 45T 真实 UAT `PASS` 已完成；Step 46 继续等待用户批准并按 stacked 顺序处理；
 - 最近离线门禁：Step 45R 测试组合明确不加载 `.env.local` 且拒绝非 loopback 网络；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下统一 `scripts/verify.ps1` 通过，包含后端 869 项、前端 65 项、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；
-- 最新提交前门禁：Step 45U 在同一冻结运行时与离线隔离下通过后端 876 项、前端 65 项、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；
+- 最新提交前门禁：Step 45U 在同一冻结运行时与离线隔离下通过后端 876 项、前端 65 项、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；Step 45X 文档提交后的同一门禁与远程 Windows verification 继续通过；
 - 远程基线：`main` 提交 `50980887dadc0500d98dcd29966a5da2da74b2e2` 的 Windows CI 运行 `31704781850` 成功；
-- 当前开放 Draft PR #4 与 stacked Draft PR #5；两者均未标记 ready 或合并。
+- 当前开放 PR #4 与 PR #5；PR #4 保持 Draft，PR #5 已标记 ready-for-review；两者均未合并。
 
 ## 权威入口
 

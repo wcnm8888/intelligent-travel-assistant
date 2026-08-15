@@ -5,8 +5,8 @@
 - 当前任务：`F-001 单城市双日旅行计划垂直切片`
 - 任务等级：`L`
 - 当前分支：`feat/f-001-cr1-deterministic-scheduling`（stacked base：`feat/f-001-single-city-two-day-plan`）
-- 当前形式状态：补充 Step 45T 已取得完整双日、仅因非关键 unknown 进入 `partial` 的真实 UAT `PASS`；Step 45M 历史 `FAIL` 保留。Step 45U 已关闭 Step 45S 的持久测试与架构 Step 归属文字缺口并完成提交前离线门禁。形式上仍等待用户批准 Step 46，但 Step 45N–45U 尚未提交、推送、远程 CI 或完成 stacked PR 收口；因此 Step 46 继续阻塞。下一动作是单独批准 Step 45V，不得自动暂存或推送。
-- 已完成：Step 0 至 Step 45，以及补充 Step 45A–45J；确定性调度迁移已有离线实现、独立审查和 findings 修复证据，但没有新的 ready/partial 真实计划证据。
+- 当前形式状态：补充 Step 45T 已取得完整双日、仅因非关键 unknown 进入 `partial` 的真实 UAT `PASS`；Step 45M 历史 `FAIL` 保留。Step 45X 已完成文档、PR 元数据和 ready-for-review 收口。形式上仍等待用户批准 Step 46；PR #5 已 ready，下一步按 stacked 顺序合并并复验 PR #4。
+- 已完成：Step 0 至 Step 45，以及补充 Step 45A–45X；确定性调度迁移已有离线实现、独立审查、真实 UAT、提交、远程 CI 和 ready-for-review 证据，F-001 在合并与归档前仍为 `PARTIAL`。
 - Step 38 已完成：严格按一次杭州双日计划、DeepSeek 最多 3 次、高德最多 16 次、和风最多 4 次、总费用不超过 12 元的授权执行。三家服务均返回可解析结果；计划经确定性校验进入 `conflict`，另以同一授权预算内 1 次高德公交路线窄探针补齐路线 live 契约。
 - Step 39 已按同一调用和 12 元费用边界执行；唯一任务因 DeepSeek `provider_schema_invalid` 安全失败，UAT 结论为 `FAIL`，未重试或再次提交。
 - Step 41 已完成离线阻塞修复和独立全量门禁；Step 42 已同步长期文档、证据和 120 文件单 PR 范围例外；Step 43 已形成单一本地提交；Step 44 已推送分支并创建 Draft PR #4；Step 45 的远程 Windows 离线门禁已通过。补充 Step 45A 的唯一真实任务以 `model_output_invalid` 安全失败；Step 45B 已离线补齐候选诊断、Prompt 规则和纵向回归；Step 45C 的完整候选最终以 2 项 `route_conflict` 进入 `conflict`；Step 45D 已离线修复候选路线正数时间窗口准入；Step 45E 则证明 generation 与唯一一次 repair 仍未生成时间可行候选，安全诊断为 `candidate_repair_time_invalid`。在获得 ready/可解释 partial 证据或用户正式调整验收决策前，不得进入 Step 46、标记 ready 或合并。
@@ -618,6 +618,25 @@
 - 外部取消测试使用两个 `asyncio.Event` 确认两路 peer 已进入等待后再取消规划 task，证明 `CancelledError` 原样传播、两路 peer 均完成取消清理、`active_route_calls == 0`，没有后续批次或遗留任务；
 - `architecture.md` 已把 batch-level terminal 和 peer cancel/drain 的最终归属修正为 Step 45R。两份核心测试 115 项、路线/调度/executor/Repository/API 专项 292 项通过；统一门禁通过后端 876 项、前端 65 项、文档检查器 23 项及全部格式、lint、strict mypy、TypeScript、构建、依赖和文档契约检查；
 - 没有修改生产代码、公开 API、DTO、Repository、Scheduler、状态机或 UI，也没有调用真实 Provider；提交、推送和 PR #5 远程复验等待单独批准的 Step 45V。
+
+### 补充 Step 45V：精确暂存、提交、推送并更新 stacked Draft PR #5
+
+- `DONE`；按批准的 26 文件清单精确提交 `749acc905ff3739c9af87d800540e5513fea2765`（`fix: harden mixed-mode route planning lifecycle`），差异为 `+1815/-102`；
+- 已推送 `feat/f-001-cr1-deterministic-scheduling`，PR #5 base/head 为 `feat/f-001-single-city-two-day-plan` / `feat/f-001-cr1-deterministic-scheduling`；Windows offline verification run `31879377928` 对该 head 通过；PR #4 未修改；
+- PR #5 正文保留 Step 45M 历史 `FAIL`、Step 45T `PASS`、非关键 unknown 不按 0、未自然触发 walking fallback 和未执行新的真实 Provider 调用；
+
+### 补充 Step 45W：PR #5 新 head 独立远程复审与 stacked PR 收口判断
+
+- `DONE / REVIEW_COMPLETE_WITH_DOCUMENTATION_FINDINGS`；相对 stacked base 的完整累计差异为 34 文件、`+4307/-332`，其中 Step 45V 第二提交为 26 文件、`+1815/-102`；
+- 未发现 P0/P1 生产缺陷；D-009、确定性 scheduler、路线 batch terminal、fallback、deadline、peer cancel/drain、五终态、unknown、来源、retryable、Repository/API/UI Schema 与 CI 一致；
+- 发现的阻塞仅为项目状态、D-009 交付状态、API 语义说明和 stacked 顺序的文档漂移，留给 Step 45X；未执行真实 Provider、未修改代码或 PR。
+
+### 补充 Step 45X：最终文档收口、PR #5 元数据校正与 ready-for-review
+
+- `DONE`；已将 Step 45V/45W 的提交、PR、CI、review 和 UAT 事实同步到权威文档，并明确 Step 45M 历史 `FAIL`、Step 45T `PASS`、F-001 当前仍为 `PARTIAL`；
+- 已明确 API 端点与 DTO 字段形状未破坏，但路线数值安全上界和 `planning → needs_input` 状态语义为已记录的兼容性调整；已记录逐项授权覆盖 Step 45N–45V 的范围；
+- 已精确提交文档变更并推送，PR #5 新 head 远程 Windows offline verification 通过后已标记 `ready-for-review`。PR #4 未修改、未合并任何 PR、未调用真实 Provider；
+- stacked 处理顺序冻结为：PR #5 合并到 `feat/f-001-single-city-two-day-plan` → 该功能分支重新 CI/review → PR #4 合并到 `main`。Step 46 待用户单独批准。
 
 ## 后续 Step 摘要
 

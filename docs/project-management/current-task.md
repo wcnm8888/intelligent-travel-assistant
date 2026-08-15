@@ -11,9 +11,9 @@
 - PR 目标：一个 PR 交付首个可验证的旅行计划端到端闭环
 - 建议 PR 标题：`feat: deliver single-city two-day travel planning slice`
 - 批准日期：2026-08-13
-- 当前 Step：`Step 46 - 经用户批准后合并（TODO；受 Step 45N–45U 尚未提交、推送、远程复验及 stacked PR 收口阻塞）`
-- 最近完成补充 Step：`Step 45U - 关闭 Step 45S 非阻塞测试与文档缺口（DONE；离线门禁通过）`
-- 下一可执行补充 Step：`Step 45V - 精确暂存、提交、推送并更新 stacked Draft PR #5（TODO；需单独批准）`
+- 当前 Step：`Step 46 - 经用户批准后合并（TODO；PR #5 已 ready-for-review，仍需按 stacked 顺序合并并复验 PR #4）`
+- 最近完成补充 Step：`Step 45X - 最终文档收口、PR #5 元数据校正与 ready-for-review（DONE）`
+- 下一可执行 Step：`Step 46 - 先合并 PR #5 到 feat/f-001-single-city-two-day-plan，再复验并处理 PR #4（待单独批准）`
 
 用户已经确认本任务的目标、范围、非目标、输入输出、状态模型、验收标准、风险边界和十二项工程决策，并授权执行 Step 0。后续仍坚持每次只执行一个单独批准的 Step；批准任务卡不等于授权真实 API 调用、提交、推送、创建 PR 或合并。
 
@@ -420,6 +420,9 @@ D-009 已实现：LLM 不再负责最终 `start_time`/`end_time`；它只提议 
 | 补充 Step 45S | Step 45R 独立离线复审与真实 UAT 准入判断 | DONE_WITH_CONCERNS（无 P0/P1；准入一次单独授权的受控 live） |
 | 补充 Step 45T | Step 45R 后受控真实数据 UAT | DONE（UAT PASS：完整双日 partial） |
 | 补充 Step 45U | 关闭 Step 45S 非阻塞测试与文档缺口并完成提交前门禁 | DONE（无 live；待精确提交） |
+| 补充 Step 45V | 精确暂存、提交、推送并更新 stacked Draft PR #5 | DONE（commit `749acc9`；CI 通过） |
+| 补充 Step 45W | PR #5 新 head 独立远程复审与 stacked PR 收口判断 | DONE（无 P0/P1；文档收口后可 ready） |
+| 补充 Step 45X | 最终文档收口、PR #5 元数据校正与 ready-for-review | DONE（文档提交、CI 和 ready 状态已完成） |
 | Step 46 | 经用户批准后合并 | TODO |
 | Step 47 | 归档 F-001 并完成文档收口 | TODO |
 
