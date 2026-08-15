@@ -251,7 +251,7 @@ F-001 Step 11 已在 `application/ports/` 固化三组窄端口：
 
 - `AmapPort`：`resolve_city`、`search_pois` 和单段 `calculate_routes`；
 - `QWeatherPort`：`get_weather_forecast` 和 `get_current_weather_alerts`；
-- `DeepSeekPort`：`generate_plan_candidate` 和 `repair_plan_candidate` 只返回 provider-neutral 的未信任 `ModelTextOutput`；应用层严格解析后才能形成 `PlanCandidate`，模型不得宣告 ready/partial/conflict/failed 等终态；
+- `DeepSeekPort`：为兼容既有窄端口保留 `generate_plan_candidate` 和 `repair_plan_candidate` 方法名，但二者只返回 provider-neutral 的未信任 `ModelTextOutput`；生产应用层严格解析后只能形成无最终时间的 `PlanProposal`，模型不得形成 scheduled candidate 或宣告终态；
 - 所有方法均为异步、只接收一个冻结 typed request，并返回带具体 payload 类型的 `ProviderResult`；
 - 端口 DTO 使用项目自有 dataclass/领域值，不包含裸 dict/Any、Key、JWT、Header、Base URL、HTTP/SDK request 或 provider 私有响应；
 - 端口层禁止依赖 FastAPI、Pydantic、HTTP 客户端、SDK、settings、config、adapters、infrastructure 或环境变量；鉴权、传输和重试仍由后续 adapter 负责。
@@ -284,15 +284,15 @@ F-001 Step 15 已在 `application/tooling/` 建立调用治理边界：
 F-001 Step 16 已在 `application/planning/` 建立模型输出信任边界：
 
 - 端口返回的模型文本只在应用解析/修复协调中作为隔离数据存在，不能直接进入领域候选、终态、来源或日志；
-- 本地解析使用精确字段集合并拒绝重复 JSON 键、错误类型、时区时间、非严格双日日期顺序、候选集外地点，以及 POI 白名单以外的活动来源；候选进入路线补全前复用 `DailyRoutePlan.expected_legs()`，确保活动落在对应窗口内，并为住宿往返及不同地点活动间保留正数交通时间；
+- proposal 本地解析使用精确字段集合并拒绝重复 JSON 键、错误类型、非严格双日日期顺序、候选集外地点、POI 白名单以外来源、非连续优先级及未知选择/时长类别；任何最终时间、路线、verified、provider 或终态字段均为非法额外字段；
 - 模型无权提供 provider、状态、工具调用、路线或新事实；提示控制标记属于不可修复错误，不会把危险文本重放给 repair；
-- generation 与 repair 共享唯一冻结候选 Schema 和路线时间可行性规则；结构性错误、候选时间不可行或 `finish_reason=length` 最多调用一次 `repair_plan_candidate`，两者拥有独立预算 1 并共同受任务 90 秒总时限约束；
+- generation 与 repair 共享唯一冻结 proposal Schema；结构性错误或 `finish_reason=length` 最多调用一次 `repair_plan_candidate`，两者拥有独立预算 1 并共同受任务 90 秒总时限约束。repair 不接收或生成最终时间，也不承担确定性调度；
 - 修复后仍无效时稳定发布 `model_output_invalid`；adapter HTTP/envelope Schema 失败保持 `provider_schema_invalid`。本地候选错误沿 resolver → outcome → executor → API 只传递 generation/repair 阶段和项目自有无值枚举；时间类可进一步区分活动越窗、住宿到首项、跨地点活动、末项回住宿的非正数间隔及日程容量不足。错误结果不携带原始文本、字段路径、字段值、时间值、地点或坐标；
-- generation 与 repair 已具有同一冻结 Schema、完整两日窗口、住宿锚点和正数交通窗口规则。补充 Step 45F 只将本地确定的时间失败闭集类别映射为静态 repair 提示，不把任何实际值回传为诊断。三次 live UAT 仍未证明 LLM 独立生成精确活动时间可靠；“由确定性代码生成时间骨架和排程，LLM 只负责 POI 选择、顺序建议与解释”目前是待用户批准的架构建议，尚未实施；
+- 旧精确时间 candidate 的 generation/repair 规则和五类无值时间诊断仅保留为迁移回归。Step 45H 后生产正常路径使用无最终时间的 proposal；模型不再负责精确活动时刻，也不再通过 repair 猜测路线间隔；
 - 规划上下文显式携带两日窗口、自由偏好、交通方式、住宿锚点、逐日天气/当前预警和 POI-only `activity_source_ids`，不得用占位摘要替代已取得的天气事实；
 - 本边界仍完全 provider-neutral，不导入 DeepSeek SDK、HTTP、Prompt 模板、配置或凭证。
 
-D-009 已于 2026-08-15 获得用户批准，但尚未实施。F-001-CR1 的目标信任边界是：DeepSeek 只输出 `PlanProposal`，每项只含有序 POI、优先级、`required`/`optional` 建议、游览时长类别和解释；严禁输出最终 `start_time`/`end_time`。确定性调度器在高德路线返回后生成当前 final validation 可消费的带时间 candidate。每日最多 2 项、60/120/180 分钟时长、景区/博物馆缺省 120 分钟、步行/公交 10/15 分钟缓冲，以及 optional/required/unknown/路线失败策略均已批准，详细规则和停止条件见 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md)。在 Step 45H 实施完成前，代码仍运行旧的精确时间 candidate 路径，文档不得把目标架构表述为已交付能力。
+D-009 已由 Step 45H 实现。DeepSeek 只输出 `PlanProposal`，每项只含有序 POI、优先级、`required`/`optional` 建议、游览时长类别和解释；最终 `start_time`/`end_time`、路线事实和终态字段会被严格 Schema 拒绝。确定性调度器在高德路线返回后生成 final validation 可消费的带时间 `PlanCandidate`。每日最多 2 项、60/120/180 分钟时长、景区/博物馆缺省 120 分钟、步行/公交 10/15 分钟缓冲，以及 optional/required/unknown/路线失败策略均已落地，详细规则见 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md)。
 
 F-001 Step 17 已完成候选到确定性终态的应用边界：
 
@@ -458,8 +458,8 @@ Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转
 | `normalizing` | 校验和规范化需求 | `needs_input`、`collecting`、`failed` |
 | `needs_input` | 缺少必要硬约束 | `normalizing`、`cancelled` |
 | `collecting` | 调用外部工具并记录来源 | `planning`、`partial`、`failed` |
-| `planning` | 当前实现生成带时间的结构化计划候选 | `enriching_routes`、`validating`、`failed` |
-| `enriching_routes` | 当前实现按候选时间查询实际路线 | `validating`、`partial`、`failed` |
+| `planning` | 生成并严格准入无最终时间的 proposal；无规则时长停止等待输入 | `needs_input`、`enriching_routes`、`validating`、`failed` |
+| `enriching_routes` | 按代码推导端点查询实际路线，并由确定性调度器生成精确时间 | `validating`、`partial`、`failed` |
 | `validating` | 执行确定性校验 | `ready`、`partial`、`conflict`、`planning` |
 | `awaiting_confirmation` | 变更跨越自动授权边界 | `replanning`、`ready`、`cancelled` |
 | `replanning` | 对批准影响范围生成新版本 | `validating`、`failed` |
@@ -471,7 +471,7 @@ Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转
 
 状态转换由应用层执行并记录原因；工具不能自行改变全局状态。
 
-D-009 的目标状态名称保持不变：`planning` 改为生成并校验无最终时间的 proposal，`enriching_routes` 改为查询实际路线并运行确定性调度器。若游览时长最终为 unknown，Step 45H 需要新增 `planning → needs_input` 边；在代码和状态机测试更新前，该边只是 F-001-CR1 待实施设计。
+D-009 保持状态名称不变：`planning` 已改为生成并校验无最终时间的 proposal，`enriching_routes` 已改为查询实际路线并运行确定性调度器；无规则可补足的 unknown 游览时长通过新增的 `planning → needs_input` 边安全收口。
 
 ## 状态与持久化
 
@@ -502,7 +502,7 @@ D-009 的目标状态名称保持不变：`planning` 改为生成并校验无最
 
 重试只用于明确可重试的网络、超时或限流错误，并设置次数、退避和总时限。鉴权失败、Schema 不合法、硬约束冲突和用户确认不能通过盲目重试解决。公开错误可附项目自有的安全 `diagnostic_code`；候选诊断只允许阶段与稳定类别的闭集组合，内部信息缺失时退回通用诊断。任何诊断都不得记录 provider 原文、字段路径或值、Prompt、凭证、异常或堆栈。
 
-D-009 目标架构下，完全缺少可用路线时长就无法生成经过验证的精确时间。只有 `partial` provider 结果仍携带合法 `RouteLeg` 时，调度后计划才能以 uncertainty 形成 `partial`；`unavailable`、缺坐标或空路线不得按 0 排程，进入 `failed`。已知路线、缓冲和游览时长总需求超过日窗口时进入 `conflict`，而不是 provider 错误。该目标语义已经批准，但在 Step 45H 实施前不改变当前代码。
+D-009 运行语义为：完全缺少可用路线时长就不能生成经过验证的精确时间。只有 `partial` provider 结果仍携带端点和方式合法的 `RouteLeg` 时，调度后计划才能以 uncertainty 形成 `partial`；`unavailable`、缺坐标或空路线不得按 0 排程，进入 `failed`。已知路线、缓冲和游览时长总需求超过日窗口时进入 `conflict`，而不是 provider 错误。
 
 ## 可观测性
 

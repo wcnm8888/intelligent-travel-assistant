@@ -103,10 +103,10 @@ Step 16 的 DeepSeek 输出测试先因 `application.planning` 不存在而在�
 
 Step 17 的最终校验测试先因 `AccommodationAnchor` 和最终裁决类型不存在而在收集阶段失败，再由最小实现转绿。测试覆盖双日住宿往返四段路线、缺坐标不调用、provider 超时、错误端点、路线超出活动间隔、天气缺日/错地点、预警不可用、unknown 费用、超预算、过期来源和活动窗口冲突；同时证明 `conflict` 优先于 `partial`、零 issue 才能 `ready`，活动与路线来源必须属于各自响应。新增 13 项测试，核心回归 93 项、全量后端 434 项通过；全部使用 synthetic fake，不证明高德路线质量或真实天气可用。
 
-补充 Step 45G 已批准 D-009 的职责迁移并起草 F-001-CR1 详细设计；九项实施决策、stacked PR 和 24–34 文件/1200–2200 行范围例外随后获得批准，但尚未修改生产代码或测试。Step 45H 的红绿顺序必须先证明模型时间字段被拒绝，再实现 proposal 和调度器：
+补充 Step 45G 已批准 D-009 的职责迁移并起草 F-001-CR1 详细设计；九项实施决策、stacked PR 和 24–34 文件范围例外随后获得批准，Step 45J 又把新增行上限调整为 2600。Step 45H 已按以下红绿顺序实现 proposal 和调度器：
 
 - proposal parser：恰好双日、POI/来源白名单、日期、优先级、required/optional、时长类别、额外字段和 `start_time`/`end_time` 拒绝；
-- 时长策略：用户值、模型类别、项目规则、unknown、估算 uncertainty 和分钟映射；
+- 时长策略：模型类别、项目类别规则、unknown、估算 uncertainty 和分钟映射；用户逐活动时长仅预留，当前未进入公开请求；
 - 路线链：住宿到首项、跨地点、末项回住宿、同地点无自环、正常双日调用数和一次 optional 桥接后不超过 8 段；
 - 纯 scheduler：正常双日、恰好容纳、超出 1 分钟、walking/public-transit 缓冲、required/optional 溢出、unknown、固定输入重复一致；
 - final validation：实际路线超出间隔仍为硬冲突，调度结果必须再次通过日期、重叠和 `DailyRoutePlan`；
@@ -114,7 +114,11 @@ Step 17 的最终校验测试先因 `AccommodationAnchor` 和最终裁决类型�
 - 纵向链：真实 DeepSeek adapter 的 `MockTransport` → proposal parser → route fake → scheduler → final validation → executor → Repository → API；
 - 隔离：`APP_ENV=test`、dotenv 禁用、三家配置为空和非 loopback 阻断继续作为默认门禁。
 
-Step 45F 的 `activity_visit_order_invalid → day_schedule_capacity_exceeded` 必须先由红测证明语义错误。迁移后 `schedule_capacity_exceeded` 只能来自确定性容量计算；proposal 不再产生最终精确时间的四类 gap 诊断。旧诊断只作为迁移回归保留，不得与 scheduler 形成两份互相冲突的事实来源。
+Step 45H 初始红测在 collection 阶段因缺少 `DeepSeekProposalResolver` 和 `RouteRequirement` 失败。Step 45J 又直接锁定 proposal 的 root/day/selection 重复键、未知字段、日期顺序/父子日期、目录外 POI、非法/重复来源，以及 60/120/180 分钟和景区/博物馆 120 分钟缺省。真实 proposal → scheduler → executor → Repository → GET API 链覆盖当前可达的 partial、conflict、needs_input、failed、route retryable、optional warning 和安全诊断；ready 继续由零 unknown 的冻结 API/Synthetic Executor 契约覆盖。被移除 optional 的历史 route partial/error 不得污染最终 ready 的来源、错误或 uncertainty。
+
+Step 45J 统一离线门禁在冻结 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下通过：后端 838 项、前端 64 项、文档检查器 23 项，以及 Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、锁文件和文档契约全部绿色。该证据不调用真实 provider，也不替代 D-009 迁移后的 live UAT。
+
+Step 45F 的 `activity_visit_order_invalid → day_schedule_capacity_exceeded` 已退出生产正常路径。迁移后 `schedule_capacity_exceeded` 只来自确定性容量计算；proposal 不产生最终精确时间的四类 gap 诊断。旧 candidate parser 与旧诊断只作为迁移回归保留，不与 scheduler 形成第二份生产事实来源。
 
 Step 18 的 Repository 测试先因应用端口和适配器不存在而在收集阶段失败，再由最小实现转绿。12 项测试覆盖规范化 SHA-256 指纹、client ID 排除、同请求复用、异请求冲突、不同 client ID 独立任务、20 路并发只有一个创建者、冻结旧快照、非法状态跳转、乐观 version 竞争、retry attempt/trace/上限、任务不存在和安全错误。AST 负向测试禁止进程内 adapter 引入 FastAPI、HTTP/SDK、环境、SQLite 或 ORM；测试使用固定 UUID 和显式时钟，不访问网络。统一门禁中的后端 446 项测试通过。该证据只证明单进程原子性，不证明跨进程、重启恢复或 SQLite 持久化。
 
@@ -265,7 +269,7 @@ Agent 评估与普通单元测试分开：
 
 固定回归 case 应包含正常、边界、冲突、provider 失败、恶意外部文本和重规划。评估阈值、样本数量和模型 live 运行成本必须在 Agent 实现任务中基于真实基线确定；当前不虚构通过率。
 
-D-009 的离线 Agent eval 还必须证明：模型 Schema 不再接受最终精确时刻；同一冻结 proposal 重复解析结果一致；模型不能提供路线时长、verified 时长或终态；proposal 顺序建议不能覆盖 scheduler/final validation 的冲突。Prompt 变化只使用 fake/MockTransport 和冻结输出，不调用真实模型；新的 live 质量回归仍需单独授权。
+D-009 的离线 Agent eval 已证明：模型 Schema 不接受最终精确时刻、路线时长、verified 时长或终态；同一冻结 proposal 重复解析一致；proposal 顺序不能覆盖 scheduler/final validation 的冲突。评估只使用 fake/MockTransport 和冻结输出，不调用真实模型；新的 live 质量回归仍需单独授权。
 
 ## live smoke 隔离
 

@@ -96,6 +96,7 @@ ALLOWED_PLANNING_TRANSITIONS: Final[Mapping[PlanningStatus, frozenset[PlanningSt
             ),
             PlanningStatus.PLANNING: frozenset(
                 {
+                    PlanningStatus.NEEDS_INPUT,
                     PlanningStatus.ENRICHING_ROUTES,
                     PlanningStatus.VALIDATING,
                     PlanningStatus.FAILED,

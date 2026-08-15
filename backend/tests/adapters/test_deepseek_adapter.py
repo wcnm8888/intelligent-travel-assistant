@@ -135,7 +135,7 @@ async def test_generation_uses_the_frozen_nonthinking_json_request() -> None:
     assert result.error is None
     assert result.warnings == ("DeepSeek 模型输出没有固定有效期。",)
     assert result.source_records[0].source_id == FIXED_SOURCE_ID
-    assert result.source_records[0].source_type == "model_plan_candidate"
+    assert result.source_records[0].source_type == "model_plan_proposal"
 
     assert len(observed) == 1
     request = observed[0]
@@ -160,9 +160,9 @@ async def test_generation_uses_the_frozen_nonthinking_json_request() -> None:
     assert [message["role"] for message in payload["messages"]] == ["system", "user"]
     assert "JSON" in payload["messages"][0]["content"]
     assert "exactly two day objects" in payload["messages"][0]["content"]
-    assert "one to three activities" in payload["messages"][0]["content"]
+    assert "one or two selections" in payload["messages"][0]["content"]
     assert "activity_source_ids" in payload["messages"][0]["content"]
-    assert "reserve positive travel time" in payload["messages"][0]["content"]
+    assert "never output start_time" in payload["messages"][0]["content"]
     assert "synthetic observation" not in payload["messages"][0]["content"]
     user_data = json.loads(payload["messages"][1]["content"])
     assert user_data["city_adcode"] == "330100"
@@ -190,30 +190,31 @@ async def test_repair_keeps_invalid_output_out_of_the_system_message() -> None:
     assert result.status is ProviderResultStatus.OK
     assert result.data is not None
     assert result.data.content == '{"intent_summary":"repaired"}'
-    assert result.source_records[0].source_type == "model_plan_candidate_repair"
+    assert result.source_records[0].source_type == "model_plan_proposal_repair"
     messages = observed_payloads[0]["messages"]
     assert isinstance(messages, list)
     assert invalid not in messages[0]["content"]
     repair_data = json.loads(messages[1]["content"])
     assert repair_data["validation_code"] == "candidate_schema_invalid"
-    assert repair_data["validation_time_failure"] is None
-    assert repair_data["validation_hint"] is None
-    assert repair_data["candidate_rules"] == [
-        "root, day and activity objects must contain exactly the fields shown in candidate_schema",
+    assert "validation_time_failure" not in repair_data
+    assert "validation_hint" not in repair_data
+    assert repair_data["proposal_rules"] == [
+        "root, day and selection objects must contain exactly the fields shown in proposal_schema",
         "days must contain exactly two day objects in start_date then end_date order",
-        "each day must contain one to three activities",
-        "each activity local_date must equal its parent day local_date",
-        "each activity must copy its location_id exactly from locations",
+        "each day must contain one or two selections",
+        "each selection local_date must equal its parent day local_date",
+        "each selection must copy its location_id exactly from locations",
+        "priority_rank must start at one and be unique and contiguous within each day",
+        "selection_kind must be required or optional",
+        "duration_class must be short, standard, long or unknown",
         "each source_ids array must contain one to twenty unique IDs from activity_source_ids",
         "observation source IDs are not activity source IDs unless also in activity_source_ids",
-        "times must use canonical HH:MM:SS and end_time must be after start_time",
-        "activities must fit inside their day window and reserve positive travel time from the "
-        "accommodation to the first activity, between activities at different locations, and "
-        "from the last activity back to the accommodation",
+        "never output start_time, end_time, routes, route durations, verified claims "
+        "or task status",
         "text must be trimmed, nonempty and single-line; intent_summary and title max 120 chars",
         "explanation and each warning max 500 chars; warnings may contain at most ten items",
     ]
-    assert repair_data["candidate_schema"]["days"][0]["activities"][0]["source_ids"] == [
+    assert repair_data["proposal_schema"]["days"][0]["selections"][0]["source_ids"] == [
         "UUID from activity_source_ids"
     ]
     assert repair_data["invalid_output"] == invalid
@@ -221,7 +222,7 @@ async def test_repair_keeps_invalid_output_out_of_the_system_message() -> None:
 
 
 @pytest.mark.anyio
-async def test_time_repair_receives_only_a_closed_safe_category_and_static_hint() -> None:
+async def test_repair_does_not_reintroduce_legacy_exact_time_instructions() -> None:
     observed_payloads: list[dict[str, object]] = []
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -244,14 +245,11 @@ async def test_time_repair_receives_only_a_closed_safe_category_and_static_hint(
     repair_content = messages[1]["content"]
     assert isinstance(repair_content, str)
     repair_data = json.loads(repair_content)
-    assert repair_data["validation_time_failure"] == "between_locations_gap_not_positive"
-    assert repair_data["validation_hint"] == (
-        "When consecutive activities use different locations, start the next activity "
-        "strictly after the previous activity ends."
-    )
+    assert "validation_time_failure" not in repair_data
+    assert "validation_hint" not in repair_data
+    assert all("start the next activity" not in rule for rule in repair_data["proposal_rules"])
     diagnostic_projection = {
         "validation_code": repair_data["validation_code"],
-        "validation_time_failure": repair_data["validation_time_failure"],
     }
     assert sensitive_invalid not in repr(diagnostic_projection)
 

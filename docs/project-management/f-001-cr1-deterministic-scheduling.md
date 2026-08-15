@@ -5,14 +5,14 @@
 - 所属任务：`F-001 单城市双日旅行计划垂直切片`
 - 变更类型：架构变更控制
 - 任务等级：`L` 级任务内的高风险跨层变更
-- 当前状态：`APPROVED / IMPLEMENTATION_NOT_STARTED`
+- 当前状态：`IMPLEMENTED / OFFLINE_VERIFICATION_COMPLETE / REVIEW_FINDINGS_RESOLVED / DELIVERY_PENDING`
 - 关联决策：`D-009`
-- 当前分支：`feat/f-001-single-city-two-day-plan`
+- 当前分支：`feat/f-001-cr1-deterministic-scheduling`
 - 当前 Draft PR：[#4](https://github.com/wcnm8888/intelligent-travel-assistant/pull/4)
 - 设计 Step：补充 `Step 45G`
-- 实施 Step：补充 `Step 45H`，设计、策略和范围已批准，实施仍需单独批准
+- 实施 Step：补充 `Step 45H`，已完成纯离线实现；Step 45I 独立 QA 已完成，最小修复、提交和 stacked PR 仍待批准
 
-本变更卡已冻结获批详细设计，但批准设计不等于授权实施。Step 45H 仍需单独批准；新的真实 provider 调用、live UAT、提交、推送和 PR 写入也必须分别获得授权。
+本变更卡的获批详细设计已经由 Step 45H 实现。实现没有改变公开 API、Repository 或 UI Schema，也没有调用真实 provider。Step 45I 未发现 P0/P1 生产缺陷，但发现阻塞交付的 P2 测试缺口和文档漂移；需先单独批准最小离线修复，新的 live UAT、提交、推送和 stacked PR 写入仍必须分别获得授权。
 
 ## 用户目标和工程价值
 
@@ -250,7 +250,7 @@ Step 45H 必须先用红测锁定这一语义，再删除或弃用不再可达�
 
 回滚和历史整理成本最高，会丢失已经通过的远程 CI/审查上下文；除非 stacked PR 无法使用，不推荐。
 
-用户已批准方案二，以及 Step 45H 影响 24–34 个文件、1200–2200 行的新范围例外。D-008 的 120 文件例外仍不自动覆盖其他新增范围；超过本次新上界必须立即停止并重新确认。
+用户已批准方案二，以及 Step 45H 影响 24–34 个文件的范围例外；Step 45J 为测试和文档 findings 把新增行上限调整为 2600。D-008 的 120 文件例外仍不自动覆盖其他新增范围；超过本次新上界必须立即停止并重新确认。
 
 ## Step 45H 红绿测试地图
 
@@ -310,7 +310,7 @@ DeepSeek MockTransport
 - 测试：8–12 个文件，覆盖 proposal、scheduler、路线、终态、纵向链和离线隔离；
 - 文档：8–10 个文件；
 - 前端：预计 0 个生产文件，只有现有终态回归；
-- 总计：约 24–34 个文件、约 1200–2200 行净变更。
+- 总计：约 24–34 个文件；Step 45J 批准后的新增行上限为 2600。
 
 该估算明显超出“小修复”，属于 D-008 之后的新架构范围；用户已批准该范围例外。若实施需要新增公开 DTO、前端交互或超过该上界，应立即停止并重新审批。
 
@@ -352,6 +352,34 @@ DeepSeek MockTransport
 6. required 容量不足进入 conflict，unknown 时长进入 needs_input；
 7. 无可用路线进入 failed；只有携带合法 `RouteLeg` 的 partial provider 结果才能形成 partial 计划；
 8. 采用 stacked PR，实施分支为 `feat/f-001-cr1-deterministic-scheduling`，base 为 `feat/f-001-single-city-two-day-plan`；
-9. Step 45H 获批 24–34 个文件、1200–2200 行的新范围例外。
+9. Step 45H 获批 24–34 个文件范围例外；Step 45J 将新增行上限调整为 2600。
 
-上述设计、策略和范围已经批准。Step 45H 的生产实现仍必须由用户单独授权；新的 live UAT、提交、推送、stacked PR 创建、ready-for-review 和合并均不在本批准内。
+上述设计、策略和范围已经批准并由 Step 45H 完成离线实现。模型正常路径只生成无最终时刻 proposal，确定性 scheduler 生成现有带时间 candidate；旧时间候选解析仅用于迁移回归。新的 live UAT、独立 QA、提交、推送、stacked PR 创建、ready-for-review 和合并均不在本 Step 授权内。
+
+## Step 45H 实施结果
+
+- 新增严格 `PlanProposal`、`ProposalDay`、`ActivitySelection` 及 required/optional、short/standard/long/unknown 闭集；
+- DeepSeek generation 与唯一一次 repair 共享 proposal Schema，精确禁止最终时间、路线、verified、provider 和终态字段；
+- 新增纯确定性 scheduler，先推导路线要求并取得合法 `RouteLeg`，再用冻结时长、方式缓冲和日窗口生成 `PlanCandidate`；
+- 每天最多一次 optional 移除，桥接路线仍受 8 次总预算限制；required 溢出、unknown、路线 unavailable 与 partial-with-data 均按批准终态发布；
+- `planning → needs_input` 已成为允许状态边，公开五种终态 enum 不变；
+- 现有 `DailyRoutePlan` 和 final validation 继续独立复验，未放宽日期、重叠、路线、预算或来源规则；
+- 默认测试保持 `APP_ENV=test`、dotenv 禁用和非 loopback 网络阻断；没有读取 `.env.local` 或仓库外私钥；
+- 统一离线门禁通过：后端 818 项、前端 64 项、文档检查器 23 项，以及格式、lint、strict typecheck、build、锁文件和文档契约全部绿色；
+- Step 45H 没有执行 live UAT、暂存、提交、推送、PR 写入或合并。最新 live 结论仍是 Step 45E `FAIL`。
+
+## Step 45I 独立审查结果
+
+- 审查开始时完整工作区范围为 27 文件、`+2158/-281`，与批准的 24–34 文件、1200–2200 新增行例外一致；同步本 Step 允许的五份脱敏结论文档后仍为 27 文件，当前总差异为 `+2188/-286`。暂存区为空、无 upstream、无新增依赖或范围外文件；
+- D-009 的生产职责迁移已完成：DeepSeek 正常路径只产生无最终时刻 proposal，代码依据实际路线和冻结规则排程，现有 `DailyRoutePlan` 与 final validation 独立复验；未发现 P0/P1 生产缺陷；
+- P2 测试缺口包括 proposal 重复键/日期/POI/来源负例、五终态纵向 API 投影、被移除 optional 路线错误不污染最终结果，以及完整时长/类别缺省直接断言；
+- `api-contract.md`、`testing-strategy.md`、`docs/README.md` 仍有 D-009 实施前后的语义漂移，需要与测试缺口一起在待批准 Step 45J 收口；
+- 专项 127 项与统一离线门禁通过，统一入口包含后端 818 项、前端 64 项、文档检查器 23 项；provider 配置为空且非 loopback 网络被阻断，没有读取本地凭证或调用真实 API；
+- 审查结论为 `REVIEW_COMPLETE_WITH_FINDINGS`。在 Step 45J 修复并复验前，不得精确暂存、提交、推送或创建 stacked PR；Step 46 和新的 live UAT 仍未授权。
+
+## Step 45J findings 关闭结果
+
+- Proposal 三层重复键、未知字段、日期、POI/来源负例与 repair 脱敏，60/120/180 和两类 120 分钟缺省均已直接锁定；
+- 真实纵向链覆盖当前可达的 partial、conflict、needs_input、failed；门票 unknown 不按 0，ready 由零 unknown 冻结契约覆盖；
+- optional 历史路线错误不污染最终结果，route partial 的 retryable/source/uncertainty 与 omission warning 均通过 GET API 复验；
+- 专项 125 项与统一门禁通过：后端 838、前端 64、文档检查器 23；最终 27 文件、`+2559/-297`，低于批准上限。Step 45J 未修改生产代码、调用 provider、暂存、提交、推送或修改 PR；下一动作是待批准 Step 45K。

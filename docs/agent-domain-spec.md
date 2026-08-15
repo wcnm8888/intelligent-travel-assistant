@@ -124,9 +124,9 @@ Repository 工具不直接交给模型自由调用。应用层根据 Agent 的�
 - 领域层不接触 DeepSeek 消息、tool call 或 SDK 类型；
 - 模型不可用时，应用可以返回已获取的数据和结构化失败，但不能伪造计划成功。
 
-F-001 当前具体端口为 `DeepSeekPort.generate_plan_candidate` 和 `repair_plan_candidate`。输入上下文只包含项目自有的结构化城市、日期、人数、预算、两日时间窗、自由偏好、交通方式、住宿锚点、地点、逐日天气/当前预警以及已验证 observation；`activity_source_ids` 只列出允许活动引用的 POI 来源。端口输出是未信任的 `ModelTextOutput`，只有本地 `DeepSeekCandidateResolver` 严格解析后才能形成只含意图摘要、逐日候选活动、解释和警告的 `PlanCandidate`。候选不包含 provider、retryable、工具调用或终态字段。
+F-001 为兼容窄端口保留 `DeepSeekPort.generate_plan_candidate` 和 `repair_plan_candidate` 方法名。输入上下文只包含项目自有的结构化城市、日期、人数、预算、两日时间窗、自由偏好、交通方式、住宿锚点、地点、逐日天气/当前预警以及已验证 observation；`activity_source_ids` 只列出允许活动引用的 POI 来源。端口输出是未信任的 `ModelTextOutput`，生产路径只有本地 `DeepSeekProposalResolver` 可把它准入为无最终时间的 `PlanProposal`。模型输出的最终时间、路线、verified、provider、retryable、工具调用或终态字段都会被拒绝。
 
-D-009 已批准的目标是把端口语义收紧为 proposal：DeepSeek 仍返回未信任 `ModelTextOutput`，本地 resolver 只准入 `PlanProposal`，活动只含 POI、日期、顺序、优先级、`required`/`optional` 建议、时长类别和来源引用，不含 `start_time`/`end_time`。高德随后根据代码推导的路线链返回实际时长，确定性调度器再生成现有 final validation 可消费的带时间 candidate。每日最多 2 项、时长与交通缓冲、一次 optional 移除以及 required/unknown/路线失败终态边界均已批准；当前生产代码尚未完成迁移，实施细则以 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md) 为准。
+D-009 已把端口语义收紧为 proposal：DeepSeek 仍返回未信任 `ModelTextOutput`，本地 resolver 只准入 `PlanProposal`，活动只含 POI、日期、顺序、优先级、`required`/`optional` 建议、时长类别和来源引用，不含 `start_time`/`end_time`。高德随后根据代码推导的路线链返回实际时长，确定性调度器再生成现有 final validation 可消费的带时间 candidate。每日最多 2 项、时长与交通缓冲、一次 optional 移除以及 required/unknown/路线失败终态边界均已实现；细则以 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md) 为准。
 
 Step 14 的 `OfflinePlanningOrchestrator` 已证明离线候选链可以只依赖上述窄端口运行：城市/POI/DeepSeek 是形成候选的关键链路，天气、预警和路线缺失按 partial 保留；每次状态变化都经应用状态机。该编排器不把 `PlanCandidate` 当作最终计划，happy 路径停在 `validating`，并且没有模型自主工具循环、完整路线补全或终态校验。
 

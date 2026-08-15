@@ -4,9 +4,9 @@
 
 - 当前任务：`F-001 单城市双日旅行计划垂直切片`
 - 任务等级：`L`
-- 当前分支：`feat/f-001-single-city-two-day-plan`
-- 当前形式状态：补充 Step 45G 已完成 D-009 架构变更控制和详细设计，九项实施决策、stacked PR 和新范围例外均已批准；Step 45E 的真实 UAT `FAIL` 仍是最新 live 结论。形式上仍等待用户批准 Step 46，但该合并 Step 继续受调度迁移未实施和真实 UAT FAIL 阻塞；实际下一动作是另行批准 Step 45H 的离线实现。最后一次 live 授权已经消耗。
-- 已完成：Step 0 至 Step 45，以及补充 Step 45A–45G；最新真实任务以 `candidate_repair_time_invalid` 安全失败，没有 ready/partial 计划。Step 45G 不包含生产实现或新 live 证据。
+- 当前分支：`feat/f-001-cr1-deterministic-scheduling`（stacked base：`feat/f-001-single-city-two-day-plan`）
+- 当前形式状态：补充 Step 45J 已关闭 D-009/F-001-CR1 的独立审查 findings。形式上仍等待用户批准 Step 46，但真实 UAT `FAIL` 和 stacked 变更未交付继续阻塞该 Step；实际下一动作是待单独批准的补充 Step 45K，最后一次 live 授权已经消耗。
+- 已完成：Step 0 至 Step 45，以及补充 Step 45A–45J；确定性调度迁移已有离线实现、独立审查和 findings 修复证据，但没有新的 ready/partial 真实计划证据。
 - Step 38 已完成：严格按一次杭州双日计划、DeepSeek 最多 3 次、高德最多 16 次、和风最多 4 次、总费用不超过 12 元的授权执行。三家服务均返回可解析结果；计划经确定性校验进入 `conflict`，另以同一授权预算内 1 次高德公交路线窄探针补齐路线 live 契约。
 - Step 39 已按同一调用和 12 元费用边界执行；唯一任务因 DeepSeek `provider_schema_invalid` 安全失败，UAT 结论为 `FAIL`，未重试或再次提交。
 - Step 41 已完成离线阻塞修复和独立全量门禁；Step 42 已同步长期文档、证据和 120 文件单 PR 范围例外；Step 43 已形成单一本地提交；Step 44 已推送分支并创建 Draft PR #4；Step 45 的远程 Windows 离线门禁已通过。补充 Step 45A 的唯一真实任务以 `model_output_invalid` 安全失败；Step 45B 已离线补齐候选诊断、Prompt 规则和纵向回归；Step 45C 的完整候选最终以 2 项 `route_conflict` 进入 `conflict`；Step 45D 已离线修复候选路线正数时间窗口准入；Step 45E 则证明 generation 与唯一一次 repair 仍未生成时间可行候选，安全诊断为 `candidate_repair_time_invalid`。在获得 ready/可解释 partial 证据或用户正式调整验收决策前，不得进入 Step 46、标记 ready 或合并。
@@ -529,10 +529,33 @@
 
 ### 补充 Step 45H：实施并离线验证 F-001-CR1
 
-- `TODO / AWAITING_STEP_APPROVAL`；每日活动上限、时长映射、交通缓冲、optional 自动移除、required/unknown 终态、路线 unavailable 终态、stacked PR 和新增范围均已批准，生产实现仍需单独批准；
-- 实施顺序为 proposal 红测与 DTO/Schema、时长策略、无时间路线链、纯 scheduler、overflow/unknown、orchestrator/state、final validation/executor/API 纵向回归、Agent eval 和统一离线门禁；
-- 预计影响 24–34 个文件、1200–2200 行，前端生产代码预计不变；超过上界、需要公开 API/UI、提高 provider 预算或复杂求解器时立即停止；
-- 本 Step 不含真实 API、live UAT、提交、推送、PR 写入、ready-for-review 或合并；这些动作仍分别等待后续授权。
+- `DONE / OFFLINE IMPLEMENTED`；先以 collection failure 冻结缺少 `PlanProposal` resolver 和 `RouteRequirement` 的红测，再实现严格 proposal DTO/Schema、无时间路线链与纯 scheduler；
+- DeepSeek generation/repair 只准入每日 1–2 个有序选择及优先级、required/optional、时长类别和来源，精确拒绝时间、路线、verified、provider 和终态字段；旧精确时间 parser 仅保留迁移回归，生产编排不再调用；
+- scheduler 使用 60/120/180 分钟时长、景区/博物馆 120 分钟缺省、步行/公交 10/15 分钟缓冲；正常链最多 6 段，每天最多一次 optional 移除，必要桥接后总预算仍不超过 8；
+- unknown 无规则时由 `planning → needs_input` 收口；required 容量不足为 `conflict`；路线 unavailable/无坐标为 `failed`；partial provider 只有携带端点和方式合法的 `RouteLeg` 才能保留计划为 `partial`；
+- 现有 `PlanCandidate`、`DailyRoutePlan`、final validation、公开 API、Repository 与 UI Schema 保持不变；warning、uncertainty、violation 和安全错误复用现有字段；
+- 统一离线门禁最终通过：后端 818 项、前端 64 项、文档检查器 23 项，以及格式、lint、strict typecheck、build、锁文件和文档契约全部绿色；
+- 本 Step 未读取本地凭证、调用真实 API、执行 live UAT、暂存、提交、推送、修改 PR 或进入 Step 46；其后续 Step 45I 独立离线 QA 已完成并记录于下节。
+
+### 补充 Step 45I：独立离线 QA 与 stacked PR 前审查
+
+- `DONE / REVIEW_COMPLETE_WITH_FINDINGS`；只读审查了 Step 45H 相对 stacked base 的完整 27 文件工作区 diff，复核职责边界、终态、调用预算、测试真实性、秘密隔离、范围与文档一致性；
+- 未发现 P0/P1 生产缺陷；proposal 正常路径、确定性 scheduler、最多 8 次路线预算、五种终态实现、Repository/API 兼容和最终独立校验与 D-009 一致；
+- 发现阻塞交付的 P2 测试缺口：新 proposal parser 的重复键/日期/POI/来源负例不完整，新 proposal → scheduler → executor → Repository → API 的五终态纵向覆盖不足，被移除 optional 的历史路线错误未锁定为不污染最终结果，60/120/180 与类别缺省缺少直接表驱动断言；
+- `progress.md` 已在本 Step 修正当前分支和“尚未实施”的直接冲突；`api-contract.md`、`testing-strategy.md` 与 `docs/README.md` 的实施前语义漂移不在本 Step 允许写入范围，留给待批准 Step 45J；
+- 专项 127 项和统一离线门禁通过：后端 818 项、前端 64 项、文档检查器 23 项，以及 format、lint、strict typecheck 和 build 全绿；没有读取凭证或访问真实 provider；
+- 本 Step 未修复代码/测试、暂存、提交、推送、创建 stacked PR、执行 live UAT 或进入 Step 46。
+
+### 补充 Step 45J：修复 Step 45I 的最小离线测试与文档缺口
+
+- `DONE / FINDINGS_RESOLVED`；补齐 proposal 重复键/字段/日期/POI/来源负例、完整时长映射、optional 路线污染及真实 executor → Repository → GET API 终态投影；
+- 用户确认门票费用保持 unknown，真实链覆盖当前可达的 partial、conflict、needs_input、failed；ready 由既有零 unknown 冻结契约覆盖，不修改公开 API、生产逻辑或 UI；
+- 专项 125 项与统一门禁通过：后端 838、前端 64、文档检查器 23，全部静态、类型和构建门禁绿色；未调用 provider、暂存、提交、推送或修改 PR。
+
+### 补充 Step 45K：交付 stacked implementation PR
+
+- `TODO / AWAITING_STEP_APPROVAL`；精确暂存批准范围、创建本地提交、推送当前分支，并创建以 `feat/f-001-single-city-two-day-plan` 为 base 的 stacked Draft PR；
+- 等待新 PR head 的 Windows offline verification，不执行 live UAT、不标记 ready、不合并或进入 Step 46。
 
 ## 后续 Step 摘要
 

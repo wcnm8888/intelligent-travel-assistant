@@ -17,7 +17,7 @@
 ### F-001：单城市双日旅行计划垂直切片（进行中）
 
 - 任务状态：`ACTIVE`
-- 当前结论：`PARTIAL`。Step 38 已完成受控真实 API 冒烟；Step 39 与补充 Step 45A 分别因 provider Schema 和本地候选校验失败；Step 45B 完成候选诊断与 Prompt 可靠性修复；补充 Step 45C 的完整候选最终因 2 项路线冲突使终态为 `conflict`、UAT `FAIL`；Step 45D 已离线修复候选路线时间窗口准入；最后一次受控 Step 45E 又在唯一一次 repair 后以 `candidate_repair_time_invalid` 失败。Step 45F 已离线细分时间诊断并确认原有规则上下文完整；用户随后批准 D-009，Step 45G 已完成确定性排程责任调整的详细设计，但生产代码尚未迁移。本地提交、Draft PR #4 和远程离线 CI 已完成，但 Step 45B–45G 变更尚未提交或推送，仍无通过式真实 UAT，PR 不可合并；
+- 当前结论：`PARTIAL`。Step 38 已完成受控真实 API 冒烟；Step 39 与补充 Step 45A 分别因 provider Schema 和本地候选校验失败；Step 45C 的完整候选最终因路线冲突使 UAT `FAIL`；最后一次受控 Step 45E 又在唯一一次 repair 后以 `candidate_repair_time_invalid` 失败。Step 45F 证明模型独立生成精确时刻的职责不可靠，用户随后批准 D-009；Step 45H 已在 stacked implementation branch 完成确定性排程迁移和离线验证，Step 45I 独立 QA 未发现 P0/P1 生产缺陷，但确认 P2 测试缺口和文档漂移阻塞提交与 stacked PR。尚未取得新的 live UAT，PR #4 仍不可合并；
 - 分支：`feat/f-001-single-city-two-day-plan`，已推送；开放 Draft PR #4，目标为 `main`；
 - Step 34 自动化：10 类 Agent 输出 scorecard、目录顺序不变性、四终态各 10 次重复裁决通过；新增 15 项、专项相关 107 项通过。统一门禁包括 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0、后端 729 项 pytest、前端 61 项 Vitest、文档检查器 23 项测试、Ruff format/check、strict mypy、Vite build 和 17 份必需文档契约；
 - Step 35 自动化：新增任务执行端口、五终态 synthetic executor 和轮询可达后继回归；专项后端 20 项、前端 62 项及相关静态门禁通过。Playwright Chromium 经真实本机 POST/GET/retry 验证 ready、partial attempt 2、conflict、needs_input 和 failed，`390×844` 下 `scrollWidth=375`、控制台 0 error/0 warning；动态业务请求仅访问本机 `/api`；
@@ -75,11 +75,22 @@
 - 补充 Step 45G 调用预算结论：当前每日至多 3 项时，双日完整住宿往返链最坏已占 8 段，无法保证删除活动后仍有桥接路线预算。用户已批准 F-001 每日最多 2 项，使正常链最坏 6 段，并为每天一次 optional 调整各预留 1 段，最坏仍为 8；
 - 补充 Step 45G 诊断复审：代码将 `activity_visit_order_invalid` 直接映射为 `day_schedule_capacity_exceeded`，但顺序/重叠错误不等同于容量不足。目标契约要求 `schedule_capacity_exceeded` 只能来自实际路线、缓冲与游览时长的确定性总量计算；Step 45F 四类 gap 诊断只作为迁移前回归保留；
 - 补充 Step 45G 范围与交付结论：用户已批准先单独授权提交 Step 45B–45G，再以功能分支为 base 建立 stacked PR 隔离 Step 45H；最终仍由 PR #4 面向 main 交付。Step 45H 的 24–34 个文件、1200–2200 行新范围例外及全部九项实施决策均已批准，但生产实现仍需单独授权；
+- 补充 Step 45H 红测证据（2026-08-15）：新增 proposal 与 scheduler 测试首次在 collection 阶段因缺少 `DeepSeekProposalResolver` 和 `RouteRequirement` 失败，证明测试先于生产实现；随后以最小 DTO、严格 parser、DeepSeek proposal Schema 和纯 scheduler 转绿；
+- 补充 Step 45H 信任边界：模型输出每日 1–2 项 POI、连续优先级、required/optional、short/standard/long/unknown 和 POI 来源；任何最终时间、路线、route duration、verified、provider 或终态字段被精确额外字段规则拒绝。generation 与 repair 共用 Schema，仍最多一次 repair；
+- 补充 Step 45H 调度证据：代码按住宿往返和跨地点链查询实际路线，使用 60/120/180 分钟、景区/博物馆 120 分钟缺省及步行/公交 10/15 分钟缓冲生成分钟级时间。固定输入重复结果一致，同地点不查自环；每天最多一次最低优先级 optional 移除并按需补一条桥接路线，总路线调用仍不超过 8；
+- 补充 Step 45H 终态证据：无规则 unknown 通过新增 `planning → needs_input` 收口；required 容量不足为 `conflict`；路线 unavailable、缺坐标或端点/方式不合法不发布计划并进入 `failed`；partial provider 只有仍携带合法 `RouteLeg` 才能形成带计划 `partial`。existing `DailyRoutePlan` 和 final validation 未放宽；
+- 补充 Step 45H 兼容与安全：`TripPlanRequest`、`TripPlanResponse`、Repository 和前端 Schema 未变化；旧精确时间 parser 只保留迁移回归，生产编排改用 proposal resolver。执行期间 `APP_ENV=test`、provider 配置为空、非 loopback 网络阻断；没有读取 `.env.local`/私钥、调用真实 API、执行 live UAT、暂存、提交、推送或修改 PR；
+- 补充 Step 45H 门禁：统一 `scripts/verify.ps1` 在 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下通过，覆盖后端 818 项、前端 64 项、文档检查器 23 项及 Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、锁文件和文档契约；首次运行只因一条测试中的多余 `type: ignore` 被 strict mypy 拒绝，移除机械注释后全入口从头通过；
+- 补充 Step 45I 范围与职责审查（2026-08-15）：分支为 `feat/f-001-cr1-deterministic-scheduling`，基线/HEAD 为 `231db4bbd929443b6a6b986994d9f932d4e0f407`，暂存区为空、无 upstream；审查开始时完整工作区含 24 个 tracked 修改和 3 个 untracked 文件，共 27 文件、`+2158/-281`，无新增依赖或范围外文件。同步本 Step 允许的五份脱敏结论文档后仍为 27 文件，当前总差异为 `+2188/-286`。审查确认正常生产路径使用无最终时刻 proposal，实际路线之后由确定性 scheduler 形成既有 candidate，最终校验仍独立执行；未发现 P0/P1 生产缺陷；
+- 补充 Step 45I findings：新 proposal parser 对重复键、日期、目录外 POI 和来源的拒绝虽已实现，但缺少新生产路径的直接负向测试；新 proposal → scheduler → executor → Repository → API 未完整锁定五种终态；被移除 optional 的历史路线 partial/error 未被测试证明不会污染最终 ready；60/120/180 与景区/博物馆缺省缺少完整直接断言。另发现 `api-contract.md`、`testing-strategy.md`、`docs/README.md` 和部分项目状态文档仍保留 D-009 实施前语义；上述 P2 缺口阻塞精确暂存和 stacked PR；
+- 补充 Step 45I 离线与安全证据：在 `APP_ENV=test`、三家 provider 配置为空、非 loopback 网络阻断下，proposal/scheduler/adapter/orchestrator/executor 专项 127 项通过；统一 `scripts/verify.ps1` 再次通过后端 818 项、前端 64 项、文档检查器 23 项及全部 format、lint、strict typecheck、build、锁和文档契约。`.env.local` 保持 Git 忽略，tracked 秘密/PEM 扫描无命中；未读取 `.env.local` 或私钥，未联网、调用 provider、执行 live UAT、暂存、提交、推送或修改 PR；
+- 补充 Step 45J findings 关闭（2026-08-15）：proposal 新路径直接覆盖三层重复键、未知字段、日期顺序/父子日期、目录外 POI、非法/重复来源和单次 repair 脱敏；scheduler 直接锁定 60/120/180 与景区/博物馆 120；optional 历史 route partial/error 不污染最终 ready；真实 executor → Repository → GET API 覆盖 partial、conflict、needs_input、failed、route retryable/source/uncertainty 和 warning 投影。门票 unknown 不按 0，ready 继续由零 unknown 冻结契约覆盖；
+- 补充 Step 45J 门禁与安全：专项 125 项、统一后端 838 项、前端 64 项、文档检查器 23 项及全部 format/lint/typecheck/build 通过；最终 27 文件、`+2559/-297`，低于批准上限。只修改测试和文档，未读取凭证、调用 provider、执行 live UAT、暂存、提交、推送或修改 PR；
 - 官方来源：[DeepSeek 模型与价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing)、[DeepSeek 用户协议](https://cdn.deepseek.com/policies/zh-CN/deepseek-terms-of-use.html)、[DeepSeek 开放平台服务协议](https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html)、[高德服务升级与配额](https://lbs.amap.com/upgrade)、[高德开放平台服务协议](https://lbs.amap.com/pages/terms/)、[和风天气定价](https://dev.qweather.com/docs/finance/pricing/)、[和风天气注明来源](https://dev.qweather.com/docs/terms/attribution/)、[和风天气实时预警响应契约](https://dev.qweather.com/docs/api/warning/weather-alert/)；
 - Step 27 浏览器：本地 Microsoft Edge 使用本机 synthetic partial/failed 响应验证 retry 恢复、双击只产生一次请求、attempt 2、旧终态清理和返回修改焦点；`390×844` 下输入区域折叠、结果优先且无水平溢出，干净会话控制台 0 error/0 warning；
 - 请求边界：Step 35 浏览器业务请求仅为同源任务 API；DeepSeek、高德与和风 adapter 专项测试使用进程内 mock transport。Step 40 发现默认 API 测试组合根可能因 `.env.local` 装配真实执行器；Step 41 已用导入前 `APP_ENV=test`、禁用 dotenv source 和非 loopback socket 阻断关闭该风险，并由统一入口复验；
 - 真实性边界：Step 38 只证明执行时三家鉴权与所触达 live Schema 可用，并证明一次高德公交路线契约；Step 45A 只证明修复后的本地候选错误分类与安全失败展示有效。两者都不证明持续可用、全部端点、结果质量或下一次费用；
-- 未覆盖：确定性 scheduler 实现、ready/partial 真实计划、通过式真实数据 UAT、真实路线补全与时长窗口、长期配额和费用稳定性、Step 45B–45G 变更提交与 PR 复验、Step 45H 实施、ready-for-review、合并与归档。Step 45H 新范围已批准，但实现仍需单独授权；Step 45E 是本轮批准的最后一次 live 回归，不得自动再次调用。
+- 未覆盖：ready/partial 真实计划、通过式真实数据 UAT、真实路线补全与时长窗口、长期配额和费用稳定性、Step 45H–45J 提交与 stacked PR 复验、ready-for-review、合并与归档。Step 45E 是本轮批准的最后一次 live 回归，不得自动再次调用。
 
 ### B-000：项目与工程基线
 

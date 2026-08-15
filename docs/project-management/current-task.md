@@ -7,12 +7,12 @@
 - 等级：`L`
 - 状态：`ACTIVE`
 - 基线分支：`main`
-- 功能分支：`feat/f-001-single-city-two-day-plan`
+- 功能分支：`feat/f-001-cr1-deterministic-scheduling`（stacked base：`feat/f-001-single-city-two-day-plan`）
 - PR 目标：一个 PR 交付首个可验证的旅行计划端到端闭环
 - 建议 PR 标题：`feat: deliver single-city two-day travel planning slice`
 - 批准日期：2026-08-13
-- 当前 Step：`Step 46 - 经用户批准后合并（TODO；受补充 Step 45H 未实施和真实 UAT FAIL 阻塞）`
-- 下一可执行补充 Step：`Step 45H - 实施 F-001-CR1（TODO；设计、九项策略及范围已批准，实施仍需单独批准）`
+- 当前 Step：`Step 46 - 经用户批准后合并（TODO；受真实 UAT FAIL 和 stacked 变更未审查/未交付阻塞）`
+- 下一可执行补充 Step：`Step 45K - 精确暂存、提交、推送并创建 stacked Draft PR（TODO；需单独批准）`
 
 用户已经确认本任务的目标、范围、非目标、输入输出、状态模型、验收标准、风险边界和十二项工程决策，并授权执行 Step 0。后续仍坚持每次只执行一个单独批准的 Step；批准任务卡不等于授权真实 API 调用、提交、推送、创建 PR 或合并。
 
@@ -70,6 +70,12 @@ Step 45 已完成 Draft PR #4 的远程 CI 核对。Windows offline verification
 补充 Step 45F 已在 `APP_ENV=test`、禁用 dotenv、三家 provider 空配置和非 loopback 网络阻断下完成。红测证明 `DailyRoutePlan` 已能识别活动越窗、访问顺序和非正数路线间隔，但候选层把它们全部压缩为 `candidate_time_invalid`，且唯一一次 repair 只收到该通用码。最小修复新增五类项目自有、无值时间诊断，并把对应静态规则提示传给 repair；公开错误保持 `model_output_invalid`、`retryable=false`，最多一次 repair，所有日期、时间、路线及最终校验均未放宽。专项 165 项与后端全量 786 项通过；统一门禁随后验证前端 64 项、文档检查器 23 项及全部静态、类型、构建和文档契约。离线证据确认 generation/repair 原有 Prompt、PlanningContext 和冻结规则已经完整，不能再把失败归因于规则遗漏。三次 live UAT 仍显示 LLM 独立生成精确活动时间不可靠，因此已起草“确定性代码负责时间骨架与排程，LLM 负责 POI 选择、顺序建议和解释”的待批准架构提议；本 Step 未实施该迁移，也未执行 live、暂存、提交、推送或修改 PR。
 
 补充 Step 45G 已完成架构变更控制和详细设计。用户正式批准 D-009 的职责方向：LLM 只输出不含最终精确时刻的活动 proposal，高德提供代码确定端点的实际路线，确定性代码生成时间骨架并由现有校验器独立复验。设计采用新增 `PlanProposal`、保留现有带时间 `PlanCandidate`、不改变公开 API/Repository/UI，并以每天最多 2 项控制路线链在正常 6 段、每天一次 optional 调整后最坏 8 段。每日上限、60/120/180 分钟时长、景区/博物馆缺省 120 分钟、步行/公交 10/15 分钟缓冲、一次 optional 移除、required/unknown/路线失败终态、stacked PR 和 24–34 文件/1200–2200 行范围例外均已批准。Step 45G 未修改生产代码或测试；Draft PR #4 尚未包含 Step 45B–45G，Step 45H 实现仍需单独批准，详见 [F-001-CR1 变更卡](./f-001-cr1-deterministic-scheduling.md)。
+
+补充 Step 45H 已在 stacked implementation branch 完成纯离线迁移：DeepSeek 严格准入无最终时刻的 `PlanProposal`，确定性调度器按实际 `RouteLeg`、60/120/180 分钟时长和步行/公交 10/15 分钟缓冲生成现有 `PlanCandidate`。每天最多 2 项、一次最低优先级 optional 移除及桥接路线、required 容量 conflict、unknown needs_input、路线 unavailable failed 和 partial-with-valid-route 语义均已落地；`planning → needs_input` 状态边已加入，公开 API、Repository 和 UI Schema 未改变。旧精确时间候选解析器只保留迁移回归，不再是生产正常路径。Step 45H 未读取凭证、调用 provider、执行 live UAT、暂存、提交、推送或修改 PR；真实 UAT 最新结论仍为 Step 45E `FAIL`。
+
+补充 Step 45I 已完成独立离线 QA 与 stacked PR 前审查。审查开始时确认 27 个文件、`+2158/-281` 的实现范围与批准例外一致；同步本段脱敏结论后仍为相同 27 文件，当前总差异为 `+2188/-286`。审查未发现 P0/P1 生产缺陷；D-009 的 proposal → 实际路线 → 确定性 scheduler → 既有 candidate/final validation 职责迁移已经落地。专项 127 项和统一离线门禁均通过，统一入口包含后端 818 项、前端 64 项、文档检查器 23 项及全部静态、类型和构建门禁；测试显式禁用 provider 配置并阻断非 loopback 网络。审查同时发现 P2 测试缺口：新 proposal 负向信任边界未被完整直接锁定、新五终态纵向链覆盖不足、被移除 optional 的历史路线错误未证明不会污染最终结果，以及时长映射测试精度不足；另有 D-009 实施前后的文档语义漂移。上述问题阻塞精确暂存和 stacked PR，需先单独批准 Step 45J 做最小离线修复；没有授权新的 live UAT。
+
+补充 Step 45J 已关闭上述 P2 测试和文档缺口。用户确认真实执行器因门票费用必须保持 unknown，成功计划合理收口为 `partial`，不以 0 或生产改动伪造 `ready`；真实纵向链覆盖 partial、conflict、needs_input、failed，ready 继续由零 unknown 冻结契约覆盖。Proposal 负例、时长映射、optional 路线污染、route retryable/source/uncertainty 和 warning API 投影均已补齐；专项 125 项与统一门禁通过，后端 838 项、前端 64 项、文档检查器 23 项。未调用 provider、修改生产代码、暂存、提交、推送或修改 PR；下一动作是待批准 Step 45K 交付 stacked Draft PR。
 
 ## 范围
 
@@ -188,7 +194,7 @@ F-001 只定义 `PlanningJobRepository` 端口和进程内实现，不建立 SQL
 
 LLM 负责需求理解、受控工具选择、候选计划和解释；代码负责输入规范化、工具授权、调用预算、响应转换、路线补全、全部确定性校验和终态裁决。工具不提供通用 HTTP、文件、Shell、SQL 或 Repository 写入能力；provider 文本始终作为不可信数据处理，不能进入 system prompt。
 
-D-009 已确认目标职责：LLM 不再负责最终 `start_time`/`end_time`；它只提议 POI、顺序、优先级、必选/可选、时长类别和解释。高德返回实际路线，确定性调度器据此生成时间。当前生产代码仍是旧候选路径，只有 F-001-CR1 决策获批并完成 Step 45H 后才能宣称迁移完成。
+D-009 已实现：LLM 不再负责最终 `start_time`/`end_time`；它只提议 POI、顺序、优先级、必选/可选、时长类别和解释。高德返回实际路线，确定性调度器据此生成时间，现有 `DailyRoutePlan` 和 final validation 再独立复验。
 
 职责边界：
 
@@ -379,7 +385,10 @@ D-009 已确认目标职责：LLM 不再负责最终 `start_time`/`end_time`；�
 | 补充 Step 45E | Step 45D 后最后一次受控真实数据 UAT | DONE（UAT FAIL：repair time invalid） |
 | 补充 Step 45F | 离线细化候选时间诊断并确定时间规划责任边界 | DONE（结论已进入 D-009） |
 | 补充 Step 45G / F-001-CR1 | 确定性时间排程责任调整的变更控制与详细设计 | DONE（设计、九项策略和范围已批准） |
-| 补充 Step 45H | 实施并离线验证 F-001-CR1 | TODO（实施需单独批准） |
+| 补充 Step 45H | 实施并离线验证 F-001-CR1 | DONE（离线实现；未提交/推送/创建 stacked PR） |
+| 补充 Step 45I | 独立离线 QA 与 stacked PR 前审查 | DONE（无 P0/P1；P2 测试与文档缺口阻塞交付） |
+| 补充 Step 45J | 修复 Step 45I 的最小离线测试与文档缺口 | DONE（测试与文档 findings 已关闭） |
+| 补充 Step 45K | 精确暂存、提交、推送并创建 stacked Draft PR | TODO（需单独批准） |
 | Step 46 | 经用户批准后合并 | TODO |
 | Step 47 | 归档 F-001 并完成文档收口 | TODO |
 

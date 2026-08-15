@@ -13,11 +13,18 @@ from intelligent_travel_assistant.application.planning import (
     AccommodationAnchor,
     CandidateResolutionErrorCode,
     CandidateValidationStage,
-    DeepSeekCandidateResolver,
+    DeepSeekProposalResolver,
     FinalValidationResult,
     RouteEnrichmentResult,
+    RouteRequirement,
+    ScheduledRoute,
+    SchedulingIssueCode,
+    SchedulingResult,
+    SchedulingUncertaintyCode,
+    SchedulingWarningCode,
     evaluate_final_plan,
     route_activities,
+    schedule_plan_proposal,
 )
 from intelligent_travel_assistant.application.ports import (
     AmapPort,
@@ -33,6 +40,7 @@ from intelligent_travel_assistant.application.ports import (
     PlanningLocation,
     PlanningObservation,
     PlanningToolName,
+    PlanProposal,
     PoiCandidate,
     PoiSearchRequest,
     PoiSearchResult,
@@ -114,7 +122,12 @@ class OfflinePlanningOutcome:
     poi_result: ProviderResult[PoiSearchResult] | None = None
     weather_result: ProviderResult[WeatherForecastResult] | None = None
     alert_result: ProviderResult[WeatherAlertsResult] | None = None
+    proposal_result: ProviderResult[PlanProposal] | None = None
     candidate_result: ProviderResult[PlanCandidate] | None = None
+    scheduling_issue: SchedulingIssueCode | None = None
+    scheduling_warnings: tuple[SchedulingWarningCode, ...] = ()
+    scheduling_uncertainties: tuple[SchedulingUncertaintyCode, ...] = ()
+    route_results: tuple[ProviderResult[RouteLeg], ...] = ()
     route_enrichments: tuple[RouteEnrichmentResult, ...] = ()
     final_validation: FinalValidationResult | None = None
 
@@ -126,6 +139,13 @@ class OfflinePlanningOutcome:
             (item.result for item in self.route_enrichments if item.result is not None),
             None,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class _RouteLookup:
+    requirement: RouteRequirement
+    request: RouteCalculationRequest | None
+    result: ProviderResult[RouteLeg] | None
 
 
 class OfflinePlanningOrchestrator:
@@ -280,43 +300,123 @@ class OfflinePlanningOrchestrator:
             weather_result,
             alert_result,
         )
-        candidate_resolution = await DeepSeekCandidateResolver(self._deepseek).resolve(
+        proposal_resolution = await DeepSeekProposalResolver(self._deepseek).resolve(
             planning_context,
             governor,
         )
-        candidate_result = candidate_resolution.result
-        if candidate_result.status is ProviderResultStatus.UNAVAILABLE:
+        proposal_result = proposal_resolution.result
+        if proposal_result.status is ProviderResultStatus.UNAVAILABLE:
             await _advance(history, PlanningStatus.FAILED, state_observer)
             return _outcome(
                 history,
                 governor,
-                candidate_resolution_error=candidate_resolution.error_code,
-                candidate_repaired=candidate_resolution.repaired,
-                candidate_validation_stage=candidate_resolution.validation_stage,
-                candidate_validation_code=candidate_resolution.validation_code,
-                candidate_time_failure=candidate_resolution.validation_time_failure,
+                candidate_resolution_error=proposal_resolution.error_code,
+                candidate_repaired=proposal_resolution.repaired,
+                candidate_validation_stage=proposal_resolution.validation_stage,
+                candidate_validation_code=proposal_resolution.validation_code,
                 city_result=city_result,
                 accommodation_result=accommodation_result,
                 accommodation=accommodation,
                 poi_result=poi_result,
                 weather_result=weather_result,
                 alert_result=alert_result,
-                candidate_result=candidate_result,
+                proposal_result=proposal_result,
             )
 
-        candidate = _require_data(candidate_result)
+        proposal = _require_data(proposal_result)
+        scheduling = schedule_plan_proposal(
+            proposal,
+            accommodation_location_id=accommodation.location_id,
+            day_windows=request.day_windows,
+            locations=planning_context.locations,
+            route_mode=request.route_mode,
+            routes=(),
+            queried_routes=frozenset(),
+        )
+        if scheduling.issue is SchedulingIssueCode.ACTIVITY_DURATION_UNKNOWN:
+            await _advance(history, PlanningStatus.NEEDS_INPUT, state_observer)
+            return _outcome(
+                history,
+                governor,
+                candidate_repaired=proposal_resolution.repaired,
+                city_result=city_result,
+                accommodation_result=accommodation_result,
+                accommodation=accommodation,
+                poi_result=poi_result,
+                weather_result=weather_result,
+                alert_result=alert_result,
+                proposal_result=proposal_result,
+                scheduling_issue=scheduling.issue,
+                scheduling_uncertainties=scheduling.uncertainties,
+            )
+
         await _advance(history, PlanningStatus.ENRICHING_ROUTES, state_observer)
-        route_enrichments = await _enrich_routes(
+        route_lookups, scheduling = await _schedule_with_routes(
+            scheduling,
+            request=request,
+            accommodation=accommodation,
+            pois=pois.candidates,
+            citycode=city.citycode,
+            amap=self._amap,
+            governor=governor,
+            status=history[-1],
+            locations=planning_context.locations,
+        )
+        if scheduling.issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE:
+            await _advance(history, PlanningStatus.FAILED, state_observer)
+            return _outcome(
+                history,
+                governor,
+                candidate_repaired=proposal_resolution.repaired,
+                city_result=city_result,
+                accommodation_result=accommodation_result,
+                accommodation=accommodation,
+                poi_result=poi_result,
+                weather_result=weather_result,
+                alert_result=alert_result,
+                proposal_result=proposal_result,
+                scheduling_issue=scheduling.issue,
+                scheduling_warnings=scheduling.warnings,
+                scheduling_uncertainties=scheduling.uncertainties,
+                route_results=_route_results(route_lookups),
+                route_enrichments=_route_enrichments_from_lookups(
+                    None,
+                    request,
+                    accommodation,
+                    route_lookups,
+                ),
+            )
+
+        await _advance(history, PlanningStatus.VALIDATING, state_observer)
+        if scheduling.issue is SchedulingIssueCode.SCHEDULE_CAPACITY_EXCEEDED:
+            await _advance(history, PlanningStatus.CONFLICT, state_observer)
+            return _outcome(
+                history,
+                governor,
+                candidate_repaired=proposal_resolution.repaired,
+                city_result=city_result,
+                accommodation_result=accommodation_result,
+                accommodation=accommodation,
+                poi_result=poi_result,
+                weather_result=weather_result,
+                alert_result=alert_result,
+                proposal_result=proposal_result,
+                scheduling_issue=scheduling.issue,
+                scheduling_warnings=scheduling.warnings,
+                scheduling_uncertainties=scheduling.uncertainties,
+                route_results=_route_results(route_lookups),
+            )
+        if scheduling.issue is not None or scheduling.candidate is None:
+            raise AssertionError("deterministic scheduler returned an unsupported result")
+
+        candidate = scheduling.candidate
+        candidate_result = _with_scheduled_candidate(proposal_result, candidate)
+        route_enrichments = _route_enrichments_from_lookups(
             candidate,
             request,
             accommodation,
-            pois.candidates,
-            city.citycode,
-            self._amap,
-            governor,
-            history[-1],
+            route_lookups,
         )
-        await _advance(history, PlanningStatus.VALIDATING, state_observer)
         provider_results = _provider_results(
             city_result,
             accommodation_result,
@@ -349,18 +449,21 @@ class OfflinePlanningOrchestrator:
         return _outcome(
             history,
             governor,
-            candidate_resolution_error=candidate_resolution.error_code,
-            candidate_repaired=candidate_resolution.repaired,
-            candidate_validation_stage=candidate_resolution.validation_stage,
-            candidate_validation_code=candidate_resolution.validation_code,
-            candidate_time_failure=candidate_resolution.validation_time_failure,
+            candidate_resolution_error=proposal_resolution.error_code,
+            candidate_repaired=proposal_resolution.repaired,
+            candidate_validation_stage=proposal_resolution.validation_stage,
+            candidate_validation_code=proposal_resolution.validation_code,
             city_result=city_result,
             accommodation_result=accommodation_result,
             accommodation=accommodation,
             poi_result=poi_result,
             weather_result=weather_result,
             alert_result=alert_result,
+            proposal_result=proposal_result,
             candidate_result=candidate_result,
+            scheduling_warnings=scheduling.warnings,
+            scheduling_uncertainties=scheduling.uncertainties,
+            route_results=_route_results(route_lookups),
             route_enrichments=route_enrichments,
             final_validation=final_validation,
         )
@@ -394,7 +497,12 @@ def _outcome(
     poi_result: ProviderResult[PoiSearchResult] | None = None,
     weather_result: ProviderResult[WeatherForecastResult] | None = None,
     alert_result: ProviderResult[WeatherAlertsResult] | None = None,
+    proposal_result: ProviderResult[PlanProposal] | None = None,
     candidate_result: ProviderResult[PlanCandidate] | None = None,
+    scheduling_issue: SchedulingIssueCode | None = None,
+    scheduling_warnings: tuple[SchedulingWarningCode, ...] = (),
+    scheduling_uncertainties: tuple[SchedulingUncertaintyCode, ...] = (),
+    route_results: tuple[ProviderResult[RouteLeg], ...] = (),
     route_enrichments: tuple[RouteEnrichmentResult, ...] = (),
     final_validation: FinalValidationResult | None = None,
 ) -> OfflinePlanningOutcome:
@@ -413,7 +521,12 @@ def _outcome(
         poi_result=poi_result,
         weather_result=weather_result,
         alert_result=alert_result,
+        proposal_result=proposal_result,
         candidate_result=candidate_result,
+        scheduling_issue=scheduling_issue,
+        scheduling_warnings=scheduling_warnings,
+        scheduling_uncertainties=scheduling_uncertainties,
+        route_results=route_results,
         route_enrichments=route_enrichments,
         final_validation=final_validation,
     )
@@ -505,8 +618,9 @@ def _planning_context(
     )
 
 
-async def _enrich_routes(
-    candidate: PlanCandidate,
+async def _schedule_with_routes(
+    scheduling: SchedulingResult,
+    *,
     request: OfflinePlanningRequest,
     accommodation: AccommodationAnchor,
     pois: tuple[PoiCandidate, ...],
@@ -514,30 +628,23 @@ async def _enrich_routes(
     amap: AmapPort,
     governor: ToolCallGovernor,
     status: PlanningStatus,
-) -> tuple[RouteEnrichmentResult, ...]:
+    locations: tuple[PlanningLocation, ...],
+) -> tuple[tuple[_RouteLookup, ...], SchedulingResult]:
     coordinates = {item.location_id: item.coordinates for item in pois}
     coordinates[accommodation.location_id] = accommodation.coordinates
-    windows = {item.day_offset: item for item in request.day_windows}
-    enrichments: list[RouteEnrichmentResult] = []
-    for day_offset in (0, 1):
-        try:
-            expected = DailyRoutePlan(
-                accommodation.location_id,
-                windows[day_offset],
-                route_activities(candidate, day_offset),
-                (),
-            ).expected_legs()
-        except (DomainInvariantError, KeyError):
-            continue
-        for leg in expected:
-            origin = coordinates.get(leg.origin_location_id)
-            destination = coordinates.get(leg.destination_location_id)
+    lookups: list[_RouteLookup] = []
+    for _ in range(3):
+        if scheduling.issue is not SchedulingIssueCode.ROUTE_DATA_REQUIRED:
+            return tuple(lookups), scheduling
+        for requirement in scheduling.missing_routes:
+            origin = coordinates.get(requirement.origin_location_id)
+            destination = coordinates.get(requirement.destination_location_id)
             if origin is None or destination is None:
-                enrichments.append(RouteEnrichmentResult(day_offset, leg, None, None))
+                lookups.append(_RouteLookup(requirement, None, None))
                 continue
             route_request = RouteCalculationRequest(
-                leg.origin_location_id,
-                leg.destination_location_id,
+                requirement.origin_location_id,
+                requirement.destination_location_id,
                 origin,
                 destination,
                 citycode,
@@ -550,8 +657,99 @@ async def _enrich_routes(
                 status,
                 _route_operation(amap, route_request),
             )
-            enrichments.append(RouteEnrichmentResult(day_offset, leg, route_request, route_result))
+            lookups.append(_RouteLookup(requirement, route_request, route_result))
+        scheduling = schedule_plan_proposal(
+            scheduling.proposal,
+            accommodation_location_id=accommodation.location_id,
+            day_windows=request.day_windows,
+            locations=locations,
+            route_mode=request.route_mode,
+            routes=_scheduled_routes(lookups, request.route_mode),
+            queried_routes=frozenset(item.requirement for item in lookups),
+            omitted_days=scheduling.omitted_days,
+            warnings=scheduling.warnings,
+        )
+        if scheduling.issue is not SchedulingIssueCode.ROUTE_DATA_REQUIRED:
+            return tuple(lookups), scheduling
+    raise AssertionError("deterministic scheduler exceeded the bounded enrichment passes")
+
+
+def _scheduled_routes(
+    lookups: list[_RouteLookup],
+    route_mode: RouteMode,
+) -> tuple[ScheduledRoute, ...]:
+    values: list[ScheduledRoute] = []
+    for item in lookups:
+        if item.result is None or item.result.data is None:
+            continue
+        route = item.result.data
+        if (
+            route.origin_location_id != item.requirement.origin_location_id
+            or route.destination_location_id != item.requirement.destination_location_id
+            or route.mode is not route_mode
+        ):
+            continue
+        values.append(ScheduledRoute(item.requirement, route))
+    return tuple(values)
+
+
+def _route_enrichments_from_lookups(
+    candidate: PlanCandidate | None,
+    request: OfflinePlanningRequest,
+    accommodation: AccommodationAnchor,
+    lookups: tuple[_RouteLookup, ...],
+) -> tuple[RouteEnrichmentResult, ...]:
+    if candidate is None:
+        return ()
+    by_requirement = {item.requirement: item for item in lookups}
+    windows = {item.day_offset: item for item in request.day_windows}
+    enrichments: list[RouteEnrichmentResult] = []
+    for day_offset in (0, 1):
+        expected_legs = DailyRoutePlan(
+            accommodation.location_id,
+            windows[day_offset],
+            route_activities(candidate, day_offset),
+            (),
+        ).expected_legs()
+        for expected in expected_legs:
+            lookup = by_requirement.get(
+                RouteRequirement(
+                    day_offset,
+                    expected.origin_location_id,
+                    expected.destination_location_id,
+                )
+            )
+            enrichments.append(
+                RouteEnrichmentResult(
+                    day_offset,
+                    expected,
+                    lookup.request if lookup is not None else None,
+                    lookup.result if lookup is not None else None,
+                )
+            )
     return tuple(enrichments)
+
+
+def _route_results(
+    lookups: tuple[_RouteLookup, ...],
+) -> tuple[ProviderResult[RouteLeg], ...]:
+    return tuple(item.result for item in lookups if item.result is not None)
+
+
+def _with_scheduled_candidate(
+    source: ProviderResult[PlanProposal],
+    candidate: PlanCandidate,
+) -> ProviderResult[PlanCandidate]:
+    return ProviderResult(
+        source.status,
+        source.provider,
+        candidate,
+        source.fetched_at,
+        source.valid_until,
+        source.warnings,
+        source.error,
+        source.source_records,
+    )
 
 
 def _route_operation(
