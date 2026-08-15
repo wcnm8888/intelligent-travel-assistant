@@ -1,0 +1,2053 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>旅笺 · F-001 产品 UI 参考稿</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f3efe3;
+        --paper-raised: #fbf8ef;
+        --ink: #132c33;
+        --ink-soft: #536369;
+        --line: #c8c2b3;
+        --line-strong: #92988f;
+        --jade: #176b5b;
+        --jade-soft: #dce9e2;
+        --vermilion: #b53a2d;
+        --vermilion-soft: #f5dfd8;
+        --amber: #9a6517;
+        --amber-soft: #f3e8c9;
+        --blue-soft: #dbe8eb;
+        --shadow: 0 18px 60px rgb(27 46 48 / 10%);
+        --display: "FZKai-Z03", "STKaiti", "KaiTi", serif;
+        --body:
+          "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-width: 320px;
+        background: var(--paper);
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        font-family: var(--body);
+        background:
+          linear-gradient(
+            90deg,
+            transparent 0 31px,
+            rgb(181 58 45 / 8%) 31px 32px,
+            transparent 32px
+          ),
+          repeating-linear-gradient(
+            0deg,
+            transparent 0 35px,
+            rgb(19 44 51 / 3%) 35px 36px
+          ),
+          var(--paper);
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button,
+      summary,
+      select {
+        cursor: pointer;
+      }
+
+      :focus-visible {
+        outline: 3px solid #157fbe;
+        outline-offset: 3px;
+      }
+
+      .skip-link {
+        position: fixed;
+        z-index: 100;
+        top: 8px;
+        left: 8px;
+        transform: translateY(-150%);
+        padding: 10px 14px;
+        color: white;
+        background: var(--ink);
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      .review-bar {
+        position: sticky;
+        z-index: 20;
+        top: 0;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 18px;
+        align-items: center;
+        min-height: 58px;
+        padding: 8px clamp(18px, 4vw, 64px);
+        color: #f7f2e6;
+        background: var(--ink);
+        border-bottom: 3px solid var(--vermilion);
+      }
+
+      .review-label {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+      }
+
+      .review-label::before {
+        width: 9px;
+        height: 9px;
+        content: "";
+        background: #e3b24e;
+        border-radius: 50%;
+        box-shadow: 0 0 0 4px rgb(227 178 78 / 16%);
+      }
+
+      .state-tabs {
+        display: flex;
+        gap: 5px;
+        justify-content: center;
+      }
+
+      .state-tabs button {
+        padding: 7px 10px;
+        color: #e6ede8;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 2px;
+        font-size: 12px;
+      }
+
+      .state-tabs button:hover {
+        background: rgb(255 255 255 / 8%);
+      }
+
+      .state-tabs button[aria-pressed="true"] {
+        color: var(--ink);
+        background: var(--paper-raised);
+        border-color: var(--paper-raised);
+      }
+
+      .state-select {
+        display: none;
+        width: 100%;
+        padding: 9px 34px 9px 11px;
+        color: white;
+        background: var(--ink);
+        border: 1px solid #839496;
+        border-radius: 2px;
+      }
+
+      .review-note {
+        color: #bdc9c5;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .app-header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 24px;
+        align-items: end;
+        max-width: 1540px;
+        margin: 0 auto;
+        padding: 30px clamp(18px, 4vw, 64px) 24px;
+      }
+
+      .brand-kicker {
+        margin: 0 0 5px;
+        color: var(--vermilion);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .brand-title {
+        display: flex;
+        gap: 16px;
+        align-items: baseline;
+        margin: 0;
+        font-family: var(--display);
+        font-size: clamp(34px, 4.2vw, 58px);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        line-height: 0.95;
+      }
+
+      .brand-title small {
+        color: var(--ink-soft);
+        font-family: var(--body);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+      }
+
+      .local-meta {
+        display: grid;
+        grid-template-columns: repeat(2, auto);
+        gap: 4px 20px;
+        margin: 0;
+        font-size: 12px;
+      }
+
+      .local-meta dt {
+        color: var(--ink-soft);
+      }
+
+      .local-meta dd {
+        margin: 0;
+        font-weight: 700;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(300px, 370px) minmax(0, 1fr);
+        gap: clamp(18px, 3vw, 42px);
+        align-items: start;
+        width: min(1540px, calc(100% - clamp(36px, 8vw, 128px)));
+        margin: 0 auto 72px;
+      }
+
+      .request-column {
+        position: sticky;
+        top: 80px;
+      }
+
+      .request-sheet,
+      .content-sheet {
+        background: rgb(251 248 239 / 92%);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+      }
+
+      .request-sheet {
+        padding: 0 20px 22px;
+        border-top: 5px solid var(--ink);
+      }
+
+      .request-sheet > summary {
+        display: flex;
+        justify-content: space-between;
+        padding: 18px 0 15px;
+        list-style: none;
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .request-sheet > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .request-sheet > summary::after {
+        content: "收起";
+        color: var(--ink-soft);
+        font-family: var(--body);
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .request-sheet:not([open]) > summary::after {
+        content: "展开";
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field.wide {
+        grid-column: 1 / -1;
+      }
+
+      .field label,
+      .fieldset-label {
+        color: var(--ink-soft);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        min-height: 42px;
+        padding: 10px 11px;
+        color: var(--ink);
+        background: white;
+        border: 1px solid var(--line-strong);
+        border-radius: 0;
+      }
+
+      .field textarea {
+        min-height: 68px;
+        resize: vertical;
+      }
+
+      .field-hint {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 10px;
+        line-height: 1.45;
+      }
+
+      .choice-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+
+      .choice-row label {
+        position: relative;
+      }
+
+      .choice-row input {
+        position: absolute;
+        opacity: 0;
+      }
+
+      .choice-row span {
+        display: block;
+        padding: 7px 10px;
+        background: #f0ede4;
+        border: 1px solid var(--line);
+        font-size: 11px;
+      }
+
+      .choice-row input:checked + span {
+        color: white;
+        background: var(--jade);
+        border-color: var(--jade);
+      }
+
+      .choice-row input:focus-visible + span {
+        outline: 3px solid #157fbe;
+        outline-offset: 2px;
+      }
+
+      .submit-row {
+        display: grid;
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .primary-button,
+      .secondary-button,
+      .text-button {
+        min-height: 42px;
+        padding: 10px 15px;
+        border: 1px solid currentColor;
+        border-radius: 0;
+        font-weight: 800;
+      }
+
+      .primary-button {
+        color: white;
+        background: var(--vermilion);
+        border-color: var(--vermilion);
+      }
+
+      .primary-button:hover {
+        background: #922c23;
+      }
+
+      .secondary-button {
+        color: var(--ink);
+        background: transparent;
+      }
+
+      .text-button {
+        min-height: auto;
+        padding: 4px 0;
+        color: var(--jade);
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid currentColor;
+      }
+
+      .local-only {
+        display: flex;
+        gap: 7px;
+        align-items: flex-start;
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 10px;
+        line-height: 1.5;
+      }
+
+      .local-only::before {
+        content: "⌂";
+        color: var(--jade);
+        font-size: 14px;
+      }
+
+      .content-column {
+        min-width: 0;
+      }
+
+      .content-sheet {
+        min-height: 670px;
+        border-top: 5px solid var(--jade);
+      }
+
+      .view[hidden] {
+        display: none !important;
+      }
+
+      .empty-view,
+      .processing-view,
+      .message-view {
+        display: grid;
+        place-items: center;
+        min-height: 665px;
+        padding: clamp(30px, 7vw, 90px);
+        text-align: center;
+      }
+
+      .empty-mark {
+        display: grid;
+        place-items: center;
+        width: 118px;
+        height: 118px;
+        margin: 0 auto 28px;
+        font-family: var(--display);
+        font-size: 42px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 9px var(--paper-raised);
+      }
+
+      .view-title {
+        margin: 0 0 12px;
+        font-family: var(--display);
+        font-size: clamp(30px, 4vw, 48px);
+        line-height: 1.1;
+      }
+
+      .view-copy {
+        max-width: 580px;
+        margin: 0 auto;
+        color: var(--ink-soft);
+        line-height: 1.8;
+      }
+
+      .processing-track {
+        display: grid;
+        gap: 0;
+        width: min(620px, 100%);
+        margin: 38px auto 0;
+        text-align: left;
+        border-top: 1px solid var(--line);
+      }
+
+      .stage {
+        display: grid;
+        grid-template-columns: 34px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        min-height: 66px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .stage-index {
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        color: var(--ink-soft);
+        border: 1px solid var(--line-strong);
+        border-radius: 50%;
+        font-size: 11px;
+      }
+
+      .stage.done .stage-index {
+        color: white;
+        background: var(--jade);
+        border-color: var(--jade);
+      }
+
+      .stage.current {
+        color: var(--vermilion);
+        font-weight: 800;
+      }
+
+      .stage.current .stage-index {
+        color: white;
+        background: var(--vermilion);
+        border-color: var(--vermilion);
+        animation: breathe 1.8s ease-in-out infinite;
+      }
+
+      .stage small {
+        color: var(--ink-soft);
+      }
+
+      @keyframes breathe {
+        50% {
+          box-shadow: 0 0 0 8px rgb(181 58 45 / 12%);
+        }
+      }
+
+      .result-head {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 24px;
+        padding: clamp(22px, 4vw, 44px);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .eyebrow {
+        margin: 0 0 9px;
+        color: var(--ink-soft);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+      }
+
+      .trip-title {
+        margin: 0;
+        font-family: var(--display);
+        font-size: clamp(34px, 5vw, 62px);
+        line-height: 1;
+      }
+
+      .trip-subtitle {
+        margin: 12px 0 0;
+        color: var(--ink-soft);
+        font-size: 13px;
+      }
+
+      .status-stamp {
+        display: grid;
+        place-items: center;
+        align-self: start;
+        min-width: 104px;
+        min-height: 104px;
+        padding: 12px;
+        color: var(--jade);
+        border: 3px double currentColor;
+        border-radius: 50%;
+        font-family: var(--display);
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-align: center;
+        transform: rotate(4deg);
+      }
+
+      .result-alert {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 13px;
+        align-items: center;
+        margin: 0;
+        padding: 14px clamp(22px, 4vw, 44px);
+        background: var(--jade-soft);
+        border-bottom: 1px solid #aabeb3;
+        font-size: 12px;
+      }
+
+      .alert-symbol {
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .result-body {
+        display: grid;
+        gap: 26px;
+        padding: clamp(22px, 4vw, 44px);
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border: 1px solid var(--line);
+      }
+
+      .summary-cell {
+        min-width: 0;
+        padding: 17px 18px;
+        border-right: 1px solid var(--line);
+      }
+
+      .summary-cell:last-child {
+        border-right: 0;
+      }
+
+      .summary-cell span {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--ink-soft);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+      }
+
+      .summary-cell strong {
+        font-family: var(--display);
+        font-size: 24px;
+      }
+
+      .summary-cell small {
+        display: block;
+        margin-top: 5px;
+        color: var(--ink-soft);
+        font-size: 10px;
+      }
+
+      .section-heading {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin: 0 0 14px;
+        font-family: var(--display);
+        font-size: 24px;
+      }
+
+      .section-heading::after {
+        flex: 1;
+        height: 1px;
+        content: "";
+        background: var(--line);
+      }
+
+      .issue-panel {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        padding: 16px 18px;
+        background: var(--amber-soft);
+        border-left: 5px solid var(--amber);
+      }
+
+      .issue-panel[hidden] {
+        display: none;
+      }
+
+      .issue-panel strong,
+      .issue-panel p {
+        margin: 0;
+      }
+
+      .issue-panel p {
+        margin-top: 5px;
+        color: #604b2a;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .day-list {
+        display: grid;
+        gap: 16px;
+      }
+
+      .day-card {
+        display: grid;
+        grid-template-columns: 128px 1fr;
+        border: 1px solid var(--line);
+      }
+
+      .day-date {
+        padding: 18px 16px;
+        color: white;
+        background: var(--ink);
+      }
+
+      .day-date strong,
+      .day-date span,
+      .day-date small {
+        display: block;
+      }
+
+      .day-date strong {
+        font-family: var(--display);
+        font-size: 31px;
+      }
+
+      .day-date span {
+        margin-top: 3px;
+        font-size: 12px;
+      }
+
+      .day-date small {
+        margin-top: 22px;
+        color: #c6d3cf;
+        line-height: 1.5;
+      }
+
+      .day-content {
+        min-width: 0;
+        padding: 18px 20px;
+      }
+
+      .weather-line {
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 14px;
+        padding-bottom: 11px;
+        color: var(--ink-soft);
+        border-bottom: 1px dashed var(--line);
+        font-size: 11px;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 0;
+      }
+
+      .activity {
+        position: relative;
+        display: grid;
+        grid-template-columns: 62px 16px 1fr auto;
+        gap: 9px;
+        align-items: start;
+        padding: 9px 0;
+      }
+
+      .activity-time {
+        font-family: ui-monospace, "Cascadia Mono", monospace;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .activity-dot {
+        position: relative;
+        width: 10px;
+        height: 10px;
+        margin-top: 3px;
+        background: var(--vermilion);
+        border-radius: 50%;
+      }
+
+      .activity:not(:last-child) .activity-dot::after {
+        position: absolute;
+        top: 12px;
+        left: 4px;
+        width: 1px;
+        height: 42px;
+        content: "";
+        background: var(--line-strong);
+      }
+
+      .activity-copy strong,
+      .activity-copy small {
+        display: block;
+      }
+
+      .activity-copy small {
+        margin-top: 4px;
+        color: var(--ink-soft);
+        line-height: 1.5;
+      }
+
+      .trust-badge,
+      .source-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 3px 7px;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        border: 1px solid currentColor;
+      }
+
+      .trust-badge.estimated {
+        color: var(--amber);
+        background: #fff9e9;
+      }
+
+      .trust-badge.user {
+        color: #355d87;
+        background: #eef5fb;
+      }
+
+      .trust-badge.verified,
+      .source-badge {
+        color: var(--jade);
+        background: #f0f8f4;
+      }
+
+      .trust-badge.unknown {
+        color: var(--vermilion);
+        background: var(--vermilion-soft);
+      }
+
+      .budget-layout {
+        display: grid;
+        grid-template-columns: minmax(180px, 0.7fr) 1.3fr;
+        gap: 18px;
+      }
+
+      .budget-meter {
+        display: grid;
+        align-content: center;
+        min-height: 170px;
+        padding: 22px;
+        color: white;
+        background: var(--ink);
+      }
+
+      .budget-meter span,
+      .budget-meter strong,
+      .budget-meter small {
+        display: block;
+      }
+
+      .budget-meter span {
+        color: #b8c8c4;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+      }
+
+      .budget-meter strong {
+        margin: 9px 0 7px;
+        font-family: var(--display);
+        font-size: 40px;
+      }
+
+      .budget-meter small {
+        color: #d9e0dd;
+        line-height: 1.6;
+      }
+
+      .cost-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        border-top: 1px solid var(--line);
+      }
+
+      .cost-list li {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 12px;
+        align-items: center;
+        min-height: 42px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+      }
+
+      .cost-list strong {
+        font-family: ui-monospace, "Cascadia Mono", monospace;
+      }
+
+      .sources-panel {
+        border-top: 1px solid var(--line);
+      }
+
+      .source-row {
+        display: grid;
+        grid-template-columns: 90px 1fr auto;
+        gap: 14px;
+        align-items: center;
+        padding: 13px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 11px;
+      }
+
+      .source-row strong,
+      .source-row span,
+      .source-row small {
+        min-width: 0;
+      }
+
+      .source-row small {
+        color: var(--ink-soft);
+        line-height: 1.5;
+        text-align: right;
+      }
+
+      .result-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        padding-top: 4px;
+      }
+
+      .message-card {
+        max-width: 620px;
+      }
+
+      .message-symbol {
+        display: grid;
+        place-items: center;
+        width: 84px;
+        height: 84px;
+        margin: 0 auto 24px;
+        color: var(--vermilion);
+        border: 3px double currentColor;
+        border-radius: 50%;
+        font-family: var(--display);
+        font-size: 34px;
+        font-weight: 800;
+      }
+
+      .message-detail {
+        margin: 24px 0;
+        padding: 16px 18px;
+        text-align: left;
+        background: var(--vermilion-soft);
+        border-left: 5px solid var(--vermilion);
+      }
+
+      .message-detail strong,
+      .message-detail p {
+        margin: 0;
+      }
+
+      .message-detail p {
+        margin-top: 6px;
+        color: #6f4039;
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .message-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      body[data-state="partial"] .content-sheet {
+        border-top-color: var(--amber);
+      }
+
+      body[data-state="partial"] .status-stamp {
+        color: var(--amber);
+      }
+
+      body[data-state="partial"] .result-alert {
+        background: var(--amber-soft);
+        border-color: #d7bf81;
+      }
+
+      body[data-state="conflict"] .content-sheet,
+      body[data-state="failed"] .content-sheet,
+      body[data-state="needs_input"] .content-sheet {
+        border-top-color: var(--vermilion);
+      }
+
+      body[data-state="conflict"] .status-stamp {
+        color: var(--vermilion);
+      }
+
+      body[data-state="conflict"] .result-alert {
+        background: var(--vermilion-soft);
+        border-color: #ddb1a8;
+      }
+
+      body[data-state="conflict"] .budget-meter {
+        background: #5b2926;
+      }
+
+      .prototype-footer {
+        width: min(1540px, calc(100% - clamp(36px, 8vw, 128px)));
+        margin: -42px auto 32px;
+        color: var(--ink-soft);
+        font-size: 10px;
+        line-height: 1.6;
+      }
+
+      @media (max-width: 980px) {
+        .review-bar {
+          grid-template-columns: 1fr auto;
+        }
+
+        .review-note {
+          display: none;
+        }
+
+        .workspace {
+          grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+        }
+
+        .summary-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .summary-cell {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .summary-cell:last-child {
+          border-bottom: 0;
+        }
+
+        .budget-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        body {
+          background:
+            repeating-linear-gradient(
+              0deg,
+              transparent 0 35px,
+              rgb(19 44 51 / 3%) 35px 36px
+            ),
+            var(--paper);
+        }
+
+        .review-bar {
+          position: relative;
+          grid-template-columns: 1fr;
+          gap: 7px;
+          padding: 10px 16px;
+        }
+
+        .state-tabs {
+          display: none;
+        }
+
+        .state-select {
+          display: block;
+        }
+
+        .app-header {
+          grid-template-columns: 1fr;
+          gap: 16px;
+          padding: 24px 16px 18px;
+        }
+
+        .brand-title {
+          gap: 9px;
+          font-size: 38px;
+        }
+
+        .brand-title small {
+          font-size: 9px;
+        }
+
+        .local-meta {
+          justify-content: space-between;
+        }
+
+        .workspace {
+          display: flex;
+          flex-direction: column;
+          width: calc(100% - 24px);
+          margin-bottom: 52px;
+        }
+
+        .content-column {
+          order: 1;
+          width: 100%;
+        }
+
+        .request-column {
+          position: static;
+          order: 2;
+          width: 100%;
+        }
+
+        body[data-state="initial"] .request-column {
+          order: 1;
+        }
+
+        body[data-state="initial"] .content-column {
+          order: 2;
+        }
+
+        .request-sheet:not([open]) {
+          padding-bottom: 0;
+        }
+
+        body:not([data-state="initial"]) .request-sheet > summary::after {
+          content: "按需展开";
+        }
+
+        .field-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .field.wide {
+          grid-column: auto;
+        }
+
+        .content-sheet,
+        .empty-view,
+        .processing-view,
+        .message-view {
+          min-height: auto;
+        }
+
+        .empty-view,
+        .processing-view,
+        .message-view {
+          padding: 48px 20px;
+        }
+
+        .result-head {
+          grid-template-columns: 1fr 78px;
+          gap: 12px;
+          padding: 22px 18px;
+        }
+
+        .trip-title {
+          font-size: 39px;
+        }
+
+        .status-stamp {
+          min-width: 72px;
+          min-height: 72px;
+          padding: 8px;
+          font-size: 13px;
+        }
+
+        .result-alert {
+          grid-template-columns: auto 1fr;
+          padding: 13px 18px;
+        }
+
+        .result-alert .text-button {
+          grid-column: 2;
+          justify-self: start;
+        }
+
+        .result-body {
+          gap: 22px;
+          padding: 20px 18px;
+        }
+
+        .day-card {
+          grid-template-columns: 1fr;
+        }
+
+        .day-date {
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          gap: 10px;
+          align-items: baseline;
+          padding: 12px 15px;
+        }
+
+        .day-date strong {
+          font-size: 25px;
+        }
+
+        .day-date small {
+          margin: 0;
+          text-align: right;
+        }
+
+        .day-content {
+          padding: 15px;
+        }
+
+        .activity {
+          grid-template-columns: 52px 13px 1fr;
+        }
+
+        .activity > .trust-badge {
+          grid-column: 3;
+          justify-self: start;
+        }
+
+        .cost-list li {
+          grid-template-columns: 1fr auto;
+          gap: 5px 10px;
+          padding: 8px 0;
+        }
+
+        .cost-list .trust-badge {
+          grid-column: 1;
+          justify-self: start;
+        }
+
+        .source-row {
+          grid-template-columns: 78px 1fr;
+        }
+
+        .source-row small {
+          grid-column: 1 / -1;
+          text-align: left;
+        }
+
+        .issue-panel {
+          grid-template-columns: 1fr;
+        }
+
+        .result-actions,
+        .message-actions {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .prototype-footer {
+          width: calc(100% - 32px);
+          margin-top: -28px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body data-state="ready">
+    <a class="skip-link" href="#workspace-content">跳到主要内容</a>
+
+    <aside class="review-bar" aria-label="设计稿状态审阅器">
+      <div class="review-label">STEP 21 · 交互参考稿</div>
+      <div class="state-tabs" role="group" aria-label="切换页面状态">
+        <button type="button" data-state-button="initial">输入</button>
+        <button type="button" data-state-button="processing">处理中</button>
+        <button type="button" data-state-button="ready" aria-pressed="true">
+          完整
+        </button>
+        <button type="button" data-state-button="partial">部分可用</button>
+        <button type="button" data-state-button="conflict">冲突</button>
+        <button type="button" data-state-button="needs_input">待补充</button>
+        <button type="button" data-state-button="failed">失败</button>
+      </div>
+      <select class="state-select" aria-label="切换页面状态">
+        <option value="initial">输入</option>
+        <option value="processing">处理中</option>
+        <option value="ready" selected>完整</option>
+        <option value="partial">部分可用</option>
+        <option value="conflict">冲突</option>
+        <option value="needs_input">待补充</option>
+        <option value="failed">失败</option>
+      </select>
+      <div class="review-note">仅用于设计审批 · 不提交数据</div>
+    </aside>
+
+    <header class="app-header">
+      <div>
+        <p class="brand-kicker">Local travel decision desk</p>
+        <h1 class="brand-title">
+          旅笺 <small>Intelligent Travel Assistant</small>
+        </h1>
+      </div>
+      <dl class="local-meta">
+        <dt>运行方式</dt>
+        <dd>仅本机</dd>
+        <dt>计划版本</dt>
+        <dd>草案 v1</dd>
+        <dt>最近更新</dt>
+        <dd>10:00</dd>
+        <dt>币种</dt>
+        <dd>CNY</dd>
+      </dl>
+    </header>
+
+    <main class="workspace" id="workspace-content" tabindex="-1">
+      <aside class="request-column" aria-label="旅行需求">
+        <details class="request-sheet" open>
+          <summary>行前设定</summary>
+          <form id="trip-form">
+            <div class="field-grid">
+              <div class="field wide">
+                <label for="city">目的地城市 *</label>
+                <input id="city" name="city" value="杭州" autocomplete="off" />
+                <p class="field-hint">第一版仅支持中国大陆单城市自由行。</p>
+              </div>
+              <div class="field">
+                <label for="start-date">开始日期 *</label>
+                <input
+                  id="start-date"
+                  name="start-date"
+                  type="date"
+                  value="2026-08-15"
+                />
+              </div>
+              <div class="field">
+                <label for="travelers">同行人数 *</label>
+                <input
+                  id="travelers"
+                  name="travelers"
+                  type="number"
+                  min="1"
+                  max="8"
+                  value="2"
+                />
+              </div>
+              <div class="field wide">
+                <label for="budget">总预算 *</label>
+                <input
+                  id="budget"
+                  name="budget"
+                  inputmode="decimal"
+                  value="4000.00"
+                />
+                <p class="field-hint">
+                  覆盖住宿、城际/市内交通、门票、餐饮等全部费用。
+                </p>
+              </div>
+              <div class="field wide">
+                <span class="fieldset-label" id="interest-label">兴趣偏好</span>
+                <div
+                  class="choice-row"
+                  role="group"
+                  aria-labelledby="interest-label"
+                >
+                  <label
+                    ><input type="checkbox" checked /><span>自然</span></label
+                  >
+                  <label
+                    ><input type="checkbox" checked /><span>历史</span></label
+                  >
+                  <label><input type="checkbox" /><span>美食</span></label>
+                  <label><input type="checkbox" /><span>亲子</span></label>
+                </div>
+              </div>
+              <div class="field wide">
+                <label for="pace">行程节奏</label>
+                <select id="pace" name="pace">
+                  <option>舒缓</option>
+                  <option selected>均衡</option>
+                  <option>紧凑</option>
+                </select>
+              </div>
+              <div class="field wide">
+                <span class="fieldset-label" id="transport-label"
+                  >市内交通</span
+                >
+                <div
+                  class="choice-row"
+                  role="group"
+                  aria-labelledby="transport-label"
+                >
+                  <label
+                    ><input type="checkbox" checked /><span>步行</span></label
+                  >
+                  <label
+                    ><input type="checkbox" checked /><span
+                      >公共交通</span
+                    ></label
+                  >
+                </div>
+              </div>
+              <div class="field wide">
+                <label for="accommodation">住宿区域或 POI *</label>
+                <input
+                  id="accommodation"
+                  name="accommodation"
+                  value="西湖附近"
+                />
+                <p class="field-hint">这里不是实时酒店库存，也不代表可预订。</p>
+              </div>
+              <div class="field">
+                <label for="hotel-cost">一晚住宿费用</label>
+                <input
+                  id="hotel-cost"
+                  name="hotel-cost"
+                  inputmode="decimal"
+                  value="700.00"
+                />
+              </div>
+              <div class="field">
+                <label for="meal-cost">餐饮 / 人 / 天</label>
+                <input
+                  id="meal-cost"
+                  name="meal-cost"
+                  inputmode="decimal"
+                  value="100.00"
+                />
+              </div>
+              <div class="field wide">
+                <label for="constraints">补充要求</label>
+                <textarea id="constraints" name="constraints">
+节奏不要太赶；博物馆优先安排在白天。</textarea>
+              </div>
+            </div>
+            <div class="submit-row">
+              <button class="primary-button" type="submit">生成双日计划</button>
+              <p class="local-only">
+                请求只发往本机后端；外部数据仅由后端受控访问。此参考稿不会实际提交。
+              </p>
+            </div>
+          </form>
+        </details>
+      </aside>
+
+      <section class="content-column" aria-label="计划结果">
+        <div class="content-sheet">
+          <section class="view empty-view" data-view="initial" hidden>
+            <div>
+              <div class="empty-mark" aria-hidden="true">杭</div>
+              <h2 class="view-title">先写下这趟旅行的边界</h2>
+              <p class="view-copy">
+                城市、日期、人数和总预算是必要信息。住宿、城际交通和门票若没有可靠金额，将明确显示为未知，而不是当作
+                0 元。
+              </p>
+            </div>
+          </section>
+
+          <section
+            class="view processing-view"
+            data-view="processing"
+            hidden
+            aria-live="polite"
+          >
+            <div>
+              <p class="eyebrow">任务已在本机受理 · attempt 1/3</p>
+              <h2 class="view-title">正在收集杭州的旅行事实</h2>
+              <p class="view-copy">
+                页面会说明当前阶段，不用反复提交。已完成的数据会保留，任何缺失都会进入最终结果。
+              </p>
+              <div class="processing-track" aria-label="规划进度">
+                <div class="stage done">
+                  <span class="stage-index">✓</span><strong>规范化需求</strong
+                  ><small>已完成</small>
+                </div>
+                <div class="stage current">
+                  <span class="stage-index">2</span
+                  ><strong>获取地点、路线和天气</strong><small>进行中</small>
+                </div>
+                <div class="stage">
+                  <span class="stage-index">3</span
+                  ><strong>生成结构化候选</strong><small>等待</small>
+                </div>
+                <div class="stage">
+                  <span class="stage-index">4</span
+                  ><strong>代码校验日期、路线和预算</strong><small>等待</small>
+                </div>
+              </div>
+              <div
+                class="result-actions"
+                style="justify-content: center; margin-top: 26px"
+              >
+                <button
+                  class="secondary-button"
+                  type="button"
+                  data-state-button="initial"
+                >
+                  返回编辑
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section
+            class="view terminal-view"
+            data-view="terminal"
+            aria-live="polite"
+          >
+            <header class="result-head">
+              <div>
+                <p class="eyebrow" id="terminal-eyebrow">
+                  代码校验通过 · 可用于决策
+                </p>
+                <h2 class="trip-title">杭州二日旅笺</h2>
+                <p class="trip-subtitle">
+                  2026年8月15日—16日 · 2人 · 均衡节奏 · 西湖附近住宿
+                </p>
+              </div>
+              <div class="status-stamp" id="status-stamp">完整<br />可用</div>
+            </header>
+
+            <div class="result-alert" role="status">
+              <span class="alert-symbol" id="alert-symbol" aria-hidden="true"
+                >✓</span
+              >
+              <span id="alert-copy"
+                >日期、路线、时间和已知预算均通过确定性校验。</span
+              >
+              <button class="text-button" type="button" id="alert-action">
+                查看校验摘要
+              </button>
+            </div>
+
+            <div class="result-body">
+              <section aria-labelledby="summary-title">
+                <h3 class="section-heading" id="summary-title">计划摘要</h3>
+                <div class="summary-grid">
+                  <div class="summary-cell">
+                    <span>已知费用</span>
+                    <strong id="known-total">¥2,140</strong>
+                    <small id="budget-caption"
+                      >总预算 ¥4,000 · 完整可判定</small
+                    >
+                  </div>
+                  <div class="summary-cell">
+                    <span>未知费用</span>
+                    <strong id="unknown-count">0 项</strong>
+                    <small id="unknown-caption">没有把缺失费用记为 0</small>
+                  </div>
+                  <div class="summary-cell">
+                    <span>数据状态</span>
+                    <strong id="freshness-summary">5 类来源</strong>
+                    <small>最晚获取 10:00 · 部分有效期未知</small>
+                  </div>
+                </div>
+              </section>
+
+              <aside class="issue-panel" id="issue-panel" hidden>
+                <div>
+                  <strong id="issue-title">有信息需要注意</strong>
+                  <p id="issue-copy">部分数据缺失，但已验证内容仍可使用。</p>
+                </div>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  id="issue-action"
+                >
+                  处理
+                </button>
+              </aside>
+
+              <section aria-labelledby="days-title">
+                <h3 class="section-heading" id="days-title">逐日安排</h3>
+                <div class="day-list">
+                  <article class="day-card">
+                    <div class="day-date">
+                      <strong>15</strong><span>周六 · 第一天</span
+                      ><small>09:00—20:00</small>
+                    </div>
+                    <div class="day-content">
+                      <div class="weather-line">
+                        <span id="weather-one">多云 26—34℃ · 预报已获取</span>
+                        <span class="source-badge">和风天气 · 10:00</span>
+                      </div>
+                      <div class="timeline">
+                        <div class="activity">
+                          <span class="activity-time">09:20</span
+                          ><span class="activity-dot"></span>
+                          <div class="activity-copy">
+                            <strong>从西湖附近住宿出发</strong
+                            ><small id="route-one"
+                              >公交约 22 分钟 · 路线已校验</small
+                            >
+                          </div>
+                          <span
+                            class="trust-badge verified"
+                            id="route-one-badge"
+                            >高德来源</span
+                          >
+                        </div>
+                        <div class="activity">
+                          <span class="activity-time">10:00</span
+                          ><span class="activity-dot"></span>
+                          <div class="activity-copy">
+                            <strong>西湖湖滨步行候选</strong
+                            ><small>停留 2 小时 · 自然 / 城市漫步</small>
+                          </div>
+                          <span class="trust-badge estimated">门票估算 ¥0</span>
+                        </div>
+                        <div class="activity">
+                          <span class="activity-time">12:35</span
+                          ><span class="activity-dot"></span>
+                          <div class="activity-copy">
+                            <strong>返回住宿区域休整</strong
+                            ><small id="route-two"
+                              >公交约 25 分钟 · 预留缓冲</small
+                            >
+                          </div>
+                          <span
+                            class="trust-badge verified"
+                            id="route-two-badge"
+                            >时间可行</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="day-card">
+                    <div class="day-date">
+                      <strong>16</strong><span>周日 · 第二天</span
+                      ><small>09:00—18:00</small>
+                    </div>
+                    <div class="day-content">
+                      <div class="weather-line">
+                        <span id="weather-two">阵雨 25—31℃ · 建议携带雨具</span>
+                        <span class="source-badge" id="weather-two-source"
+                          >和风天气 · 10:00</span
+                        >
+                      </div>
+                      <div class="timeline">
+                        <div class="activity">
+                          <span class="activity-time">09:25</span
+                          ><span class="activity-dot"></span>
+                          <div class="activity-copy">
+                            <strong>从住宿区域出发</strong
+                            ><small id="route-three"
+                              >公交约 20 分钟 · 路线已校验</small
+                            >
+                          </div>
+                          <span
+                            class="trust-badge verified"
+                            id="route-three-badge"
+                            >高德来源</span
+                          >
+                        </div>
+                        <div class="activity">
+                          <span class="activity-time">10:00</span
+                          ><span class="activity-dot"></span>
+                          <div class="activity-copy">
+                            <strong>博物馆参观候选</strong
+                            ><small>停留 2 小时 · 历史 / 室内</small>
+                          </div>
+                          <span class="trust-badge unknown" id="ticket-badge"
+                            >门票 ¥0 · 规则</span
+                          >
+                        </div>
+                        <div class="activity">
+                          <span class="activity-time">12:30</span
+                          ><span class="activity-dot"></span>
+                          <div class="activity-copy">
+                            <strong>返回住宿区域</strong
+                            ><small id="route-four"
+                              >公交约 22 分钟 · 时间可行</small
+                            >
+                          </div>
+                          <span
+                            class="trust-badge verified"
+                            id="route-four-badge"
+                            >时间可行</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section aria-labelledby="budget-title">
+                <h3 class="section-heading" id="budget-title">预算可信度</h3>
+                <div class="budget-layout">
+                  <div class="budget-meter">
+                    <span id="meter-label">已知合计 / 总预算</span>
+                    <strong id="meter-total">¥2,140</strong>
+                    <small id="meter-copy"
+                      >剩余 ¥1,860。所有费用已知时，才可判断完整预算。</small
+                    >
+                  </div>
+                  <ul class="cost-list" aria-label="费用明细">
+                    <li>
+                      <span>住宿 · 1晚</span
+                      ><span class="trust-badge user">用户提供</span
+                      ><strong id="hotel-total">¥700</strong>
+                    </li>
+                    <li>
+                      <span>城际往返</span
+                      ><span class="trust-badge user">用户提供</span
+                      ><strong>¥1,000</strong>
+                    </li>
+                    <li>
+                      <span>餐饮 · 2人×2天</span
+                      ><span class="trust-badge estimated">估算规则</span
+                      ><strong>¥400</strong>
+                    </li>
+                    <li>
+                      <span>市内交通</span
+                      ><span class="trust-badge estimated">估算规则</span
+                      ><strong id="local-transit-total">¥40</strong>
+                    </li>
+                    <li id="ticket-row">
+                      <span>门票</span
+                      ><span class="trust-badge estimated" id="ticket-trust"
+                        >估算规则</span
+                      ><strong id="ticket-total">¥0</strong>
+                    </li>
+                  </ul>
+                </div>
+              </section>
+
+              <section aria-labelledby="sources-title">
+                <h3 class="section-heading" id="sources-title">来源与时效</h3>
+                <div class="sources-panel">
+                  <div class="source-row" data-source="amap">
+                    <strong>高德开放平台</strong><span>城市、POI、路线</span
+                    ><small id="amap-freshness"
+                      >10:00 获取 · 路线有效至 10:30</small
+                    >
+                  </div>
+                  <div class="source-row" data-source="weather">
+                    <strong>和风天气</strong><span>逐日预报、当前预警</span
+                    ><small id="weather-freshness"
+                      >10:00 获取 · 有效至 16:00</small
+                    >
+                  </div>
+                  <div class="source-row" data-source="deepseek">
+                    <strong>DeepSeek</strong><span>结构化候选与解释</span
+                    ><small>10:00 获取 · 有效期未知</small>
+                  </div>
+                  <div class="source-row" data-source="user">
+                    <strong>用户输入</strong><span>住宿、城际交通、总预算</span
+                    ><small>本次请求 · 本人提供</small>
+                  </div>
+                  <div class="source-row" data-source="system">
+                    <strong>系统规则</strong><span>餐饮与公交估算</span
+                    ><small>明确假设 · 非实时报价</small>
+                  </div>
+                </div>
+              </section>
+
+              <div class="result-actions">
+                <button
+                  class="primary-button"
+                  type="button"
+                  id="primary-result-action"
+                >
+                  修改某一天
+                </button>
+                <button class="secondary-button" type="button">
+                  查看全部校验
+                </button>
+                <button
+                  class="text-button"
+                  type="button"
+                  data-state-button="initial"
+                >
+                  修改旅行需求
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section
+            class="view message-view"
+            data-view="needs_input"
+            hidden
+            aria-live="polite"
+          >
+            <div class="message-card">
+              <div class="message-symbol" aria-hidden="true">？</div>
+              <p class="eyebrow">需要你的决定 · 任务没有继续调用外部服务</p>
+              <h2 class="view-title">“西湖附近”还不够具体</h2>
+              <p class="view-copy">
+                住宿区域无法唯一定位。请选择更具体的区域或
+                POI，系统不会替你猜测住宿位置。
+              </p>
+              <div class="message-detail">
+                <strong>待补充：住宿区域或 POI</strong>
+                <p>
+                  例如“湖滨银泰附近”或一个明确的住宿地点。这里仍不提供实时库存、房价或预订。
+                </p>
+              </div>
+              <div class="message-actions">
+                <button
+                  class="primary-button"
+                  type="button"
+                  data-focus-field="accommodation"
+                >
+                  补充住宿位置
+                </button>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  data-state-button="initial"
+                >
+                  返回全部输入
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section
+            class="view message-view"
+            data-view="failed"
+            hidden
+            aria-live="polite"
+          >
+            <div class="message-card">
+              <div class="message-symbol" aria-hidden="true">×</div>
+              <p class="eyebrow">规划未完成 · 已停止后续调用</p>
+              <h2 class="view-title">暂时无法形成安全计划</h2>
+              <p class="view-copy">
+                规划服务暂时不可用。城市解析结果已保留，但系统不会用模板或未批准模型冒充完整计划。
+              </p>
+              <div class="message-detail">
+                <strong>影响范围：没有生成逐日计划</strong>
+                <p>
+                  错误类别：provider unavailable ·
+                  DeepSeek。页面不会显示原始响应、密钥或内部异常。
+                </p>
+              </div>
+              <div class="message-actions">
+                <button
+                  class="primary-button"
+                  type="button"
+                  data-state-button="processing"
+                >
+                  重试本次任务
+                </button>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  data-state-button="initial"
+                >
+                  返回修改需求
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="prototype-footer">
+      F-001 Step 21 设计参考：无地图、图片、预订、支付或登录入口。示例数据均为
+      synthetic，仅用于评审信息层级，不代表真实杭州天气、路线、价格或营业状态。
+    </footer>
+
+    <script>
+      const terminalModes = {
+        ready: {
+          eyebrow: "代码校验通过 · 可用于决策",
+          stamp: "完整<br>可用",
+          symbol: "✓",
+          alert: "日期、路线、时间和已知预算均通过确定性校验。",
+          action: "查看校验摘要",
+          known: "¥2,140",
+          budgetCaption: "总预算 ¥4,000 · 完整可判定",
+          unknown: "0 项",
+          unknownCaption: "没有把缺失费用记为 0",
+          issue: false,
+          meterLabel: "已知合计 / 总预算",
+          meterTotal: "¥2,140",
+          meterCopy: "剩余 ¥1,860。所有费用已知，因此预算可完整判断。",
+          hotel: "¥700",
+          transit: "¥40",
+          ticket: "¥0",
+          ticketTrust: "估算规则",
+          ticketBadge: "门票 ¥0 · 规则",
+          weatherTwo: "阵雨 25—31℃ · 建议携带雨具",
+          weatherSource: "和风天气 · 10:00",
+          routes: [
+            "公交约 22 分钟 · 路线已校验",
+            "公交约 25 分钟 · 预留缓冲",
+            "公交约 20 分钟 · 路线已校验",
+            "公交约 22 分钟 · 时间可行",
+          ],
+          routeBadges: ["高德来源", "时间可行", "高德来源", "时间可行"],
+          routeTrust: "verified",
+          sourceCount: "5 类来源",
+          visibleSources: ["amap", "weather", "deepseek", "user", "system"],
+          resultAction: "修改某一天",
+        },
+        partial: {
+          eyebrow: "部分数据缺失 · 可查看已有计划",
+          stamp: "部分<br>可用",
+          symbol: "!",
+          alert: "路线服务超时，第二天天气缺失；以下结论不是完整验证结果。",
+          action: "查看缺失项",
+          known: "¥2,100",
+          budgetCaption: "总预算 ¥4,000 · 完整预算不可判定",
+          unknown: "1 项",
+          unknownCaption: "门票未知 · 金额为空，不是 ¥0",
+          issue: true,
+          issueTitle: "2 项外部数据未完成",
+          issueCopy:
+            "全部路线时间和第二天天气尚未验证。已获取的 POI 与第一天天气仍可查看。",
+          issueAction: "重试缺失数据",
+          meterLabel: "已知合计 / 总预算",
+          meterTotal: "¥2,100 + 未知",
+          meterCopy:
+            "已知部分暂余 ¥1,900；由于门票未知，不能称为最终余额或预算充足。",
+          hotel: "¥700",
+          transit: "未知",
+          ticket: "未知",
+          ticketTrust: "金额未知",
+          ticketBadge: "门票未知",
+          weatherTwo: "天气数据缺失 · 不推测未来情况",
+          weatherSource: "未获取",
+          routes: ["路线未验证", "路线未验证", "路线未验证", "路线未验证"],
+          routeBadges: ["未验证", "未验证", "未验证", "未验证"],
+          routeTrust: "unknown",
+          sourceCount: "5 类来源",
+          visibleSources: ["amap", "weather", "deepseek", "user", "system"],
+          resultAction: "重试缺失数据",
+        },
+        conflict: {
+          eyebrow: "存在硬冲突 · 需要调整约束",
+          stamp: "预算<br>冲突",
+          symbol: "×",
+          alert: "已知费用 ¥4,500 超过总预算 ¥4,000，系统没有自动放宽预算。",
+          action: "定位冲突",
+          known: "¥4,500",
+          budgetCaption: "超出预算 ¥500 · 硬冲突",
+          unknown: "0 项",
+          unknownCaption: "冲突来自已知费用，不是数据缺失",
+          issue: true,
+          issueTitle: "住宿费用导致预算不可满足",
+          issueCopy:
+            "住宿 ¥3,100 + 城际 ¥1,000 + 餐饮 ¥400，已知合计超过总预算。需要修改住宿或预算后新建任务。",
+          issueAction: "调整住宿预算",
+          meterLabel: "已知合计 / 总预算",
+          meterTotal: "¥4,500",
+          meterCopy: "超出 ¥500。该冲突由确定性代码产生，模型不能删除或降级。",
+          hotel: "¥3,100",
+          transit: "—",
+          ticket: "—",
+          ticketTrust: "未进入计算",
+          ticketBadge: "候选未通过",
+          weatherTwo: "天气不影响当前预算冲突裁决",
+          weatherSource: "非冲突依据",
+          routes: ["候选信息 · 未宣称通过", "候选信息", "候选信息", "候选信息"],
+          routeBadges: ["候选未裁决", "候选未裁决", "候选未裁决", "候选未裁决"],
+          routeTrust: "unknown",
+          sourceCount: "3 类来源",
+          visibleSources: ["deepseek", "user", "system"],
+          resultAction: "调整预算或住宿",
+        },
+      };
+
+      const body = document.body;
+      const stateSelect = document.querySelector(".state-select");
+      const requestSheet = document.querySelector(".request-sheet");
+      const stateButtons = [
+        ...document.querySelectorAll("[data-state-button]"),
+      ];
+      const reviewStateButtons = [
+        ...document.querySelectorAll(".state-tabs [data-state-button]"),
+      ];
+
+      function setText(id, value) {
+        const node = document.getElementById(id);
+        if (node) node.textContent = value;
+      }
+
+      function renderTerminal(state) {
+        const mode = terminalModes[state];
+        setText("terminal-eyebrow", mode.eyebrow);
+        document.getElementById("status-stamp").innerHTML = mode.stamp;
+        setText("alert-symbol", mode.symbol);
+        setText("alert-copy", mode.alert);
+        setText("alert-action", mode.action);
+        setText("known-total", mode.known);
+        setText("budget-caption", mode.budgetCaption);
+        setText("unknown-count", mode.unknown);
+        setText("unknown-caption", mode.unknownCaption);
+        setText("meter-label", mode.meterLabel);
+        setText("meter-total", mode.meterTotal);
+        setText("meter-copy", mode.meterCopy);
+        setText("hotel-total", mode.hotel);
+        setText("local-transit-total", mode.transit);
+        setText("ticket-total", mode.ticket);
+        setText("ticket-trust", mode.ticketTrust);
+        setText("ticket-badge", mode.ticketBadge);
+        setText("weather-two", mode.weatherTwo);
+        setText("weather-two-source", mode.weatherSource);
+        setText("route-one", mode.routes[0]);
+        setText("route-two", mode.routes[1]);
+        setText("route-three", mode.routes[2]);
+        setText("route-four", mode.routes[3]);
+        ["one", "two", "three", "four"].forEach((name, index) => {
+          const badge = document.getElementById(`route-${name}-badge`);
+          badge.textContent = mode.routeBadges[index];
+          badge.className = `trust-badge ${mode.routeTrust}`;
+        });
+        setText("freshness-summary", mode.sourceCount);
+        document.querySelectorAll("[data-source]").forEach((source) => {
+          source.hidden = !mode.visibleSources.includes(source.dataset.source);
+        });
+        setText("primary-result-action", mode.resultAction);
+        const issuePanel = document.getElementById("issue-panel");
+        issuePanel.hidden = !mode.issue;
+        if (mode.issue) {
+          setText("issue-title", mode.issueTitle);
+          setText("issue-copy", mode.issueCopy);
+          setText("issue-action", mode.issueAction);
+        }
+        const unknown = state === "partial";
+        document.getElementById("ticket-trust").className =
+          `trust-badge ${unknown ? "unknown" : "estimated"}`;
+        document.getElementById("ticket-badge").className =
+          `trust-badge ${unknown ? "unknown" : "estimated"}`;
+      }
+
+      function setState(state, focusContent = false) {
+        body.dataset.state = state;
+        const terminal = Object.hasOwn(terminalModes, state);
+        document.querySelectorAll("[data-view]").forEach((view) => {
+          view.hidden = terminal
+            ? view.dataset.view !== "terminal"
+            : view.dataset.view !== state;
+        });
+        if (terminal) renderTerminal(state);
+        reviewStateButtons.forEach((button) => {
+          button.setAttribute(
+            "aria-pressed",
+            String(button.dataset.stateButton === state),
+          );
+        });
+        stateSelect.value = state;
+        if (
+          window.matchMedia("(max-width: 720px)").matches &&
+          state !== "initial"
+        ) {
+          requestSheet.open = false;
+        } else if (state === "initial") {
+          requestSheet.open = true;
+        }
+        if (focusContent) document.getElementById("workspace-content").focus();
+      }
+
+      stateButtons.forEach((button) => {
+        button.addEventListener("click", () =>
+          setState(button.dataset.stateButton, true),
+        );
+      });
+      stateSelect.addEventListener("change", (event) =>
+        setState(event.target.value, true),
+      );
+
+      document
+        .getElementById("trip-form")
+        .addEventListener("submit", (event) => {
+          event.preventDefault();
+          setState("processing", true);
+        });
+
+      document.querySelectorAll("[data-focus-field]").forEach((button) => {
+        button.addEventListener("click", () => {
+          setState("initial");
+          requestSheet.open = true;
+          document.getElementById(button.dataset.focusField).focus();
+        });
+      });
+
+      setState("ready");
+    </script>
+  </body>
+</html>

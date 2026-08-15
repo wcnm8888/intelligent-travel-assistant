@@ -1,0 +1,68 @@
+{
+  "synthetic": true,
+  "case_id": "hangzhou_two_day_failed",
+  "fixed_now": "2026-08-13T10:00:00+08:00",
+  "request_file": "synthetic_hangzhou_request.json",
+  "expectations": {
+    "expected_status": "failed",
+    "plan_required": false,
+    "retryable": true,
+    "known_total": null,
+    "unknown_count": null,
+    "required_error_codes": ["provider_unavailable"],
+    "required_violation_codes": [],
+    "required_uncertainty_codes": [],
+    "required_providers": ["amap"],
+    "forbidden_claims": ["已生成计划", "自动切换模型", "provider raw error"]
+  },
+  "response": {
+    "job_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4",
+    "trace_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4",
+    "client_request_id": "11111111-1111-4111-8111-111111111111",
+    "status": "failed",
+    "attempt": 1,
+    "request_summary": {
+      "city": "杭州",
+      "start_date": "2026-08-15",
+      "end_date": "2026-08-16",
+      "travelers": 2,
+      "budget": {"amount": "4000.00", "currency": "CNY"}
+    },
+    "resolved_destination": {
+      "city_name": "杭州市",
+      "adcode": "330100",
+      "center": null,
+      "source_ids": ["30000000-0000-4000-8000-000000000004"]
+    },
+    "plan": null,
+    "violations": [],
+    "warnings": ["synthetic 失败样例；未调用 DeepSeek 或高德 API"],
+    "uncertainties": [],
+    "sources": [
+      {
+        "source_id": "30000000-0000-4000-8000-000000000004",
+        "provider": "amap",
+        "source_type": "synthetic_geocode",
+        "provider_record_id": "synthetic-hangzhou",
+        "fetched_at": "2026-08-13T10:00:01+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 城市解析结果"]
+      }
+    ],
+    "errors": [
+      {
+        "code": "provider_unavailable",
+        "message": "规划模型在本验收样例中暂时不可用",
+        "field": null,
+        "provider": "deepseek",
+        "retryable": true
+      }
+    ],
+    "retryable": true,
+    "created_at": "2026-08-13T10:00:00+08:00",
+    "updated_at": "2026-08-13T10:00:06+08:00"
+  }
+}

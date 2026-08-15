@@ -67,7 +67,15 @@ class DocumentationChecksTest(unittest.TestCase):
             "| --- | --- | --- | --- | --- |\n"
             "| 0 | B-000 | ACTIVE | Baseline | None |\n",
         )
-        self._write(".env.example", "DEEPSEEK_API_KEY=\n")
+        self._write(
+            ".env.example",
+            "AMAP_API_KEY=\n"
+            "DEEPSEEK_API_KEY=\n"
+            "QWEATHER_API_HOST=\n"
+            "QWEATHER_PROJECT_ID=\n"
+            "QWEATHER_CREDENTIAL_ID=\n"
+            "QWEATHER_PRIVATE_KEY_PATH=\n",
+        )
         self._write(
             BUILD_CONSTRAINTS,
             "hatchling==1.32.0 \\\n+    --hash=sha256:a \\\n+    --hash=sha256:b\n"
@@ -99,7 +107,10 @@ class DocumentationChecksTest(unittest.TestCase):
             "    env:\n"
             '      AMAP_API_KEY: ""\n'
             '      DEEPSEEK_API_KEY: ""\n'
-            '      QWEATHER_API_KEY: ""\n'
+            '      QWEATHER_API_HOST: ""\n'
+            '      QWEATHER_PROJECT_ID: ""\n'
+            '      QWEATHER_CREDENTIAL_ID: ""\n'
+            '      QWEATHER_PRIVATE_KEY_PATH: ""\n'
             "    steps:\n"
             "      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
             "        with:\n"
@@ -136,6 +147,25 @@ class DocumentationChecksTest(unittest.TestCase):
         rendered = "\n".join(issue.render() for issue in issues)
         self.assertIn("possible-secret", {issue.category for issue in issues})
         self.assertNotIn("definitely-not-empty", rendered)
+
+    def test_qweather_private_key_path_must_remain_empty_in_template(self) -> None:
+        path = self.root / ".env.example"
+        text = path.read_text(encoding="utf-8").replace(
+            "QWEATHER_PRIVATE_KEY_PATH=",
+            "QWEATHER_PRIVATE_KEY_PATH=C:/private/account.pem",
+        )
+        path.write_text(text, encoding="utf-8")
+
+        self.assertIn("environment-template", self._categories())
+
+    def test_deprecated_qweather_api_key_placeholder_fails(self) -> None:
+        path = self.root / ".env.example"
+        path.write_text(
+            path.read_text(encoding="utf-8") + "QWEATHER_API_KEY=\n",
+            encoding="utf-8",
+        )
+
+        self.assertIn("environment-template", self._categories())
 
     def test_step_drift_fails(self) -> None:
         self._write(
@@ -199,6 +229,19 @@ class DocumentationChecksTest(unittest.TestCase):
             "| 0 | B-000 | DONE | Baseline | None |\n",
         )
         self.assertIn("status-consistency", self._categories())
+
+    def test_active_task_state_accepts_a_non_baseline_task_id(self) -> None:
+        self._write(
+            "docs/README.md",
+            "# Docs\n\n- 下一步：等待用户批准执行 F-001 Step 1。\n",
+        )
+        self._write(
+            "docs/project-management/roadmap.md",
+            "# Roadmap\n\n| Priority | Task | Status | Goal | Dependency |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| 1 | F-001 | ACTIVE | Vertical slice | B-000 |\n",
+        )
+        self.assertEqual(collect_issues(self.root), [])
 
     def test_markdown_trailing_whitespace_fails(self) -> None:
         self._write("docs/product-brief.md", "# Product\n\nTrailing  \n")

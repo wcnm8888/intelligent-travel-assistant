@@ -1,0 +1,328 @@
+{
+  "synthetic": true,
+  "case_id": "hangzhou_two_day_ready",
+  "fixed_now": "2026-08-13T10:00:00+08:00",
+  "request_file": "synthetic_hangzhou_request.json",
+  "expectations": {
+    "expected_status": "ready",
+    "plan_required": true,
+    "retryable": false,
+    "known_total": "2140.00",
+    "unknown_count": 0,
+    "required_error_codes": [],
+    "required_violation_codes": [],
+    "required_uncertainty_codes": [],
+    "required_providers": ["amap", "deepseek", "qweather", "system", "user"],
+    "forbidden_claims": ["提供实时库存", "当前可预订", "verified hotel price"]
+  },
+  "response": {
+    "job_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+    "trace_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+    "client_request_id": "11111111-1111-4111-8111-111111111111",
+    "status": "ready",
+    "attempt": 1,
+    "request_summary": {
+      "city": "杭州",
+      "start_date": "2026-08-15",
+      "end_date": "2026-08-16",
+      "travelers": 2,
+      "budget": {"amount": "4000.00", "currency": "CNY"}
+    },
+    "resolved_destination": {
+      "city_name": "杭州市",
+      "adcode": "330100",
+      "center": {
+        "longitude": "120.1551",
+        "latitude": "30.2741",
+        "coordinate_system": "provider_native"
+      },
+      "source_ids": ["30000000-0000-4000-8000-000000000001"]
+    },
+    "plan": {
+      "plan_id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
+      "city_adcode": "330100",
+      "start_date": "2026-08-15",
+      "end_date": "2026-08-16",
+      "locations": [
+        {
+          "location_id": "90000000-0000-4000-8000-000000000001",
+          "provider": "user",
+          "provider_place_id": null,
+          "name": "西湖附近住宿锚点",
+          "category": "accommodation_anchor",
+          "address": "synthetic 用户住宿区域，不代表真实酒店",
+          "city_adcode": "330100",
+          "coordinates": null,
+          "source_ids": ["10000000-0000-4000-8000-000000000001"]
+        },
+        {
+          "location_id": "90000000-0000-4000-8000-000000000002",
+          "provider": "amap",
+          "provider_place_id": "synthetic-west-lake",
+          "name": "西湖湖滨 synthetic POI",
+          "category": "scenic_area",
+          "address": "synthetic 地址",
+          "city_adcode": "330100",
+          "coordinates": {
+            "longitude": "120.1600",
+            "latitude": "30.2500",
+            "coordinate_system": "provider_native"
+          },
+          "source_ids": ["40000000-0000-4000-8000-000000000001"]
+        },
+        {
+          "location_id": "90000000-0000-4000-8000-000000000003",
+          "provider": "amap",
+          "provider_place_id": "synthetic-museum",
+          "name": "浙江省博物馆 synthetic POI",
+          "category": "museum",
+          "address": "synthetic 地址",
+          "city_adcode": "330100",
+          "coordinates": {
+            "longitude": "120.1400",
+            "latitude": "30.2600",
+            "coordinate_system": "provider_native"
+          },
+          "source_ids": ["40000000-0000-4000-8000-000000000001"]
+        }
+      ],
+      "days": [
+        {
+          "local_date": "2026-08-15",
+          "accommodation_location_id": "90000000-0000-4000-8000-000000000001",
+          "activities": [
+            {
+              "item_id": "91000000-0000-4000-8000-000000000001",
+              "location_id": "90000000-0000-4000-8000-000000000002",
+              "title": "西湖湖滨步行",
+              "start_time": "10:00:00",
+              "end_time": "12:00:00",
+              "cost_items": [],
+              "source_ids": ["40000000-0000-4000-8000-000000000001"]
+            }
+          ],
+          "routes": [
+            {
+              "route_id": "92000000-0000-4000-8000-000000000001",
+              "origin_location_id": "90000000-0000-4000-8000-000000000001",
+              "destination_location_id": "90000000-0000-4000-8000-000000000002",
+              "mode": "public_transit",
+              "distance_meters": 3200,
+              "duration_minutes": 28,
+              "fare": null,
+              "source_ids": ["50000000-0000-4000-8000-000000000001"]
+            },
+            {
+              "route_id": "92000000-0000-4000-8000-000000000002",
+              "origin_location_id": "90000000-0000-4000-8000-000000000002",
+              "destination_location_id": "90000000-0000-4000-8000-000000000001",
+              "mode": "public_transit",
+              "distance_meters": 3200,
+              "duration_minutes": 30,
+              "fare": null,
+              "source_ids": ["50000000-0000-4000-8000-000000000001"]
+            }
+          ],
+          "weather": {
+            "forecast_date": "2026-08-15",
+            "location_id": "90000000-0000-4000-8000-000000000002",
+            "condition_day": "多云",
+            "condition_night": "多云",
+            "temperature_min_celsius": "26",
+            "temperature_max_celsius": "34",
+            "alerts": [],
+            "source_ids": ["60000000-0000-4000-8000-000000000001"]
+          }
+        },
+        {
+          "local_date": "2026-08-16",
+          "accommodation_location_id": "90000000-0000-4000-8000-000000000001",
+          "activities": [
+            {
+              "item_id": "91000000-0000-4000-8000-000000000002",
+              "location_id": "90000000-0000-4000-8000-000000000003",
+              "title": "浙江省博物馆参观",
+              "start_time": "10:00:00",
+              "end_time": "12:00:00",
+              "cost_items": [],
+              "source_ids": ["40000000-0000-4000-8000-000000000001"]
+            }
+          ],
+          "routes": [
+            {
+              "route_id": "92000000-0000-4000-8000-000000000003",
+              "origin_location_id": "90000000-0000-4000-8000-000000000001",
+              "destination_location_id": "90000000-0000-4000-8000-000000000003",
+              "mode": "public_transit",
+              "distance_meters": 4800,
+              "duration_minutes": 36,
+              "fare": null,
+              "source_ids": ["50000000-0000-4000-8000-000000000001"]
+            },
+            {
+              "route_id": "92000000-0000-4000-8000-000000000004",
+              "origin_location_id": "90000000-0000-4000-8000-000000000003",
+              "destination_location_id": "90000000-0000-4000-8000-000000000001",
+              "mode": "public_transit",
+              "distance_meters": 4800,
+              "duration_minutes": 38,
+              "fare": null,
+              "source_ids": ["50000000-0000-4000-8000-000000000001"]
+            }
+          ],
+          "weather": {
+            "forecast_date": "2026-08-16",
+            "location_id": "90000000-0000-4000-8000-000000000003",
+            "condition_day": "阵雨",
+            "condition_night": "多云",
+            "temperature_min_celsius": "25",
+            "temperature_max_celsius": "32",
+            "alerts": [],
+            "source_ids": ["60000000-0000-4000-8000-000000000001"]
+          }
+        }
+      ],
+      "budget_summary": {
+        "budget": {"amount": "4000.00", "currency": "CNY"},
+        "known_total": {"amount": "2140.00", "currency": "CNY"},
+        "unknown_count": 0,
+        "assessment": "within_budget",
+        "cost_items": [
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000001",
+            "category": "accommodation",
+            "confidence": "user_provided",
+            "amount": {"amount": "700.00", "currency": "CNY"},
+            "description": "用户提供的一晚住宿费用",
+            "source_ids": ["10000000-0000-4000-8000-000000000001"]
+          },
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000002",
+            "category": "intercity_transport",
+            "confidence": "user_provided",
+            "amount": {"amount": "1000.00", "currency": "CNY"},
+            "description": "用户提供的城际往返费用",
+            "source_ids": ["10000000-0000-4000-8000-000000000001"]
+          },
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000003",
+            "category": "meal",
+            "confidence": "estimated",
+            "amount": {"amount": "400.00", "currency": "CNY"},
+            "description": "100元每人每天的两日餐饮估算",
+            "source_ids": ["20000000-0000-4000-8000-000000000001"]
+          },
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000004",
+            "category": "local_transport",
+            "confidence": "estimated",
+            "amount": {"amount": "40.00", "currency": "CNY"},
+            "description": "四个公交路线段的规则估算",
+            "source_ids": ["20000000-0000-4000-8000-000000000001"]
+          },
+          {
+            "cost_id": "93000000-0000-4000-8000-000000000005",
+            "category": "ticket",
+            "confidence": "estimated",
+            "amount": {"amount": "0.00", "currency": "CNY"},
+            "description": "本验收样例选择零元活动，不代表实时票价",
+            "source_ids": ["20000000-0000-4000-8000-000000000001"]
+          }
+        ]
+      }
+    },
+    "violations": [],
+    "warnings": ["synthetic 验收数据，不代表当前真实天气、路线、开放状态或价格"],
+    "uncertainties": [],
+    "sources": [
+      {
+        "source_id": "10000000-0000-4000-8000-000000000001",
+        "provider": "user",
+        "source_type": "user_input",
+        "provider_record_id": null,
+        "fetched_at": "2026-08-13T10:00:00+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 用户输入"]
+      },
+      {
+        "source_id": "20000000-0000-4000-8000-000000000001",
+        "provider": "system",
+        "source_type": "estimation_rule",
+        "provider_record_id": null,
+        "fetched_at": "2026-08-13T10:00:00+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 估算规则"]
+      },
+      {
+        "source_id": "30000000-0000-4000-8000-000000000001",
+        "provider": "amap",
+        "source_type": "synthetic_geocode",
+        "provider_record_id": "synthetic-hangzhou",
+        "fetched_at": "2026-08-13T10:00:01+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 高德形状替身，未调用高德 API"]
+      },
+      {
+        "source_id": "40000000-0000-4000-8000-000000000001",
+        "provider": "amap",
+        "source_type": "synthetic_poi_search",
+        "provider_record_id": "synthetic-pois",
+        "fetched_at": "2026-08-13T10:00:02+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic POI，不证明营业、票价或可预订"]
+      },
+      {
+        "source_id": "50000000-0000-4000-8000-000000000001",
+        "provider": "amap",
+        "source_type": "synthetic_routes",
+        "provider_record_id": "synthetic-routes",
+        "fetched_at": "2026-08-13T10:00:03+08:00",
+        "valid_until": "2026-08-13T10:30:03+08:00",
+        "freshness": "fresh",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 路线，不代表实时路况"]
+      },
+      {
+        "source_id": "60000000-0000-4000-8000-000000000001",
+        "provider": "qweather",
+        "source_type": "synthetic_forecast",
+        "provider_record_id": "synthetic-forecast",
+        "fetched_at": "2026-08-13T10:00:04+08:00",
+        "valid_until": "2026-08-13T16:00:00+08:00",
+        "freshness": "fresh",
+        "reference_url": null,
+        "attributions": ["synthetic 数据，不使用真实和风归因"],
+        "warnings": ["synthetic 天气，不代表真实预报"]
+      },
+      {
+        "source_id": "70000000-0000-4000-8000-000000000001",
+        "provider": "deepseek",
+        "source_type": "synthetic_plan_candidate",
+        "provider_record_id": "synthetic-deepseek-output",
+        "fetched_at": "2026-08-13T10:00:05+08:00",
+        "valid_until": null,
+        "freshness": "unknown_validity",
+        "reference_url": null,
+        "attributions": [],
+        "warnings": ["synthetic 模型输出，未调用 DeepSeek API"]
+      }
+    ],
+    "errors": [],
+    "retryable": false,
+    "created_at": "2026-08-13T10:00:00+08:00",
+    "updated_at": "2026-08-13T10:00:06+08:00"
+  }
+}

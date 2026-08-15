@@ -1,0 +1,49 @@
+{
+  "synthetic": true,
+  "fixed_now": "2026-08-13T10:00:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "request": {
+    "client_request_id": "11111111-1111-4111-8111-111111111111",
+    "city": "杭州",
+    "start_date": "2026-08-15",
+    "travelers": 2,
+    "total_budget": {
+      "amount": "4000.00",
+      "currency": "CNY"
+    },
+    "preferences": {
+      "interests": ["自然", "历史"],
+      "free_text": "节奏不要太赶",
+      "hard_constraints": []
+    },
+    "pace": "balanced",
+    "transport_modes": ["walking", "public_transit"],
+    "accommodation": {
+      "area_or_poi": "西湖附近",
+      "one_night_cost": {
+        "amount": "700.00",
+        "currency": "CNY"
+      }
+    },
+    "day_windows": [
+      {
+        "day_offset": 0,
+        "start_time": "09:00:00",
+        "end_time": "20:00:00"
+      },
+      {
+        "day_offset": 1,
+        "start_time": "09:00:00",
+        "end_time": "18:00:00"
+      }
+    ],
+    "intercity_transport_cost": {
+      "amount": "1000.00",
+      "currency": "CNY"
+    },
+    "meal_budget_per_person_per_day": {
+      "amount": "100.00",
+      "currency": "CNY"
+    }
+  }
+}
