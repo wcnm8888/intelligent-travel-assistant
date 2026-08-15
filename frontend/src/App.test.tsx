@@ -211,6 +211,35 @@ describe("App trip planning flow", () => {
     expect(api.read).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts planning to needs_input as a terminal server transition", async () => {
+    const user = userEvent.setup();
+    const needsInput = parseTripPlanResponse(needsInputCase.response);
+    const api: TripPlanningApi = {
+      create: vi.fn().mockResolvedValue(planningResponse("planning")),
+      read: vi.fn().mockResolvedValue(
+        planningResponse("needs_input", {
+          warnings: needsInput.warnings,
+          sources: needsInput.sources,
+          errors: needsInput.errors,
+        }),
+      ),
+      retry: vi.fn(),
+    };
+    render(
+      <App
+        createClientRequestId={() => FIXED_CLIENT_ID}
+        tripPlanApi={api}
+        pollingPolicy={{ maxPolls: 1, wait: immediatePolling.wait }}
+      />,
+    );
+
+    await submitValidRequest(user);
+
+    expect(await screen.findByText("需要补充旅行信息")).toBeVisible();
+    expect(screen.queryByText("不一致的任务状态")).not.toBeInTheDocument();
+    expect(api.read).toHaveBeenCalledOnce();
+  });
+
   it("stops when the server reports an unreachable state transition", async () => {
     const user = userEvent.setup();
     const api: TripPlanningApi = {

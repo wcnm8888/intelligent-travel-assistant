@@ -104,7 +104,8 @@ HTTP 状态表示是否接受/找到资源；计划 `status` 表示业务阶段�
 
 - `start_date` 的动态 D+1 至 D+5 边界由注入时钟的领域校验器实现，不写死到静态 JSON Schema；
 - 行程固定为 `start_date` 和次日，不接收可独立变化的 `end_date`；
-- `transport_modes` 只允许 `walking`、`public_transit`，同时选择表示混合模式；
+- `transport_modes` 只允许 `walking`、`public_transit`；只选一种时所有路段使用该方式，同时选择时由确定性代码以公交为首选，并且只对首选结果不可用或未通过本地路线校验的路段尝试步行降级；
+- 多方式降级仍受每任务最多 8 次路线调用约束；预算耗尽、两种方式均不可用、坐标缺失或路线端点/方式/来源不合法时停止为 `failed`，不得继续隐式调用；
 - 餐饮默认 100 元/人/天，用户可修改；默认值和修改值都按明确规则标记为 `estimated`；
 - `day_windows` 必须各包含 day 0 和 day 1，窗口顺序、重复和起止关系由后续确定性校验器验证；
 - 住宿和城际费用缺失时进入领域后转换为 `unknown` 费用项，而不是零。
@@ -154,7 +155,7 @@ F-001 当前可观察状态：
 | `normalizing` | `needs_input`、`collecting`、`failed` |
 | `needs_input` | 无；用户修改输入后创建新任务 |
 | `collecting` | `planning`、`partial`、`failed` |
-| `planning` | `enriching_routes`、`validating`、`failed` |
+| `planning` | `needs_input`、`enriching_routes`、`validating`、`failed` |
 | `enriching_routes` | `validating`、`partial`、`failed` |
 | `validating` | `ready`、`partial`、`conflict`、`planning`、`failed` |
 | `ready` | 无 |
@@ -223,6 +224,8 @@ F-001 当前可观察状态：
 
 公开 `ApiError` 只包含稳定 code、安全 message、可选 field/provider、retryable 和 `diagnostic_code`。`diagnostic_code` 只能是项目自有、无值的安全枚举；不得包含 provider 原文、字段值、Prompt、凭证、异常或堆栈。
 
+路线数据不能形成完整链时，安全诊断闭集为 `route_primary_unavailable`、`route_fallback_exhausted`、`route_coordinates_missing`、`route_result_invalid`、`route_call_budget_exhausted` 和 `route_deadline_exhausted`。诊断只描述失败类别，不包含日期、地点、坐标、路段端点或上游响应。`route_deadline_exhausted` 表示本地调用治理已无足够任务时限，公开为不可自动重试的高德 `data_missing`，不能降级为 `internal_error`。成功使用步行降级时通过现有 `warnings` 返回安全文案；每段最终 `RouteLeg.mode` 仍是实际采用方式。路线距离冻结为不超过 `2147483647` 米，单段时长冻结为不超过 `1440` 分钟；超界数据按 Schema/本地非法结果拒绝。
+
 DeepSeek proposal 通过 adapter envelope 后仍不能通过本地校验时，公开错误保持 `model_output_invalid`、`retryable=false`。正常生产路径的诊断码由 generation/repair 阶段与 JSON、Schema、日期、POI/来源引用、安全文本或截断类别组成。旧精确时间 candidate 的 `time_invalid`、四类 gap 和 `day_schedule_capacity_exceeded` 诊断只保留 migration-only 回归，不再是 D-009 正常生产事实来源；只有内部结果缺少阶段或类别时才使用兼容兜底 `candidate_local_validation_failed`。诊断码不得包含模型原文、字段路径、字段值、时间值、地点或坐标。
 
 ## 前端类型映射
@@ -244,6 +247,7 @@ D-009 及 F-001-CR1 已把最终精确时间交给确定性调度器，同时保
 - `TripPlanResponse`、`ItineraryItem.start_time/end_time` 和五种终态保持不变；公开精确时间改由代码生成；
 - 估算游览时长、交通缓冲和自动移除原因通过现有 `warnings`/`uncertainties`/`violations` 表达，不增加第二套 plan DTO；
 - 路线 provider 的 `partial` 结果只有在仍携带合法 `RouteLeg` 时才能形成带计划的 `partial`；完全缺少路线时长不得把 unknown 当作 0，也不得宣称时间已验证；
+- 混合方式计划允许各路段采用不同方式；scheduler 按每段实际 `RouteLeg.mode` 使用步行 10 分钟或公交 15 分钟缓冲，市内交通估算只计实际公交路段；
 - 若游览时长无法由用户值、冻结时长类别或项目类别规则确定，使用现有 `needs_input`；`planning → needs_input` 已成为允许状态边；
 - 已知路线、缓冲和游览时长超过日窗口时使用 `conflict`；不通过模型 repair 放宽容量。
 - F-001 没有门票价格输入或可靠门票 provider，真实执行器必须保留 `ticket=unknown`，不得按 0 处理；因此完整可执行计划可合理收口为 `partial`，`ready` 继续由零 unknown 的冻结 API/Synthetic Executor 契约覆盖。

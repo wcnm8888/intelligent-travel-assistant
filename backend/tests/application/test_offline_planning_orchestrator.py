@@ -21,6 +21,7 @@ from intelligent_travel_assistant.adapters.fakes import (
 from intelligent_travel_assistant.application.planning import (
     AccommodationAnchor,
     FinalValidationIssueCode,
+    RouteDataDiagnosticCode,
     SchedulingIssueCode,
     SchedulingWarningCode,
 )
@@ -35,6 +36,7 @@ from intelligent_travel_assistant.application.ports import (
     PlanningContext,
     PoiCandidate,
     PoiSearchResult,
+    RouteCalculationRequest,
     WeatherAlertsResult,
     WeatherForecastResult,
 )
@@ -107,6 +109,60 @@ HOTEL_COORDINATES = Coordinates(
     Decimal("30.2550"),
     CoordinateSystem.PROVIDER_NATIVE,
 )
+
+
+class _BlockingRoutePeersFakeAmap(FakeAmapAdapter):
+    """Keep a real route batch in flight until the outer planning task is cancelled."""
+
+    __slots__ = (
+        "both_route_calls_started",
+        "both_route_peers_waiting",
+        "cancelled_route_calls",
+        "completed_route_calls",
+        "_route_call_count",
+        "_route_peer_blocker",
+        "_waiting_route_peer_count",
+    )
+
+    def __init__(
+        self,
+        *,
+        resolve_city_results: tuple[ProviderResult[CityResolution], ...] | None = None,
+        search_pois_results: tuple[ProviderResult[PoiSearchResult], ...] | None = None,
+        calculate_routes_results: tuple[ProviderResult[RouteLeg], ...] | None = None,
+    ) -> None:
+        super().__init__(
+            resolve_city_results=resolve_city_results,
+            search_pois_results=search_pois_results,
+            calculate_routes_results=calculate_routes_results,
+        )
+        self.both_route_calls_started = asyncio.Event()
+        self.both_route_peers_waiting = asyncio.Event()
+        self._route_peer_blocker = asyncio.Event()
+        self._route_call_count = 0
+        self._waiting_route_peer_count = 0
+        self.cancelled_route_calls = 0
+        self.completed_route_calls = 0
+
+    async def calculate_routes(
+        self,
+        request: RouteCalculationRequest,
+    ) -> ProviderResult[RouteLeg]:
+        self._record(FakeOperation.CALCULATE_ROUTES, request)
+        self._route_call_count += 1
+        if self._route_call_count == 2:
+            self.both_route_calls_started.set()
+        await self.both_route_calls_started.wait()
+        self._waiting_route_peer_count += 1
+        if self._waiting_route_peer_count == 2:
+            self.both_route_peers_waiting.set()
+        try:
+            await self._route_peer_blocker.wait()
+        except asyncio.CancelledError:
+            self.cancelled_route_calls += 1
+            raise
+        self.completed_route_calls += 1
+        return self._calculate_routes.take()
 
 
 def _source(provider: Provider, source_type: str) -> SourceRecord:
@@ -304,11 +360,17 @@ def _two_activity_proposal_json() -> str:
     return json.dumps(document, ensure_ascii=False, separators=(",", ":"))
 
 
-def _route(origin: UUID, destination: UUID, *, minutes: int = 30) -> RouteLeg:
+def _route(
+    origin: UUID,
+    destination: UUID,
+    *,
+    minutes: int = 30,
+    mode: RouteMode = RouteMode.PUBLIC_TRANSIT,
+) -> RouteLeg:
     return RouteLeg(
         origin,
         destination,
-        RouteMode.PUBLIC_TRANSIT,
+        mode,
         3000,
         minutes,
         (uuid5(NAMESPACE_URL, "synthetic:amap:route"),),
@@ -334,6 +396,8 @@ def _build_orchestrator(
     repaired_candidate: ProviderResult[ModelTextOutput] | None = None,
     routes: tuple[ProviderResult[RouteLeg], ...] | None = None,
     copies: int = 1,
+    amap_type: type[FakeAmapAdapter] = FakeAmapAdapter,
+    governor_capture: list[ToolCallGovernor] | None = None,
 ) -> tuple[
     OfflinePlanningOrchestrator,
     FakeAmapAdapter,
@@ -356,7 +420,7 @@ def _build_orchestrator(
     route_results = routes or tuple(
         _available(Provider.AMAP, item, source_type="route") for item in _routes()
     )
-    amap = FakeAmapAdapter(
+    amap = amap_type(
         resolve_city_results=(city_result,) * copies,
         search_pois_results=(poi_result,) * copies,
         calculate_routes_results=route_results * copies,
@@ -369,12 +433,19 @@ def _build_orchestrator(
         generation_results=(candidate_result,) * copies,
         repair_results=(repaired_candidate,) * copies if repaired_candidate is not None else None,
     )
+
+    def governor_factory() -> ToolCallGovernor:
+        governor = ToolCallGovernor(clock=lambda: 0.0)
+        if governor_capture is not None:
+            governor_capture.append(governor)
+        return governor
+
     return (
         OfflinePlanningOrchestrator(
             amap,
             qweather,
             deepseek,
-            governor_factory=lambda: ToolCallGovernor(clock=lambda: 0.0),
+            governor_factory=governor_factory,
         ),
         amap,
         qweather,
@@ -545,6 +616,281 @@ def test_optional_omission_on_both_days_stays_within_eight_route_calls() -> None
     assert tuple(len(day.activities) for day in outcome.candidate_result.data.days) == (1, 1)
     assert len(outcome.route_results) == 8
     assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 8
+
+
+def test_dual_transport_falls_back_only_for_unavailable_leg() -> None:
+    primary_results: list[ProviderResult[RouteLeg]] = []
+    for index, route in enumerate(_routes()):
+        primary_results.append(
+            _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT)
+            if index == 0
+            else _available(Provider.AMAP, route, source_type="route")
+        )
+    fallback = _available(
+        Provider.AMAP,
+        _route(HOTEL_ID, POI_ONE_ID, mode=RouteMode.WALKING),
+        source_type="route",
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(
+        routes=(*primary_results, fallback),
+    )
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.READY
+    assert outcome.route_diagnostic_code is None
+    assert SchedulingWarningCode.ROUTE_MODE_FALLBACK_USED in outcome.scheduling_warnings
+    route_calls = [
+        cast(RouteCalculationRequest, call.request)
+        for call in amap.calls
+        if call.operation is FakeOperation.CALCULATE_ROUTES
+    ]
+    assert [call.mode for call in route_calls] == [
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.WALKING,
+    ]
+    assert outcome.candidate_result is not None
+    assert outcome.candidate_result.data is not None
+    assert outcome.candidate_result.data.days[0].activities[0].start_time == time(8, 40)
+    assert outcome.final_validation is not None
+    assert all(
+        item.result is not None and item.result.data is not None
+        for item in outcome.route_enrichments
+    )
+    assert [
+        cast(RouteLeg, cast(ProviderResult[RouteLeg], item.result).data).mode
+        for item in outcome.route_enrichments
+    ] == [
+        RouteMode.WALKING,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+    ]
+
+
+@pytest.mark.parametrize(
+    "category",
+    [
+        ProviderErrorCategory.AUTH,
+        ProviderErrorCategory.SCHEMA,
+        ProviderErrorCategory.TIMEOUT,
+        ProviderErrorCategory.RATE_LIMITED,
+        ProviderErrorCategory.SERVER,
+        ProviderErrorCategory.UNKNOWN,
+    ],
+)
+def test_provider_wide_route_failure_never_triggers_mode_fallback(
+    category: ProviderErrorCategory,
+) -> None:
+    unavailable: tuple[ProviderResult[RouteLeg], ...] = tuple(
+        _unavailable(Provider.AMAP, category) for _ in range(8)
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=unavailable)
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert 1 <= len(route_calls) <= 2
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+@pytest.mark.parametrize(
+    "category",
+    [
+        ProviderErrorCategory.AUTH,
+        ProviderErrorCategory.SCHEMA,
+        ProviderErrorCategory.TIMEOUT,
+        ProviderErrorCategory.RATE_LIMITED,
+        ProviderErrorCategory.SERVER,
+        ProviderErrorCategory.UNKNOWN,
+    ],
+)
+def test_provider_wide_failure_in_mixed_batch_blocks_all_mode_fallback(
+    category: ProviderErrorCategory,
+) -> None:
+    routes: tuple[ProviderResult[RouteLeg], ...] = (
+        _unavailable(Provider.AMAP, category),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        *tuple(_unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(6)),
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=routes)
+
+    outcome = asyncio.run(
+        orchestrator.plan(replace(_request(), fallback_route_modes=(RouteMode.WALKING,)))
+    )
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 2
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+def test_provider_wide_failure_blocks_fallback_for_locally_invalid_peer() -> None:
+    routes: tuple[ProviderResult[RouteLeg], ...] = (
+        _unavailable(Provider.AMAP, ProviderErrorCategory.AUTH),
+        _available(
+            Provider.AMAP,
+            _route(POI_ONE_ID, POI_TWO_ID),
+            source_type="locally-invalid-route",
+        ),
+        *tuple(_unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(6)),
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=routes)
+
+    outcome = asyncio.run(
+        orchestrator.plan(replace(_request(), fallback_route_modes=(RouteMode.WALKING,)))
+    )
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 2
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+def test_later_provider_wide_failure_blocks_fallback_from_earlier_batches() -> None:
+    routes: tuple[ProviderResult[RouteLeg], ...] = (
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.AUTH),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        *tuple(_unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(4)),
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=routes)
+
+    outcome = asyncio.run(
+        orchestrator.plan(replace(_request(), fallback_route_modes=(RouteMode.WALKING,)))
+    )
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 4
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+def test_external_planning_cancellation_drains_both_inflight_route_peers() -> None:
+    async def scenario() -> None:
+        governors: list[ToolCallGovernor] = []
+        orchestrator, amap, _, _ = _build_orchestrator(
+            amap_type=_BlockingRoutePeersFakeAmap,
+            governor_capture=governors,
+        )
+        assert isinstance(amap, _BlockingRoutePeersFakeAmap)
+        planning_task = asyncio.create_task(orchestrator.plan(_request()))
+
+        await amap.both_route_peers_waiting.wait()
+        planning_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await planning_task
+
+        assert planning_task.cancelled()
+        assert amap.cancelled_route_calls == 2
+        assert amap.completed_route_calls == 0
+        assert len(governors) == 1
+        assert governors[0].snapshot().active_route_calls == 0
+        route_calls = [
+            call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES
+        ]
+        assert len(route_calls) == 2
+        assert all(
+            cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+            for call in route_calls
+        )
+        assert [
+            task
+            for task in asyncio.all_tasks()
+            if task is not asyncio.current_task() and not task.done()
+        ] == []
+
+    asyncio.run(scenario())
+
+
+def test_locally_invalid_primary_route_can_use_allowed_walking_fallback() -> None:
+    primary_results = (
+        _available(
+            Provider.AMAP,
+            _route(POI_ONE_ID, POI_TWO_ID),
+            source_type="route",
+        ),
+        *tuple(_available(Provider.AMAP, item, source_type="route") for item in _routes()[1:]),
+    )
+    fallback = _available(
+        Provider.AMAP,
+        _route(HOTEL_ID, POI_ONE_ID, mode=RouteMode.WALKING),
+        source_type="route",
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=(*primary_results, fallback))
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.READY
+    assert SchedulingWarningCode.ROUTE_MODE_FALLBACK_USED in outcome.scheduling_warnings
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 5
+
+
+def test_dual_transport_stops_at_route_budget_with_safe_diagnostic() -> None:
+    document = json.loads(_two_activity_proposal_json())
+    document["days"][1]["selections"].append(
+        {
+            "location_id": str(POI_ONE_ID),
+            "local_date": "2026-08-16",
+            "title": "西湖可选返访",
+            "priority_rank": 2,
+            "selection_kind": "optional",
+            "duration_class": "standard",
+            "source_ids": [str(SOURCE_IDS[Provider.AMAP])],
+        }
+    )
+    proposal = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(json.dumps(document)),
+        source_type="plan_proposal",
+    )
+    unavailable_routes: tuple[ProviderResult[RouteLeg], ...] = tuple(
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(8)
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(
+        candidate=proposal,
+        routes=unavailable_routes,
+    )
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.scheduling_issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.CALL_BUDGET_EXHAUSTED
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 8
+    assert [cast(RouteCalculationRequest, call.request).mode for call in route_calls[:6]] == [
+        RouteMode.PUBLIC_TRANSIT,
+    ] * 6
+    assert [cast(RouteCalculationRequest, call.request).mode for call in route_calls[6:]] == [
+        RouteMode.WALKING,
+    ] * 2
 
 
 def test_removed_optional_route_error_does_not_pollute_final_ready_result() -> None:
@@ -890,8 +1236,41 @@ def test_route_result_with_wrong_endpoints_fails_without_a_plan() -> None:
     outcome = asyncio.run(orchestrator.plan(_request()))
 
     assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.RESULT_INVALID
     assert outcome.candidate_result is None
     assert outcome.final_validation is None
+
+
+def test_route_result_with_wrong_mode_or_dangling_source_is_rejected() -> None:
+    dangling_source = _source(Provider.AMAP, "different-route-source")
+    invalid_results = (
+        _available(
+            Provider.AMAP,
+            _route(HOTEL_ID, POI_ONE_ID, mode=RouteMode.WALKING),
+            source_type="wrong-mode-route",
+        ),
+        ProviderResult(
+            ProviderResultStatus.OK,
+            Provider.AMAP,
+            _route(HOTEL_ID, POI_ONE_ID),
+            FETCHED_AT,
+            VALID_UNTIL,
+            ("synthetic offline orchestration fixture",),
+            None,
+            (dangling_source,),
+        ),
+    )
+
+    for invalid in invalid_results:
+        good = tuple(_available(Provider.AMAP, item, source_type="route") for item in _routes()[1:])
+        orchestrator, _, _, _ = _build_orchestrator(routes=(invalid, *good))
+        outcome = asyncio.run(orchestrator.plan(_request()))
+        assert outcome.status is PlanningStatus.FAILED
+        assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.RESULT_INVALID
+        assert all(
+            dangling_source.source_id not in {record.source_id for record in result.source_records}
+            for result in outcome.route_results
+        )
 
 
 def test_missing_accommodation_coordinates_skips_calls_and_fails() -> None:
@@ -915,6 +1294,7 @@ def test_missing_accommodation_coordinates_skips_calls_and_fails() -> None:
     outcome = asyncio.run(orchestrator.plan(request))
 
     assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.COORDINATES_MISSING
     assert [item.operation for item in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 0
     assert outcome.candidate_result is None
 

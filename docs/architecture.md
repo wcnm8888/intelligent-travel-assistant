@@ -504,6 +504,8 @@ D-009 保持状态名称不变：`planning` 已改为生成并校验无最终时
 
 D-009 运行语义为：完全缺少可用路线时长就不能生成经过验证的精确时间。只有 `partial` provider 结果仍携带端点和方式合法的 `RouteLeg` 时，调度后计划才能以 uncertainty 形成 `partial`；`unavailable`、缺坐标或空路线不得按 0 排程，进入 `failed`。已知路线、缓冲和游览时长总需求超过日窗口时进入 `conflict`，而不是 provider 错误。
 
+Step 45N–45P 将公开的双交通方式语义落实为有界、逐路段的确定性策略：同时允许公交和步行时先请求公交；只有业务空结果或无 provider error 的本地非法路线允许在剩余的 8 次总预算内尝试步行。AUTH、Schema、timeout、rate limit、server 和 unknown 等 provider-wide 失败不切换 mode。Step 45R 进一步把 terminal 提升为 batch-level 停止信号：最多两条已批准并发路线中，已在途的同批调用可以完成，但任一 terminal 都会阻止后续首选批次及当前或既有候选的全部 fallback；并发 task 异常或外部取消时，未完成 peer 必须先 cancel 并完整 drain，再传播原异常或取消。每段只采用首选顺序中第一个合法结果，合法结果必须匹配 provider、端点、mode、距离/时长上界，且 RouteLeg 引用集合必须与可投影来源精确一致；未采用或非法结果不进入最终计划、来源、error、uncertainty 或 retryable 投影。调用预算或 90 秒总 deadline 耗尽必须进入项目自有安全诊断，不得成为 `internal_error`。scheduler 使用每段实际 mode 的 10/15 分钟缓冲，不能把公交规则套到步行降级段。
+
 ## 可观测性
 
 - 每次用户用例生成 `trace_id`；

@@ -114,6 +114,9 @@ _SCHEDULING_WARNING_MESSAGES = {
     SchedulingWarningCode.OPTIONAL_ACTIVITY_OMITTED_FOR_CAPACITY: (
         "一天内有一项低优先级可选活动因时间容量不足被移除。"
     ),
+    SchedulingWarningCode.ROUTE_MODE_FALLBACK_USED: (
+        "部分路段在首选公交路线不可用时，已按用户允许范围降级为步行。"
+    ),
 }
 
 _SCHEDULING_UNCERTAINTY_MESSAGES = {
@@ -274,6 +277,12 @@ def _offline_request(
         if TransportMode.PUBLIC_TRANSIT in request.transport_modes
         else DomainRouteMode.WALKING
     )
+    fallback_route_modes = (
+        (DomainRouteMode.WALKING,)
+        if route_mode is DomainRouteMode.PUBLIC_TRANSIT
+        and TransportMode.WALKING in request.transport_modes
+        else ()
+    )
     keywords = request.preferences.interests or ("景点",)
     return OfflinePlanningRequest(
         trip=trip,
@@ -293,6 +302,7 @@ def _offline_request(
         evaluated_at=evaluated_at + _EVALUATION_GRACE,
         accommodation_query=request.accommodation.area_or_poi,
         derive_local_transport_cost=True,
+        fallback_route_modes=fallback_route_modes,
     )
 
 
@@ -338,9 +348,12 @@ def _planning_result(
     job_id: UUID,
     evaluated_at: datetime,
 ) -> PlanningJobResult:
-    provider_results = _provider_results(outcome)
+    base_provider_results = _base_provider_results(outcome)
+    route_provider_results = _route_provider_results(outcome)
+    provider_results = (*base_provider_results, *route_provider_results)
     sources = _sources(provider_results, job_id=job_id, evaluated_at=evaluated_at)
-    errors = _provider_errors(provider_results)
+    errors = _provider_errors(base_provider_results)
+    route_errors = _provider_errors(route_provider_results)
     if outcome.candidate_resolution_error is CandidateResolutionErrorCode.MODEL_OUTPUT_INVALID:
         errors = tuple(
             item
@@ -357,6 +370,23 @@ def _planning_result(
                 retryable=False,
             ),
         )
+    if outcome.scheduling_issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE:
+        if outcome.route_diagnostic_code is not None:
+            route_errors = tuple(
+                item.model_copy(update={"diagnostic_code": outcome.route_diagnostic_code.value})
+                for item in route_errors
+            )
+            if not route_errors:
+                route_errors = (
+                    ApiError(
+                        code=ApiErrorCode.DATA_MISSING,
+                        message=_PROVIDER_ERROR_MESSAGES[ApiErrorCode.DATA_MISSING],
+                        provider="amap",
+                        diagnostic_code=outcome.route_diagnostic_code.value,
+                        retryable=False,
+                    ),
+                )
+    errors = (*errors, *route_errors)
     scheduling_warnings = tuple(
         _SCHEDULING_WARNING_MESSAGES[item] for item in outcome.scheduling_warnings
     )
@@ -415,8 +445,8 @@ def _planning_result(
                         else None
                     ),
                     diagnostic_code=(
-                        SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE.value
-                        if outcome.scheduling_issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE
+                        outcome.route_diagnostic_code.value
+                        if outcome.route_diagnostic_code is not None
                         else None
                     ),
                     retryable=False,
@@ -732,13 +762,8 @@ def _sources(
     return tuple(values)
 
 
-def _provider_results(outcome: OfflinePlanningOutcome) -> tuple[ProviderResult[object], ...]:
+def _base_provider_results(outcome: OfflinePlanningOutcome) -> tuple[ProviderResult[object], ...]:
     model_result = outcome.candidate_result or outcome.proposal_result
-    route_results = (
-        tuple(item.result for item in outcome.route_enrichments if item.result is not None)
-        if outcome.final_validation is not None
-        else outcome.route_results
-    )
     raw = (
         outcome.city_result,
         outcome.accommodation_result,
@@ -746,9 +771,23 @@ def _provider_results(outcome: OfflinePlanningOutcome) -> tuple[ProviderResult[o
         outcome.weather_result,
         outcome.alert_result,
         model_result,
-        *route_results,
     )
     return tuple(cast(ProviderResult[object], item) for item in raw if item is not None)
+
+
+def _route_provider_results(
+    outcome: OfflinePlanningOutcome,
+) -> tuple[ProviderResult[object], ...]:
+    route_results = (
+        tuple(item.result for item in outcome.route_enrichments if item.result is not None)
+        if outcome.final_validation is not None
+        else outcome.route_results
+    )
+    return tuple(cast(ProviderResult[object], item) for item in route_results)
+
+
+def _provider_results(outcome: OfflinePlanningOutcome) -> tuple[ProviderResult[object], ...]:
+    return (*_base_provider_results(outcome), *_route_provider_results(outcome))
 
 
 def _provider_errors(

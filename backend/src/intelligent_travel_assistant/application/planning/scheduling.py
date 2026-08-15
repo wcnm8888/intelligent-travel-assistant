@@ -49,6 +49,17 @@ class SchedulingIssueCode(StrEnum):
     SCHEDULE_CAPACITY_EXCEEDED = "schedule_capacity_exceeded"
 
 
+class RouteDataDiagnosticCode(StrEnum):
+    """Safe, value-free reasons why a required route chain could not be formed."""
+
+    PRIMARY_UNAVAILABLE = "route_primary_unavailable"
+    FALLBACK_EXHAUSTED = "route_fallback_exhausted"
+    COORDINATES_MISSING = "route_coordinates_missing"
+    RESULT_INVALID = "route_result_invalid"
+    CALL_BUDGET_EXHAUSTED = "route_call_budget_exhausted"
+    DEADLINE_EXHAUSTED = "route_deadline_exhausted"
+
+
 class DurationBasis(StrEnum):
     USER_PROVIDED = "user_provided"
     ESTIMATED_MODEL = "estimated_model"
@@ -58,6 +69,7 @@ class DurationBasis(StrEnum):
 
 class SchedulingWarningCode(StrEnum):
     OPTIONAL_ACTIVITY_OMITTED_FOR_CAPACITY = "optional_activity_omitted_for_capacity"
+    ROUTE_MODE_FALLBACK_USED = "route_mode_fallback_used"
 
 
 class SchedulingUncertaintyCode(StrEnum):
@@ -123,6 +135,7 @@ def schedule_plan_proposal(
     route_mode: RouteMode,
     routes: tuple[ScheduledRoute, ...],
     queried_routes: frozenset[RouteRequirement],
+    fallback_route_modes: tuple[RouteMode, ...] = (),
     omitted_days: frozenset[int] = frozenset(),
     warnings: tuple[SchedulingWarningCode, ...] = (),
 ) -> SchedulingResult:
@@ -141,13 +154,8 @@ def schedule_plan_proposal(
     durations, duration_uncertainties = resolved
 
     requirements = derive_route_requirements(proposal, accommodation_location_id)
-    route_by_requirement = {
-        item.requirement: item.route
-        for item in routes
-        if item.route.mode is route_mode
-        and item.route.origin_location_id == item.requirement.origin_location_id
-        and item.route.destination_location_id == item.requirement.destination_location_id
-    }
+    route_modes = (route_mode, *fallback_route_modes)
+    route_by_requirement = _preferred_routes(routes, route_modes)
     unavailable = tuple(
         item for item in requirements if item in queried_routes and item not in route_by_requirement
     )
@@ -184,7 +192,6 @@ def schedule_plan_proposal(
             day,
             windows[day_offset],
             accommodation_location_id,
-            route_mode,
             route_by_requirement,
             durations,
         )
@@ -210,6 +217,7 @@ def schedule_plan_proposal(
                 day_windows=day_windows,
                 locations=locations,
                 route_mode=route_mode,
+                fallback_route_modes=fallback_route_modes,
                 routes=routes,
                 queried_routes=queried_routes,
                 omitted_days=omitted_days | {day_offset},
@@ -273,7 +281,6 @@ def _schedule_day(
     day: ProposalDay,
     window: DailyAvailability,
     accommodation_location_id: UUID,
-    route_mode: RouteMode,
     routes: dict[RouteRequirement, RouteLeg],
     durations: dict[tuple[int, int], _ResolvedDuration],
 ) -> CandidateDay | None:
@@ -287,7 +294,6 @@ def _schedule_day(
             day_offset,
             previous,
             selection.location_id,
-            route_mode,
             routes,
         )
         duration = durations[(day_offset, index)]
@@ -311,7 +317,6 @@ def _schedule_day(
         day_offset,
         previous,
         accommodation_location_id,
-        route_mode,
         routes,
     )
     if cursor > window_end:
@@ -324,13 +329,32 @@ def _after_route(
     day_offset: int,
     origin: UUID,
     destination: UUID,
-    mode: RouteMode,
     routes: dict[RouteRequirement, RouteLeg],
 ) -> datetime:
     if origin == destination:
         return cursor
     route = routes[RouteRequirement(day_offset, origin, destination)]
-    return cursor + timedelta(minutes=route.duration_minutes + _ROUTE_BUFFER_MINUTES[mode])
+    return cursor + timedelta(minutes=route.duration_minutes + _ROUTE_BUFFER_MINUTES[route.mode])
+
+
+def _preferred_routes(
+    routes: tuple[ScheduledRoute, ...],
+    route_modes: tuple[RouteMode, ...],
+) -> dict[RouteRequirement, RouteLeg]:
+    preference = {mode: index for index, mode in enumerate(route_modes)}
+    selected: dict[RouteRequirement, RouteLeg] = {}
+    for item in routes:
+        route = item.route
+        if (
+            route.mode not in preference
+            or route.origin_location_id != item.requirement.origin_location_id
+            or route.destination_location_id != item.requirement.destination_location_id
+        ):
+            continue
+        current = selected.get(item.requirement)
+        if current is None or preference[route.mode] < preference[current.mode]:
+            selected[item.requirement] = route
+    return selected
 
 
 def _omit_lowest_priority_optional(day: ProposalDay) -> ProposalDay | None:

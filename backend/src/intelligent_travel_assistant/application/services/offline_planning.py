@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from typing import cast
@@ -15,6 +16,7 @@ from intelligent_travel_assistant.application.planning import (
     CandidateValidationStage,
     DeepSeekProposalResolver,
     FinalValidationResult,
+    RouteDataDiagnosticCode,
     RouteEnrichmentResult,
     RouteRequirement,
     ScheduledRoute,
@@ -22,6 +24,7 @@ from intelligent_travel_assistant.application.planning import (
     SchedulingResult,
     SchedulingUncertaintyCode,
     SchedulingWarningCode,
+    derive_route_requirements,
     evaluate_final_plan,
     route_activities,
     schedule_plan_proposal,
@@ -55,6 +58,8 @@ from intelligent_travel_assistant.application.state_machine import (
     PlanningTransitionCommand,
 )
 from intelligent_travel_assistant.application.tooling import (
+    DEFAULT_TOOL_CALL_POLICIES,
+    ROUTE_CONCURRENCY_LIMIT,
     ToolCallCapability,
     ToolCallGovernanceError,
     ToolCallGovernanceErrorCode,
@@ -63,13 +68,17 @@ from intelligent_travel_assistant.application.tooling import (
 )
 from intelligent_travel_assistant.contracts import PlanningStatus
 from intelligent_travel_assistant.domain import (
+    MAX_ROUTE_DISTANCE_METERS,
+    MAX_ROUTE_DURATION_MINUTES,
     BudgetCostItem,
+    Coordinates,
     CostCategory,
     CostConfidence,
     DailyAvailability,
     DailyRoutePlan,
     DomainInvariantError,
     Money,
+    Provider,
     ProviderErrorCategory,
     ProviderResult,
     ProviderResultStatus,
@@ -95,6 +104,7 @@ class OfflinePlanningRequest:
     evaluated_at: datetime
     accommodation_query: str | None = None
     derive_local_transport_cost: bool = False
+    fallback_route_modes: tuple[RouteMode, ...] = ()
 
     def __post_init__(self) -> None:
         if self.accommodation is None and (
@@ -104,6 +114,17 @@ class OfflinePlanningRequest:
                 "accommodation_query_required",
                 field="accommodation_query",
             )
+        if (
+            not isinstance(self.fallback_route_modes, tuple)
+            or not all(isinstance(item, RouteMode) for item in self.fallback_route_modes)
+            or self.route_mode in self.fallback_route_modes
+            or len(set(self.fallback_route_modes)) != len(self.fallback_route_modes)
+        ):
+            raise DomainInvariantError("fallback_route_modes_invalid", field="fallback_route_modes")
+
+    @property
+    def route_modes(self) -> tuple[RouteMode, ...]:
+        return (self.route_mode, *self.fallback_route_modes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +146,7 @@ class OfflinePlanningOutcome:
     proposal_result: ProviderResult[PlanProposal] | None = None
     candidate_result: ProviderResult[PlanCandidate] | None = None
     scheduling_issue: SchedulingIssueCode | None = None
+    route_diagnostic_code: RouteDataDiagnosticCode | None = None
     scheduling_warnings: tuple[SchedulingWarningCode, ...] = ()
     scheduling_uncertainties: tuple[SchedulingUncertaintyCode, ...] = ()
     route_results: tuple[ProviderResult[RouteLeg], ...] = ()
@@ -146,6 +168,13 @@ class _RouteLookup:
     requirement: RouteRequirement
     request: RouteCalculationRequest | None
     result: ProviderResult[RouteLeg] | None
+    diagnostic_code: RouteDataDiagnosticCode | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _RouteLookupBatch:
+    lookups: tuple[_RouteLookup, ...]
+    stopped: bool
 
 
 class OfflinePlanningOrchestrator:
@@ -332,6 +361,7 @@ class OfflinePlanningOrchestrator:
             route_mode=request.route_mode,
             routes=(),
             queried_routes=frozenset(),
+            fallback_route_modes=request.fallback_route_modes,
         )
         if scheduling.issue is SchedulingIssueCode.ACTIVITY_DURATION_UNKNOWN:
             await _advance(history, PlanningStatus.NEEDS_INPUT, state_observer)
@@ -363,6 +393,12 @@ class OfflinePlanningOrchestrator:
             locations=planning_context.locations,
         )
         if scheduling.issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE:
+            route_diagnostic_code = _route_data_diagnostic(
+                scheduling.proposal,
+                accommodation.location_id,
+                route_lookups,
+                request,
+            )
             await _advance(history, PlanningStatus.FAILED, state_observer)
             return _outcome(
                 history,
@@ -376,6 +412,7 @@ class OfflinePlanningOrchestrator:
                 alert_result=alert_result,
                 proposal_result=proposal_result,
                 scheduling_issue=scheduling.issue,
+                route_diagnostic_code=route_diagnostic_code,
                 scheduling_warnings=scheduling.warnings,
                 scheduling_uncertainties=scheduling.uncertainties,
                 route_results=_route_results(route_lookups),
@@ -500,6 +537,7 @@ def _outcome(
     proposal_result: ProviderResult[PlanProposal] | None = None,
     candidate_result: ProviderResult[PlanCandidate] | None = None,
     scheduling_issue: SchedulingIssueCode | None = None,
+    route_diagnostic_code: RouteDataDiagnosticCode | None = None,
     scheduling_warnings: tuple[SchedulingWarningCode, ...] = (),
     scheduling_uncertainties: tuple[SchedulingUncertaintyCode, ...] = (),
     route_results: tuple[ProviderResult[RouteLeg], ...] = (),
@@ -524,6 +562,7 @@ def _outcome(
         proposal_result=proposal_result,
         candidate_result=candidate_result,
         scheduling_issue=scheduling_issue,
+        route_diagnostic_code=route_diagnostic_code,
         scheduling_warnings=scheduling_warnings,
         scheduling_uncertainties=scheduling_uncertainties,
         route_results=route_results,
@@ -635,62 +674,333 @@ async def _schedule_with_routes(
     lookups: list[_RouteLookup] = []
     for _ in range(3):
         if scheduling.issue is not SchedulingIssueCode.ROUTE_DATA_REQUIRED:
-            return tuple(lookups), scheduling
-        for requirement in scheduling.missing_routes:
-            origin = coordinates.get(requirement.origin_location_id)
-            destination = coordinates.get(requirement.destination_location_id)
-            if origin is None or destination is None:
-                lookups.append(_RouteLookup(requirement, None, None))
-                continue
-            route_request = RouteCalculationRequest(
-                requirement.origin_location_id,
-                requirement.destination_location_id,
-                origin,
-                destination,
-                citycode,
-                citycode,
-                request.route_mode,
+            return tuple(lookups), _with_route_fallback_warning(
+                scheduling,
+                accommodation.location_id,
+                lookups,
+                request,
             )
-            route_result = await _governed_call(
-                governor,
-                ToolCallCapability.CALCULATE_ROUTES,
-                status,
-                _route_operation(amap, route_request),
+        primary_batch = await _lookup_route_batch(
+            scheduling.missing_routes,
+            mode=request.route_mode,
+            coordinates=coordinates,
+            citycode=citycode,
+            amap=amap,
+            governor=governor,
+            status=status,
+        )
+        primary_lookups = primary_batch.lookups
+        lookups.extend(primary_lookups)
+        fallback_pending = (
+            []
+            if primary_batch.stopped
+            else [item for item in primary_lookups if _lookup_allows_fallback(item)]
+        )
+        for fallback_mode in request.fallback_route_modes:
+            if not fallback_pending:
+                break
+            fallback_batch = await _lookup_route_batch(
+                tuple(item.requirement for item in fallback_pending),
+                mode=fallback_mode,
+                coordinates=coordinates,
+                citycode=citycode,
+                amap=amap,
+                governor=governor,
+                status=status,
             )
-            lookups.append(_RouteLookup(requirement, route_request, route_result))
+            fallback_lookups = fallback_batch.lookups
+            lookups.extend(fallback_lookups)
+            if fallback_batch.stopped:
+                fallback_pending = []
+                break
+            fallback_pending = [item for item in fallback_lookups if _lookup_allows_fallback(item)]
         scheduling = schedule_plan_proposal(
             scheduling.proposal,
             accommodation_location_id=accommodation.location_id,
             day_windows=request.day_windows,
             locations=locations,
             route_mode=request.route_mode,
-            routes=_scheduled_routes(lookups, request.route_mode),
+            routes=_scheduled_routes(lookups, request.route_modes),
             queried_routes=frozenset(item.requirement for item in lookups),
+            fallback_route_modes=request.fallback_route_modes,
             omitted_days=scheduling.omitted_days,
             warnings=scheduling.warnings,
         )
         if scheduling.issue is not SchedulingIssueCode.ROUTE_DATA_REQUIRED:
-            return tuple(lookups), scheduling
+            return tuple(lookups), _with_route_fallback_warning(
+                scheduling,
+                accommodation.location_id,
+                lookups,
+                request,
+            )
     raise AssertionError("deterministic scheduler exceeded the bounded enrichment passes")
+
+
+async def _lookup_route_batch(
+    requirements: tuple[RouteRequirement, ...],
+    *,
+    mode: RouteMode,
+    coordinates: dict[UUID, Coordinates | None],
+    citycode: str,
+    amap: AmapPort,
+    governor: ToolCallGovernor,
+    status: PlanningStatus,
+) -> _RouteLookupBatch:
+    values: list[_RouteLookup] = []
+    stopped = False
+    for start in range(0, len(requirements), ROUTE_CONCURRENCY_LIMIT):
+        batch = requirements[start : start + ROUTE_CONCURRENCY_LIMIT]
+        tasks = tuple(
+            asyncio.create_task(
+                _lookup_route(
+                    requirement,
+                    mode=mode,
+                    coordinates=coordinates,
+                    citycode=citycode,
+                    amap=amap,
+                    governor=governor,
+                    status=status,
+                )
+            )
+            for requirement in batch
+        )
+        try:
+            resolved = await asyncio.gather(*tasks)
+        except BaseException:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
+        values.extend(resolved)
+        if any(_lookup_stops_route_enrichment(item) for item in resolved):
+            stopped = True
+            break
+    return _RouteLookupBatch(tuple(values), stopped)
+
+
+async def _lookup_route(
+    requirement: RouteRequirement,
+    *,
+    mode: RouteMode,
+    coordinates: dict[UUID, Coordinates | None],
+    citycode: str,
+    amap: AmapPort,
+    governor: ToolCallGovernor,
+    status: PlanningStatus,
+) -> _RouteLookup:
+    origin = coordinates.get(requirement.origin_location_id)
+    destination = coordinates.get(requirement.destination_location_id)
+    if origin is None or destination is None:
+        return _RouteLookup(
+            requirement,
+            None,
+            None,
+            RouteDataDiagnosticCode.COORDINATES_MISSING,
+        )
+    route_policy = DEFAULT_TOOL_CALL_POLICIES[ToolCallCapability.CALCULATE_ROUTES]
+    if governor.snapshot().count_for(ToolCallCapability.CALCULATE_ROUTES) >= route_policy.max_calls:
+        return _RouteLookup(
+            requirement,
+            None,
+            None,
+            RouteDataDiagnosticCode.CALL_BUDGET_EXHAUSTED,
+        )
+    route_request = RouteCalculationRequest(
+        requirement.origin_location_id,
+        requirement.destination_location_id,
+        origin,
+        destination,
+        citycode,
+        citycode,
+        mode,
+    )
+    try:
+        route_result = await _governed_call(
+            governor,
+            ToolCallCapability.CALCULATE_ROUTES,
+            status,
+            _route_operation(amap, route_request),
+        )
+    except ToolCallGovernanceError as error:
+        if error.code is ToolCallGovernanceErrorCode.CALL_BUDGET_EXHAUSTED:
+            governance_diagnostic = RouteDataDiagnosticCode.CALL_BUDGET_EXHAUSTED
+        elif error.code in {
+            ToolCallGovernanceErrorCode.INSUFFICIENT_TIME_REMAINING,
+            ToolCallGovernanceErrorCode.CALL_TIMEOUT,
+            ToolCallGovernanceErrorCode.TASK_TIMEOUT,
+        }:
+            governance_diagnostic = RouteDataDiagnosticCode.DEADLINE_EXHAUSTED
+        else:
+            raise
+        return _RouteLookup(requirement, route_request, None, governance_diagnostic)
+    diagnostic_code: RouteDataDiagnosticCode | None = None
+    if route_result.provider is not Provider.AMAP or (
+        route_result.data is not None
+        and not _route_result_is_usable(requirement, route_request, route_result)
+    ):
+        diagnostic_code = RouteDataDiagnosticCode.RESULT_INVALID
+    return _RouteLookup(requirement, route_request, route_result, diagnostic_code)
 
 
 def _scheduled_routes(
     lookups: list[_RouteLookup],
-    route_mode: RouteMode,
+    route_modes: tuple[RouteMode, ...],
 ) -> tuple[ScheduledRoute, ...]:
     values: list[ScheduledRoute] = []
     for item in lookups:
+        if not _lookup_has_usable_route(item):
+            continue
+        if item.request is None or item.request.mode not in route_modes:
+            continue
         if item.result is None or item.result.data is None:
-            continue
+            raise AssertionError("usable route lookup must contain route data")
         route = item.result.data
-        if (
-            route.origin_location_id != item.requirement.origin_location_id
-            or route.destination_location_id != item.requirement.destination_location_id
-            or route.mode is not route_mode
-        ):
-            continue
         values.append(ScheduledRoute(item.requirement, route))
     return tuple(values)
+
+
+def _lookup_has_usable_route(lookup: _RouteLookup) -> bool:
+    return (
+        lookup.request is not None
+        and lookup.result is not None
+        and _route_result_is_usable(lookup.requirement, lookup.request, lookup.result)
+    )
+
+
+def _lookup_allows_fallback(lookup: _RouteLookup) -> bool:
+    if _lookup_has_usable_route(lookup) or lookup.result is None:
+        return False
+    if lookup.result.provider is not Provider.AMAP:
+        return False
+    if lookup.result.data is not None:
+        return (
+            lookup.result.error is None
+            and lookup.diagnostic_code is RouteDataDiagnosticCode.RESULT_INVALID
+        )
+    return (
+        lookup.result.error is not None
+        and lookup.result.error.category is ProviderErrorCategory.EMPTY_RESULT
+    )
+
+
+def _lookup_stops_route_enrichment(lookup: _RouteLookup) -> bool:
+    return not _lookup_has_usable_route(lookup) and not _lookup_allows_fallback(lookup)
+
+
+def _route_result_is_usable(
+    requirement: RouteRequirement,
+    request: RouteCalculationRequest,
+    result: ProviderResult[RouteLeg],
+) -> bool:
+    route = result.data
+    if result.provider is not Provider.AMAP or route is None:
+        return False
+    source_ids = {item.source_id for item in result.source_records}
+    return (
+        route.origin_location_id == requirement.origin_location_id
+        and route.destination_location_id == requirement.destination_location_id
+        and route.mode is request.mode
+        and bool(route.source_ids)
+        and set(route.source_ids) == source_ids
+        and route.distance_meters <= MAX_ROUTE_DISTANCE_METERS
+        and route.duration_minutes <= MAX_ROUTE_DURATION_MINUTES
+    )
+
+
+def _selected_route_lookups(
+    lookups: tuple[_RouteLookup, ...] | list[_RouteLookup],
+    route_modes: tuple[RouteMode, ...],
+) -> dict[RouteRequirement, _RouteLookup]:
+    preference = {mode: index for index, mode in enumerate(route_modes)}
+    selected: dict[RouteRequirement, _RouteLookup] = {}
+    for lookup in lookups:
+        if (
+            not _lookup_has_usable_route(lookup)
+            or lookup.request is None
+            or lookup.request.mode not in preference
+        ):
+            continue
+        current = selected.get(lookup.requirement)
+        if (
+            current is None
+            or current.request is None
+            or (preference[lookup.request.mode] < preference[current.request.mode])
+        ):
+            selected[lookup.requirement] = lookup
+    return selected
+
+
+def _with_route_fallback_warning(
+    scheduling: SchedulingResult,
+    accommodation_location_id: UUID,
+    lookups: list[_RouteLookup],
+    request: OfflinePlanningRequest,
+) -> SchedulingResult:
+    if scheduling.candidate is None or not request.fallback_route_modes:
+        return scheduling
+    requirements = set(derive_route_requirements(scheduling.proposal, accommodation_location_id))
+    selected = _selected_route_lookups(lookups, request.route_modes)
+    used_fallback = any(
+        lookup.requirement in requirements
+        and lookup.request is not None
+        and lookup.request.mode is not request.route_mode
+        for lookup in selected.values()
+    )
+    if not used_fallback or SchedulingWarningCode.ROUTE_MODE_FALLBACK_USED in scheduling.warnings:
+        return scheduling
+    return replace(
+        scheduling,
+        warnings=(*scheduling.warnings, SchedulingWarningCode.ROUTE_MODE_FALLBACK_USED),
+    )
+
+
+def _route_data_diagnostic(
+    proposal: PlanProposal,
+    accommodation_location_id: UUID,
+    lookups: tuple[_RouteLookup, ...],
+    request: OfflinePlanningRequest,
+) -> RouteDataDiagnosticCode:
+    selected = _selected_route_lookups(lookups, request.route_modes)
+    missing = tuple(
+        requirement
+        for requirement in derive_route_requirements(proposal, accommodation_location_id)
+        if requirement not in selected
+    )
+    related = tuple(item for item in lookups if item.requirement in missing)
+    if any(_lookup_has_provider_wide_failure(item) for item in related):
+        return RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+    for code in (
+        RouteDataDiagnosticCode.DEADLINE_EXHAUSTED,
+        RouteDataDiagnosticCode.COORDINATES_MISSING,
+        RouteDataDiagnosticCode.RESULT_INVALID,
+        RouteDataDiagnosticCode.CALL_BUDGET_EXHAUSTED,
+    ):
+        if any(item.diagnostic_code is code for item in related):
+            return code
+    if any(
+        item.request is not None and item.request.mode is not request.route_mode for item in related
+    ):
+        return RouteDataDiagnosticCode.FALLBACK_EXHAUSTED
+    return RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+def _lookup_has_provider_wide_failure(lookup: _RouteLookup) -> bool:
+    return (
+        lookup.result is not None
+        and lookup.result.provider is Provider.AMAP
+        and lookup.result.data is None
+        and lookup.result.error is not None
+        and lookup.result.error.category
+        in {
+            ProviderErrorCategory.AUTH,
+            ProviderErrorCategory.SCHEMA,
+            ProviderErrorCategory.TIMEOUT,
+            ProviderErrorCategory.RATE_LIMITED,
+            ProviderErrorCategory.SERVER,
+            ProviderErrorCategory.UNKNOWN,
+        }
+    )
 
 
 def _route_enrichments_from_lookups(
@@ -701,7 +1011,7 @@ def _route_enrichments_from_lookups(
 ) -> tuple[RouteEnrichmentResult, ...]:
     if candidate is None:
         return ()
-    by_requirement = {item.requirement: item for item in lookups}
+    by_requirement = _selected_route_lookups(lookups, request.route_modes)
     windows = {item.day_offset: item for item in request.day_windows}
     enrichments: list[RouteEnrichmentResult] = []
     for day_offset in (0, 1):
@@ -733,7 +1043,19 @@ def _route_enrichments_from_lookups(
 def _route_results(
     lookups: tuple[_RouteLookup, ...],
 ) -> tuple[ProviderResult[RouteLeg], ...]:
-    return tuple(item.result for item in lookups if item.result is not None)
+    return tuple(
+        item.result
+        for item in lookups
+        if item.result is not None
+        and item.result.provider is Provider.AMAP
+        and (
+            item.result.data is None
+            or (
+                item.request is not None
+                and _route_result_is_usable(item.requirement, item.request, item.result)
+            )
+        )
+    )
 
 
 def _with_scheduled_candidate(
@@ -770,16 +1092,26 @@ def _cost_items_with_local_transport(
         return request.cost_items
     if any(item.category is CostCategory.LOCAL_TRANSPORT for item in request.cost_items):
         return request.cost_items
-    amount = Decimal("0.00")
-    if request.route_mode is RouteMode.PUBLIC_TRANSIT:
-        amount = Decimal(10 * request.trip.travelers * len(routes)).quantize(Decimal("0.01"))
+    public_transit_legs = sum(
+        1
+        for item in routes
+        if item.result is not None
+        and item.result.data is not None
+        and item.result.data.mode is RouteMode.PUBLIC_TRANSIT
+    )
+    amount = Decimal(10 * request.trip.travelers * public_transit_legs).quantize(Decimal("0.01"))
+    selected_modes = ",".join(
+        item.result.data.mode.value
+        for item in routes
+        if item.result is not None and item.result.data is not None
+    )
     local_transport = BudgetCostItem(
         uuid5(
             NAMESPACE_URL,
             (
                 f"f-001:local-transport:{request.trip.city}:"
                 f"{request.trip.start_date.isoformat()}:{request.trip.travelers}:"
-                f"{request.route_mode.value}:{len(routes)}"
+                f"{selected_modes}:{len(routes)}"
             ),
         ),
         CostCategory.LOCAL_TRANSPORT,

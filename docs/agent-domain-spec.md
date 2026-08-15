@@ -136,6 +136,8 @@ Step 16 将模型文本明确置于不信任边界：generation 与 repair 共�
 
 Step 17 将 Agent 候选与最终事实明确分离：应用按住宿锚点和活动次序推导完整路线链，DeepSeek 不能提供路线结果或 verified 来源；每段高德结果必须匹配预期端点、模式和自身来源。随后确定性代码统一校验时间、路线、预算、POI、天气和 freshness，并经状态机裁决 `ready`、`partial` 或 `conflict`。模型解释不能删除 unknown、降级信息或硬冲突。
 
+Step 45N–45P 明确多交通方式也不交给模型裁决：用户同时允许公交和步行时，应用以公交为首选，仅对业务空结果或无 provider error 的本地非法路线在剩余预算内尝试步行；鉴权、Schema、timeout、rate limit、server 和 unknown 错误立即停止后续批次与 fallback。最终候选可以包含混合 mode，但每段路线必须来自本次高德结果，且 provider、端点、请求方式、数值上界和 source IDs 精确一致。降级 warning、六类路线失败 diagnostic、最多两路并发和 8 次调用硬上限均由代码生成；模型不能触发额外路线重试或隐藏降级。
+
 Step 28 的 DeepSeek adapter 只把冻结结构化上下文编码为 user data，并固定非 thinking JSON 输出；observation 和无效候选不能进入 system prompt。generation 与 repair 的 system prompt 复用同一组项目候选规则，repair 的 user data 同时携带冻结 Schema、候选规则、安全验证码和未信任候选；未信任候选不会进入 system prompt。adapter 不向模型注册工具，每个端口调用只有一次 HTTP 尝试，且响应仍须先成为未信任 `ModelTextOutput`，再经过 Step 16 本地严格解析。它不读取环境、不拥有终态裁决权，也不证明真实模型可用。
 
 Step 29 的高德 adapter 只实现应用明确调用的城市解析和 POI 搜索，不把第三方 HTTP API 或任意 typecode 暴露给模型。F-001 类别映射冻结为景区与博物馆；城市归属、坐标类型、稳定地点 ID、坏记录过滤和错误分类都由 adapter 确定性完成。模型只能看到已通过端口转换的候选与来源，不能选择异城 POI、修改 city adcode 或把缺坐标补成事实。

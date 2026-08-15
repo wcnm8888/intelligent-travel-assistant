@@ -116,6 +116,8 @@ Step 17 的最终校验测试先因 `AccommodationAnchor` 和最终裁决类型�
 
 Step 45H 初始红测在 collection 阶段因缺少 `DeepSeekProposalResolver` 和 `RouteRequirement` 失败。Step 45J 又直接锁定 proposal 的 root/day/selection 重复键、未知字段、日期顺序/父子日期、目录外 POI、非法/重复来源，以及 60/120/180 分钟和景区/博物馆 120 分钟缺省。真实 proposal → scheduler → executor → Repository → GET API 链覆盖当前可达的 partial、conflict、needs_input、failed、route retryable、optional warning 和安全诊断；ready 继续由零 unknown 的冻结 API/Synthetic Executor 契约覆盖。被移除 optional 的历史 route partial/error 不得污染最终 ready 的来源、错误或 uncertainty。
 
+Step 45N–45R 增加混合交通纵向回归：业务空结果和无 provider error 的本地非法首选路线可按用户允许方式降级；AUTH、Schema、timeout、rate limit、server 和 unknown 不触发 fallback。Step 45U 将六类 terminal 首次出现在 fallback 并发批次的行为固化到 executor → Repository → GET API：当前在途两路可完成，后续 fallback 不启动，公开 code、diagnostic 与 retryable 不被降级错误掩盖；事件同步的外部取消测试证明两路等待中 peer 均被 cancel/drain、governor 活动调用归零且取消语义原样传播。纵向链同时锁定 fallback exhausted、call budget、deadline、wrong provider、非法/额外来源和 operation-aware diagnostic；adapter/领域测试锁定距离 `2147483647/2147483648` 与时长 `1440/1441` 边界，证明异常值在 `timedelta` 和公开 DTO 前被拒绝。路线批次最多并发 2、总调用最多 8，未采用、非法或取消路线不进入来源与错误投影。前端 App 继续覆盖 `planning → needs_input`。所有场景只使用 fake/synthetic、MockTransport 和本机 API，不读取 provider 配置。
+
 Step 45J 统一离线门禁在冻结 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下通过：后端 838 项、前端 64 项、文档检查器 23 项，以及 Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、锁文件和文档契约全部绿色。该证据不调用真实 provider，也不替代 D-009 迁移后的 live UAT。
 
 Step 45F 的 `activity_visit_order_invalid → day_schedule_capacity_exceeded` 已退出生产正常路径。迁移后 `schedule_capacity_exceeded` 只来自确定性容量计算；proposal 不产生最终精确时间的四类 gap 诊断。旧 candidate parser 与旧诊断只作为迁移回归保留，不与 scheduler 形成第二份生产事实来源。

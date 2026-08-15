@@ -24,6 +24,7 @@ from intelligent_travel_assistant.application.planning.final_validation import (
 )
 from intelligent_travel_assistant.application.planning.scheduling import (
     DurationBasis,
+    RouteDataDiagnosticCode,
     RouteRequirement,
     ScheduledRoute,
     SchedulingIssueCode,
@@ -61,6 +62,7 @@ __all__ = [
     "evaluate_final_plan",
     "route_activities",
     "RouteRequirement",
+    "RouteDataDiagnosticCode",
     "ScheduledRoute",
     "SchedulingIssueCode",
     "SchedulingResult",

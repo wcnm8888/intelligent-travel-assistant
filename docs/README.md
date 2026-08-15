@@ -92,8 +92,8 @@ AGENTS.md
 
 - 当前活动任务：`F-001 单城市双日旅行计划垂直切片`
 - 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
-- 当前已完成 Step：F-001 Step 0 至 Step 45，以及补充 Step 45A–45J；Step 45E 是最新 live UAT且结论为 `FAIL`，D-009 离线实现、独立 QA 和最小修复已完成但尚未提交
-- 当前明确未完成：通过式真实数据 UAT、合并与归档门禁；120 文件范围停止阈值已由用户批准本次单 PR 例外
+- 当前已完成 Step：F-001 Step 0 至 Step 45，以及补充 Step 45A–45U；D-009 已由 stacked Draft PR #5 交付并通过既有 review/远程 CI，Step 45T 是最新 live UAT且结论为 `PASS`
+- 当前明确未完成：Step 45N–45U 精确提交/推送与新 head 远程复验、PR ready、stacked PR 处理、合并与归档门禁；120 文件范围停止阈值已由用户批准本次单 PR 例外
 - 当前产品 UI 已通过专用 synthetic executor 经真实本机 POST/GET/retry 严格渲染五种结果；三家配置齐备时任务 API 使用真实 provider 执行器，默认无凭证时执行器保持禁用，不会调用 provider
 - Step 38 已完成：一个杭州双日真实计划触达三家 provider 且 live 契约通过；计划经确定性校验进入 `conflict`，同一预算内的高德公交路线窄探针通过，全程无原始响应、持久缓存或真实高德截图
 - Step 45A 已执行：唯一真实任务因 DeepSeek 本地候选校验以 `model_output_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论仍为 `FAIL`，没有重试或第二次提交
@@ -103,4 +103,10 @@ AGENTS.md
 - Step 45E 的最后一次受控 live 回归在 generation 和唯一一次 repair 后仍以时间候选无效失败；没有计划或路线补全
 - Step 45F 已离线细分五类安全时间诊断并确认原有 Prompt、上下文和规则完整；用户随后批准 D-009，将精确时间骨架和排程迁移给确定性代码
 - Step 45H 已按 F-001-CR1 把生产编排迁移到无最终时间 proposal + 实际路线 + 确定性 scheduler；公开 API、Repository 和 UI Schema 未变化
-- 下一步：形式上等待用户批准执行 F-001 Step 46，但该合并 Step 继续受真实 UAT `FAIL` 和 stacked 变更未交付阻塞；实际下一动作是单独批准 Step 45K，精确暂存、提交、推送并创建 stacked Draft PR，不得再次 live
+- Step 45K–45L 已完成 stacked Draft PR #5 提交、推送、成功 CI 和独立远程 review；PR #4/#5 均保持 Draft
+- Step 45M 的唯一真实任务取得 proposal、天气和部分路线事实，但必要高德路线数据缺失后以无计划 `failed` 收口；静态复核同时发现双交通方式没有 fallback、路线错误缺少安全 diagnostic、前端状态边遗漏
+- Step 45N 已离线实现公交首选、失败路段步行降级、8 次硬预算、五类安全路线诊断和前端 `planning → needs_input` 对齐；没有新的 live 证据
+- Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
+- Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
+- Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
+- 下一步：形式上等待用户批准执行 F-001 Step 46，但该合并 Step 继续受未提交/远程复验阻塞；建议先批准 Step 45V 精确暂存、提交、推送并更新 stacked Draft PR #5，不得自动执行

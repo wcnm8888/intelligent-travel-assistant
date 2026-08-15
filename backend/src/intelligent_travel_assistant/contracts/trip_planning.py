@@ -26,6 +26,7 @@ from pydantic import (
 
 from intelligent_travel_assistant.contracts.base import ContractModel
 from intelligent_travel_assistant.contracts.errors import ApiError
+from intelligent_travel_assistant.domain import MAX_ROUTE_DISTANCE_METERS
 
 ShortText = Annotated[
     str,
@@ -321,7 +322,7 @@ class RouteLeg(ContractModel):
     origin_location_id: UUID
     destination_location_id: UUID
     mode: RouteMode
-    distance_meters: int = Field(strict=True, ge=0)
+    distance_meters: int = Field(strict=True, ge=0, le=MAX_ROUTE_DISTANCE_METERS)
     duration_minutes: PositiveMinutes
     fare: CostItem | None = None
     source_ids: NonEmptySourceIds
