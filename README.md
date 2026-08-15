@@ -4,7 +4,7 @@ Intelligent Travel Assistant 是一个面向中国大陆境内自由行的本地
 
 ## 当前状态
 
-`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、统一本地门禁和 GitHub Actions CI。当前活动任务是 `F-001：单城市双日旅行计划垂直切片`；进程内任务 Repository、五种终态结果快照、POST/GET/retry、单编排 Agent、三家 provider adapter、按全量配置条件启用的真实规划执行器，以及 React 旅行需求和结果工作台均已实现。D-009 后的 Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，Step 45X 已完成文档、PR 元数据和 ready-for-review 收口；当前仍待按 stacked 顺序合并 PR #5、复验并处理 PR #4。
+`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。F-001 已由 [PR #5](https://github.com/wcnm8888/intelligent-travel-assistant/pull/5) 按 stacked 顺序合并至功能分支，再由 [PR #4](https://github.com/wcnm8888/intelligent-travel-assistant/pull/4) 合并至 `main`（merge commit `d05e997dbeaa676702704ce791287eb036c80a6c`）。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、统一本地门禁和 GitHub Actions CI。F-001 已交付但产品验收状态保留为 `PARTIAL`：Step 45T 取得完整双日 partial 的真实 UAT `PASS`，其中门票等非关键费用保持 `unknown`，不按 0 计算；Step 45M 历史 `FAIL` 保留。
 
 - 运行边界：仅本地运行，后续允许经显式配置访问外部 API。
 - 当前任务状态：[current-task.md](./docs/project-management/current-task.md)
@@ -146,7 +146,7 @@ uv run --project backend --frozen python scripts/check_docs.py --root .
 
 ## 外部服务状态
 
-用户已自行创建 DeepSeek、高德和和风天气账户及本项目专用凭证；真实凭证只存在于 Git 忽略的 `.env.local` 与仓库外私钥文件中。项目已把三家 adapter 按全量配置条件接入任务执行器，并在 Step 38 的一次性授权内完成脱敏 live 契约验证。D-009/F-001-CR1 已由 stacked PR #5 实现并通过 review、远程 CI 和 ready-for-review 收口：LLM 只提议每日 POI、优先级、required/optional 和时长类别，确定性代码取得实际路线后按固定时长与缓冲生成精确时间，并继续通过既有 `DailyRoutePlan` 和 final validation 复验。Step 45N–45R 已补齐多方式降级及路线可靠性；Step 45T 最新真实任务形成完整双日 partial，真实 UAT 为 `PASS`。本次首选公交路线均直接可用，混合 fallback 的真实质量仍未覆盖；Step 45U 已补齐 fallback 批次 terminal 与外部取消的离线回归。未经新授权不得再次 live 调用；PR #5 必须先合并到功能分支，再复验 PR #4。
+用户已自行创建 DeepSeek、高德和和风天气账户及本项目专用凭证；真实凭证只存在于 Git 忽略的 `.env.local` 与仓库外私钥文件中。项目已把三家 adapter 按全量配置条件接入任务执行器，并完成受控 live 契约与一次通过式真实 UAT。D-009/F-001-CR1 已通过 PR #5 实现、review、远程 CI 并合并；PR #4 已复验并合并到 `main`。LLM 只提议每日 POI、优先级、required/optional 和时长类别，确定性代码取得实际路线后按固定时长与缓冲生成精确时间，并继续通过既有 `DailyRoutePlan` 和 final validation 复验。Step 45N–45R 已补齐多方式降级及路线可靠性；Step 45T 形成完整双日 partial，真实 UAT 为 `PASS`。本次首选公交路线均直接可用，混合 fallback 的真实质量仍未覆盖；该边界由离线纵向测试覆盖，未经新授权不得再次 live 调用。
 
 ## 明确非目标
 

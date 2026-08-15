@@ -4,7 +4,7 @@
 
 本文件定义 Intelligent Travel Assistant 当前有效的测试分层、风险矩阵、外部服务隔离、Agent 评估、质量门禁和证据规则。测试从产品风险和验收标准推导，不以覆盖率数字或实现细节代替行为验证。
 
-B-000 已建立后端健康服务测试、前端健康诊断测试、本地 Chromium 闭环、统一门禁、Windows CI、独立负向测试、范围/凭证审查和用户 UAT，并已完成 review、合并和归档。F-001 已在该基线上实现旅行领域、Agent 编排、provider 适配器、五种业务终态、产品 UI、失败注入和受控 live smoke；synthetic 浏览器闭环及离线门禁已通过，但 ready/partial 真实数据 UAT 尚未通过，因此不能把正常真实计划能力表述为已验收。
+B-000 已建立后端健康服务测试、前端健康诊断测试、本地 Chromium 闭环、统一门禁、Windows CI、独立负向测试、范围/凭证审查和用户 UAT，并已完成 review、合并和归档。F-001 已在该基线上实现旅行领域、Agent 编排、provider 适配器、五种业务终态、产品 UI、失败注入和受控 live smoke；synthetic 浏览器闭环、离线门禁和 Step 45T 的完整双日 partial 真实数据 UAT 已通过。真实验收仍须如实保留 partial 边界：unknown 费用不按 0 处理，混合交通 fallback 只有离线证据。
 
 ## 核心原则
 

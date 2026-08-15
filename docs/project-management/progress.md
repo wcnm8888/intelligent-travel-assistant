@@ -2,12 +2,13 @@
 
 ## 当前状态
 
-- 当前任务：`F-001 单城市双日旅行计划垂直切片`
-- 任务状态：`ACTIVE`
-- 当前分支：`feat/f-001-cr1-deterministic-scheduling`
-- 已完成 Step：Step 0 至 Step 45，以及补充 Step 45A–45X；Step 45T 是最新 live 结论，UAT `PASS`
-- 当前阻塞：PR #5 已提交、推送、远程 CI 通过并 ready-for-review；仍需用户批准按 stacked 顺序合并 PR #5、复验 PR #4，之后才能处理 Step 46/归档
-- 下一批准动作：Step 46（顺序为 PR #5 → `feat/f-001-single-city-two-day-plan` → PR #4 → `main`）
+- 当前任务：无
+- 任务状态：`ARCHIVED`
+- 产品交付状态：`PARTIAL`（完整双日计划可执行；非关键费用保持 `unknown`）
+- 当前分支：`main`
+- 已完成 Step：Step 0 至 Step 47，以及补充 Step 45A–45X；Step 45T 是最新 live 结论，UAT `PASS`
+- 当前阻塞：无当前任务阻塞；F-001 的实时门票费用和混合交通 fallback 仍是明确未覆盖边界
+- 下一批准动作：无；等待用户从 roadmap 选择并批准下一任务
 
 ## 最近完成
 
@@ -106,11 +107,18 @@
 
 ## 最近基线证据
 
-- 当前 Step 相关验证：PR #4 仍为 Draft，PR #5 已 ready-for-review；PR #5 head `749acc905ff3739c9af87d800540e5513fea2765` 的 Windows offline verification run `31879377928` 已通过，Step 45W 独立 review 和 Step 45T 真实 UAT `PASS` 已完成；Step 46 继续等待用户批准并按 stacked 顺序处理；
+- 当前 Step 相关验证：PR #5 已合并至功能分支，PR #4 已复验并合并至 `main`；PR #5 merge commit 为 `4cf20235e0f51a6422c2404385aa2206cb553de7`，PR #4 merge commit 为 `d05e997dbeaa676702704ce791287eb036c80a6c`；Step 45W 独立 review 和 Step 45T 真实 UAT `PASS` 已完成；
 - 最近离线门禁：Step 45R 测试组合明确不加载 `.env.local` 且拒绝非 loopback 网络；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下统一 `scripts/verify.ps1` 通过，包含后端 869 项、前端 65 项、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；
 - 最新提交前门禁：Step 45U 在同一冻结运行时与离线隔离下通过后端 876 项、前端 65 项、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；Step 45X 文档提交后的同一门禁与远程 Windows verification 继续通过；
-- 远程基线：`main` 提交 `50980887dadc0500d98dcd29966a5da2da74b2e2` 的 Windows CI 运行 `31704781850` 成功；
-- 当前开放 PR #4 与 PR #5；PR #4 保持 Draft，PR #5 已标记 ready-for-review；两者均未合并。
+- 远程基线：`main` 当前提交 `d05e997dbeaa676702704ce791287eb036c80a6c` 的 Windows CI 运行 `31881327869` / job `95004221033` 成功；
+- PR #4 和 PR #5 均已合并；没有开放的 F-001 交付 PR。F-001 已归档为产品状态 `PARTIAL`。
+
+## Step 47：最终归档与文档收口
+
+- PR #5 先以 stacked 顺序合并到 `feat/f-001-single-city-two-day-plan`，PR #4 随后经独立 review、范围检查和 Windows CI 复验后合并到 `main`；没有直接跳过 stacked 顺序；
+- main merge commit 为 `d05e997dbeaa676702704ce791287eb036c80a6c`，合并后 Windows offline verification run `31881327869` 成功；本地 `main` 与远程同步，工作区干净；
+- 完整离线门禁和文档检查通过，未调用 DeepSeek、高德或和风天气真实 API，未修改产品代码；
+- 归档结论：F-001 已交付但保持 `PARTIAL`。Step 45T 的完整双日 partial 和 Step 45M 的历史 FAIL 均保留；unknown 费用不按 0 处理；混合交通 fallback 只有离线证据，不宣称真实质量已覆盖。
 
 ## 权威入口
 

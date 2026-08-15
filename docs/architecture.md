@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文件定义 Intelligent Travel Assistant 当前批准的目标架构。B-000 建立了工程基线和健康检查；F-001 已冻结 provider-neutral 契约、领域校验和 provider 端口，并建立离线 fake、显式状态机、应用编排、调用治理、DeepSeek 本地严格解析/单次修复、最终确定性裁决、进程内 Repository、任务资源 API、React 旅行需求表单、受控轮询与 retry、五种终态界面，以及按完整本地配置条件装配的 DeepSeek、高德、和风 HTTP adapter 和真实规划执行器。synthetic 五终态已通过真实本机浏览器闭环；Step 38 取得一次脱敏 live 契约证据，Step 39 尚未取得 ready/partial 真实计划 UAT。
+本文件定义 Intelligent Travel Assistant 当前批准的目标架构。B-000 建立了工程基线和健康检查；F-001 已冻结 provider-neutral 契约、领域校验和 provider 端口，并建立离线 fake、显式状态机、应用编排、调用治理、DeepSeek 本地严格解析/单次修复、最终确定性裁决、进程内 Repository、任务资源 API、React 旅行需求表单、受控轮询与 retry、五种终态界面，以及按完整本地配置条件装配的 DeepSeek、高德、和风 HTTP adapter 和真实规划执行器。synthetic 五终态已通过真实本机浏览器闭环；Step 38 取得一次脱敏 live 契约证据，Step 45T 已取得完整双日 partial 的通过式真实 UAT。产品仍保留 PARTIAL 边界：unknown 费用不按 0 处理，混合交通 fallback 的真实质量未宣称覆盖。
 
 ## 系统目标
 

@@ -5,17 +5,27 @@
 - 任务 ID：`F-001`
 - 名称：单城市双日旅行计划垂直切片
 - 等级：`L`
-- 状态：`ACTIVE`
+- 状态：`ARCHIVED`
+- 产品验收状态：`PARTIAL`（已交付完整可执行双日计划，但非关键费用仍为 `unknown`）
 - 基线分支：`main`
-- 功能分支：`feat/f-001-cr1-deterministic-scheduling`（stacked base：`feat/f-001-single-city-two-day-plan`）
+- 交付分支：`main`（PR #5 先合并至功能分支，PR #4 再合并至 `main`）
 - PR 目标：一个 PR 交付首个可验证的旅行计划端到端闭环
 - 建议 PR 标题：`feat: deliver single-city two-day travel planning slice`
 - 批准日期：2026-08-13
-- 当前 Step：`Step 46 - 经用户批准后合并（TODO；PR #5 已 ready-for-review，仍需按 stacked 顺序合并并复验 PR #4）`
+- 当前 Step：`Step 47 - 最终归档与文档收口（DONE）`
 - 最近完成补充 Step：`Step 45X - 最终文档收口、PR #5 元数据校正与 ready-for-review（DONE）`
-- 下一可执行 Step：`Step 46 - 先合并 PR #5 到 feat/f-001-single-city-two-day-plan，再复验并处理 PR #4（待单独批准）`
+- 下一可执行 Step：`无；等待用户从 roadmap 选择并批准下一任务`
+
+当前无活动任务。
 
 用户已经确认本任务的目标、范围、非目标、输入输出、状态模型、验收标准、风险边界和十二项工程决策，并授权执行 Step 0。后续仍坚持每次只执行一个单独批准的 Step；批准任务卡不等于授权真实 API 调用、提交、推送、创建 PR 或合并。
+
+## 归档摘要（Step 47）
+
+- F-001 已通过 PR #5（merge commit `4cf20235e0f51a6422c2404385aa2206cb553de7`）和 PR #4（merge commit `d05e997dbeaa676702704ce791287eb036c80a6c`）交付到 `main`；
+- main CI run `31881327869` / job `95004221033` 已成功；本地工作区与 `main` 同步且干净；
+- Step 45T 真实 UAT 为 `PASS`，形成完整双日 `partial`；门票等非关键费用保持 `unknown`，不按 0 处理；Step 45M 历史 `FAIL` 保留；
+- F-001 已交付但不宣称全量 `ready`，因为实时门票费用和混合交通 fallback 的真实覆盖仍有限；后续若要扩展，必须从 roadmap 选择新任务并重新批准范围。
 
 ## 用户目标和工程价值
 
@@ -423,7 +433,7 @@ D-009 已实现：LLM 不再负责最终 `start_time`/`end_time`；它只提议 
 | 补充 Step 45V | 精确暂存、提交、推送并更新 stacked Draft PR #5 | DONE（commit `749acc9`；CI 通过） |
 | 补充 Step 45W | PR #5 新 head 独立远程复审与 stacked PR 收口判断 | DONE（无 P0/P1；文档收口后可 ready） |
 | 补充 Step 45X | 最终文档收口、PR #5 元数据校正与 ready-for-review | DONE（文档提交、CI 和 ready 状态已完成） |
-| Step 46 | 经用户批准后合并 | TODO |
-| Step 47 | 归档 F-001 并完成文档收口 | TODO |
+| Step 46 | 经用户批准后按 stacked 顺序合并 PR #5、复验并合并 PR #4 | DONE（PR #5 → 功能分支 → PR #4 → main） |
+| Step 47 | 归档 F-001 并完成文档收口 | DONE（交付状态 PARTIAL） |
 
 完成当前 Step 后停止，不自动进入下一 Step。

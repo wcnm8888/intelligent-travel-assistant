@@ -2,11 +2,13 @@
 
 ## 当前状态
 
+当前无活动任务，因此没有正在执行的 Step。
+
 - 当前任务：`F-001 单城市双日旅行计划垂直切片`
 - 任务等级：`L`
-- 当前分支：`feat/f-001-cr1-deterministic-scheduling`（stacked base：`feat/f-001-single-city-two-day-plan`）
-- 当前形式状态：补充 Step 45T 已取得完整双日、仅因非关键 unknown 进入 `partial` 的真实 UAT `PASS`；Step 45M 历史 `FAIL` 保留。Step 45X 已完成文档、PR 元数据和 ready-for-review 收口。形式上仍等待用户批准 Step 46；PR #5 已 ready，下一步按 stacked 顺序合并并复验 PR #4。
-- 已完成：Step 0 至 Step 45，以及补充 Step 45A–45X；确定性调度迁移已有离线实现、独立审查、真实 UAT、提交、远程 CI 和 ready-for-review 证据，F-001 在合并与归档前仍为 `PARTIAL`。
+- 当前分支：`main`
+- 当前形式状态：Step 45T 已取得完整双日、仅因非关键 unknown 进入 `partial` 的真实 UAT `PASS`；Step 45M 历史 `FAIL` 保留。Step 46 已按 stacked 顺序完成 PR #5 → 功能分支 → PR #4 → `main`；Step 47 已完成最终归档。F-001 已交付，产品状态保持 `PARTIAL`。
+- 已完成：Step 0 至 Step 47，以及补充 Step 45A–45X；确定性调度迁移已有离线实现、独立审查、真实 UAT、提交、远程 CI、stacked 合并和归档证据。
 - Step 38 已完成：严格按一次杭州双日计划、DeepSeek 最多 3 次、高德最多 16 次、和风最多 4 次、总费用不超过 12 元的授权执行。三家服务均返回可解析结果；计划经确定性校验进入 `conflict`，另以同一授权预算内 1 次高德公交路线窄探针补齐路线 live 契约。
 - Step 39 已按同一调用和 12 元费用边界执行；唯一任务因 DeepSeek `provider_schema_invalid` 安全失败，UAT 结论为 `FAIL`，未重试或再次提交。
 - Step 41 已完成离线阻塞修复和独立全量门禁；Step 42 已同步长期文档、证据和 120 文件单 PR 范围例外；Step 43 已形成单一本地提交；Step 44 已推送分支并创建 Draft PR #4；Step 45 的远程 Windows 离线门禁已通过。补充 Step 45A 的唯一真实任务以 `model_output_invalid` 安全失败；Step 45B 已离线补齐候选诊断、Prompt 规则和纵向回归；Step 45C 的完整候选最终以 2 项 `route_conflict` 进入 `conflict`；Step 45D 已离线修复候选路线正数时间窗口准入；Step 45E 则证明 generation 与唯一一次 repair 仍未生成时间可行候选，安全诊断为 `candidate_repair_time_invalid`。在获得 ready/可解释 partial 证据或用户正式调整验收决策前，不得进入 Step 46、标记 ready 或合并。
@@ -637,6 +639,20 @@
 - 已明确 API 端点与 DTO 字段形状未破坏，但路线数值安全上界和 `planning → needs_input` 状态语义为已记录的兼容性调整；已记录逐项授权覆盖 Step 45N–45V 的范围；
 - 已精确提交文档变更并推送，PR #5 新 head 远程 Windows offline verification 通过后已标记 `ready-for-review`。PR #4 未修改、未合并任何 PR、未调用真实 Provider；
 - stacked 处理顺序冻结为：PR #5 合并到 `feat/f-001-single-city-two-day-plan` → 该功能分支重新 CI/review → PR #4 合并到 `main`。Step 46 待用户单独批准。
+
+### Step 46：按 stacked 顺序合并 PR #5，并复验 PR #4
+
+- `DONE`；PR #5 已以 `4cf20235e0f51a6422c2404385aa2206cb553de7` 合并至 `feat/f-001-single-city-two-day-plan`；该 head 的 Windows offline verification run `31881089652` 成功；
+- PR #4 相对 `main` 的累计差异为 124 文件、`+34079/-584`，范围可由已批准的 F-001 与 CR1 stacked 变更追溯；独立 review 未发现 P0/P1 阻塞问题，文档、API、Repository、DTO、UI Schema 和秘密边界复验通过；
+- PR #4 正文已校正 Step 45M FAIL、Step 45T PASS、D-009、unknown 费用和 stacked 处理顺序，并在 ready-for-review 后合并至 `main`，merge commit 为 `d05e997dbeaa676702704ce791287eb036c80a6c`；
+- 未执行新的真实 Provider 调用，未跳过 stacked 顺序，F-001 在归档前仍保持 `PARTIAL`。
+
+### Step 47：最终归档与项目文档收口
+
+- `DONE`；main 合并后 Windows offline verification run `31881327869` / job `95004221033` 成功；本地 `main` 与远程同步且工作区干净；
+- README、docs 文档地图、current-task、progress、evidence、roadmap、decisions、architecture、testing-strategy 和 F-001-CR1 变更卡已同步最终交付事实；
+- 归档明确：F-001 已交付但产品验收状态为 `PARTIAL`，Step 45T PASS、Step 45M FAIL、unknown 不按 0、混合交通 fallback 仅有离线证据；
+- 本 Step 只修改文档并运行离线门禁，不调用真实 Provider、不扩展产品范围、不创建新 PR。
 
 ## 后续 Step 摘要
 

@@ -14,13 +14,13 @@
 
 ## 当前证据状态
 
-### F-001：单城市双日旅行计划垂直切片（进行中）
+### F-001：单城市双日旅行计划垂直切片（已交付，产品状态 PARTIAL）
 
-- 任务状态：`ACTIVE`
-- 当前结论：`PARTIAL`。D-009/F-001-CR1 已实现、审查并由 PR #5 交付；Step 45T 的唯一真实任务形成完整双日 `partial` 计划，只有非关键 unknown 费用，真实 UAT 为 `PASS`。Step 45X 已完成文档和 ready-for-review 收口；任务尚未完成是因为 stacked 合并、PR #4 复验和归档尚未完成；Step 45M 历史 `FAIL` 保留；
-- 分支：`feat/f-001-cr1-deterministic-scheduling`，已推送；PR #5 为 ready-for-review，base 为 `feat/f-001-single-city-two-day-plan`；上层 PR #4 仍为 Draft，目标为 `main`；
+- 任务状态：`ARCHIVED`
+- 当前结论：`PARTIAL`。D-009/F-001-CR1 已实现、审查并交付到 `main`；Step 45T 的唯一真实任务形成完整双日 `partial` 计划，只有非关键 unknown 费用，真实 UAT 为 `PASS`。Step 45M 历史 `FAIL` 保留；F-001 已完成代码交付和归档，但不宣称全量 `ready`；
+- 分支：`main`；PR #5 已按 stacked 顺序合并至功能分支，PR #4 已复验并合并至 `main`；
 - Step 45V：提交 `749acc905ff3739c9af87d800540e5513fea2765`，26 文件、`+1815/-102`，Windows offline verification run `31879377928` 通过；Step 45W 审查快照为 34 文件、`+4307/-332`，Step 45X 文档提交后当前 PR #5 累计范围为 34 文件、`+4336/-337`；
-- Step 45W：独立远程 review 未发现 P0/P1，确认问题仅为文档和 stacked 顺序漂移；Step 45X 已修正这些事实；
+- Step 45W：独立远程 review 未发现 P0/P1，确认问题仅为文档和 stacked 顺序漂移；Step 45X 已修正这些事实；Step 46/47 已完成合并与最终归档收口；
 - Step 34 自动化：10 类 Agent 输出 scorecard、目录顺序不变性、四终态各 10 次重复裁决通过；新增 15 项、专项相关 107 项通过。统一门禁包括 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0、后端 729 项 pytest、前端 61 项 Vitest、文档检查器 23 项测试、Ruff format/check、strict mypy、Vite build 和 17 份必需文档契约；
 - Step 35 自动化：新增任务执行端口、五终态 synthetic executor 和轮询可达后继回归；专项后端 20 项、前端 62 项及相关静态门禁通过。Playwright Chromium 经真实本机 POST/GET/retry 验证 ready、partial attempt 2、conflict、needs_input 和 failed，`390×844` 下 `scrollWidth=375`、控制台 0 error/0 warning；动态业务请求仅访问本机 `/api`；
 - Step 36 全量门禁：在项目根目录运行 `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1` 一次通过；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，后端 737 项 pytest、前端 62 项 Vitest、文档检查器 23 项测试，以及锁文件、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build、17 份必需文档和 19 个 Markdown 文件契约全部通过；
@@ -110,6 +110,14 @@
 - 请求边界：Step 35 浏览器业务请求仅为同源任务 API；DeepSeek、高德与和风 adapter 专项测试使用进程内 mock transport。Step 40 发现默认 API 测试组合根可能因 `.env.local` 装配真实执行器；Step 41 已用导入前 `APP_ENV=test`、禁用 dotenv source 和非 loopback socket 阻断关闭该风险，并由统一入口复验；
 - 真实性边界：Step 38 只证明执行时三家鉴权与所触达 live Schema 可用，并证明一次高德公交路线契约；Step 45A 只证明修复后的本地候选错误分类与安全失败展示有效。两者都不证明持续可用、全部端点、结果质量或下一次费用；
 - 未覆盖：混合交通方式 fallback 的真实 Provider 结果质量、长期配额和费用稳定性、ready-for-review、stacked 合并与归档。完整双日 partial 和通过式真实数据 UAT 已由 Step 45T 覆盖；本次 live 授权已经消耗，不得自动再次调用。
+
+### Step 46–47：stacked 合并与 F-001 归档
+
+- Step 46 结论：`PASS`。PR #5（base `feat/f-001-single-city-two-day-plan`）先合并，merge commit 为 `4cf20235e0f51a6422c2404385aa2206cb553de7`；其新功能分支 head 的 Windows offline verification run `31881089652` 成功。
+- PR #4 相对 `main` 的累计差异为 124 文件、`+34079/-584`；独立 review、`git diff --check`、文档检查、范围追溯和秘密扫描通过，未发现 P0/P1 阻塞缺陷。PR #4 正文已校正 D-009、Step 45M FAIL、Step 45T PASS、unknown 费用和 stacked 顺序后标记 ready 并合并。
+- PR #4 merge commit 为 `d05e997dbeaa676702704ce791287eb036c80a6c`。合并后 main Windows offline verification run `31881327869` / job `95004221033` 成功；本地 `main` 与远程同步，工作区干净。
+- Step 47 结论：`PASS（文档归档）`。仅修改权威项目文档并运行离线门禁；未调用 DeepSeek、高德或和风天气真实 API，未修改产品代码、公开 API、DTO、UI 或依赖。
+- 归档边界：F-001 已交付但产品状态保留 `PARTIAL`；Step 45T 的完整双日 partial 为通过式真实证据，Step 45M 的 failed 为历史 FAIL 证据；门票等非关键费用保持 `unknown`，不按 0 处理；混合交通 fallback 仍只有离线测试证据。
 
 ### B-000：项目与工程基线
 
