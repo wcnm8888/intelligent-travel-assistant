@@ -146,7 +146,7 @@ uv run --project backend --frozen python scripts/check_docs.py --root .
 
 ## 外部服务状态
 
-用户已自行创建 DeepSeek、高德和和风天气账户及本项目专用凭证；真实凭证只存在于 Git 忽略的 `.env.local` 与仓库外私钥文件中。项目已把三家 adapter 按全量配置条件接入任务执行器，并在 Step 38 的一次性授权内完成脱敏 live 契约验证。Step 39 的唯一真实浏览器任务因 DeepSeek `provider_schema_invalid` 安全失败，失败态桌面/窄屏展示有效，但尚无通过式真实数据 UAT。任何后续真实调用仍须单独授权并遵守配额、attribution、脱敏、费用和失败隔离规则。
+用户已自行创建 DeepSeek、高德和和风天气账户及本项目专用凭证；真实凭证只存在于 Git 忽略的 `.env.local` 与仓库外私钥文件中。项目已把三家 adapter 按全量配置条件接入任务执行器，并在 Step 38 的一次性授权内完成脱敏 live 契约验证。补充 Step 45A 的唯一真实任务因 DeepSeek 本地候选校验安全失败；Step 45B 已离线修复候选诊断和 generation/repair 规则一致性。Step 45C 生成完整双日候选，但最终两天各出现一项路线冲突；Step 45D 已离线修复候选未预检住宿往返和跨地点正数交通窗口的问题。最后一次受控 Step 45E 在 generation 和唯一一次 repair 后仍未得到时间可行候选；Step 45F 已离线细分五类安全时间诊断并确认原有规则上下文完整。D-009 及 F-001-CR1 的九项实施决策已经批准：LLM 不再负责最终精确时刻，确定性代码将使用实际路线、固定时长与缓冲完成排程；当前生产代码尚未迁移，Step 45H 仍需单独批准。上述修复仍不构成通过式真实数据 UAT；未经新授权不得再次 live 调用或进入合并。
 
 ## 明确非目标
 

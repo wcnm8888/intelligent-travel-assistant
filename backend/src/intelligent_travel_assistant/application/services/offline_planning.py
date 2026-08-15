@@ -12,6 +12,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from intelligent_travel_assistant.application.planning import (
     AccommodationAnchor,
     CandidateResolutionErrorCode,
+    CandidateValidationStage,
     DeepSeekCandidateResolver,
     FinalValidationResult,
     RouteEnrichmentResult,
@@ -20,6 +21,8 @@ from intelligent_travel_assistant.application.planning import (
 )
 from intelligent_travel_assistant.application.ports import (
     AmapPort,
+    CandidateTimeFailureCode,
+    CandidateValidationCode,
     CityResolution,
     CityResolutionRequest,
     CurrentWeatherAlertsRequest,
@@ -102,6 +105,9 @@ class OfflinePlanningOutcome:
     tool_calls: ToolCallSnapshot
     candidate_resolution_error: CandidateResolutionErrorCode | None = None
     candidate_repaired: bool = False
+    candidate_validation_stage: CandidateValidationStage | None = None
+    candidate_validation_code: CandidateValidationCode | None = None
+    candidate_time_failure: CandidateTimeFailureCode | None = None
     city_result: ProviderResult[CityResolution] | None = None
     accommodation_result: ProviderResult[PoiSearchResult] | None = None
     accommodation: AccommodationAnchor | None = None
@@ -286,6 +292,9 @@ class OfflinePlanningOrchestrator:
                 governor,
                 candidate_resolution_error=candidate_resolution.error_code,
                 candidate_repaired=candidate_resolution.repaired,
+                candidate_validation_stage=candidate_resolution.validation_stage,
+                candidate_validation_code=candidate_resolution.validation_code,
+                candidate_time_failure=candidate_resolution.validation_time_failure,
                 city_result=city_result,
                 accommodation_result=accommodation_result,
                 accommodation=accommodation,
@@ -342,6 +351,9 @@ class OfflinePlanningOrchestrator:
             governor,
             candidate_resolution_error=candidate_resolution.error_code,
             candidate_repaired=candidate_resolution.repaired,
+            candidate_validation_stage=candidate_resolution.validation_stage,
+            candidate_validation_code=candidate_resolution.validation_code,
+            candidate_time_failure=candidate_resolution.validation_time_failure,
             city_result=city_result,
             accommodation_result=accommodation_result,
             accommodation=accommodation,
@@ -373,6 +385,9 @@ def _outcome(
     *,
     candidate_resolution_error: CandidateResolutionErrorCode | None = None,
     candidate_repaired: bool = False,
+    candidate_validation_stage: CandidateValidationStage | None = None,
+    candidate_validation_code: CandidateValidationCode | None = None,
+    candidate_time_failure: CandidateTimeFailureCode | None = None,
     city_result: ProviderResult[CityResolution] | None = None,
     accommodation_result: ProviderResult[PoiSearchResult] | None = None,
     accommodation: AccommodationAnchor | None = None,
@@ -389,6 +404,9 @@ def _outcome(
         tool_calls=governor.snapshot(),
         candidate_resolution_error=candidate_resolution_error,
         candidate_repaired=candidate_repaired,
+        candidate_validation_stage=candidate_validation_stage,
+        candidate_validation_code=candidate_validation_code,
+        candidate_time_failure=candidate_time_failure,
         city_result=city_result,
         accommodation_result=accommodation_result,
         accommodation=accommodation,

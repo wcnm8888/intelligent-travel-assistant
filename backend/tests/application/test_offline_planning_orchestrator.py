@@ -310,6 +310,7 @@ def _build_orchestrator(
     forecast: ProviderResult[WeatherForecastResult] | None = None,
     alerts: ProviderResult[WeatherAlertsResult] | None = None,
     candidate: ProviderResult[ModelTextOutput] | None = None,
+    repaired_candidate: ProviderResult[ModelTextOutput] | None = None,
     routes: tuple[ProviderResult[RouteLeg], ...] | None = None,
     copies: int = 1,
 ) -> tuple[
@@ -343,7 +344,10 @@ def _build_orchestrator(
         weather_forecast_results=(forecast_result,) * copies,
         weather_alert_results=(alert_result,) * copies,
     )
-    deepseek = FakeDeepSeekAdapter(generation_results=(candidate_result,) * copies)
+    deepseek = FakeDeepSeekAdapter(
+        generation_results=(candidate_result,) * copies,
+        repair_results=(repaired_candidate,) * copies if repaired_candidate is not None else None,
+    )
     return (
         OfflinePlanningOrchestrator(
             amap,
@@ -424,6 +428,41 @@ def test_happy_path_completes_four_route_legs_and_finishes_ready() -> None:
         POI_ONE_ID,
         POI_TWO_ID,
     )
+
+
+def test_zero_route_windows_are_repaired_before_route_enrichment() -> None:
+    document = json.loads(_candidate_json())
+    for day in document["days"]:
+        day["activities"][0]["start_time"] = "08:00:00"
+        day["activities"][-1]["end_time"] = "18:00:00"
+    invalid_generation = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(json.dumps(document)),
+        source_type="plan_candidate",
+    )
+    valid_repair = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(_candidate_json()),
+        source_type="plan_candidate_repair",
+    )
+    orchestrator, amap, _, deepseek = _build_orchestrator(
+        candidate=invalid_generation,
+        repaired_candidate=valid_repair,
+    )
+
+    outcome = asyncio.run(orchestrator.plan(_request()))
+
+    assert outcome.status is PlanningStatus.READY
+    assert outcome.candidate_repaired is True
+    assert [call.operation for call in deepseek.calls] == [
+        FakeOperation.GENERATE_PLAN_CANDIDATE,
+        FakeOperation.REPAIR_PLAN_CANDIDATE,
+    ]
+    repair_request = deepseek.calls[1].request
+    assert repair_request.time_failure.value == (  # type: ignore[union-attr]
+        "accommodation_to_first_gap_not_positive"
+    )
+    assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 4
 
 
 def test_default_weather_anchor_uses_matching_accommodation_coordinates() -> None:
@@ -871,7 +910,7 @@ def test_stale_source_blocks_ready_without_becoming_conflict() -> None:
     }
 
 
-def test_activity_outside_explicit_window_finishes_conflict() -> None:
+def test_activity_outside_explicit_window_is_repaired_before_routes() -> None:
     request = _request()
     request = OfflinePlanningRequest(
         request.trip,
@@ -890,15 +929,29 @@ def test_activity_outside_explicit_window_finishes_conflict() -> None:
         request.cost_items,
         request.evaluated_at,
     )
-    orchestrator, _, _, _ = _build_orchestrator()
+    repaired_document = json.loads(_candidate_json())
+    repaired_document["days"][0]["activities"][0]["start_time"] = "12:00:00"
+    repaired_document["days"][0]["activities"][0]["end_time"] = "14:00:00"
+    repaired_candidate = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(json.dumps(repaired_document)),
+        source_type="plan_candidate_repair",
+    )
+    orchestrator, amap, _, deepseek = _build_orchestrator(
+        repaired_candidate=repaired_candidate,
+    )
 
     outcome = asyncio.run(orchestrator.plan(request))
 
-    assert outcome.status is PlanningStatus.CONFLICT
+    assert outcome.status is PlanningStatus.READY
+    assert outcome.candidate_repaired is True
     assert outcome.final_validation is not None
-    assert FinalValidationIssueCode.SCHEDULE_CONFLICT in {
-        item.code for item in outcome.final_validation.issues
-    }
+    assert outcome.final_validation.issues == ()
+    assert [call.operation for call in deepseek.calls] == [
+        FakeOperation.GENERATE_PLAN_CANDIDATE,
+        FakeOperation.REPAIR_PLAN_CANDIDATE,
+    ]
+    assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 4
 
 
 def test_each_run_has_an_independent_immutable_state_history() -> None:

@@ -11,6 +11,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from pydantic import AnyHttpUrl
 
 from intelligent_travel_assistant.application.planning import (
+    CandidateResolutionDiagnosticCode,
     CandidateResolutionErrorCode,
     FinalValidationIssue,
     FinalValidationIssueCode,
@@ -299,6 +300,18 @@ def _request_cost(
     )
 
 
+def _candidate_diagnostic_code(
+    outcome: OfflinePlanningOutcome,
+) -> CandidateResolutionDiagnosticCode:
+    if outcome.candidate_validation_stage is None or outcome.candidate_validation_code is None:
+        return CandidateResolutionDiagnosticCode.LOCAL_VALIDATION_FAILED
+    return CandidateResolutionDiagnosticCode.from_failure(
+        outcome.candidate_validation_stage,
+        outcome.candidate_validation_code,
+        outcome.candidate_time_failure,
+    )
+
+
 def _planning_result(
     outcome: OfflinePlanningOutcome,
     request: TripPlanRequest,
@@ -321,7 +334,7 @@ def _planning_result(
                 code=ApiErrorCode.MODEL_OUTPUT_INVALID,
                 message="AI 生成结果未通过本地确定性校验。",
                 provider="deepseek",
-                diagnostic_code="candidate_local_validation_failed",
+                diagnostic_code=_candidate_diagnostic_code(outcome).value,
                 retryable=False,
             ),
         )

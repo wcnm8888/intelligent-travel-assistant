@@ -19,6 +19,7 @@ from intelligent_travel_assistant.adapters.providers.deepseek import (
     DeepSeekAdapterConfig,
 )
 from intelligent_travel_assistant.application.ports import (
+    CandidateTimeFailureCode,
     CandidateValidationCode,
     PlanCandidateRepairRequest,
     PlanningContext,
@@ -158,6 +159,10 @@ async def test_generation_uses_the_frozen_nonthinking_json_request() -> None:
     assert payload["max_tokens"] == 8_000
     assert [message["role"] for message in payload["messages"]] == ["system", "user"]
     assert "JSON" in payload["messages"][0]["content"]
+    assert "exactly two day objects" in payload["messages"][0]["content"]
+    assert "one to three activities" in payload["messages"][0]["content"]
+    assert "activity_source_ids" in payload["messages"][0]["content"]
+    assert "reserve positive travel time" in payload["messages"][0]["content"]
     assert "synthetic observation" not in payload["messages"][0]["content"]
     user_data = json.loads(payload["messages"][1]["content"])
     assert user_data["city_adcode"] == "330100"
@@ -191,11 +196,64 @@ async def test_repair_keeps_invalid_output_out_of_the_system_message() -> None:
     assert invalid not in messages[0]["content"]
     repair_data = json.loads(messages[1]["content"])
     assert repair_data["validation_code"] == "candidate_schema_invalid"
+    assert repair_data["validation_time_failure"] is None
+    assert repair_data["validation_hint"] is None
+    assert repair_data["candidate_rules"] == [
+        "root, day and activity objects must contain exactly the fields shown in candidate_schema",
+        "days must contain exactly two day objects in start_date then end_date order",
+        "each day must contain one to three activities",
+        "each activity local_date must equal its parent day local_date",
+        "each activity must copy its location_id exactly from locations",
+        "each source_ids array must contain one to twenty unique IDs from activity_source_ids",
+        "observation source IDs are not activity source IDs unless also in activity_source_ids",
+        "times must use canonical HH:MM:SS and end_time must be after start_time",
+        "activities must fit inside their day window and reserve positive travel time from the "
+        "accommodation to the first activity, between activities at different locations, and "
+        "from the last activity back to the accommodation",
+        "text must be trimmed, nonempty and single-line; intent_summary and title max 120 chars",
+        "explanation and each warning max 500 chars; warnings may contain at most ten items",
+    ]
     assert repair_data["candidate_schema"]["days"][0]["activities"][0]["source_ids"] == [
         "UUID from activity_source_ids"
     ]
     assert repair_data["invalid_output"] == invalid
     assert repair_data["context"]["city_name"] == "杭州市"
+
+
+@pytest.mark.anyio
+async def test_time_repair_receives_only_a_closed_safe_category_and_static_hint() -> None:
+    observed_payloads: list[dict[str, object]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        observed_payloads.append(json.loads(request.content))
+        return httpx2.Response(200, json=_completion('{"intent_summary":"repaired"}'))
+
+    sensitive_invalid = "synthetic-private-time-and-location-values"
+    request = PlanCandidateRepairRequest(
+        _context(),
+        sensitive_invalid,
+        CandidateValidationCode.TIME_INVALID,
+        CandidateTimeFailureCode.BETWEEN_LOCATIONS_GAP_NOT_POSITIVE,
+    )
+
+    await _adapter(httpx2.MockTransport(handler)).repair_plan_candidate(request)
+
+    messages = observed_payloads[0]["messages"]
+    assert isinstance(messages, list)
+    assert isinstance(messages[1], dict)
+    repair_content = messages[1]["content"]
+    assert isinstance(repair_content, str)
+    repair_data = json.loads(repair_content)
+    assert repair_data["validation_time_failure"] == "between_locations_gap_not_positive"
+    assert repair_data["validation_hint"] == (
+        "When consecutive activities use different locations, start the next activity "
+        "strictly after the previous activity ends."
+    )
+    diagnostic_projection = {
+        "validation_code": repair_data["validation_code"],
+        "validation_time_failure": repair_data["validation_time_failure"],
+    }
+    assert sensitive_invalid not in repr(diagnostic_projection)
 
 
 @pytest.mark.anyio

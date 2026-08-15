@@ -11,7 +11,8 @@
 - PR 目标：一个 PR 交付首个可验证的旅行计划端到端闭环
 - 建议 PR 标题：`feat: deliver single-city two-day travel planning slice`
 - 批准日期：2026-08-13
-- 当前 Step：`Step 46 - 经用户批准后合并（待批准）`
+- 当前 Step：`Step 46 - 经用户批准后合并（TODO；受补充 Step 45H 未实施和真实 UAT FAIL 阻塞）`
+- 下一可执行补充 Step：`Step 45H - 实施 F-001-CR1（TODO；设计、九项策略及范围已批准，实施仍需单独批准）`
 
 用户已经确认本任务的目标、范围、非目标、输入输出、状态模型、验收标准、风险边界和十二项工程决策，并授权执行 Step 0。后续仍坚持每次只执行一个单独批准的 Step；批准任务卡不等于授权真实 API 调用、提交、推送、创建 PR 或合并。
 
@@ -55,6 +56,20 @@ Step 43 已按用户批准的 120 文件清单完成精确暂存和本地单提�
 Step 44 已将 `feat/f-001-single-city-two-day-plan` 推送到私有仓库并创建面向 `main` 的 Draft PR #4。PR 正文明确保留 Step 39 真实 UAT `FAIL`、F-001 当前 `PARTIAL`、120 文件范围例外和任何 live 回归必须重新单独授权的边界；远程 CI 已触发但结果留给 Step 45。未调用真实 provider、未合并或执行其他远程写入。
 
 Step 45 已完成 Draft PR #4 的远程 CI 核对。Windows offline verification 全部通过，没有失败检查或需修复的阻塞问题；状态文档同步后，同一远程门禁已对最终 PR head 复验通过。PR 仍保持 Draft，真实 ready/partial UAT 仍为 `FAIL`，本 Step 未调用真实 provider、标记 ready 或合并。
+
+补充 Step 45A 已在用户重新授权的单任务、DeepSeek 最多 3 次 HTTP、高德最多 16 次、和风最多 4 次和总费用不超过 12 元边界内完成。执行前分支、PR head、干净工作区、远程 CI、凭证隔离和三家 provider/真实执行器 `ready` 状态均通过；一次脱敏 DeepSeek 余额检查可用并计入 HTTP 上限。唯一真实任务在保留高德 3 条、和风 2 条来源后，以 DeepSeek `model_output_invalid`、安全诊断 `candidate_local_validation_failed`、`retryable=false` 进入 `failed`，没有计划、路线补全、重试、第二次提交或额外恢复调用。失败终态在桌面和 `390×844` 均无水平溢出，归因、来源、时效和返回修改入口可见且无重试入口；DOM 与临时启动日志的脱敏扫描未发现秘密或原始响应标记，未保存截图、原始响应、持久缓存或真实地点/路线明细，临时日志已移除。Step 45A UAT 结论为 `FAIL`，F-001 仍为 `PARTIAL`，Step 46 合并继续阻塞。
+
+补充 Step 45B 已在 provider 配置显式禁用、非 loopback 网络阻断的条件下完成离线修复。根因是 resolver 已知本地验证码，但 outcome、executor 和 API 只发布通用诊断；同时 generation/repair Prompt 未完整表达解析器已经强制的候选目录、日期和字段规则。修复后公开错误仍为 `model_output_invalid`、`retryable=false`，诊断只由 generation/repair 阶段与 JSON、Schema、日期、时间、POI 引用、来源引用、安全文本、截断八类安全枚举组成；generation 与 repair 共用冻结候选规则，所有确定性校验保持不放宽。MockTransport 纵向回归已覆盖 adapter → resolver → executor → Repository → API、首次失败、repair 成功、repair 再失败、截断和非法引用，并证明最多一次 repair、无模型原文泄漏。统一离线门禁在 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下通过：后端 766 项、前端 64 项、文档检查器 23 项及全部静态、类型、构建和文档契约绿色。Step 45B 不产生 live 通过证据；Step 46 继续阻塞，下一动作应是用户单独授权一次新的受控 live 回归。
+
+补充 Step 45C 已按用户重新批准的一次任务、DeepSeek 最多 3 次 HTTP、高德最多 16 次、和风最多 4 次和总费用不超过 12 元边界执行。执行前 Git/PR、19 个预期工作区变更、凭证隔离、官方价格/配额、天气日期、三家 provider/真实执行器 `ready` 和 DeepSeek 余额可用性检查均通过；余额检查计入 DeepSeek HTTP 上限。唯一杭州双日任务形成完整两日候选并保留 DeepSeek 来源，证明 Step 45B 后模型候选通过本地校验；最终确定性路线校验报告 2 项 `route_conflict`，终态为 `conflict`，因此真实 UAT 仍为 `FAIL`。公开来源计数为 user 1、system 1、高德 3、和风 2、DeepSeek 1；住宿、城际交通和门票 3 项费用保持 unknown，已知餐饮合计 400 元，未按 0 处理。桌面 `1280×800` 与窄屏 `390×844` 均无水平溢出，只有 1 次 POST 和同任务 3 次 GET，视口切换未增加请求，控制台 0 error/0 warning，DOM 与临时日志脱敏扫描通过。没有 retry、第二次提交、截图、原始响应或持久缓存；本次临时快照和日志已精确移除，本地服务已关闭。Step 46 继续阻塞；下一动作必须先离线审查路线冲突是否来自候选排程、路线补全或最终校验契约，不得自动再次调用 provider。
+
+补充 Step 45D 已在三家 provider 配置显式为空且测试拒绝非 loopback 网络的条件下完成。红测复现了首项活动贴合日窗口起点、末项活动贴合日窗口终点和不同地点活动零间隔均会被旧候选解析错误接受，随后两天路线补全被 `route_gap_not_positive` 跳过并最终各产生一项 `route_conflict`。修复后 generation/repair 共用的 Prompt 明确要求住宿往返和不同地点活动间保留正数交通时间；本地候选准入复用 `DailyRoutePlan.expected_legs()`，把边界不可行稳定分类为现有 `candidate_time_invalid` 并最多触发一次 repair。最终 `DailyRoutePlan.validate()`、真实路线时长超过间隔的硬冲突和同地点连续活动规则均未放宽。专项 162 项通过；冻结 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下统一门禁一次通过，包含后端 772 项、前端 64 项、文档检查器 23 项及全部静态、类型、构建和文档契约。新的受控 live 回归仍需单独授权，Step 46 继续阻塞。
+
+补充 Step 45E 已按用户批准的最后一次受控 live 边界执行。执行前分支、HEAD、21 个既定工作区文件、空暂存区、Draft PR #4/远程 CI、凭证隔离、天气日期、三家 provider/真实执行器 `ready` 和 12 元费用上限均通过；未执行独立 provider 探针。唯一任务在 generation 候选时间校验失败后执行唯一一次 repair，最终以 DeepSeek `model_output_invalid`、安全诊断 `candidate_repair_time_invalid`、`retryable=false` 进入 `failed`，没有计划、路线补全、第二次提交或 retry。公开来源脱敏计数为 user 1、system 1、高德 3、和风 2；桌面 `1280×800` 与窄屏 `390×844` 均无水平溢出，失败恢复入口、归因和时效可见，控制台无 error/warning，DOM 与临时产物扫描无秘密或原始响应标记。临时浏览器文件和运行日志已精确移除，本地服务已停止。真实 UAT 结论仍为 `FAIL`，F-001 保持 `PARTIAL`，Step 46、ready-for-review 和合并继续阻塞。
+
+补充 Step 45F 已在 `APP_ENV=test`、禁用 dotenv、三家 provider 空配置和非 loopback 网络阻断下完成。红测证明 `DailyRoutePlan` 已能识别活动越窗、访问顺序和非正数路线间隔，但候选层把它们全部压缩为 `candidate_time_invalid`，且唯一一次 repair 只收到该通用码。最小修复新增五类项目自有、无值时间诊断，并把对应静态规则提示传给 repair；公开错误保持 `model_output_invalid`、`retryable=false`，最多一次 repair，所有日期、时间、路线及最终校验均未放宽。专项 165 项与后端全量 786 项通过；统一门禁随后验证前端 64 项、文档检查器 23 项及全部静态、类型、构建和文档契约。离线证据确认 generation/repair 原有 Prompt、PlanningContext 和冻结规则已经完整，不能再把失败归因于规则遗漏。三次 live UAT 仍显示 LLM 独立生成精确活动时间不可靠，因此已起草“确定性代码负责时间骨架与排程，LLM 负责 POI 选择、顺序建议和解释”的待批准架构提议；本 Step 未实施该迁移，也未执行 live、暂存、提交、推送或修改 PR。
+
+补充 Step 45G 已完成架构变更控制和详细设计。用户正式批准 D-009 的职责方向：LLM 只输出不含最终精确时刻的活动 proposal，高德提供代码确定端点的实际路线，确定性代码生成时间骨架并由现有校验器独立复验。设计采用新增 `PlanProposal`、保留现有带时间 `PlanCandidate`、不改变公开 API/Repository/UI，并以每天最多 2 项控制路线链在正常 6 段、每天一次 optional 调整后最坏 8 段。每日上限、60/120/180 分钟时长、景区/博物馆缺省 120 分钟、步行/公交 10/15 分钟缓冲、一次 optional 移除、required/unknown/路线失败终态、stacked PR 和 24–34 文件/1200–2200 行范围例外均已批准。Step 45G 未修改生产代码或测试；Draft PR #4 尚未包含 Step 45B–45G，Step 45H 实现仍需单独批准，详见 [F-001-CR1 变更卡](./f-001-cr1-deterministic-scheduling.md)。
 
 ## 范围
 
@@ -172,6 +187,8 @@ F-001 只定义 `PlanningJobRepository` 端口和进程内实现，不建立 SQL
 - `calculate_routes`
 
 LLM 负责需求理解、受控工具选择、候选计划和解释；代码负责输入规范化、工具授权、调用预算、响应转换、路线补全、全部确定性校验和终态裁决。工具不提供通用 HTTP、文件、Shell、SQL 或 Repository 写入能力；provider 文本始终作为不可信数据处理，不能进入 system prompt。
+
+D-009 已确认目标职责：LLM 不再负责最终 `start_time`/`end_time`；它只提议 POI、顺序、优先级、必选/可选、时长类别和解释。高德返回实际路线，确定性调度器据此生成时间。当前生产代码仍是旧候选路径，只有 F-001-CR1 决策获批并完成 Step 45H 后才能宣称迁移完成。
 
 职责边界：
 
@@ -355,6 +372,14 @@ LLM 负责需求理解、受控工具选择、候选计划和解释；代码负�
 | Step 43 | 精确暂存并创建本地提交 | DONE |
 | Step 44 | 经用户批准后推送并创建 Draft PR | DONE |
 | Step 45 | 等待远程 CI 并修复阻塞问题 | DONE |
+| 补充 Step 45A | 修复后的受控真实数据 UAT 回归 | DONE（UAT FAIL） |
+| 补充 Step 45B | 离线定位并修复 DeepSeek 候选本地校验可靠性 | DONE |
+| 补充 Step 45C | Step 45B 后受控真实数据 UAT 回归 | DONE（UAT FAIL：route conflict） |
+| 补充 Step 45D | 离线修复候选时间安排与路线连续性不一致 | DONE |
+| 补充 Step 45E | Step 45D 后最后一次受控真实数据 UAT | DONE（UAT FAIL：repair time invalid） |
+| 补充 Step 45F | 离线细化候选时间诊断并确定时间规划责任边界 | DONE（结论已进入 D-009） |
+| 补充 Step 45G / F-001-CR1 | 确定性时间排程责任调整的变更控制与详细设计 | DONE（设计、九项策略和范围已批准） |
+| 补充 Step 45H | 实施并离线验证 F-001-CR1 | TODO（实施需单独批准） |
 | Step 46 | 经用户批准后合并 | TODO |
 | Step 47 | 归档 F-001 并完成文档收口 | TODO |
 

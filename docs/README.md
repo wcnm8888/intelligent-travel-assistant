@@ -10,6 +10,7 @@
 - 项目总览：[README.md](../README.md)
 - 当前任务：[current-task.md](./project-management/current-task.md)
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
+- 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
 - 长期决策：[decisions.md](./decisions.md)
 - 产品说明：[product-brief.md](./product-brief.md)
@@ -57,6 +58,7 @@ AGENTS.md
 | 项目路线 | 当前 | 候选任务、优先级、依赖和阶段目标 | 用户确认优先级或范围变化 | 只保留短摘要 | [roadmap.md](./project-management/roadmap.md) |
 | 当前任务 | 当前 | 唯一活动任务卡、批准范围、验收标准和 Step 地图 | 当前任务、批准状态或 Step 变化 | 不混入已关闭任务历史 | [current-task.md](./project-management/current-task.md) |
 | 当前计划 | 当前 | 当前任务的可验证执行步骤、结果和停止条件 | 当前任务计划或 Step 结果变化 | 不追加逐轮日志 | [implementation-plan.md](./project-management/implementation-plan.md) |
+| F-001-CR1 变更卡 | 已批准、未实施 | D-009 确定性排程迁移的职责、DTO、算法、失败策略、范围和 Step 45H 审批边界 | 实施范围变化、Step 45H 完成或变更关闭 | 作为 F-001 任务内变更控制记录，任务关闭时随实施计划归档 | [f-001-cr1-deterministic-scheduling.md](./project-management/f-001-cr1-deterministic-scheduling.md) |
 | 项目进度 | 当前 | 当前状态、最近完成、阻塞和下一批准动作 | Step 收口或阻塞变化 | 只保留最近摘要 | [progress.md](./project-management/progress.md) |
 | 验收证据 | 当前 | 可复现的最终验证结论、环境和命令索引 | 产生可保留的验收证据 | 允许按任务保留 | [evidence.md](./project-management/evidence.md) |
 | 决策记录 | 当前 | 长期有效的重要决策、理由、取舍和后果 | 产生或废止重要决策 | 追加决策记录 | [decisions.md](./decisions.md) |
@@ -90,9 +92,15 @@ AGENTS.md
 
 - 当前活动任务：`F-001 单城市双日旅行计划垂直切片`
 - 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
-- 当前已完成 Step：F-001 Step 0 至 Step 45；最近完成 Step 44 Draft PR #4 交付与 Step 45 远程 CI 复验
+- 当前已完成 Step：F-001 Step 0 至 Step 45，以及补充 Step 45A–45G；Step 45E 是最新 live UAT且结论为 `FAIL`，Step 45G 完成 D-009 详细设计但不包含实现
 - 当前明确未完成：通过式真实数据 UAT、合并与归档门禁；120 文件范围停止阈值已由用户批准本次单 PR 例外
 - 当前产品 UI 已通过专用 synthetic executor 经真实本机 POST/GET/retry 严格渲染五种结果；三家配置齐备时任务 API 使用真实 provider 执行器，默认无凭证时执行器保持禁用，不会调用 provider
 - Step 38 已完成：一个杭州双日真实计划触达三家 provider 且 live 契约通过；计划经确定性校验进入 `conflict`，同一预算内的高德公交路线窄探针通过，全程无原始响应、持久缓存或真实高德截图
-- Step 39 已执行：唯一真实浏览器任务因 DeepSeek `provider_schema_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论为 `FAIL`，没有重试或第二次提交
-- 下一步：等待用户批准执行 F-001 Step 46；任何 live 回归、ready-for-review 或合并仍需对应授权
+- Step 45A 已执行：唯一真实任务因 DeepSeek 本地候选校验以 `model_output_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论仍为 `FAIL`，没有重试或第二次提交
+- Step 45B 已离线修复候选阶段/类别诊断与 generation/repair 规则一致性，并建立 adapter → resolver → executor → API 纵向回归；没有调用真实 provider，也没有产生新的 live 通过证据
+- Step 45C 的唯一真实任务生成完整双日候选，但最终两天各出现一项路线冲突，真实 UAT 仍为 `FAIL`
+- Step 45D 已离线修复候选未预检住宿往返和跨地点正数交通窗口的问题；没有调用真实 provider，也不产生新的 live 通过证据
+- Step 45E 的最后一次受控 live 回归在 generation 和唯一一次 repair 后仍以时间候选无效失败；没有计划或路线补全
+- Step 45F 已离线细分五类安全时间诊断并确认原有 Prompt、上下文和规则完整；用户随后批准 D-009，将精确时间骨架和排程迁移给确定性代码
+- Step 45G 已起草 F-001-CR1 变更卡；D-009、九项实施决策、stacked PR 策略及 24–34 文件/1200–2200 行范围例外均已批准，生产代码尚未迁移
+- 下一步：形式上等待用户批准执行 F-001 Step 46，但该合并 Step 继续受真实 UAT `FAIL` 和确定性调度未实施阻塞；实际下一动作是单独批准 Step 45H 的离线实现，不得再次 live

@@ -5,9 +5,9 @@
 - 当前任务：`F-001 单城市双日旅行计划垂直切片`
 - 任务状态：`ACTIVE`
 - 当前分支：`feat/f-001-single-city-two-day-plan`
-- 已完成 Step：Step 0 至 Step 45
-- 当前阻塞：真实 ready/partial 数据 UAT 尚未通过；范围停止阈值已由用户明确批准本次 120 文件单 PR 例外
-- 下一批准动作：Step 46，经用户批准后决定是否合并；不得自动进行 live 回归、ready-for-review 或合并
+- 已完成 Step：Step 0 至 Step 45，以及补充 Step 45A–45G；Step 45E UAT `FAIL`，Step 45G 完成 D-009 详细设计但未实施
+- 当前阻塞：最后一次受控 live 回归在唯一一次 repair 后仍失败，没有 ready/partial 真实计划；F-001-CR1 的设计、九项策略、stacked PR 和新范围例外已经批准，但确定性调度尚未实施
+- 下一批准动作：Step 46 继续阻塞；实际下一动作是单独批准补充 Step 45H 的离线实现，新的 live UAT仍未授权
 
 ## 最近完成
 
@@ -65,6 +65,23 @@
 - Step 43 在冻结 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下重跑统一离线门禁，后端 756 项、前端 64 项、文档检查器 23 项及全部静态、构建和文档契约通过；120 个批准文件经精确暂存和安全审查后形成单一本地提交，未调用真实 provider、推送或创建 PR。
 - Step 44 将功能分支推送至私有仓库并创建面向 `main` 的 Draft PR #4；PR 正文保留真实 UAT `FAIL`、F-001 `PARTIAL`、120 文件范围例外及 live 回归需单独授权的说明。Windows offline verification 已触发，结果留待 Step 45。
 - Step 45 等待并核对 Draft PR #4 的 Windows offline verification；运行 `31807998195` 在 4 分 45 秒内通过，没有失败检查或需要修复的 CI 阻塞。状态文档同步后，最终 PR head 由同一远程门禁复验通过；PR 仍保持 Draft。
+- 补充 Step 45A 在重新授权的单任务与费用/调用上限内执行修复后真实数据 UAT。一次脱敏 DeepSeek 余额检查通过；唯一任务保留高德 3 条、和风 2 条来源，但 DeepSeek 候选经本地严格校验后以 `model_output_invalid`、安全诊断 `candidate_local_validation_failed`、`retryable=false` 失败。没有计划、路线补全、重试、第二次提交或额外恢复调用，UAT 结论仍为 `FAIL`。
+- Step 45A 失败终态在桌面和 `390×844` 均无水平溢出，无重试入口且返回修改入口可见；高德/和风归因、来源和时效展示正确。DOM 与 556 字节临时启动日志的脱敏模式扫描未发现 Key、Bearer、JWT、私钥或原始响应标记；未保存截图、provider 原始响应、持久缓存或真实地点/路线明细，临时日志和本地服务已清理。
+- 补充 Step 45B 在完全离线隔离下证明候选阶段与验证码在 resolver 后被丢失，且 generation/repair Prompt 的冻结规则表达不完整；修复后诊断精确到 generation/repair 与 JSON、Schema、日期、时间、POI 引用、来源引用、安全文本、截断八类闭集，不包含字段路径、值或模型原文。
+- Step 45B 的真实 adapter MockTransport → resolver → executor → Repository → API 纵向回归覆盖非法来源 repair 再失败；参数化测试覆盖首次失败、repair 成功、repair 再失败、截断和八类诊断，并证明最多一次 repair、公开 `model_output_invalid` / `retryable=false` 和安全脱敏。
+- 补充 Step 45C 只提交一个杭州双日任务。Step 45B 后 DeepSeek 候选成功通过本地校验并形成完整两日计划；最终确定性校验报告 2 项 `route_conflict`，路线数据保持未验证，终态为 `conflict`，真实 UAT 仍为 `FAIL`。
+- Step 45C 公开来源计数为 user 1、system 1、高德 3、和风 2、DeepSeek 1；住宿、城际交通和门票保持 unknown，餐饮已知合计 400 元。桌面/窄屏无水平溢出，只有 1 次 POST 和 3 次同任务 GET，控制台、DOM 和临时日志脱敏检查通过；无 retry、第二次提交、截图、原始响应或持久缓存，临时产物和本地服务已清理。
+- 补充 Step 45D 红测证明首项贴合日窗口起点、末项贴合日窗口终点和不同地点活动零间隔会被旧候选准入错误接受；路线补全因 `route_gap_not_positive` 跳过两天，最终稳定复现两项 `route_conflict`。
+- Step 45D 在候选准入层复用 `DailyRoutePlan.expected_legs()`，沿既有 `candidate_time_invalid` 触发唯一一次 repair；generation/repair Prompt 同步正数交通窗口规则。同地点连续活动和真实路线时长超过间隔的最终硬冲突保持原规则，未调用真实 provider。
+- Step 45D 专项 162 项及统一离线门禁通过；统一门禁包括后端 772 项、前端 64 项、文档检查器 23 项和全部格式、lint、typecheck、build、文档契约。
+- 补充 Step 45E 只创建一个杭州双日任务；generation 候选和唯一一次 repair 均未通过时间可行性准入，任务以 `model_output_invalid`、`candidate_repair_time_invalid`、`retryable=false` 进入 `failed`，无计划且未进入路线补全。高德 3 条、和风 2 条公开来源被安全保留，没有第二次提交、retry 或额外 provider 探针，真实 UAT 为 `FAIL`。
+- Step 45E 桌面 `1280×800` 与 `390×844` 均无水平溢出，控制台 0 error/0 warning，DOM 和临时产物脱敏扫描通过；未保存截图、原始响应、真实地点/路线明细或持久缓存，浏览器临时文件、运行日志和本地服务已清理。
+- 补充 Step 45F 红测证明候选层把 `DailyRoutePlan` 的活动越窗、访问顺序和不同位置的非正数路线间隔统一压缩为 `candidate_time_invalid`，唯一一次 repair 因而得不到可安全使用的具体规则提示。
+- Step 45F 新增五类无值时间诊断：`activity_outside_day_window`、`accommodation_to_first_gap_not_positive`、`between_locations_gap_not_positive`、`last_to_accommodation_gap_not_positive`、`day_schedule_capacity_exceeded`。公开错误和不可重试语义不变，最多一次 repair，静态提示不包含任何时间值、地点、坐标或模型原文。
+- Step 45F 专项 165 项、后端全量 786 项及统一离线门禁通过；generation/repair 原有 Prompt、上下文和冻结规则已经完整。三次 live UAT 后不再建议继续纯 Prompt 调优。
+- 用户已正式批准 D-009 的职责方向。补充 Step 45G 完成 F-001-CR1 详细设计：DeepSeek 输出无最终时刻 proposal，高德提供实际路线，确定性 scheduler 生成精确时间并由 `DailyRoutePlan`/final validation 独立复验；生产代码尚未迁移。
+- Step 45G 设计的九项实施决策已获批准：每日最多 2 项；时长 60/120/180 分钟且景区/博物馆缺省 120；步行/公交缓冲 10/15 分钟；每天最多移除一次最低优先级 optional 并显示 warning；required conflict、unknown needs_input、route unavailable failed；只有携带合法 RouteLeg 的 partial 数据可形成 partial 计划；采用 stacked PR；批准 24–34 文件、1200–2200 行范围例外。上述规则尚未实现。
+- Step 45G 收口时工作区为 23 个已跟踪修改文件和 1 个未跟踪变更卡文件，暂存区为空；Draft PR #4 尚未包含 Step 45B–45G，本 Step 未提交、推送或修改 PR。
 
 ## 当前能力边界
 
@@ -72,12 +89,12 @@
 - F-001 当前已有批准规格、严格 DTO/状态/错误/来源引用契约、五种 synthetic 验收终态、纯领域校验、provider result 模型、三个 provider 端口、离线可编程 fake、显式状态机、调用治理、DeepSeek 本地严格解析/单次修复、住宿往返路线补全、最终确定性裁决、进程内 Repository、终态结果快照、任务资源 API、已批准 UI 基线、产品表单、轮询阶段 UI、五种终态展示、受控 retry、按完整配置条件装配的三家 HTTP adapter，以及只有三家同时就绪才启用的真实规划执行器；
 - 已在 Step 38 的一次性授权内调用 DeepSeek、高德和和风天气真实 API 并完成脱敏 live 契约验证；真实凭证仍只存在于 Git 忽略的本地配置和仓库外私钥文件中，未进入受版本控制文件；
 - 和风天气 JWT、账户专属 Host、DeepSeek 模型鉴权及高德地理编码/POI/公交路线均获得一次成功 live 证据；该证据不承诺后续持续可用、数据质量或费用不变；
-- Step 39 的具体任务终态为不可重试 `failed`；后续任何再次生成真实计划的行为仍需单独批准调用和费用边界。
+- Step 45E 的最新真实任务终态为 `failed`；安全诊断证明失败发生于唯一一次 repair 的时间可行性校验。最后一次 live 授权已消耗，不能再次生成或重试。Step 45G 只有设计证据，不改变该结论。
 
 ## 最近基线证据
 
-- 当前 Step 相关验证：Step 43 提交前统一离线门禁、120 文件 staged diff 和秘密边界检查已通过；Draft PR #4 最终 head 的 Windows offline verification 已通过；Step 39 真实失败态桌面/窄屏安全展示证据仍有效，但 ready/partial 真实 UAT 仍为 `FAIL`；当前等待 Step 46 单独批准；
-- 最近离线门禁：测试组合明确不加载 `.env.local` 且拒绝非 loopback 网络；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下统一 `scripts/verify.ps1` 一次通过，包含后端 756 项 pytest、前端 64 项 Vitest、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；
+- 当前 Step 相关验证：Draft PR #4 远程 head 的 Windows offline verification 已通过；Step 45E 的真实 UAT `FAIL` 仍是最新 live 结论，Step 45G 只完成架构设计；Step 45H 的设计与范围已批准但生产实现仍需单独批准，Step 46 继续阻塞；
+- 最近离线门禁：Step 45F 测试组合明确不加载 `.env.local` 且拒绝非 loopback 网络；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下统一 `scripts/verify.ps1` 一次通过，包含后端 786 项 pytest、前端 64 项 Vitest、文档检查器 23 项，以及锁、依赖、peer、Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约；
 - 远程基线：`main` 提交 `50980887dadc0500d98dcd29966a5da2da74b2e2` 的 Windows CI 运行 `31704781850` 成功；
 - 当前开放 Draft PR #4；功能分支已推送且远程 CI 通过，尚未标记 ready 或合并。
 

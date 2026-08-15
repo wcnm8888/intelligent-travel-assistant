@@ -134,7 +134,7 @@ docs/
 | Web UI | 表单、计划展示、来源、冲突和确认交互 | API view model、用户操作 | HTTP 请求、可见状态 | 第三方 Key、SDK、领域规则实现 |
 | API | HTTP 校验、用例调用、错误到响应映射 | HTTP Schema | 应用命令与响应 | 第三方 SDK、预算计算 |
 | Application | 用例编排、状态机、计划版本和确认流程 | 命令、端口结果 | 用例结果、事件、持久化请求 | UI 组件、具体数据库、第三方类型 |
-| Agent Orchestrator | 需求解释、工具选择、计划提议和说明 | 结构化请求、领域状态、工具目录 | 结构化计划候选、决策记录 | 直接网络、直接 SQL、隐藏副作用 |
+| Agent Orchestrator | 需求解释、工具选择、POI/顺序提议和说明 | 结构化请求、领域状态、工具目录 | 不含最终精确时间的结构化 proposal、决策记录 | 直接网络、直接 SQL、最终精确时间、隐藏副作用 |
 | Domain | 旅行请求、行程、费用、约束和来源规则 | 领域值 | 校验结果、派生值 | FastAPI、React、SDK、文件系统 |
 | Ports | 外部能力与 Repository 契约 | 项目自有输入模型 | 项目自有结果模型 | provider SDK 类型 |
 | Adapters | 第三方传输、鉴权、转换、错误映射 | 端口调用 | 标准结果 envelope | 业务规划决策 |
@@ -160,6 +160,8 @@ docs/
 | `ConstraintViolation` | 规则、严重级别、影响对象和说明 | 由确定性规则产生，不能被 LLM 删除 |
 | `ReplanRequest` | 基线版本、修改目标、用户意图和影响范围 | 必须引用现有版本，扩大影响需确认 |
 | `DecisionRecord` | decision ID、提议、校验结果和确认状态 | 可解释且关联 trace |
+| `PlanProposal` | LLM 提议的两日有序 POI、优先级、必选/可选和时长类别 | 不含最终精确时间、路线、provider 或终态 |
+| `ScheduledPlanCandidate` | 代码根据实际路线和时长规则生成的分钟级活动时间 | 输入固定则结果稳定，必须再经领域校验 |
 
 金额使用十进制定点语义；默认币种为人民币 `CNY`，但币种仍作为显式字段。日期和时间使用目的地当地上下文；需要绝对时间时使用带时区值。
 
@@ -282,12 +284,15 @@ F-001 Step 15 已在 `application/tooling/` 建立调用治理边界：
 F-001 Step 16 已在 `application/planning/` 建立模型输出信任边界：
 
 - 端口返回的模型文本只在应用解析/修复协调中作为隔离数据存在，不能直接进入领域候选、终态、来源或日志；
-- 本地解析使用精确字段集合并拒绝重复 JSON 键、错误类型、时区时间、非严格双日日期顺序、候选集外地点，以及 POI 白名单以外的活动来源；
+- 本地解析使用精确字段集合并拒绝重复 JSON 键、错误类型、时区时间、非严格双日日期顺序、候选集外地点，以及 POI 白名单以外的活动来源；候选进入路线补全前复用 `DailyRoutePlan.expected_legs()`，确保活动落在对应窗口内，并为住宿往返及不同地点活动间保留正数交通时间；
 - 模型无权提供 provider、状态、工具调用、路线或新事实；提示控制标记属于不可修复错误，不会把危险文本重放给 repair；
-- generation 与 repair 共享唯一冻结候选 Schema；结构性错误或 `finish_reason=length` 最多调用一次 `repair_plan_candidate`，两者拥有独立预算 1 并共同受任务 90 秒总时限约束；
-- 修复后仍无效时稳定发布 `model_output_invalid`；adapter HTTP/envelope Schema 失败保持 `provider_schema_invalid`，可选诊断只保存项目自有无值枚举，错误结果不携带原始文本；
+- generation 与 repair 共享唯一冻结候选 Schema 和路线时间可行性规则；结构性错误、候选时间不可行或 `finish_reason=length` 最多调用一次 `repair_plan_candidate`，两者拥有独立预算 1 并共同受任务 90 秒总时限约束；
+- 修复后仍无效时稳定发布 `model_output_invalid`；adapter HTTP/envelope Schema 失败保持 `provider_schema_invalid`。本地候选错误沿 resolver → outcome → executor → API 只传递 generation/repair 阶段和项目自有无值枚举；时间类可进一步区分活动越窗、住宿到首项、跨地点活动、末项回住宿的非正数间隔及日程容量不足。错误结果不携带原始文本、字段路径、字段值、时间值、地点或坐标；
+- generation 与 repair 已具有同一冻结 Schema、完整两日窗口、住宿锚点和正数交通窗口规则。补充 Step 45F 只将本地确定的时间失败闭集类别映射为静态 repair 提示，不把任何实际值回传为诊断。三次 live UAT 仍未证明 LLM 独立生成精确活动时间可靠；“由确定性代码生成时间骨架和排程，LLM 只负责 POI 选择、顺序建议与解释”目前是待用户批准的架构建议，尚未实施；
 - 规划上下文显式携带两日窗口、自由偏好、交通方式、住宿锚点、逐日天气/当前预警和 POI-only `activity_source_ids`，不得用占位摘要替代已取得的天气事实；
 - 本边界仍完全 provider-neutral，不导入 DeepSeek SDK、HTTP、Prompt 模板、配置或凭证。
+
+D-009 已于 2026-08-15 获得用户批准，但尚未实施。F-001-CR1 的目标信任边界是：DeepSeek 只输出 `PlanProposal`，每项只含有序 POI、优先级、`required`/`optional` 建议、游览时长类别和解释；严禁输出最终 `start_time`/`end_time`。确定性调度器在高德路线返回后生成当前 final validation 可消费的带时间 candidate。每日最多 2 项、60/120/180 分钟时长、景区/博物馆缺省 120 分钟、步行/公交 10/15 分钟缓冲，以及 optional/required/unknown/路线失败策略均已批准，详细规则和停止条件见 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md)。在 Step 45H 实施完成前，代码仍运行旧的精确时间 candidate 路径，文档不得把目标架构表述为已交付能力。
 
 F-001 Step 17 已完成候选到确定性终态的应用边界：
 
@@ -396,10 +401,10 @@ Step 37 补充收口已把真实 provider 执行器接入组合根：仅当 Deep
 
 | 服务 | 唯一职责 | 不能作为其事实来源的内容 |
 | --- | --- | --- |
-| DeepSeek | 需求理解、工具调用建议、结构化计划候选、自然语言解释 | 天气、POI、路线、实时价格、预算校验结果 |
+| DeepSeek | 需求理解、工具调用建议、POI/优先级/顺序 proposal、自然语言解释 | 最终精确时间、天气、POI、路线、实时价格、预算校验结果 |
 | 高德 | 地理编码、基础 POI、地点详情、路线及其提供方元数据 | 酒店库存或实时房价、天气、餐饮预算、计划优劣 |
 | 和风天气 | 指定地点和时间范围的天气预报、预警及其元数据 | POI、路线、营业状态、价格、行程安排 |
-| 应用代码 | 数据转换、来源关联、日期/时间/路线/预算校验、影响分析 | 不伪造缺失的第三方事实 |
+| 应用代码 | 数据转换、来源关联、基于实际路线的精确排程、日期/时间/路线/预算校验、影响分析 | 不伪造缺失的第三方事实 |
 
 ## 主要数据流
 
@@ -412,9 +417,12 @@ Step 37 补充收口已把真实 provider 执行器接入组合根：仅当 Deep
 → 确认缺失的硬约束
 → 编排 Agent 选择窄工具
 → 适配器获取外部数据并记录来源
-→ Agent 生成结构化计划候选
-→ 领域校验器检查日期 / 时间 / 路线 / 预算 / 冲突
-→ 校验失败则受控修订，达到上限后返回冲突
+→ Agent 生成不含最终精确时间的 PlanProposal
+→ 代码校验 POI / 来源 / 日期 / 优先级 / 时长类别
+→ 高德按住宿和有序活动查询实际路线
+→ 确定性调度器生成 start_time / end_time
+→ 领域校验器独立复验日期 / 时间 / 路线 / 预算 / 冲突
+→ proposal 结构失败最多一次受控修复；排程硬冲突不交给模型绕过
 → 保存计划版本、来源、决策和 trace
 → Web UI 展示 ready / partial / conflict
 ```
@@ -450,7 +458,8 @@ Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转
 | `normalizing` | 校验和规范化需求 | `needs_input`、`collecting`、`failed` |
 | `needs_input` | 缺少必要硬约束 | `normalizing`、`cancelled` |
 | `collecting` | 调用外部工具并记录来源 | `planning`、`partial`、`failed` |
-| `planning` | 生成结构化计划候选 | `validating`、`failed` |
+| `planning` | 当前实现生成带时间的结构化计划候选 | `enriching_routes`、`validating`、`failed` |
+| `enriching_routes` | 当前实现按候选时间查询实际路线 | `validating`、`partial`、`failed` |
 | `validating` | 执行确定性校验 | `ready`、`partial`、`conflict`、`planning` |
 | `awaiting_confirmation` | 变更跨越自动授权边界 | `replanning`、`ready`、`cancelled` |
 | `replanning` | 对批准影响范围生成新版本 | `validating`、`failed` |
@@ -461,6 +470,8 @@ Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转
 | `cancelled` | 用户取消当前流程 | 无 |
 
 状态转换由应用层执行并记录原因；工具不能自行改变全局状态。
+
+D-009 的目标状态名称保持不变：`planning` 改为生成并校验无最终时间的 proposal，`enriching_routes` 改为查询实际路线并运行确定性调度器。若游览时长最终为 unknown，Step 45H 需要新增 `planning → needs_input` 边；在代码和状态机测试更新前，该边只是 F-001-CR1 待实施设计。
 
 ## 状态与持久化
 
@@ -489,7 +500,9 @@ Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转
 - `budget_incomplete`：存在未知费用，无法判断完整预算；
 - `confirmation_required`：变更超过自动重规划边界。
 
-重试只用于明确可重试的网络、超时或限流错误，并设置次数、退避和总时限。鉴权失败、Schema 不合法、硬约束冲突和用户确认不能通过盲目重试解决。公开错误可附项目自有的安全 `diagnostic_code`，但不得记录 provider 原文、字段值、Prompt、凭证、异常或堆栈。
+重试只用于明确可重试的网络、超时或限流错误，并设置次数、退避和总时限。鉴权失败、Schema 不合法、硬约束冲突和用户确认不能通过盲目重试解决。公开错误可附项目自有的安全 `diagnostic_code`；候选诊断只允许阶段与稳定类别的闭集组合，内部信息缺失时退回通用诊断。任何诊断都不得记录 provider 原文、字段路径或值、Prompt、凭证、异常或堆栈。
+
+D-009 目标架构下，完全缺少可用路线时长就无法生成经过验证的精确时间。只有 `partial` provider 结果仍携带合法 `RouteLeg` 时，调度后计划才能以 uncertainty 形成 `partial`；`unavailable`、缺坐标或空路线不得按 0 排程，进入 `failed`。已知路线、缓冲和游览时长总需求超过日窗口时进入 `conflict`，而不是 provider 错误。该目标语义已经批准，但在 Step 45H 实施前不改变当前代码。
 
 ## 可观测性
 
@@ -552,5 +565,6 @@ pytest 在导入应用前固定 `APP_ENV=test`，禁止读取 `.env.local`，并
 - 更换 DeepSeek、高德、和风天气或 SQLite 时，只替换对应适配器，保持端口和领域模型稳定；
 - provider 字段或错误变化先在适配器中兼容并通过合约测试，再更新核心模型；
 - 状态机和数据模型变化需要显式迁移策略，不能靠 Prompt 隐式兼容；
+- D-009 迁移采用 `PlanProposal → deterministic scheduler → existing PlanCandidate` 的绞杀式替换，不长期保留两个可独立生成精确时间的正常路径；
 - 失败发布优先用反向提交或 `git revert` 回滚，不使用破坏性工作树清理；
 - 出现真实多领域并行、独立审查和调度需求前，不演进为多 Agent。

@@ -6,15 +6,25 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+import httpx2
+from fastapi.testclient import TestClient
+
 from intelligent_travel_assistant.adapters.fakes import (
     FakeAmapAdapter,
     FakeDeepSeekAdapter,
     FakeQWeatherAdapter,
 )
+from intelligent_travel_assistant.adapters.providers import (
+    DEEPSEEK_MODEL,
+    DeepSeekAdapter,
+    DeepSeekAdapterConfig,
+)
 from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
+from intelligent_travel_assistant.app import create_app
 from intelligent_travel_assistant.application.ports import (
     CityResolution,
     DailyWeather,
+    DeepSeekPort,
     ModelTextOutput,
     PoiCandidate,
     PoiSearchResult,
@@ -150,7 +160,8 @@ async def _execute(
     *,
     model_output_invalid: bool = False,
     provider_schema_invalid: bool = False,
-) -> tuple[PlanningJob, FakeAmapAdapter]:
+    deepseek_override: DeepSeekPort | None = None,
+) -> tuple[PlanningJob, FakeAmapAdapter, InMemoryPlanningJobRepository]:
     accommodation_result = _result(
         Provider.AMAP,
         PoiSearchResult(
@@ -238,7 +249,10 @@ async def _execute(
             _result(Provider.QWEATHER, WeatherAlertsResult(HOTEL_ID, ()), "alerts"),
         ),
     )
-    if provider_schema_invalid:
+    deepseek: DeepSeekPort
+    if deepseek_override is not None:
+        deepseek = deepseek_override
+    elif provider_schema_invalid:
         deepseek = FakeDeepSeekAdapter(
             generation_results=(
                 ProviderResult(
@@ -293,11 +307,11 @@ async def _execute(
     )
     executor = ProviderPlanningJobExecutor(repository, orchestrator, clock=lambda: NOW)
     await executor.execute(reserved.job.job_id)
-    return await repository.get(reserved.job.job_id), amap
+    return await repository.get(reserved.job.job_id), amap, repository
 
 
 def test_executor_publishes_real_orchestration_shape_using_only_offline_ports() -> None:
-    job, amap = asyncio.run(_execute())
+    job, amap, _ = asyncio.run(_execute())
 
     assert job.status is PlanningStatus.PARTIAL
     assert job.result is not None
@@ -324,21 +338,21 @@ def test_executor_publishes_real_orchestration_shape_using_only_offline_ports() 
 
 
 def test_local_candidate_failure_is_not_mislabeled_as_provider_schema() -> None:
-    job, _ = asyncio.run(_execute(model_output_invalid=True))
+    job, _, _ = asyncio.run(_execute(model_output_invalid=True))
 
     assert job.status is PlanningStatus.FAILED
     assert job.result is not None
     assert [(error.code.value, error.retryable) for error in job.result.errors] == [
         ("model_output_invalid", False)
     ]
-    assert job.result.errors[0].diagnostic_code == "candidate_local_validation_failed"
+    assert job.result.errors[0].diagnostic_code == "candidate_repair_json_invalid"
     assert any(source.provider.value == "amap" for source in job.result.sources)
     assert any(source.provider.value == "qweather" for source in job.result.sources)
     assert all(source.provider.value != "deepseek" for source in job.result.sources)
 
 
 def test_adapter_schema_failure_keeps_stable_provider_error_distinct() -> None:
-    job, _ = asyncio.run(_execute(provider_schema_invalid=True))
+    job, _, _ = asyncio.run(_execute(provider_schema_invalid=True))
 
     assert job.status is PlanningStatus.FAILED
     assert job.result is not None
@@ -346,3 +360,155 @@ def test_adapter_schema_failure_keeps_stable_provider_error_distinct() -> None:
         ("provider_schema_invalid", False)
     ]
     assert job.result.errors[0].diagnostic_code == "response_envelope_invalid"
+
+
+def test_mock_transport_candidate_failure_flows_through_executor_and_api_safely() -> None:
+    generation_raw = "{synthetic-generation-secret"
+    poi_source_id = _source(Provider.AMAP, "pois").source_id
+    repaired_document = json.loads(_candidate_json(poi_source_id))
+    repaired_document["days"][0]["activities"][0]["source_ids"] = [
+        str(UUID("70000000-0000-4000-8000-000000000099"))
+    ]
+    contents = iter((generation_raw, json.dumps(repaired_document)))
+    observed_payloads: list[dict[str, object]] = []
+
+    def completion(content: str) -> dict[str, object]:
+        return {
+            "id": "chatcmpl-synthetic-vertical",
+            "object": "chat.completion",
+            "created": 1786687200,
+            "model": DEEPSEEK_MODEL,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": content,
+                        "reasoning_content": None,
+                    },
+                    "finish_reason": "stop",
+                    "logprobs": None,
+                }
+            ],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+            "system_fingerprint": "fp_synthetic_vertical",
+        }
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        observed_payloads.append(json.loads(request.content))
+        return httpx2.Response(200, json=completion(next(contents)))
+
+    source_ids = iter(
+        (
+            UUID("70000000-0000-4000-8000-000000000001"),
+            UUID("70000000-0000-4000-8000-000000000002"),
+        )
+    )
+    adapter = DeepSeekAdapter(
+        DeepSeekAdapterConfig(api_key="test-only-deepseek-key"),
+        transport=httpx2.MockTransport(handler),
+        clock=lambda: FETCHED_AT,
+        source_id_factory=source_ids.__next__,
+    )
+
+    job, _, repository = asyncio.run(_execute(deepseek_override=adapter))
+
+    assert len(observed_payloads) == 2
+    repair_user_message = observed_payloads[1]["messages"][1]["content"]  # type: ignore[index]
+    repair_payload = json.loads(repair_user_message)
+    assert repair_payload["validation_code"] == "candidate_json_invalid"
+    assert len(repair_payload["candidate_rules"]) == 11
+    assert any("reserve positive travel time" in rule for rule in repair_payload["candidate_rules"])
+
+    with TestClient(create_app(planning_job_repository=repository)) as client:
+        response = client.get(f"/api/trip-plans/{job.job_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["plan"] is None
+    assert body["retryable"] is False
+    assert [
+        (error["code"], error["diagnostic_code"], error["retryable"]) for error in body["errors"]
+    ] == [("model_output_invalid", "candidate_repair_source_reference_invalid", False)]
+    assert all(source["provider"] != "deepseek" for source in body["sources"])
+    assert generation_raw not in response.text
+    assert "synthetic-generation-secret" not in repr(job)
+
+
+def test_mock_transport_time_failure_keeps_safe_detail_through_api() -> None:
+    poi_source_id = _source(Provider.AMAP, "pois").source_id
+    generation_document = json.loads(_candidate_json(poi_source_id))
+    generation_document["days"][0]["activities"][0]["start_time"] = "08:00:00"
+    repair_document = json.loads(_candidate_json(poi_source_id))
+    repair_document["days"][1]["activities"][0]["end_time"] = "18:00:00"
+    contents = iter((json.dumps(generation_document), json.dumps(repair_document)))
+    observed_payloads: list[dict[str, object]] = []
+
+    def completion(content: str) -> dict[str, object]:
+        return {
+            "id": "chatcmpl-synthetic-time-vertical",
+            "object": "chat.completion",
+            "created": 1786687200,
+            "model": DEEPSEEK_MODEL,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": content,
+                        "reasoning_content": None,
+                    },
+                    "finish_reason": "stop",
+                    "logprobs": None,
+                }
+            ],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+            "system_fingerprint": "fp_synthetic_time_vertical",
+        }
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        observed_payloads.append(json.loads(request.content))
+        return httpx2.Response(200, json=completion(next(contents)))
+
+    source_ids = iter(
+        (
+            UUID("70000000-0000-4000-8000-000000000011"),
+            UUID("70000000-0000-4000-8000-000000000012"),
+        )
+    )
+    adapter = DeepSeekAdapter(
+        DeepSeekAdapterConfig(api_key="test-only-deepseek-key"),
+        transport=httpx2.MockTransport(handler),
+        clock=lambda: FETCHED_AT,
+        source_id_factory=source_ids.__next__,
+    )
+
+    job, amap, repository = asyncio.run(_execute(deepseek_override=adapter))
+
+    assert len(observed_payloads) == 2
+    repair_payload = json.loads(observed_payloads[1]["messages"][1]["content"])  # type: ignore[index]
+    assert repair_payload["validation_code"] == "candidate_time_invalid"
+    assert repair_payload["validation_time_failure"] == ("accommodation_to_first_gap_not_positive")
+    assert "08:00:00" not in repair_payload["validation_hint"]
+    assert not any(call.operation.value == "calculate_routes" for call in amap.calls)
+
+    with TestClient(create_app(planning_job_repository=repository)) as client:
+        response = client.get(f"/api/trip-plans/{job.job_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["plan"] is None
+    assert body["retryable"] is False
+    assert [
+        (error["code"], error["diagnostic_code"], error["retryable"]) for error in body["errors"]
+    ] == [
+        (
+            "model_output_invalid",
+            "candidate_repair_last_to_accommodation_gap_not_positive",
+            False,
+        )
+    ]
+    assert "08:00:00" not in response.text
+    assert "18:00:00" not in response.text

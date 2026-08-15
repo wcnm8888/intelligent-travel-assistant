@@ -3,6 +3,7 @@
 from intelligent_travel_assistant.application.ports.models import (
     CandidateActivity,
     CandidateDay,
+    CandidateTimeFailureCode,
     CandidateValidationCode,
     CityResolution,
     CityResolutionRequest,
@@ -35,6 +36,7 @@ __all__ = [
     "AmapPort",
     "CandidateActivity",
     "CandidateDay",
+    "CandidateTimeFailureCode",
     "CandidateValidationCode",
     "CityResolution",
     "CityResolutionRequest",

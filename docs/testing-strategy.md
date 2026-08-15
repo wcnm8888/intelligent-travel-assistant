@@ -99,9 +99,22 @@ Step 14 的离线编排测试先因 `application.services` 不存在而在收集
 
 Step 15 的调用治理测试先因 `application.tooling` 不存在而在收集阶段失败，再由最小实现转绿。测试锁定五个工具加 DeepSeek 生成 capability、阶段授权、城市 1/POI 3/天气与预警各 1/路线 8/生成 1 的独立逻辑预算、高德和和风 6 秒、DeepSeek 35 秒、任务 90 秒及路线 permit 并发 2。显式单调时钟覆盖完整单次窗口不足、精确 deadline、单次/总超时、时间倒退及非有限/布尔时钟；permit 测试覆盖重复、跨 governor、错误类型与并发槽恢复。治理接入编排器后，预算预耗尽会在 fake 调用前失败且三个端口调用记录均为空；happy outcome 保留六项调用快照。AST 证明策略无网络、环境、sleep 或异步运行时依赖。当前只做调用前与返回后 deadline 裁决，不证明真实 I/O 可被主动取消。
 
-Step 16 的 DeepSeek 输出测试先因 `application.planning` 不存在而在收集阶段失败，再由最小实现转绿。测试覆盖精确合法 JSON、非法 JSON/根类型、重复键、缺失/额外/越权字段、错误类型、双日日期与父子日期绑定、本地时间、候选集外 POI、非法 UUID、虚构来源和提示控制标记；合法首轮只生成一次，可修复错误恰好 repair 一次，二次无效安全失败且结果不含原始文本，不可修复提示控制不重放。repair 拥有独立预算 1 和 35 秒窗口，剩余任务时限不足时在 fake 调用前拒绝；AST 负向测试阻止解析层引入 SDK、网络、环境读取或 sleep。相关回归 112 项、全量后端 421 项测试及统一门禁通过；测试不调用真实模型、网络或凭证，也不证明真实 DeepSeek 响应质量。
+Step 16 的 DeepSeek 输出测试先因 `application.planning` 不存在而在收集阶段失败，再由最小实现转绿。测试覆盖精确合法 JSON、非法 JSON/根类型、重复键、缺失/额外/越权字段、错误类型、双日日期与父子日期绑定、本地时间、候选集外 POI、非法 UUID、虚构来源和提示控制标记；合法首轮只生成一次，可修复错误恰好 repair 一次，二次无效安全失败且结果不含原始文本，不可修复提示控制不重放。repair 拥有独立预算 1 和 35 秒窗口，剩余任务时限不足时在 fake 调用前拒绝；AST 负向测试阻止解析层引入 SDK、网络、环境读取或 sleep。补充 Step 45B 把本地失败冻结为 generation/repair 阶段与 JSON、Schema、日期、时间、POI 引用、来源引用、安全文本、截断八类闭集诊断；补充 Step 45D 在候选准入层锁定日窗口、住宿往返和跨地点正数交通窗口。补充 Step 45F 再以红测冻结活动越窗、住宿到首项、跨地点活动、末项回住宿的非正数间隔及日程容量不足五类安全时间诊断，证明 generation 失败只进入一次 repair、repair 再失败仍为 `model_output_invalid`/不可重试，且同地点连续活动不要求自环路线。纵向测试使用 `httpx2.MockTransport` 串联真实 DeepSeek adapter、resolver、orchestrator、executor、Repository 和 FastAPI GET，证明时间子类可安全传递且不含模型原文或输入值。真实路线时长超过已有间隔仍由最终硬冲突测试锁定。测试不调用真实模型、网络或凭证，也不证明真实 DeepSeek 响应质量。
 
 Step 17 的最终校验测试先因 `AccommodationAnchor` 和最终裁决类型不存在而在收集阶段失败，再由最小实现转绿。测试覆盖双日住宿往返四段路线、缺坐标不调用、provider 超时、错误端点、路线超出活动间隔、天气缺日/错地点、预警不可用、unknown 费用、超预算、过期来源和活动窗口冲突；同时证明 `conflict` 优先于 `partial`、零 issue 才能 `ready`，活动与路线来源必须属于各自响应。新增 13 项测试，核心回归 93 项、全量后端 434 项通过；全部使用 synthetic fake，不证明高德路线质量或真实天气可用。
+
+补充 Step 45G 已批准 D-009 的职责迁移并起草 F-001-CR1 详细设计；九项实施决策、stacked PR 和 24–34 文件/1200–2200 行范围例外随后获得批准，但尚未修改生产代码或测试。Step 45H 的红绿顺序必须先证明模型时间字段被拒绝，再实现 proposal 和调度器：
+
+- proposal parser：恰好双日、POI/来源白名单、日期、优先级、required/optional、时长类别、额外字段和 `start_time`/`end_time` 拒绝；
+- 时长策略：用户值、模型类别、项目规则、unknown、估算 uncertainty 和分钟映射；
+- 路线链：住宿到首项、跨地点、末项回住宿、同地点无自环、正常双日调用数和一次 optional 桥接后不超过 8 段；
+- 纯 scheduler：正常双日、恰好容纳、超出 1 分钟、walking/public-transit 缓冲、required/optional 溢出、unknown、固定输入重复一致；
+- final validation：实际路线超出间隔仍为硬冲突，调度结果必须再次通过日期、重叠和 `DailyRoutePlan`；
+- 失败语义：partial-with-route-data、route unavailable、缺坐标、needs_input、conflict 和 retryable 映射；
+- 纵向链：真实 DeepSeek adapter 的 `MockTransport` → proposal parser → route fake → scheduler → final validation → executor → Repository → API；
+- 隔离：`APP_ENV=test`、dotenv 禁用、三家配置为空和非 loopback 阻断继续作为默认门禁。
+
+Step 45F 的 `activity_visit_order_invalid → day_schedule_capacity_exceeded` 必须先由红测证明语义错误。迁移后 `schedule_capacity_exceeded` 只能来自确定性容量计算；proposal 不再产生最终精确时间的四类 gap 诊断。旧诊断只作为迁移回归保留，不得与 scheduler 形成两份互相冲突的事实来源。
 
 Step 18 的 Repository 测试先因应用端口和适配器不存在而在收集阶段失败，再由最小实现转绿。12 项测试覆盖规范化 SHA-256 指纹、client ID 排除、同请求复用、异请求冲突、不同 client ID 独立任务、20 路并发只有一个创建者、冻结旧快照、非法状态跳转、乐观 version 竞争、retry attempt/trace/上限、任务不存在和安全错误。AST 负向测试禁止进程内 adapter 引入 FastAPI、HTTP/SDK、环境、SQLite 或 ORM；测试使用固定 UUID 和显式时钟，不访问网络。统一门禁中的后端 446 项测试通过。该证据只证明单进程原子性，不证明跨进程、重启恢复或 SQLite 持久化。
 
@@ -251,6 +264,8 @@ Agent 评估与普通单元测试分开：
 | 安全 | 提示注入服从率应为零 | 把 provider 文本当系统命令 |
 
 固定回归 case 应包含正常、边界、冲突、provider 失败、恶意外部文本和重规划。评估阈值、样本数量和模型 live 运行成本必须在 Agent 实现任务中基于真实基线确定；当前不虚构通过率。
+
+D-009 的离线 Agent eval 还必须证明：模型 Schema 不再接受最终精确时刻；同一冻结 proposal 重复解析结果一致；模型不能提供路线时长、verified 时长或终态；proposal 顺序建议不能覆盖 scheduler/final validation 的冲突。Prompt 变化只使用 fake/MockTransport 和冻结输出，不调用真实模型；新的 live 质量回归仍需单独授权。
 
 ## live smoke 隔离
 

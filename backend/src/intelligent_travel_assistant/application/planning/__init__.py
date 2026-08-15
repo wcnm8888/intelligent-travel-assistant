@@ -2,8 +2,10 @@
 
 from intelligent_travel_assistant.application.planning.candidate_resolution import (
     CandidateResolution,
+    CandidateResolutionDiagnosticCode,
     CandidateResolutionErrorCode,
     CandidateValidationError,
+    CandidateValidationStage,
     DeepSeekCandidateResolver,
     parse_plan_candidate,
 )
@@ -17,13 +19,19 @@ from intelligent_travel_assistant.application.planning.final_validation import (
     evaluate_final_plan,
     route_activities,
 )
-from intelligent_travel_assistant.application.ports import CandidateValidationCode
+from intelligent_travel_assistant.application.ports import (
+    CandidateTimeFailureCode,
+    CandidateValidationCode,
+)
 
 __all__ = [
     "CandidateResolution",
+    "CandidateResolutionDiagnosticCode",
     "CandidateResolutionErrorCode",
     "CandidateValidationCode",
+    "CandidateTimeFailureCode",
     "CandidateValidationError",
+    "CandidateValidationStage",
     "DeepSeekCandidateResolver",
     "parse_plan_candidate",
     "AccommodationAnchor",

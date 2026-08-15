@@ -22,9 +22,22 @@ class PlanningToolName(StrEnum):
 class CandidateValidationCode(StrEnum):
     JSON_INVALID = "candidate_json_invalid"
     SCHEMA_INVALID = "candidate_schema_invalid"
-    REFERENCE_INVALID = "candidate_reference_invalid"
+    DATE_INVALID = "candidate_date_invalid"
+    TIME_INVALID = "candidate_time_invalid"
+    POI_REFERENCE_INVALID = "candidate_poi_reference_invalid"
+    SOURCE_REFERENCE_INVALID = "candidate_source_reference_invalid"
     UNSAFE_TEXT = "candidate_unsafe_text"
     OUTPUT_TRUNCATED = "candidate_output_truncated"
+
+
+class CandidateTimeFailureCode(StrEnum):
+    """Safe, closed-set reasons for locally rejected candidate schedules."""
+
+    ACTIVITY_OUTSIDE_DAY_WINDOW = "activity_outside_day_window"
+    ACCOMMODATION_TO_FIRST_GAP_NOT_POSITIVE = "accommodation_to_first_gap_not_positive"
+    BETWEEN_LOCATIONS_GAP_NOT_POSITIVE = "between_locations_gap_not_positive"
+    LAST_TO_ACCOMMODATION_GAP_NOT_POSITIVE = "last_to_accommodation_gap_not_positive"
+    DAY_SCHEDULE_CAPACITY_EXCEEDED = "day_schedule_capacity_exceeded"
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +184,7 @@ class PlanCandidateRepairRequest:
     context: PlanningContext
     invalid_output: str
     validation_code: CandidateValidationCode
+    time_failure: CandidateTimeFailureCode | None = None
 
 
 @dataclass(frozen=True, slots=True)
