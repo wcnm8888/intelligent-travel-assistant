@@ -627,7 +627,7 @@
 
 ### 补充 Step 45W：PR #5 新 head 独立远程复审与 stacked PR 收口判断
 
-- `DONE / REVIEW_COMPLETE_WITH_DOCUMENTATION_FINDINGS`；相对 stacked base 的完整累计差异为 34 文件、`+4307/-332`，其中 Step 45V 第二提交为 26 文件、`+1815/-102`；
+- `DONE / REVIEW_COMPLETE_WITH_DOCUMENTATION_FINDINGS`；Step 45W 审查时相对 stacked base 的累计差异为 34 文件、`+4307/-332`，其中 Step 45V 第二提交为 26 文件、`+1815/-102`；Step 45X 文档提交后当前累计差异为 34 文件、`+4336/-337`；
 - 未发现 P0/P1 生产缺陷；D-009、确定性 scheduler、路线 batch terminal、fallback、deadline、peer cancel/drain、五终态、unknown、来源、retryable、Repository/API/UI Schema 与 CI 一致；
 - 发现的阻塞仅为项目状态、D-009 交付状态、API 语义说明和 stacked 顺序的文档漂移，留给 Step 45X；未执行真实 Provider、未修改代码或 PR。
 

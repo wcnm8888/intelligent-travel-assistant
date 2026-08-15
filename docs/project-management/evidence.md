@@ -19,7 +19,7 @@
 - 任务状态：`ACTIVE`
 - 当前结论：`PARTIAL`。D-009/F-001-CR1 已实现、审查并由 PR #5 交付；Step 45T 的唯一真实任务形成完整双日 `partial` 计划，只有非关键 unknown 费用，真实 UAT 为 `PASS`。Step 45X 已完成文档和 ready-for-review 收口；任务尚未完成是因为 stacked 合并、PR #4 复验和归档尚未完成；Step 45M 历史 `FAIL` 保留；
 - 分支：`feat/f-001-cr1-deterministic-scheduling`，已推送；PR #5 为 ready-for-review，base 为 `feat/f-001-single-city-two-day-plan`；上层 PR #4 仍为 Draft，目标为 `main`；
-- Step 45V：提交 `749acc905ff3739c9af87d800540e5513fea2765`，26 文件、`+1815/-102`，Windows offline verification run `31879377928` 通过；PR #5 完整累计范围为 34 文件、`+4307/-332`；
+- Step 45V：提交 `749acc905ff3739c9af87d800540e5513fea2765`，26 文件、`+1815/-102`，Windows offline verification run `31879377928` 通过；Step 45W 审查快照为 34 文件、`+4307/-332`，Step 45X 文档提交后当前 PR #5 累计范围为 34 文件、`+4336/-337`；
 - Step 45W：独立远程 review 未发现 P0/P1，确认问题仅为文档和 stacked 顺序漂移；Step 45X 已修正这些事实；
 - Step 34 自动化：10 类 Agent 输出 scorecard、目录顺序不变性、四终态各 10 次重复裁决通过；新增 15 项、专项相关 107 项通过。统一门禁包括 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0、后端 729 项 pytest、前端 61 项 Vitest、文档检查器 23 项测试、Ruff format/check、strict mypy、Vite build 和 17 份必需文档契约；
 - Step 35 自动化：新增任务执行端口、五终态 synthetic executor 和轮询可达后继回归；专项后端 20 项、前端 62 项及相关静态门禁通过。Playwright Chromium 经真实本机 POST/GET/retry 验证 ready、partial attempt 2、conflict、needs_input 和 failed，`390×844` 下 `scrollWidth=375`、控制台 0 error/0 warning；动态业务请求仅访问本机 `/api`；
