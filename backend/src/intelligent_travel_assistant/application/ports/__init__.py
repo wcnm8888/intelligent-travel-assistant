@@ -1,6 +1,9 @@
 """Public application provider ports and provider-neutral values."""
 
 from intelligent_travel_assistant.application.ports.models import (
+    ActivityDurationClass,
+    ActivitySelection,
+    ActivitySelectionKind,
     CandidateActivity,
     CandidateDay,
     CandidateTimeFailureCode,
@@ -17,9 +20,11 @@ from intelligent_travel_assistant.application.ports.models import (
     PlanningLocation,
     PlanningObservation,
     PlanningToolName,
+    PlanProposal,
     PoiCandidate,
     PoiSearchRequest,
     PoiSearchResult,
+    ProposalDay,
     RouteCalculationRequest,
     WeatherAlert,
     WeatherAlertsResult,
@@ -33,6 +38,9 @@ from intelligent_travel_assistant.application.ports.providers import (
 )
 
 __all__ = [
+    "ActivityDurationClass",
+    "ActivitySelection",
+    "ActivitySelectionKind",
     "AmapPort",
     "CandidateActivity",
     "CandidateDay",
@@ -46,6 +54,7 @@ __all__ = [
     "ModelTextOutput",
     "PlanCandidate",
     "PlanCandidateRepairRequest",
+    "PlanProposal",
     "PlanningContext",
     "PlanningDayWindow",
     "PlanningLocation",
@@ -54,6 +63,7 @@ __all__ = [
     "PoiCandidate",
     "PoiSearchRequest",
     "PoiSearchResult",
+    "ProposalDay",
     "QWeatherPort",
     "RouteCalculationRequest",
     "WeatherAlert",

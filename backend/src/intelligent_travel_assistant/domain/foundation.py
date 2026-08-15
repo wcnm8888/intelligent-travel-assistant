@@ -17,6 +17,8 @@ from typing import Final, Literal
 from uuid import UUID
 
 _ADCODE: Final = re.compile(r"^\d{6}$")
+MAX_ROUTE_DISTANCE_METERS: Final = 2_147_483_647
+MAX_ROUTE_DURATION_MINUTES: Final = 1440
 
 
 class DomainInvariantError(ValueError):
@@ -202,12 +204,14 @@ class RouteLeg:
             not isinstance(self.distance_meters, int)
             or isinstance(self.distance_meters, bool)
             or self.distance_meters < 0
+            or self.distance_meters > MAX_ROUTE_DISTANCE_METERS
         ):
             raise DomainInvariantError("route_distance_invalid", field="distance_meters")
         if (
             not isinstance(self.duration_minutes, int)
             or isinstance(self.duration_minutes, bool)
             or self.duration_minutes <= 0
+            or self.duration_minutes > MAX_ROUTE_DURATION_MINUTES
         ):
             raise DomainInvariantError("route_duration_invalid", field="duration_minutes")
         _require_non_empty_unique_ids(self.source_ids, field="source_ids")

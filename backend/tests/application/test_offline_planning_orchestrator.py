@@ -21,10 +21,14 @@ from intelligent_travel_assistant.adapters.fakes import (
 from intelligent_travel_assistant.application.planning import (
     AccommodationAnchor,
     FinalValidationIssueCode,
+    RouteDataDiagnosticCode,
+    SchedulingIssueCode,
+    SchedulingWarningCode,
 )
 from intelligent_travel_assistant.application.ports import (
     CandidateActivity,
     CandidateDay,
+    CandidateValidationCode,
     CityResolution,
     DailyWeather,
     ModelTextOutput,
@@ -32,6 +36,7 @@ from intelligent_travel_assistant.application.ports import (
     PlanningContext,
     PoiCandidate,
     PoiSearchResult,
+    RouteCalculationRequest,
     WeatherAlertsResult,
     WeatherForecastResult,
 )
@@ -104,6 +109,60 @@ HOTEL_COORDINATES = Coordinates(
     Decimal("30.2550"),
     CoordinateSystem.PROVIDER_NATIVE,
 )
+
+
+class _BlockingRoutePeersFakeAmap(FakeAmapAdapter):
+    """Keep a real route batch in flight until the outer planning task is cancelled."""
+
+    __slots__ = (
+        "both_route_calls_started",
+        "both_route_peers_waiting",
+        "cancelled_route_calls",
+        "completed_route_calls",
+        "_route_call_count",
+        "_route_peer_blocker",
+        "_waiting_route_peer_count",
+    )
+
+    def __init__(
+        self,
+        *,
+        resolve_city_results: tuple[ProviderResult[CityResolution], ...] | None = None,
+        search_pois_results: tuple[ProviderResult[PoiSearchResult], ...] | None = None,
+        calculate_routes_results: tuple[ProviderResult[RouteLeg], ...] | None = None,
+    ) -> None:
+        super().__init__(
+            resolve_city_results=resolve_city_results,
+            search_pois_results=search_pois_results,
+            calculate_routes_results=calculate_routes_results,
+        )
+        self.both_route_calls_started = asyncio.Event()
+        self.both_route_peers_waiting = asyncio.Event()
+        self._route_peer_blocker = asyncio.Event()
+        self._route_call_count = 0
+        self._waiting_route_peer_count = 0
+        self.cancelled_route_calls = 0
+        self.completed_route_calls = 0
+
+    async def calculate_routes(
+        self,
+        request: RouteCalculationRequest,
+    ) -> ProviderResult[RouteLeg]:
+        self._record(FakeOperation.CALCULATE_ROUTES, request)
+        self._route_call_count += 1
+        if self._route_call_count == 2:
+            self.both_route_calls_started.set()
+        await self.both_route_calls_started.wait()
+        self._waiting_route_peer_count += 1
+        if self._waiting_route_peer_count == 2:
+            self.both_route_peers_waiting.set()
+        try:
+            await self._route_peer_blocker.wait()
+        except asyncio.CancelledError:
+            self.cancelled_route_calls += 1
+            raise
+        self.completed_route_calls += 1
+        return self._calculate_routes.take()
 
 
 def _source(provider: Provider, source_type: str) -> SourceRecord:
@@ -228,8 +287,8 @@ def _candidate() -> PlanCandidate:
                         POI_ONE_ID,
                         date(2026, 8, 15),
                         "西湖步行",
-                        time(10),
-                        time(12),
+                        time(8, 45),
+                        time(10, 45),
                         (SOURCE_IDS[Provider.AMAP],),
                     ),
                 ),
@@ -241,8 +300,8 @@ def _candidate() -> PlanCandidate:
                         POI_TWO_ID,
                         date(2026, 8, 16),
                         "博物馆参观",
-                        time(10),
-                        time(12),
+                        time(8, 45),
+                        time(10, 45),
                         (SOURCE_IDS[Provider.AMAP],),
                     ),
                 ),
@@ -254,40 +313,64 @@ def _candidate() -> PlanCandidate:
 
 
 def _candidate_json() -> str:
-    candidate = _candidate()
     return json.dumps(
         {
-            "intent_summary": candidate.intent_summary,
+            "intent_summary": "synthetic two-day candidate",
             "days": [
                 {
-                    "local_date": day.local_date.isoformat(),
-                    "activities": [
+                    "local_date": local_date.isoformat(),
+                    "selections": [
                         {
-                            "location_id": str(activity.location_id),
-                            "local_date": activity.local_date.isoformat(),
-                            "title": activity.title,
-                            "start_time": activity.start_time.isoformat(),
-                            "end_time": activity.end_time.isoformat(),
-                            "source_ids": [str(item) for item in activity.source_ids],
+                            "location_id": str(location_id),
+                            "local_date": local_date.isoformat(),
+                            "title": title,
+                            "priority_rank": 1,
+                            "selection_kind": "required",
+                            "duration_class": "standard",
+                            "source_ids": [str(SOURCE_IDS[Provider.AMAP])],
                         }
-                        for activity in day.activities
                     ],
                 }
-                for day in candidate.days
+                for local_date, location_id, title in (
+                    (date(2026, 8, 15), POI_ONE_ID, "西湖步行"),
+                    (date(2026, 8, 16), POI_TWO_ID, "博物馆参观"),
+                )
             ],
-            "explanation": candidate.explanation,
-            "warnings": list(candidate.warnings),
+            "explanation": "synthetic candidate; pending deterministic validation",
+            "warnings": ["synthetic"],
         },
         ensure_ascii=False,
         separators=(",", ":"),
     )
 
 
-def _route(origin: UUID, destination: UUID, *, minutes: int = 30) -> RouteLeg:
+def _two_activity_proposal_json() -> str:
+    document = json.loads(_candidate_json())
+    document["days"][0]["selections"].append(
+        {
+            "location_id": str(POI_TWO_ID),
+            "local_date": "2026-08-15",
+            "title": "博物馆可选参观",
+            "priority_rank": 2,
+            "selection_kind": "optional",
+            "duration_class": "long",
+            "source_ids": [str(SOURCE_IDS[Provider.AMAP])],
+        }
+    )
+    return json.dumps(document, ensure_ascii=False, separators=(",", ":"))
+
+
+def _route(
+    origin: UUID,
+    destination: UUID,
+    *,
+    minutes: int = 30,
+    mode: RouteMode = RouteMode.PUBLIC_TRANSIT,
+) -> RouteLeg:
     return RouteLeg(
         origin,
         destination,
-        RouteMode.PUBLIC_TRANSIT,
+        mode,
         3000,
         minutes,
         (uuid5(NAMESPACE_URL, "synthetic:amap:route"),),
@@ -313,6 +396,8 @@ def _build_orchestrator(
     repaired_candidate: ProviderResult[ModelTextOutput] | None = None,
     routes: tuple[ProviderResult[RouteLeg], ...] | None = None,
     copies: int = 1,
+    amap_type: type[FakeAmapAdapter] = FakeAmapAdapter,
+    governor_capture: list[ToolCallGovernor] | None = None,
 ) -> tuple[
     OfflinePlanningOrchestrator,
     FakeAmapAdapter,
@@ -335,7 +420,7 @@ def _build_orchestrator(
     route_results = routes or tuple(
         _available(Provider.AMAP, item, source_type="route") for item in _routes()
     )
-    amap = FakeAmapAdapter(
+    amap = amap_type(
         resolve_city_results=(city_result,) * copies,
         search_pois_results=(poi_result,) * copies,
         calculate_routes_results=route_results * copies,
@@ -348,12 +433,19 @@ def _build_orchestrator(
         generation_results=(candidate_result,) * copies,
         repair_results=(repaired_candidate,) * copies if repaired_candidate is not None else None,
     )
+
+    def governor_factory() -> ToolCallGovernor:
+        governor = ToolCallGovernor(clock=lambda: 0.0)
+        if governor_capture is not None:
+            governor_capture.append(governor)
+        return governor
+
     return (
         OfflinePlanningOrchestrator(
             amap,
             qweather,
             deepseek,
-            governor_factory=lambda: ToolCallGovernor(clock=lambda: 0.0),
+            governor_factory=governor_factory,
         ),
         amap,
         qweather,
@@ -430,11 +522,464 @@ def test_happy_path_completes_four_route_legs_and_finishes_ready() -> None:
     )
 
 
-def test_zero_route_windows_are_repaired_before_route_enrichment() -> None:
+def test_optional_omission_queries_one_bridge_and_emits_stable_warning() -> None:
+    proposal_result = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(_two_activity_proposal_json()),
+        source_type="plan_proposal",
+    )
+    route_pairs = (
+        (HOTEL_ID, POI_ONE_ID),
+        (POI_ONE_ID, POI_TWO_ID),
+        (POI_TWO_ID, HOTEL_ID),
+        (HOTEL_ID, POI_TWO_ID),
+        (POI_TWO_ID, HOTEL_ID),
+        (POI_ONE_ID, HOTEL_ID),
+    )
+    route_results = tuple(
+        _available(Provider.AMAP, _route(origin, destination), source_type="route")
+        for origin, destination in route_pairs
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(
+        candidate=proposal_result,
+        routes=route_results,
+    )
+    request = replace(
+        _request(),
+        day_windows=(
+            DailyAvailability(0, time(8), time(14)),
+            DailyAvailability(1, time(8), time(18)),
+        ),
+    )
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.READY
+    assert outcome.candidate_result is not None and outcome.candidate_result.data is not None
+    assert len(outcome.candidate_result.data.days[0].activities) == 1
+    assert outcome.scheduling_warnings == (
+        SchedulingWarningCode.OPTIONAL_ACTIVITY_OMITTED_FOR_CAPACITY,
+    )
+    assert len(outcome.route_results) == 6
+    assert len(outcome.route_enrichments) == 4
+    assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 6
+
+
+def test_optional_omission_on_both_days_stays_within_eight_route_calls() -> None:
+    document = json.loads(_two_activity_proposal_json())
+    document["days"][1]["selections"].append(
+        {
+            "location_id": str(POI_ONE_ID),
+            "local_date": "2026-08-16",
+            "title": "西湖可选返访",
+            "priority_rank": 2,
+            "selection_kind": "optional",
+            "duration_class": "long",
+            "source_ids": [str(SOURCE_IDS[Provider.AMAP])],
+        }
+    )
+    proposal_result = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(json.dumps(document)),
+        source_type="plan_proposal",
+    )
+    route_pairs = (
+        (HOTEL_ID, POI_ONE_ID),
+        (POI_ONE_ID, POI_TWO_ID),
+        (POI_TWO_ID, HOTEL_ID),
+        (HOTEL_ID, POI_TWO_ID),
+        (POI_TWO_ID, POI_ONE_ID),
+        (POI_ONE_ID, HOTEL_ID),
+        (POI_ONE_ID, HOTEL_ID),
+        (POI_TWO_ID, HOTEL_ID),
+    )
+    route_results = tuple(
+        _available(Provider.AMAP, _route(origin, destination), source_type="route")
+        for origin, destination in route_pairs
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(
+        candidate=proposal_result,
+        routes=route_results,
+    )
+    request = replace(
+        _request(),
+        day_windows=(
+            DailyAvailability(0, time(8), time(14)),
+            DailyAvailability(1, time(8), time(14)),
+        ),
+    )
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.READY
+    assert outcome.candidate_result is not None and outcome.candidate_result.data is not None
+    assert tuple(len(day.activities) for day in outcome.candidate_result.data.days) == (1, 1)
+    assert len(outcome.route_results) == 8
+    assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 8
+
+
+def test_dual_transport_falls_back_only_for_unavailable_leg() -> None:
+    primary_results: list[ProviderResult[RouteLeg]] = []
+    for index, route in enumerate(_routes()):
+        primary_results.append(
+            _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT)
+            if index == 0
+            else _available(Provider.AMAP, route, source_type="route")
+        )
+    fallback = _available(
+        Provider.AMAP,
+        _route(HOTEL_ID, POI_ONE_ID, mode=RouteMode.WALKING),
+        source_type="route",
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(
+        routes=(*primary_results, fallback),
+    )
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.READY
+    assert outcome.route_diagnostic_code is None
+    assert SchedulingWarningCode.ROUTE_MODE_FALLBACK_USED in outcome.scheduling_warnings
+    route_calls = [
+        cast(RouteCalculationRequest, call.request)
+        for call in amap.calls
+        if call.operation is FakeOperation.CALCULATE_ROUTES
+    ]
+    assert [call.mode for call in route_calls] == [
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.WALKING,
+    ]
+    assert outcome.candidate_result is not None
+    assert outcome.candidate_result.data is not None
+    assert outcome.candidate_result.data.days[0].activities[0].start_time == time(8, 40)
+    assert outcome.final_validation is not None
+    assert all(
+        item.result is not None and item.result.data is not None
+        for item in outcome.route_enrichments
+    )
+    assert [
+        cast(RouteLeg, cast(ProviderResult[RouteLeg], item.result).data).mode
+        for item in outcome.route_enrichments
+    ] == [
+        RouteMode.WALKING,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+        RouteMode.PUBLIC_TRANSIT,
+    ]
+
+
+@pytest.mark.parametrize(
+    "category",
+    [
+        ProviderErrorCategory.AUTH,
+        ProviderErrorCategory.SCHEMA,
+        ProviderErrorCategory.TIMEOUT,
+        ProviderErrorCategory.RATE_LIMITED,
+        ProviderErrorCategory.SERVER,
+        ProviderErrorCategory.UNKNOWN,
+    ],
+)
+def test_provider_wide_route_failure_never_triggers_mode_fallback(
+    category: ProviderErrorCategory,
+) -> None:
+    unavailable: tuple[ProviderResult[RouteLeg], ...] = tuple(
+        _unavailable(Provider.AMAP, category) for _ in range(8)
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=unavailable)
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert 1 <= len(route_calls) <= 2
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+@pytest.mark.parametrize(
+    "category",
+    [
+        ProviderErrorCategory.AUTH,
+        ProviderErrorCategory.SCHEMA,
+        ProviderErrorCategory.TIMEOUT,
+        ProviderErrorCategory.RATE_LIMITED,
+        ProviderErrorCategory.SERVER,
+        ProviderErrorCategory.UNKNOWN,
+    ],
+)
+def test_provider_wide_failure_in_mixed_batch_blocks_all_mode_fallback(
+    category: ProviderErrorCategory,
+) -> None:
+    routes: tuple[ProviderResult[RouteLeg], ...] = (
+        _unavailable(Provider.AMAP, category),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        *tuple(_unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(6)),
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=routes)
+
+    outcome = asyncio.run(
+        orchestrator.plan(replace(_request(), fallback_route_modes=(RouteMode.WALKING,)))
+    )
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 2
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+def test_provider_wide_failure_blocks_fallback_for_locally_invalid_peer() -> None:
+    routes: tuple[ProviderResult[RouteLeg], ...] = (
+        _unavailable(Provider.AMAP, ProviderErrorCategory.AUTH),
+        _available(
+            Provider.AMAP,
+            _route(POI_ONE_ID, POI_TWO_ID),
+            source_type="locally-invalid-route",
+        ),
+        *tuple(_unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(6)),
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=routes)
+
+    outcome = asyncio.run(
+        orchestrator.plan(replace(_request(), fallback_route_modes=(RouteMode.WALKING,)))
+    )
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 2
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+def test_later_provider_wide_failure_blocks_fallback_from_earlier_batches() -> None:
+    routes: tuple[ProviderResult[RouteLeg], ...] = (
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.AUTH),
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT),
+        *tuple(_unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(4)),
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=routes)
+
+    outcome = asyncio.run(
+        orchestrator.plan(replace(_request(), fallback_route_modes=(RouteMode.WALKING,)))
+    )
+
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 4
+    assert all(
+        cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+        for call in route_calls
+    )
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
+
+
+def test_external_planning_cancellation_drains_both_inflight_route_peers() -> None:
+    async def scenario() -> None:
+        governors: list[ToolCallGovernor] = []
+        orchestrator, amap, _, _ = _build_orchestrator(
+            amap_type=_BlockingRoutePeersFakeAmap,
+            governor_capture=governors,
+        )
+        assert isinstance(amap, _BlockingRoutePeersFakeAmap)
+        planning_task = asyncio.create_task(orchestrator.plan(_request()))
+
+        await amap.both_route_peers_waiting.wait()
+        planning_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await planning_task
+
+        assert planning_task.cancelled()
+        assert amap.cancelled_route_calls == 2
+        assert amap.completed_route_calls == 0
+        assert len(governors) == 1
+        assert governors[0].snapshot().active_route_calls == 0
+        route_calls = [
+            call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES
+        ]
+        assert len(route_calls) == 2
+        assert all(
+            cast(RouteCalculationRequest, call.request).mode is RouteMode.PUBLIC_TRANSIT
+            for call in route_calls
+        )
+        assert [
+            task
+            for task in asyncio.all_tasks()
+            if task is not asyncio.current_task() and not task.done()
+        ] == []
+
+    asyncio.run(scenario())
+
+
+def test_locally_invalid_primary_route_can_use_allowed_walking_fallback() -> None:
+    primary_results = (
+        _available(
+            Provider.AMAP,
+            _route(POI_ONE_ID, POI_TWO_ID),
+            source_type="route",
+        ),
+        *tuple(_available(Provider.AMAP, item, source_type="route") for item in _routes()[1:]),
+    )
+    fallback = _available(
+        Provider.AMAP,
+        _route(HOTEL_ID, POI_ONE_ID, mode=RouteMode.WALKING),
+        source_type="route",
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(routes=(*primary_results, fallback))
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.READY
+    assert SchedulingWarningCode.ROUTE_MODE_FALLBACK_USED in outcome.scheduling_warnings
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 5
+
+
+def test_dual_transport_stops_at_route_budget_with_safe_diagnostic() -> None:
+    document = json.loads(_two_activity_proposal_json())
+    document["days"][1]["selections"].append(
+        {
+            "location_id": str(POI_ONE_ID),
+            "local_date": "2026-08-16",
+            "title": "西湖可选返访",
+            "priority_rank": 2,
+            "selection_kind": "optional",
+            "duration_class": "standard",
+            "source_ids": [str(SOURCE_IDS[Provider.AMAP])],
+        }
+    )
+    proposal = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(json.dumps(document)),
+        source_type="plan_proposal",
+    )
+    unavailable_routes: tuple[ProviderResult[RouteLeg], ...] = tuple(
+        _unavailable(Provider.AMAP, ProviderErrorCategory.EMPTY_RESULT) for _ in range(8)
+    )
+    orchestrator, amap, _, _ = _build_orchestrator(
+        candidate=proposal,
+        routes=unavailable_routes,
+    )
+    request = replace(_request(), fallback_route_modes=(RouteMode.WALKING,))
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.scheduling_issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.CALL_BUDGET_EXHAUSTED
+    route_calls = [call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES]
+    assert len(route_calls) == 8
+    assert [cast(RouteCalculationRequest, call.request).mode for call in route_calls[:6]] == [
+        RouteMode.PUBLIC_TRANSIT,
+    ] * 6
+    assert [cast(RouteCalculationRequest, call.request).mode for call in route_calls[6:]] == [
+        RouteMode.WALKING,
+    ] * 2
+
+
+def test_removed_optional_route_error_does_not_pollute_final_ready_result() -> None:
+    proposal_result = _available(
+        Provider.DEEPSEEK,
+        ModelTextOutput(_two_activity_proposal_json()),
+        source_type="plan_proposal",
+    )
+    route_pairs = (
+        (HOTEL_ID, POI_ONE_ID),
+        (POI_ONE_ID, POI_TWO_ID),
+        (POI_TWO_ID, HOTEL_ID),
+        (HOTEL_ID, POI_TWO_ID),
+        (POI_TWO_ID, HOTEL_ID),
+        (POI_ONE_ID, HOTEL_ID),
+    )
+    route_results: list[ProviderResult[RouteLeg]] = []
+    for index, (origin, destination) in enumerate(route_pairs):
+        source_type = "omitted_optional_route" if index == 1 else f"used_route_{index}"
+        source = _source(Provider.AMAP, source_type)
+        route_results.append(
+            ProviderResult(
+                ProviderResultStatus.PARTIAL if index == 1 else ProviderResultStatus.OK,
+                Provider.AMAP,
+                replace(_route(origin, destination), source_ids=(source.source_id,)),
+                FETCHED_AT,
+                VALID_UNTIL,
+                ("synthetic offline orchestration fixture",),
+                ProviderError(ProviderErrorCategory.TIMEOUT) if index == 1 else None,
+                (source,),
+            )
+        )
+    orchestrator, amap, _, _ = _build_orchestrator(
+        candidate=proposal_result,
+        routes=tuple(route_results),
+    )
+    request = replace(
+        _request(),
+        day_windows=(DailyAvailability(0, time(8), time(14)), _request().day_windows[1]),
+    )
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    omitted_source = _source(Provider.AMAP, "omitted_optional_route").source_id
+    assert outcome.status is PlanningStatus.READY
+    assert outcome.final_validation is not None
+    assert outcome.final_validation.status is PlanningStatus.READY
+    assert len(outcome.route_results) == 6
+    assert len(outcome.route_enrichments) == 4
+    assert all(
+        item.result is not None and item.result.status is ProviderResultStatus.OK
+        for item in outcome.route_enrichments
+    )
+    assert all(
+        omitted_source not in {source.source_id for source in item.result.source_records}
+        and item.result.data is not None
+        and omitted_source not in item.result.data.source_ids
+        for item in outcome.route_enrichments
+        if item.result is not None
+    )
+    assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 6
+
+
+def test_partial_route_with_valid_data_preserves_plan_as_partial() -> None:
+    partial_route = _available(
+        Provider.AMAP,
+        _routes()[0],
+        status=ProviderResultStatus.PARTIAL,
+        error=ProviderError(ProviderErrorCategory.EMPTY_RESULT),
+        source_type="route",
+    )
+    remaining = tuple(
+        _available(Provider.AMAP, item, source_type="route") for item in _routes()[1:]
+    )
+    orchestrator, _, _, _ = _build_orchestrator(routes=(partial_route, *remaining))
+
+    outcome = asyncio.run(orchestrator.plan(_request()))
+
+    assert outcome.status is PlanningStatus.PARTIAL
+    assert outcome.candidate_result is not None and outcome.candidate_result.data is not None
+    assert outcome.final_validation is not None
+    assert FinalValidationIssueCode.PROVIDER_DEGRADED in {
+        item.code for item in outcome.final_validation.issues
+    }
+
+
+def test_forbidden_exact_times_are_repaired_before_route_enrichment() -> None:
     document = json.loads(_candidate_json())
-    for day in document["days"]:
-        day["activities"][0]["start_time"] = "08:00:00"
-        day["activities"][-1]["end_time"] = "18:00:00"
+    document["days"][0]["selections"][0]["start_time"] = "08:00:00"
     invalid_generation = _available(
         Provider.DEEPSEEK,
         ModelTextOutput(json.dumps(document)),
@@ -459,9 +1004,8 @@ def test_zero_route_windows_are_repaired_before_route_enrichment() -> None:
         FakeOperation.REPAIR_PLAN_CANDIDATE,
     ]
     repair_request = deepseek.calls[1].request
-    assert repair_request.time_failure.value == (  # type: ignore[union-attr]
-        "accommodation_to_first_gap_not_positive"
-    )
+    assert repair_request.validation_code is CandidateValidationCode.SCHEMA_INVALID  # type: ignore[union-attr]
+    assert repair_request.time_failure is None  # type: ignore[union-attr]
     assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 4
 
 
@@ -501,7 +1045,7 @@ def test_noncritical_weather_failure_is_preserved_and_finishes_partial() -> None
     assert len(deepseek.calls) == 1
 
 
-def test_route_unavailable_finishes_partial_without_claiming_validation() -> None:
+def test_route_unavailable_fails_without_publishing_a_plan() -> None:
     route_failure: ProviderResult[RouteLeg] = _unavailable(
         Provider.AMAP,
         ProviderErrorCategory.TIMEOUT,
@@ -513,14 +1057,14 @@ def test_route_unavailable_finishes_partial_without_claiming_validation() -> Non
 
     outcome = asyncio.run(orchestrator.plan(_request()))
 
-    assert outcome.status is PlanningStatus.PARTIAL
+    assert outcome.status is PlanningStatus.FAILED
     assert outcome.state_history[-2:] == (
-        PlanningStatus.VALIDATING,
-        PlanningStatus.PARTIAL,
+        PlanningStatus.ENRICHING_ROUTES,
+        PlanningStatus.FAILED,
     )
-    assert outcome.route_result is route_failure
-    assert outcome.candidate_result is not None
-    assert len(outcome.route_enrichments) == 4
+    assert outcome.route_results[0] is route_failure
+    assert outcome.candidate_result is None
+    assert outcome.final_validation is None
 
 
 def test_deepseek_unavailable_is_critical_and_never_calls_route() -> None:
@@ -534,13 +1078,13 @@ def test_deepseek_unavailable_is_critical_and_never_calls_route() -> None:
 
     assert outcome.status is PlanningStatus.FAILED
     assert outcome.state_history[-2:] == (PlanningStatus.PLANNING, PlanningStatus.FAILED)
-    assert outcome.candidate_result is not None
-    assert outcome.candidate_result.status is model_failure.status
-    assert outcome.candidate_result.warnings == model_failure.warnings
-    assert outcome.candidate_result.error == model_failure.error
-    assert outcome.candidate_result.source_records == model_failure.source_records
-    assert outcome.candidate_result.error is not None
-    assert outcome.candidate_result.error.retryable is True
+    assert outcome.proposal_result is not None
+    assert outcome.proposal_result.status is model_failure.status
+    assert outcome.proposal_result.warnings == model_failure.warnings
+    assert outcome.proposal_result.error == model_failure.error
+    assert outcome.proposal_result.source_records == model_failure.source_records
+    assert outcome.proposal_result.error is not None
+    assert outcome.proposal_result.error.retryable is True
     assert [call.operation for call in amap.calls] == [
         FakeOperation.RESOLVE_CITY,
         FakeOperation.SEARCH_POIS,
@@ -680,7 +1224,7 @@ def test_unknown_cost_never_becomes_zero_and_finishes_partial() -> None:
     assert outcome.final_validation.budget.known_total == Money(Decimal("0.00"))
 
 
-def test_route_result_with_wrong_endpoints_is_rejected_as_partial() -> None:
+def test_route_result_with_wrong_endpoints_fails_without_a_plan() -> None:
     wrong = _available(
         Provider.AMAP,
         _route(POI_ONE_ID, POI_TWO_ID),
@@ -691,14 +1235,45 @@ def test_route_result_with_wrong_endpoints_is_rejected_as_partial() -> None:
 
     outcome = asyncio.run(orchestrator.plan(_request()))
 
-    assert outcome.status is PlanningStatus.PARTIAL
-    assert outcome.final_validation is not None
-    assert FinalValidationIssueCode.ROUTE_RESULT_INVALID in {
-        item.code for item in outcome.final_validation.issues
-    }
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.RESULT_INVALID
+    assert outcome.candidate_result is None
+    assert outcome.final_validation is None
 
 
-def test_missing_accommodation_coordinates_skips_calls_and_remains_partial() -> None:
+def test_route_result_with_wrong_mode_or_dangling_source_is_rejected() -> None:
+    dangling_source = _source(Provider.AMAP, "different-route-source")
+    invalid_results = (
+        _available(
+            Provider.AMAP,
+            _route(HOTEL_ID, POI_ONE_ID, mode=RouteMode.WALKING),
+            source_type="wrong-mode-route",
+        ),
+        ProviderResult(
+            ProviderResultStatus.OK,
+            Provider.AMAP,
+            _route(HOTEL_ID, POI_ONE_ID),
+            FETCHED_AT,
+            VALID_UNTIL,
+            ("synthetic offline orchestration fixture",),
+            None,
+            (dangling_source,),
+        ),
+    )
+
+    for invalid in invalid_results:
+        good = tuple(_available(Provider.AMAP, item, source_type="route") for item in _routes()[1:])
+        orchestrator, _, _, _ = _build_orchestrator(routes=(invalid, *good))
+        outcome = asyncio.run(orchestrator.plan(_request()))
+        assert outcome.status is PlanningStatus.FAILED
+        assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.RESULT_INVALID
+        assert all(
+            dangling_source.source_id not in {record.source_id for record in result.source_records}
+            for result in outcome.route_results
+        )
+
+
+def test_missing_accommodation_coordinates_skips_calls_and_fails() -> None:
     request = _request()
     request = OfflinePlanningRequest(
         request.trip,
@@ -718,9 +1293,10 @@ def test_missing_accommodation_coordinates_skips_calls_and_remains_partial() -> 
 
     outcome = asyncio.run(orchestrator.plan(request))
 
-    assert outcome.status is PlanningStatus.PARTIAL
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.COORDINATES_MISSING
     assert [item.operation for item in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 0
-    assert len(outcome.route_enrichments) == 4
+    assert outcome.candidate_result is None
 
 
 def test_weather_that_does_not_cover_both_dates_remains_partial() -> None:
@@ -801,7 +1377,7 @@ def test_critical_provider_failure_matrix_fails_and_short_circuits(
     if boundary == "poi":
         observed = cast(ProviderResult[object] | None, outcome.poi_result)
     elif boundary == "deepseek":
-        observed = cast(ProviderResult[object] | None, outcome.candidate_result)
+        observed = cast(ProviderResult[object] | None, outcome.proposal_result)
     assert outcome.status is PlanningStatus.FAILED
     assert outcome.final_validation is None
     assert outcome.route_enrichments == ()
@@ -846,10 +1422,15 @@ def test_noncritical_provider_failure_matrix_preserves_plan_and_degrades(
     if boundary == "alerts":
         observed = cast(ProviderResult[object] | None, outcome.alert_result)
     elif boundary == "route":
-        observed = cast(ProviderResult[object] | None, outcome.route_result)
-    assert outcome.status is PlanningStatus.PARTIAL
-    assert outcome.candidate_result is not None and outcome.candidate_result.data is not None
-    assert outcome.final_validation is not None
+        observed = cast(ProviderResult[object] | None, outcome.route_results[0])
+    expected_status = PlanningStatus.FAILED if boundary == "route" else PlanningStatus.PARTIAL
+    assert outcome.status is expected_status
+    if boundary == "route":
+        assert outcome.candidate_result is None
+        assert outcome.final_validation is None
+    else:
+        assert outcome.candidate_result is not None and outcome.candidate_result.data is not None
+        assert outcome.final_validation is not None
     assert observed == expected_result
     assert observed is not None and observed.error is not None
     assert observed.error.category is category
@@ -868,7 +1449,7 @@ _RETRYABLE_FAILURES = frozenset(
 def test_route_longer_than_available_gap_is_a_hard_conflict() -> None:
     too_long = _available(
         Provider.AMAP,
-        _route(HOTEL_ID, POI_ONE_ID, minutes=121),
+        _route(HOTEL_ID, POI_ONE_ID, minutes=430),
         source_type="route",
     )
     good = tuple(_available(Provider.AMAP, item, source_type="route") for item in _routes()[1:])
@@ -877,10 +1458,8 @@ def test_route_longer_than_available_gap_is_a_hard_conflict() -> None:
     outcome = asyncio.run(orchestrator.plan(_request()))
 
     assert outcome.status is PlanningStatus.CONFLICT
-    assert outcome.final_validation is not None
-    assert FinalValidationIssueCode.ROUTE_CONFLICT in {
-        item.code for item in outcome.final_validation.issues
-    }
+    assert outcome.scheduling_issue is SchedulingIssueCode.SCHEDULE_CAPACITY_EXCEEDED
+    assert outcome.final_validation is None
 
 
 def test_stale_source_blocks_ready_without_becoming_conflict() -> None:
@@ -910,7 +1489,7 @@ def test_stale_source_blocks_ready_without_becoming_conflict() -> None:
     }
 
 
-def test_activity_outside_explicit_window_is_repaired_before_routes() -> None:
+def test_required_activity_capacity_conflict_does_not_call_model_repair() -> None:
     request = _request()
     request = OfflinePlanningRequest(
         request.trip,
@@ -923,34 +1502,21 @@ def test_activity_outside_explicit_window_is_repaired_before_routes() -> None:
         request.route_mode,
         request.accommodation,
         (
-            DailyAvailability(0, time(11), time(18)),
+            DailyAvailability(0, time(11), time(13)),
             DailyAvailability(1, time(8), time(18)),
         ),
         request.cost_items,
         request.evaluated_at,
     )
-    repaired_document = json.loads(_candidate_json())
-    repaired_document["days"][0]["activities"][0]["start_time"] = "12:00:00"
-    repaired_document["days"][0]["activities"][0]["end_time"] = "14:00:00"
-    repaired_candidate = _available(
-        Provider.DEEPSEEK,
-        ModelTextOutput(json.dumps(repaired_document)),
-        source_type="plan_candidate_repair",
-    )
-    orchestrator, amap, _, deepseek = _build_orchestrator(
-        repaired_candidate=repaired_candidate,
-    )
+    orchestrator, amap, _, deepseek = _build_orchestrator()
 
     outcome = asyncio.run(orchestrator.plan(request))
 
-    assert outcome.status is PlanningStatus.READY
-    assert outcome.candidate_repaired is True
-    assert outcome.final_validation is not None
-    assert outcome.final_validation.issues == ()
-    assert [call.operation for call in deepseek.calls] == [
-        FakeOperation.GENERATE_PLAN_CANDIDATE,
-        FakeOperation.REPAIR_PLAN_CANDIDATE,
-    ]
+    assert outcome.status is PlanningStatus.CONFLICT
+    assert outcome.scheduling_issue is SchedulingIssueCode.SCHEDULE_CAPACITY_EXCEEDED
+    assert outcome.candidate_repaired is False
+    assert outcome.final_validation is None
+    assert [call.operation for call in deepseek.calls] == [FakeOperation.GENERATE_PLAN_CANDIDATE]
     assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 4
 
 
@@ -989,7 +1555,7 @@ def test_deterministic_agent_evaluation_repeats_identical_terminal_decisions(
     elif scenario == "conflict":
         too_long = _available(
             Provider.AMAP,
-            _route(HOTEL_ID, POI_ONE_ID, minutes=121),
+            _route(HOTEL_ID, POI_ONE_ID, minutes=430),
             source_type="route",
         )
         remaining = tuple(

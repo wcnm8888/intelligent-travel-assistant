@@ -12,6 +12,9 @@ from typing import Final
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from intelligent_travel_assistant.application.ports import (
+    ActivityDurationClass,
+    ActivitySelection,
+    ActivitySelectionKind,
     CandidateActivity,
     CandidateDay,
     CandidateTimeFailureCode,
@@ -22,6 +25,8 @@ from intelligent_travel_assistant.application.ports import (
     PlanCandidateRepairRequest,
     PlanningContext,
     PlanningDayWindow,
+    PlanProposal,
+    ProposalDay,
 )
 from intelligent_travel_assistant.application.tooling import (
     ToolCallCapability,
@@ -47,6 +52,18 @@ _ROOT_FIELDS: Final = frozenset({"intent_summary", "days", "explanation", "warni
 _DAY_FIELDS: Final = frozenset({"local_date", "activities"})
 _ACTIVITY_FIELDS: Final = frozenset(
     {"location_id", "local_date", "title", "start_time", "end_time", "source_ids"}
+)
+_PROPOSAL_DAY_FIELDS: Final = frozenset({"local_date", "selections"})
+_SELECTION_FIELDS: Final = frozenset(
+    {
+        "location_id",
+        "local_date",
+        "title",
+        "priority_rank",
+        "selection_kind",
+        "duration_class",
+        "source_ids",
+    }
 )
 _UNSAFE_TEXT: Final = re.compile(
     r"ignore\s+(?:all\s+)?previous\s+instructions|<\|(?:system|assistant|tool)\|>|"
@@ -156,6 +173,24 @@ class CandidateResolution:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ProposalResolution:
+    result: ProviderResult[PlanProposal]
+    repaired: bool
+    error_code: CandidateResolutionErrorCode | None
+    validation_stage: CandidateValidationStage | None = None
+    validation_code: CandidateValidationCode | None = None
+
+    @property
+    def diagnostic_code(self) -> CandidateResolutionDiagnosticCode | None:
+        if self.validation_stage is None or self.validation_code is None:
+            return None
+        return CandidateResolutionDiagnosticCode.from_failure(
+            self.validation_stage,
+            self.validation_code,
+        )
+
+
 class DeepSeekCandidateResolver:
     __slots__ = ("_deepseek",)
 
@@ -224,6 +259,194 @@ class DeepSeekCandidateResolver:
                 )
             return CandidateResolution(_with_candidate(repaired, candidate), True, None)
         return CandidateResolution(_with_candidate(generated, candidate), False, None)
+
+
+class DeepSeekProposalResolver:
+    """Admit only an unordered-time proposal and perform at most one repair."""
+
+    __slots__ = ("_deepseek",)
+
+    def __init__(self, deepseek: DeepSeekPort) -> None:
+        self._deepseek = deepseek
+
+    async def resolve(
+        self,
+        context: PlanningContext,
+        governor: ToolCallGovernor,
+    ) -> ProposalResolution:
+        generated = await _governed_model_call(
+            governor,
+            ToolCallCapability.GENERATE_PLAN_CANDIDATE,
+            lambda: self._deepseek.generate_plan_candidate(context),
+        )
+        if generated.status is ProviderResultStatus.UNAVAILABLE:
+            return ProposalResolution(_copy_proposal_unavailable(generated), False, None)
+
+        generated_output = _require_model_output(generated)
+        raw_output = generated_output.content
+        try:
+            if generated_output.truncated:
+                raise CandidateValidationError(
+                    CandidateValidationCode.OUTPUT_TRUNCATED,
+                    repairable=True,
+                )
+            proposal = parse_plan_proposal(raw_output, context)
+        except CandidateValidationError as first_error:
+            if not first_error.repairable:
+                return _invalid_proposal_resolution(
+                    CandidateValidationStage.GENERATION,
+                    first_error.code,
+                )
+            validation_code = first_error.code
+            repaired = await _governed_model_call(
+                governor,
+                ToolCallCapability.REPAIR_PLAN_CANDIDATE,
+                lambda: self._deepseek.repair_plan_candidate(
+                    PlanCandidateRepairRequest(context, raw_output, validation_code)
+                ),
+            )
+            if repaired.status is ProviderResultStatus.UNAVAILABLE:
+                return ProposalResolution(_copy_proposal_unavailable(repaired), True, None)
+            repaired_output = _require_model_output(repaired)
+            try:
+                if repaired_output.truncated:
+                    raise CandidateValidationError(
+                        CandidateValidationCode.OUTPUT_TRUNCATED,
+                        repairable=False,
+                    )
+                proposal = parse_plan_proposal(repaired_output.content, context)
+            except CandidateValidationError as repair_error:
+                return _invalid_proposal_resolution(
+                    CandidateValidationStage.REPAIR,
+                    repair_error.code,
+                    repaired=True,
+                )
+            return ProposalResolution(_with_proposal(repaired, proposal), True, None)
+        return ProposalResolution(_with_proposal(generated, proposal), False, None)
+
+
+def parse_plan_proposal(raw_output: str, context: PlanningContext) -> PlanProposal:
+    """Parse the exact LLM proposal boundary; execution facts are forbidden extras."""
+
+    if (
+        not isinstance(raw_output, str)
+        or not raw_output
+        or len(raw_output) > MAX_MODEL_OUTPUT_LENGTH
+    ):
+        raise CandidateValidationError(CandidateValidationCode.JSON_INVALID, repairable=True)
+    try:
+        value = json.loads(raw_output, object_pairs_hook=_reject_duplicate_keys)
+    except (json.JSONDecodeError, RecursionError):
+        raise CandidateValidationError(
+            CandidateValidationCode.JSON_INVALID,
+            repairable=True,
+        ) from None
+    root = _exact_object(value, _ROOT_FIELDS)
+    days_value = _list(root["days"], exact_length=2)
+    allowed_locations = {item.location_id for item in context.locations}
+    allowed_sources = set(context.activity_source_ids)
+    days = tuple(
+        _parse_proposal_day(
+            item,
+            allowed_locations=allowed_locations,
+            allowed_sources=allowed_sources,
+        )
+        for item in days_value
+    )
+    if tuple(item.local_date for item in days) != (context.start_date, context.end_date):
+        raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
+    return PlanProposal(
+        _safe_text(root["intent_summary"], max_length=120),
+        days,
+        _safe_text(root["explanation"], max_length=500),
+        _string_tuple(root["warnings"], max_items=10, max_length=500),
+    )
+
+
+def _parse_proposal_day(
+    value: object,
+    *,
+    allowed_locations: set[UUID],
+    allowed_sources: set[UUID],
+) -> ProposalDay:
+    item = _exact_object(value, _PROPOSAL_DAY_FIELDS)
+    local_date = _date(item["local_date"])
+    selections = tuple(
+        _parse_selection(
+            selection,
+            parent_date=local_date,
+            allowed_locations=allowed_locations,
+            allowed_sources=allowed_sources,
+        )
+        for selection in _list(item["selections"], min_length=1, max_length=2)
+    )
+    if {selection.priority_rank for selection in selections} != set(range(1, len(selections) + 1)):
+        raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
+    return ProposalDay(local_date, selections)
+
+
+def _parse_selection(
+    value: object,
+    *,
+    parent_date: date,
+    allowed_locations: set[UUID],
+    allowed_sources: set[UUID],
+) -> ActivitySelection:
+    item = _exact_object(value, _SELECTION_FIELDS)
+    location_id = _uuid(
+        item["location_id"],
+        invalid_code=CandidateValidationCode.POI_REFERENCE_INVALID,
+    )
+    if location_id not in allowed_locations:
+        raise CandidateValidationError(
+            CandidateValidationCode.POI_REFERENCE_INVALID,
+            repairable=True,
+        )
+    local_date = _date(item["local_date"])
+    if local_date != parent_date:
+        raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
+    source_ids = _uuid_tuple(
+        item["source_ids"],
+        min_length=1,
+        max_length=20,
+        invalid_code=CandidateValidationCode.SOURCE_REFERENCE_INVALID,
+    )
+    if any(source_id not in allowed_sources for source_id in source_ids):
+        raise CandidateValidationError(
+            CandidateValidationCode.SOURCE_REFERENCE_INVALID,
+            repairable=True,
+        )
+    priority_rank = item["priority_rank"]
+    if (
+        not isinstance(priority_rank, int)
+        or isinstance(priority_rank, bool)
+        or priority_rank not in (1, 2)
+    ):
+        raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
+    selection_kind_value = item["selection_kind"]
+    duration_class_value = item["duration_class"]
+    if not isinstance(selection_kind_value, str) or not isinstance(duration_class_value, str):
+        raise CandidateValidationError(
+            CandidateValidationCode.SCHEMA_INVALID,
+            repairable=True,
+        )
+    try:
+        selection_kind = ActivitySelectionKind(selection_kind_value)
+        duration_class = ActivityDurationClass(duration_class_value)
+    except (TypeError, ValueError):
+        raise CandidateValidationError(
+            CandidateValidationCode.SCHEMA_INVALID,
+            repairable=True,
+        ) from None
+    return ActivitySelection(
+        location_id,
+        local_date,
+        _safe_text(item["title"], max_length=120),
+        priority_rank,
+        selection_kind,
+        duration_class,
+        source_ids,
+    )
 
 
 def parse_plan_candidate(raw_output: str, context: PlanningContext) -> PlanCandidate:
@@ -586,6 +809,61 @@ def _copy_unavailable(
         source.warnings,
         source.error,
         (),
+    )
+
+
+def _with_proposal(
+    source: ProviderResult[ModelTextOutput],
+    proposal: PlanProposal,
+) -> ProviderResult[PlanProposal]:
+    return ProviderResult(
+        source.status,
+        source.provider,
+        proposal,
+        source.fetched_at,
+        source.valid_until,
+        source.warnings,
+        source.error,
+        source.source_records,
+    )
+
+
+def _copy_proposal_unavailable(
+    source: ProviderResult[ModelTextOutput],
+) -> ProviderResult[PlanProposal]:
+    return ProviderResult(
+        ProviderResultStatus.UNAVAILABLE,
+        source.provider,
+        None,
+        None,
+        None,
+        source.warnings,
+        source.error,
+        (),
+    )
+
+
+def _invalid_proposal_resolution(
+    stage: CandidateValidationStage,
+    validation_code: CandidateValidationCode,
+    *,
+    repaired: bool = False,
+) -> ProposalResolution:
+    return ProposalResolution(
+        ProviderResult(
+            ProviderResultStatus.UNAVAILABLE,
+            Provider.DEEPSEEK,
+            None,
+            None,
+            None,
+            (),
+            ProviderError(ProviderErrorCategory.SCHEMA),
+            (),
+        ),
+        repaired,
+        CandidateResolutionErrorCode.MODEL_OUTPUT_INVALID,
+        stage,
+        validation_code,
     )
 
 

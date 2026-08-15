@@ -124,9 +124,9 @@ Repository 工具不直接交给模型自由调用。应用层根据 Agent 的�
 - 领域层不接触 DeepSeek 消息、tool call 或 SDK 类型；
 - 模型不可用时，应用可以返回已获取的数据和结构化失败，但不能伪造计划成功。
 
-F-001 当前具体端口为 `DeepSeekPort.generate_plan_candidate` 和 `repair_plan_candidate`。输入上下文只包含项目自有的结构化城市、日期、人数、预算、两日时间窗、自由偏好、交通方式、住宿锚点、地点、逐日天气/当前预警以及已验证 observation；`activity_source_ids` 只列出允许活动引用的 POI 来源。端口输出是未信任的 `ModelTextOutput`，只有本地 `DeepSeekCandidateResolver` 严格解析后才能形成只含意图摘要、逐日候选活动、解释和警告的 `PlanCandidate`。候选不包含 provider、retryable、工具调用或终态字段。
+F-001 为兼容窄端口保留 `DeepSeekPort.generate_plan_candidate` 和 `repair_plan_candidate` 方法名。输入上下文只包含项目自有的结构化城市、日期、人数、预算、两日时间窗、自由偏好、交通方式、住宿锚点、地点、逐日天气/当前预警以及已验证 observation；`activity_source_ids` 只列出允许活动引用的 POI 来源。端口输出是未信任的 `ModelTextOutput`，生产路径只有本地 `DeepSeekProposalResolver` 可把它准入为无最终时间的 `PlanProposal`。模型输出的最终时间、路线、verified、provider、retryable、工具调用或终态字段都会被拒绝。
 
-D-009 已批准的目标是把端口语义收紧为 proposal：DeepSeek 仍返回未信任 `ModelTextOutput`，本地 resolver 只准入 `PlanProposal`，活动只含 POI、日期、顺序、优先级、`required`/`optional` 建议、时长类别和来源引用，不含 `start_time`/`end_time`。高德随后根据代码推导的路线链返回实际时长，确定性调度器再生成现有 final validation 可消费的带时间 candidate。每日最多 2 项、时长与交通缓冲、一次 optional 移除以及 required/unknown/路线失败终态边界均已批准；当前生产代码尚未完成迁移，实施细则以 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md) 为准。
+D-009 已把端口语义收紧为 proposal：DeepSeek 仍返回未信任 `ModelTextOutput`，本地 resolver 只准入 `PlanProposal`，活动只含 POI、日期、顺序、优先级、`required`/`optional` 建议、时长类别和来源引用，不含 `start_time`/`end_time`。高德随后根据代码推导的路线链返回实际时长，确定性调度器再生成现有 final validation 可消费的带时间 candidate。每日最多 2 项、时长与交通缓冲、一次 optional 移除以及 required/unknown/路线失败终态边界均已实现；细则以 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md) 为准。
 
 Step 14 的 `OfflinePlanningOrchestrator` 已证明离线候选链可以只依赖上述窄端口运行：城市/POI/DeepSeek 是形成候选的关键链路，天气、预警和路线缺失按 partial 保留；每次状态变化都经应用状态机。该编排器不把 `PlanCandidate` 当作最终计划，happy 路径停在 `validating`，并且没有模型自主工具循环、完整路线补全或终态校验。
 
@@ -135,6 +135,8 @@ Step 15 已在每个编排端口调用前接入应用治理：五个工具和 De
 Step 16 将模型文本明确置于不信任边界：generation 与 repair 共享同一冻结 JSON Schema 和候选规则；重复键、类型、严格双日日期顺序、父子日期绑定、标准时间、候选 POI 和 POI 来源引用均由本地代码校验；模型提供的终态、provider、工具调用、路线和新事实一律拒绝。补充 Step 45D 进一步在候选进入路线补全前复用 `DailyRoutePlan`，要求活动位于对应窗口内，并为住宿到首项、不同地点活动之间和末项返回住宿保留正数交通时间；补充 Step 45F 将时间失败细分为活动越窗、住宿到首项无正数间隔、跨地点活动无正数间隔、末项返回住宿无正数间隔和日程容量不足五类闭集，并只把类别对应的项目静态提示交给唯一一次 repair。可修复结构错误与 `finish_reason=length` 同样受单次 repair 上限约束，提示控制文本不重放；第二次失败转换为安全 `model_output_invalid`。adapter envelope 失败保持 `provider_schema_invalid`。本地候选失败只保留 generation/repair 阶段和项目自有无值枚举；原始文本、字段路径、字段值、时间值、地点和坐标不进入 outcome、领域对象、公开错误或日志。
 
 Step 17 将 Agent 候选与最终事实明确分离：应用按住宿锚点和活动次序推导完整路线链，DeepSeek 不能提供路线结果或 verified 来源；每段高德结果必须匹配预期端点、模式和自身来源。随后确定性代码统一校验时间、路线、预算、POI、天气和 freshness，并经状态机裁决 `ready`、`partial` 或 `conflict`。模型解释不能删除 unknown、降级信息或硬冲突。
+
+Step 45N–45P 明确多交通方式也不交给模型裁决：用户同时允许公交和步行时，应用以公交为首选，仅对业务空结果或无 provider error 的本地非法路线在剩余预算内尝试步行；鉴权、Schema、timeout、rate limit、server 和 unknown 错误立即停止后续批次与 fallback。最终候选可以包含混合 mode，但每段路线必须来自本次高德结果，且 provider、端点、请求方式、数值上界和 source IDs 精确一致。降级 warning、六类路线失败 diagnostic、最多两路并发和 8 次调用硬上限均由代码生成；模型不能触发额外路线重试或隐藏降级。
 
 Step 28 的 DeepSeek adapter 只把冻结结构化上下文编码为 user data，并固定非 thinking JSON 输出；observation 和无效候选不能进入 system prompt。generation 与 repair 的 system prompt 复用同一组项目候选规则，repair 的 user data 同时携带冻结 Schema、候选规则、安全验证码和未信任候选；未信任候选不会进入 system prompt。adapter 不向模型注册工具，每个端口调用只有一次 HTTP 尝试，且响应仍须先成为未信任 `ModelTextOutput`，再经过 Step 16 本地严格解析。它不读取环境、不拥有终态裁决权，也不证明真实模型可用。
 

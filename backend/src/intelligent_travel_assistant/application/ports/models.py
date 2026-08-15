@@ -40,6 +40,18 @@ class CandidateTimeFailureCode(StrEnum):
     DAY_SCHEDULE_CAPACITY_EXCEEDED = "day_schedule_capacity_exceeded"
 
 
+class ActivitySelectionKind(StrEnum):
+    REQUIRED = "required"
+    OPTIONAL = "optional"
+
+
+class ActivityDurationClass(StrEnum):
+    SHORT = "short"
+    STANDARD = "standard"
+    LONG = "long"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True, slots=True)
 class CityResolutionRequest:
     city_text: str
@@ -185,6 +197,31 @@ class PlanCandidateRepairRequest:
     invalid_output: str
     validation_code: CandidateValidationCode
     time_failure: CandidateTimeFailureCode | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ActivitySelection:
+    location_id: UUID
+    local_date: date
+    title: str
+    priority_rank: int
+    selection_kind: ActivitySelectionKind
+    duration_class: ActivityDurationClass
+    source_ids: tuple[UUID, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProposalDay:
+    local_date: date
+    selections: tuple[ActivitySelection, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PlanProposal:
+    intent_summary: str
+    days: tuple[ProposalDay, ...]
+    explanation: str
+    warnings: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)

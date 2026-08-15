@@ -236,6 +236,31 @@ def test_route_requires_positive_duration() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("distance_meters", "duration_minutes", "expected_code"),
+    [
+        (2_147_483_648, 5, "route_distance_invalid"),
+        (100, 1441, "route_duration_invalid"),
+    ],
+)
+def test_route_rejects_values_above_the_frozen_public_safety_bounds(
+    distance_meters: int,
+    duration_minutes: int,
+    expected_code: str,
+) -> None:
+    with pytest.raises(DomainInvariantError) as raised:
+        RouteLeg(
+            origin_location_id=HOTEL_ID,
+            destination_location_id=POI_ID,
+            mode=RouteMode.WALKING,
+            distance_meters=distance_meters,
+            duration_minutes=duration_minutes,
+            source_ids=(SOURCE_ID,),
+        )
+
+    assert raised.value.code == expected_code
+
+
 def test_route_requires_a_source() -> None:
     with pytest.raises(DomainInvariantError):
         RouteLeg(

@@ -56,7 +56,12 @@ const DIRECT_NEXT_STATUS: Record<
   normalizing: new Set(["needs_input", "collecting", "failed"]),
   needs_input: new Set(),
   collecting: new Set(["planning", "partial", "failed"]),
-  planning: new Set(["enriching_routes", "validating", "failed"]),
+  planning: new Set([
+    "needs_input",
+    "enriching_routes",
+    "validating",
+    "failed",
+  ]),
   enriching_routes: new Set(["validating", "partial", "failed"]),
   validating: new Set(["ready", "partial", "conflict", "planning", "failed"]),
   ready: new Set(),

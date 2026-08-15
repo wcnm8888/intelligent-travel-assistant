@@ -8,6 +8,8 @@ from intelligent_travel_assistant.domain.budget import (
     summarize_budget,
 )
 from intelligent_travel_assistant.domain.foundation import (
+    MAX_ROUTE_DISTANCE_METERS,
+    MAX_ROUTE_DURATION_MINUTES,
     Coordinates,
     CoordinateSystem,
     CostConfidence,
@@ -64,6 +66,8 @@ __all__ = [
     "DomainInvariantError",
     "ExpectedRouteLeg",
     "Location",
+    "MAX_ROUTE_DISTANCE_METERS",
+    "MAX_ROUTE_DURATION_MINUTES",
     "Money",
     "PlanDayStructure",
     "PlanStructure",

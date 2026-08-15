@@ -5,14 +5,14 @@
 - 所属任务：`F-001 单城市双日旅行计划垂直切片`
 - 变更类型：架构变更控制
 - 任务等级：`L` 级任务内的高风险跨层变更
-- 当前状态：`APPROVED / IMPLEMENTATION_NOT_STARTED`
+- 当前状态：`IMPLEMENTED / REVIEWED / READY_FOR_REVIEW`
 - 关联决策：`D-009`
-- 当前分支：`feat/f-001-single-city-two-day-plan`
-- 当前 Draft PR：[#4](https://github.com/wcnm8888/intelligent-travel-assistant/pull/4)
+- 当前分支：`feat/f-001-cr1-deterministic-scheduling`
+- 当前 stacked PR：[#5](https://github.com/wcnm8888/intelligent-travel-assistant/pull/5)，base 为 `feat/f-001-single-city-two-day-plan`；上层 PR：[#4](https://github.com/wcnm8888/intelligent-travel-assistant/pull/4)
 - 设计 Step：补充 `Step 45G`
-- 实施 Step：补充 `Step 45H`，设计、策略和范围已批准，实施仍需单独批准
+- 实施 Step：补充 `Step 45H`，已完成实现；Step 45I–45X 已完成 QA、修复、提交、远程 CI、UAT 和文档收口；等待 stacked 合并
 
-本变更卡已冻结获批详细设计，但批准设计不等于授权实施。Step 45H 仍需单独批准；新的真实 provider 调用、live UAT、提交、推送和 PR 写入也必须分别获得授权。
+本变更卡的获批详细设计已经由 Step 45H 实现。实现没有破坏公开 API 端点或 DTO 字段形状，但记录了路线数值安全上界和 `planning → needs_input` 的兼容性语义调整。PR #5 已完成提交、推送、Windows CI 和独立远程 review；Step 45T 真实 UAT 为 PASS（完整双日 partial，非关键 unknown 未按 0），当前等待按 stacked 顺序合并。
 
 ## 用户目标和工程价值
 
@@ -250,7 +250,7 @@ Step 45H 必须先用红测锁定这一语义，再删除或弃用不再可达�
 
 回滚和历史整理成本最高，会丢失已经通过的远程 CI/审查上下文；除非 stacked PR 无法使用，不推荐。
 
-用户已批准方案二，以及 Step 45H 影响 24–34 个文件、1200–2200 行的新范围例外。D-008 的 120 文件例外仍不自动覆盖其他新增范围；超过本次新上界必须立即停止并重新确认。
+用户已批准方案二，以及 Step 45H 影响 24–34 个文件的范围例外；Step 45J 为测试和文档 findings 把新增行上限调整为 2600。D-008 的 120 文件例外仍不自动覆盖其他新增范围；超过本次新上界必须立即停止并重新确认。
 
 ## Step 45H 红绿测试地图
 
@@ -310,7 +310,7 @@ DeepSeek MockTransport
 - 测试：8–12 个文件，覆盖 proposal、scheduler、路线、终态、纵向链和离线隔离；
 - 文档：8–10 个文件；
 - 前端：预计 0 个生产文件，只有现有终态回归；
-- 总计：约 24–34 个文件、约 1200–2200 行净变更。
+- 总计：约 24–34 个文件；Step 45J 批准后的新增行上限为 2600。
 
 该估算明显超出“小修复”，属于 D-008 之后的新架构范围；用户已批准该范围例外。若实施需要新增公开 DTO、前端交互或超过该上界，应立即停止并重新审批。
 
@@ -352,6 +352,89 @@ DeepSeek MockTransport
 6. required 容量不足进入 conflict，unknown 时长进入 needs_input；
 7. 无可用路线进入 failed；只有携带合法 `RouteLeg` 的 partial provider 结果才能形成 partial 计划；
 8. 采用 stacked PR，实施分支为 `feat/f-001-cr1-deterministic-scheduling`，base 为 `feat/f-001-single-city-two-day-plan`；
-9. Step 45H 获批 24–34 个文件、1200–2200 行的新范围例外。
+9. Step 45H 获批 24–34 个文件范围例外；Step 45J 将新增行上限调整为 2600。
 
-上述设计、策略和范围已经批准。Step 45H 的生产实现仍必须由用户单独授权；新的 live UAT、提交、推送、stacked PR 创建、ready-for-review 和合并均不在本批准内。
+上述设计、策略和范围已经批准并由 Step 45H 完成离线实现。模型正常路径只生成无最终时刻 proposal，确定性 scheduler 生成现有带时间 candidate；旧时间候选解析仅用于迁移回归。新的 live UAT、独立 QA、提交、推送、stacked PR 创建、ready-for-review 和合并均不在本 Step 授权内。
+
+## Step 45H 实施结果
+
+- 新增严格 `PlanProposal`、`ProposalDay`、`ActivitySelection` 及 required/optional、short/standard/long/unknown 闭集；
+- DeepSeek generation 与唯一一次 repair 共享 proposal Schema，精确禁止最终时间、路线、verified、provider 和终态字段；
+- 新增纯确定性 scheduler，先推导路线要求并取得合法 `RouteLeg`，再用冻结时长、方式缓冲和日窗口生成 `PlanCandidate`；
+- 每天最多一次 optional 移除，桥接路线仍受 8 次总预算限制；required 溢出、unknown、路线 unavailable 与 partial-with-data 均按批准终态发布；
+- `planning → needs_input` 已成为允许状态边，公开五种终态 enum 不变；
+- 现有 `DailyRoutePlan` 和 final validation 继续独立复验，未放宽日期、重叠、路线、预算或来源规则；
+- 默认测试保持 `APP_ENV=test`、dotenv 禁用和非 loopback 网络阻断；没有读取 `.env.local` 或仓库外私钥；
+- 统一离线门禁通过：后端 818 项、前端 64 项、文档检查器 23 项，以及格式、lint、strict typecheck、build、锁文件和文档契约全部绿色；
+- Step 45H 没有执行 live UAT、暂存、提交、推送、PR 写入或合并。最新 live 结论仍是 Step 45E `FAIL`。
+
+## Step 45I 独立审查结果
+
+- 审查开始时完整工作区范围为 27 文件、`+2158/-281`，与批准的 24–34 文件、1200–2200 新增行例外一致；同步本 Step 允许的五份脱敏结论文档后仍为 27 文件，当前总差异为 `+2188/-286`。暂存区为空、无 upstream、无新增依赖或范围外文件；
+- D-009 的生产职责迁移已完成：DeepSeek 正常路径只产生无最终时刻 proposal，代码依据实际路线和冻结规则排程，现有 `DailyRoutePlan` 与 final validation 独立复验；未发现 P0/P1 生产缺陷；
+- P2 测试缺口包括 proposal 重复键/日期/POI/来源负例、五终态纵向 API 投影、被移除 optional 路线错误不污染最终结果，以及完整时长/类别缺省直接断言；
+- `api-contract.md`、`testing-strategy.md`、`docs/README.md` 仍有 D-009 实施前后的语义漂移，需要与测试缺口一起在待批准 Step 45J 收口；
+- 专项 127 项与统一离线门禁通过，统一入口包含后端 818 项、前端 64 项、文档检查器 23 项；provider 配置为空且非 loopback 网络被阻断，没有读取本地凭证或调用真实 API；
+- 审查结论为 `REVIEW_COMPLETE_WITH_FINDINGS`。在 Step 45J 修复并复验前，不得精确暂存、提交、推送或创建 stacked PR；Step 46 和新的 live UAT 仍未授权。
+
+## Step 45J findings 关闭结果
+
+- Proposal 三层重复键、未知字段、日期、POI/来源负例与 repair 脱敏，60/120/180 和两类 120 分钟缺省均已直接锁定；
+- 真实纵向链覆盖当前可达的 partial、conflict、needs_input、failed；门票 unknown 不按 0，ready 由零 unknown 冻结契约覆盖；
+- optional 历史路线错误不污染最终结果，route partial 的 retryable/source/uncertainty 与 omission warning 均通过 GET API 复验；
+- 专项 125 项与统一门禁通过：后端 838、前端 64、文档检查器 23；最终 27 文件、`+2559/-297`，低于批准上限。Step 45J 未修改生产代码、调用 provider、暂存、提交、推送或修改 PR；下一动作是待批准 Step 45K。
+
+## Step 45K–45L 交付与独立 review
+
+- 27 文件形成提交 `bb52adea871c6cadc21ceaa5ef4255b79c3904cb` 并由 stacked Draft PR #5 交付；base 为 `feat/f-001-single-city-two-day-plan`，Windows offline verification run `31867996619` 通过；
+- Step 45L 独立 review 复核 D-009 职责、proposal/scheduler、五终态、8 次路线预算、Step 45J 测试和秘密边界；专项 147 项与文档检查器 23 项通过，当时未发现阻塞真实 UAT 的生产缺陷；
+- PR #4/#5 均保持 Draft，尚未 ready 或合并。
+
+## Step 45M 真实 UAT 结果
+
+- 唯一真实任务取得 DeepSeek proposal、和风数据及部分高德路线事实，但必要路线未全部可用，最终以高德 `data_missing`、`retryable=false`、无计划进入 `failed`；真实 UAT 为 `FAIL`；
+- 来源计数为 user 1、system 1、高德 7、和风 2、DeepSeek 1；无 provider 原始响应，因此不推测具体路线或地点，也不从来源数虚构精确 HTTP 次数；
+- 桌面/窄屏、归因、freshness、AI 披露、安全错误、控制台和秘密扫描符合边界；只有 1 次 POST，无 retry 或第二个任务，临时产物和本地服务已清理；
+- 发现三个待修契约：同时允许步行/公交时当前只选公交且没有 fallback；路线不可用的公开 `data_missing` 缺少 `route_data_unavailable` diagnostic；前端状态图缺少后端已允许的 `planning → needs_input`。在纯离线修复和复验前不得再次 live 或进入 Step 46。
+
+## Step 45N 多交通方式与安全诊断收口
+
+- 同时允许公交和步行时，确定性执行器以公交为首选，仅对首选不可用或未通过本地路线校验的路段尝试步行；单方式请求不变；
+- 全部必要首选路段先按稳定顺序查询，降级只使用剩余路线预算，首选、降级和 optional 桥接共同受最多 8 次硬上限；
+- 每段最终路线必须匹配高德 provider、端点、请求 mode 和本次 source IDs；scheduler 按实际 mode 使用对应缓冲，费用只统计实际公交段；
+- 成功降级追加安全 warning，未采用结果不污染最终来源、错误或 retryable；失败诊断闭集为 primary unavailable、fallback exhausted、coordinates missing、result invalid 和 call budget exhausted；
+- 前端状态图已与后端 `planning → needs_input` 对齐。专项 479 项、前端 65 项通过，冻结运行时统一门禁包含后端 842 项、前端 65 项和文档检查器 23 项且完整绿色；以上仍只有 synthetic/fake 纵向证据，不改变 Step 45M 的 UAT `FAIL`，也不授权再次 live。
+
+## Step 45O–45P 路线可靠性复审与修复
+
+- Step 45O 证明 provider-wide 错误盲目降级、路线 deadline 被发布为 `internal_error`、超大路线数值以及非法来源/错误归属仍阻塞 live；
+- Step 45P 将降级白名单收紧为业务空结果和无 provider error 的本地非法路线；AUTH、Schema、timeout、rate limit、server、unknown 不再切换 mode。路线按稳定顺序最多两路并发分批，总调用仍受 8 次硬预算；
+- 新增 `route_deadline_exhausted`，冻结单段距离 `2147483647` 米和时长 `1440` 分钟；只有 provider、端点、mode、数值和来源引用精确一致的结果能进入 scheduler/公开投影；
+- POI 与路线错误保持 operation 归属，wrong-provider、非法或额外来源不公开。专项 157 项及统一门禁通过，包含后端 859 项、前端 65 项和文档检查器 23 项。以上只有离线证据，Step 45M UAT `FAIL` 不变，提交、远程 CI 和新 live 均待后续单独批准。
+
+## Step 45Q–45R 并发停止语义复审与修复
+
+- Step 45Q 纯离线证明 Step 45P 的停止语义仍只停在批次内部：同批 terminal 与可降级结果混合时仍会启动 fallback；裸 `asyncio.gather` 的一路异常也不会取消和等待同批 peer。两项均阻塞真实 UAT；
+- Step 45R 将 terminal 提升为显式 batch-level 状态。当前已在途批次允许收口，但任一 terminal 均阻止后续首选批次与所有 fallback；业务空结果和无 Provider error 的本地非法路线仅在无 terminal 时降级；
+- 并发异常路径先取消并 drain 所有未完成 peer，再传播原异常。纵向测试证明终态发布前 governor 的活动路线调用数为 0，且没有后续批次或 fallback；
+- 定向 10 项、路线专项 182 项及统一门禁通过，统一入口包含后端 869 项、前端 65 项和文档检查器 23 项。以上仍只有离线证据，Step 45M UAT `FAIL` 不变；Step 45N–45R 尚未提交、推送或远程复验。
+
+## Step 45S 独立离线复审与 live 准入
+
+- 独立复核 26 个工作区文件、`+1574/-98`、stacked PR 关系、batch-level terminal、并发异常清理、governor、错误优先级、retryable 与来源投影，未发现 P0/P1 生产缺陷；
+- 专项 233 项和统一门禁再次通过，统一入口包含后端 869 项、前端 65 项和文档检查器 23 项；外部任务取消的只读运行时探针也证明 peer 被清理、活动路线调用归零且无遗留任务；
+- 仓库仍应在最终提交前补入外部任务取消和 fallback 批次 terminal 的持久回归，并把 `architecture.md` 中路线批次语义的 Step 归属更新到 Step 45R。这些是非阻塞收口项，不阻塞用户另行批准一次受控 live；
+- Step 45M UAT `FAIL` 保持不变，Step 45N–45S 仍未提交、推送或远程复验。本 Step 未读取凭证、调用 Provider、执行 live、暂存、提交、推送或修改 PR。
+
+## Step 45T 受控真实数据 UAT
+
+- 唯一真实任务形成完整双日 `partial` 计划，真实 UAT 为 `PASS`；每天 2 项活动和 3 段合法公交路线，确定性时间窗口、无重叠、住宿往返、路线时长及固定缓冲全部通过；
+- 3 项费用保持 unknown，已知合计 520 元，预算为 `budget_indeterminate`；公开来源计数为 user 1、system 1、高德 9、和风 2、DeepSeek 1；
+- 所有必要公交路线本次直接可用，因此未触发步行 fallback。该结果验证主路线成功链，不替代混合 mode fallback 的离线纵向证据；
+- 桌面/窄屏、来源、freshness、AI 披露、unknown、安全日志和秘密扫描通过；只有一个任务，无 retry、截图、原始响应、持久缓存或真实路线证据文件。Step 45N–45T 尚未提交、推送或远程复验，Step 46 继续阻塞。
+
+## Step 45U 提交前离线收口
+
+- 六类 provider-wide terminal 首次出现在 fallback 两路并发批次的行为已进入持久纵向测试：当前在途批次完成后不启动后续 fallback，公开 code、`route_primary_unavailable` 与 retryable 保持冻结语义，无效路线不进入来源、warning 或路线 uncertainty；
+- 外部取消测试由 `asyncio.Event` 确认两路 peer 均进入等待后取消外层规划 task；两路 peer 均 cancel/drain，`CancelledError` 原样传播，governor 活动路线调用归零，没有后续批次或遗留 task；
+- `architecture.md` 已明确 Step 45N–45P 建立基础降级/信任边界，Step 45R 最终闭合 batch-level terminal 与 peer 清理。两份核心测试 115 项、路线/调度/executor/Repository/API 专项 292 项通过；统一门禁通过后端 876 项、前端 65 项和文档检查器 23 项。Step 45T 的 live `PASS` 和未自然触发 walking fallback 的边界保持不变；本 Step 没有真实 Provider 调用、生产代码修改、暂存、提交、推送或 PR 修改。

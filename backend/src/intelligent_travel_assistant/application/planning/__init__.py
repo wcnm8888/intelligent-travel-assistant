@@ -7,7 +7,10 @@ from intelligent_travel_assistant.application.planning.candidate_resolution impo
     CandidateValidationError,
     CandidateValidationStage,
     DeepSeekCandidateResolver,
+    DeepSeekProposalResolver,
+    ProposalResolution,
     parse_plan_candidate,
+    parse_plan_proposal,
 )
 from intelligent_travel_assistant.application.planning.final_validation import (
     AccommodationAnchor,
@@ -18,6 +21,18 @@ from intelligent_travel_assistant.application.planning.final_validation import (
     RouteEnrichmentResult,
     evaluate_final_plan,
     route_activities,
+)
+from intelligent_travel_assistant.application.planning.scheduling import (
+    DurationBasis,
+    RouteDataDiagnosticCode,
+    RouteRequirement,
+    ScheduledRoute,
+    SchedulingIssueCode,
+    SchedulingResult,
+    SchedulingUncertaintyCode,
+    SchedulingWarningCode,
+    derive_route_requirements,
+    schedule_plan_proposal,
 )
 from intelligent_travel_assistant.application.ports import (
     CandidateTimeFailureCode,
@@ -33,7 +48,11 @@ __all__ = [
     "CandidateValidationError",
     "CandidateValidationStage",
     "DeepSeekCandidateResolver",
+    "DeepSeekProposalResolver",
+    "DurationBasis",
+    "ProposalResolution",
     "parse_plan_candidate",
+    "parse_plan_proposal",
     "AccommodationAnchor",
     "FinalValidationIssue",
     "FinalValidationIssueCode",
@@ -42,4 +61,13 @@ __all__ = [
     "RouteEnrichmentResult",
     "evaluate_final_plan",
     "route_activities",
+    "RouteRequirement",
+    "RouteDataDiagnosticCode",
+    "ScheduledRoute",
+    "SchedulingIssueCode",
+    "SchedulingResult",
+    "SchedulingUncertaintyCode",
+    "SchedulingWarningCode",
+    "derive_route_requirements",
+    "schedule_plan_proposal",
 ]

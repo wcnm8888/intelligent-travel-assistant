@@ -4,7 +4,7 @@ Intelligent Travel Assistant 是一个面向中国大陆境内自由行的本地
 
 ## 当前状态
 
-`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、统一本地门禁和 GitHub Actions CI。当前活动任务是 `F-001：单城市双日旅行计划垂直切片`；进程内任务 Repository、五种终态结果快照、POST/GET/retry、单编排 Agent、三家 provider adapter、按全量配置条件启用的真实规划执行器，以及 React 旅行需求和结果工作台均已实现。synthetic 五终态浏览器闭环和 Step 41 全量离线门禁已通过；Step 38 取得一次脱敏 live 契约证据，但 Step 39 尚未取得 ready/partial 真实计划 UAT。
+`B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、统一本地门禁和 GitHub Actions CI。当前活动任务是 `F-001：单城市双日旅行计划垂直切片`；进程内任务 Repository、五种终态结果快照、POST/GET/retry、单编排 Agent、三家 provider adapter、按全量配置条件启用的真实规划执行器，以及 React 旅行需求和结果工作台均已实现。D-009 后的 Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，Step 45X 已完成文档、PR 元数据和 ready-for-review 收口；当前仍待按 stacked 顺序合并 PR #5、复验并处理 PR #4。
 
 - 运行边界：仅本地运行，后续允许经显式配置访问外部 API。
 - 当前任务状态：[current-task.md](./docs/project-management/current-task.md)
@@ -146,7 +146,7 @@ uv run --project backend --frozen python scripts/check_docs.py --root .
 
 ## 外部服务状态
 
-用户已自行创建 DeepSeek、高德和和风天气账户及本项目专用凭证；真实凭证只存在于 Git 忽略的 `.env.local` 与仓库外私钥文件中。项目已把三家 adapter 按全量配置条件接入任务执行器，并在 Step 38 的一次性授权内完成脱敏 live 契约验证。补充 Step 45A 的唯一真实任务因 DeepSeek 本地候选校验安全失败；Step 45B 已离线修复候选诊断和 generation/repair 规则一致性。Step 45C 生成完整双日候选，但最终两天各出现一项路线冲突；Step 45D 已离线修复候选未预检住宿往返和跨地点正数交通窗口的问题。最后一次受控 Step 45E 在 generation 和唯一一次 repair 后仍未得到时间可行候选；Step 45F 已离线细分五类安全时间诊断并确认原有规则上下文完整。D-009 及 F-001-CR1 的九项实施决策已经批准：LLM 不再负责最终精确时刻，确定性代码将使用实际路线、固定时长与缓冲完成排程；当前生产代码尚未迁移，Step 45H 仍需单独批准。上述修复仍不构成通过式真实数据 UAT；未经新授权不得再次 live 调用或进入合并。
+用户已自行创建 DeepSeek、高德和和风天气账户及本项目专用凭证；真实凭证只存在于 Git 忽略的 `.env.local` 与仓库外私钥文件中。项目已把三家 adapter 按全量配置条件接入任务执行器，并在 Step 38 的一次性授权内完成脱敏 live 契约验证。D-009/F-001-CR1 已由 stacked PR #5 实现并通过 review、远程 CI 和 ready-for-review 收口：LLM 只提议每日 POI、优先级、required/optional 和时长类别，确定性代码取得实际路线后按固定时长与缓冲生成精确时间，并继续通过既有 `DailyRoutePlan` 和 final validation 复验。Step 45N–45R 已补齐多方式降级及路线可靠性；Step 45T 最新真实任务形成完整双日 partial，真实 UAT 为 `PASS`。本次首选公交路线均直接可用，混合 fallback 的真实质量仍未覆盖；Step 45U 已补齐 fallback 批次 terminal 与外部取消的离线回归。未经新授权不得再次 live 调用；PR #5 必须先合并到功能分支，再复验 PR #4。
 
 ## 明确非目标
 

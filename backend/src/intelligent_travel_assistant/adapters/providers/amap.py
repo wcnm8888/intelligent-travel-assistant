@@ -22,6 +22,8 @@ from intelligent_travel_assistant.application.ports import (
     RouteCalculationRequest,
 )
 from intelligent_travel_assistant.domain import (
+    MAX_ROUTE_DISTANCE_METERS,
+    MAX_ROUTE_DURATION_MINUTES,
     Coordinates,
     CoordinateSystem,
     Provider,
@@ -534,7 +536,10 @@ def _parse_route(
     duration_seconds = _positive_integer(cost.get("duration"))
     if duration_seconds is None:
         return ProviderErrorCategory.SCHEMA
-    return distance, (duration_seconds + 59) // 60
+    duration_minutes = (duration_seconds + 59) // 60
+    if distance > MAX_ROUTE_DISTANCE_METERS or duration_minutes > MAX_ROUTE_DURATION_MINUTES:
+        return ProviderErrorCategory.SCHEMA
+    return distance, duration_minutes
 
 
 def _parse_poi(
