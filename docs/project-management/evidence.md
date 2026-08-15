@@ -109,7 +109,7 @@
 - Step 27 浏览器：本地 Microsoft Edge 使用本机 synthetic partial/failed 响应验证 retry 恢复、双击只产生一次请求、attempt 2、旧终态清理和返回修改焦点；`390×844` 下输入区域折叠、结果优先且无水平溢出，干净会话控制台 0 error/0 warning；
 - 请求边界：Step 35 浏览器业务请求仅为同源任务 API；DeepSeek、高德与和风 adapter 专项测试使用进程内 mock transport。Step 40 发现默认 API 测试组合根可能因 `.env.local` 装配真实执行器；Step 41 已用导入前 `APP_ENV=test`、禁用 dotenv source 和非 loopback socket 阻断关闭该风险，并由统一入口复验；
 - 真实性边界：Step 38 只证明执行时三家鉴权与所触达 live Schema 可用，并证明一次高德公交路线契约；Step 45A 只证明修复后的本地候选错误分类与安全失败展示有效。两者都不证明持续可用、全部端点、结果质量或下一次费用；
-- 未覆盖：混合交通方式 fallback 的真实 Provider 结果质量、长期配额和费用稳定性、ready-for-review、stacked 合并与归档。完整双日 partial 和通过式真实数据 UAT 已由 Step 45T 覆盖；本次 live 授权已经消耗，不得自动再次调用。
+- 未覆盖：混合交通方式 fallback 的真实 Provider 结果质量、长期配额和费用稳定性。完整双日 partial 和通过式真实数据 UAT 已由 Step 45T 覆盖；stacked 合并与归档已由 Step 46–47 完成；本次 live 授权已经消耗，不得自动再次调用。
 
 ### Step 46–47：stacked 合并与 F-001 归档
 
