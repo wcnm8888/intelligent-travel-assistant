@@ -2,14 +2,13 @@
 
 ## 当前状态
 
-- 当前任务：`F-002 计划持久化、来源与版本`
-- 任务状态：`ACTIVE`；任务卡状态：`APPROVED`
-- 当前 Step：`Step 6` PR #6 已创建，实施提交 CI 通过
-- 下一批准动作：等待用户批准 Step 6（Step 6 与 Git/PR 授权均已取得；保留此状态锚点供文档检查器识别）；当前验证最终文档 head CI，随后等待合并授权
-- 当前分支：`feat/f-002-local-plan-persistence`
-- 当前实施提交：`729119b9f583bfa80c421a9231f19694df38ab5f`
-- `main` 与 `origin/main`：一致
-- 工作区：实施提交后仅有本次 PR/CI 交付证据文档变更；未修改生产代码、测试、前端或依赖
+当前无活动任务，因此没有正在执行的 Step。
+
+- 最近完成任务：`F-002 计划持久化、来源与版本`
+- 任务状态：`ARCHIVED`
+- 已完成 Step：`Step 0–6`
+- 交付：PR #6 已合并为 `34fce5826db30ec30f7ae446ac2eb073a37cece9`；合并提交 main CI run `31924066600` 通过
+- 下一批准动作：等待用户从 roadmap 选择并批准下一任务；不自动进入 F-003
 
 ## Step 6 执行基线
 
@@ -27,8 +26,8 @@
 - 用户批准后已保持 Schema、migration 和 attempt 1 标识不变，仅为 attempt 2/3 引入由 job/attempt/trace 派生的稳定命名空间；
 - 纵向红测先得到第二 attempt `failed`，修复后得到第二个 `partial` 计划版本、两个 attempt、不同 plan ID 和不重叠 user/system source ID；相关执行器、Repository、API 专项 53 项通过；
 - 修复后统一门禁再次通过：91 个 Python/脚本文件 format、Ruff、strict mypy，后端 923 项、前端 65 项、文档检查器 23 项及 Vite build 全部通过；最终本地复审无剩余 P0/P1；
-- 用户已授权创建指定功能分支、精确暂存、提交、推送、创建 PR 和验证远程 CI；不授权自动合并。任务在 PR/CI 证据形成前不能归档。
-- 实施提交 `729119b9f583bfa80c421a9231f19694df38ab5f` 已推送；PR #6 OPEN、非 Draft、base `main`；Windows offline verification run `31923661440` / job `95107606302` 通过。当前只追加交付证据并验证最终文档 head，不自动合并。
+- 用户已授权并完成指定功能分支、精确暂存、提交、推送、PR、远程 CI、合并和归档流程。
+- 实施提交 `729119b9f583bfa80c421a9231f19694df38ab5f` 与交付证据提交 `6b9f0ec44522502a334fef5d0b4e1b31e1d5000e` 已通过 PR #6 合并；合并提交 main CI run `31924066600` 通过，F-002 已归档。
 
 ## 执行基线修复
 

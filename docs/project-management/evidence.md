@@ -1,8 +1,19 @@
 # 验收证据索引
 
+## F-002 最终交付与归档
+
+- 结论：`PASS`；F-002 Step 0–6 已完成并归档；
+- 分支：`feat/f-002-local-plan-persistence`；实施提交 `729119b9f583bfa80c421a9231f19694df38ab5f`，交付证据提交 `6b9f0ec44522502a334fef5d0b4e1b31e1d5000e`；
+- PR：[PR #6](https://github.com/wcnm8888/intelligent-travel-assistant/pull/6) 已合并，merge commit `34fce5826db30ec30f7ae446ac2eb073a37cece9`；
+- 远程门禁：实施提交 run `31923661440` 通过；最终 PR head run `31923863259` 通过；合并提交 main run `31924066600` / job `95108718835` 在 2 分 58 秒内通过；
+- 最终能力：本地 SQLite migration、Repository 隔离、任务/attempt/plan version/source/decision/acceptance 持久化、现有 API 重启恢复与幂等/冲突语义、单计划删除和 30 天启动清理；
+- 保持边界：无历史列表、版本比较/恢复、清空全部、前端历史页、登录、同步、多用户、云数据库、多城市、多日或局部重规划；不保存秘密、完整 Prompt、原始 provider 响应或错误 body；unknown 不转为 0，partial 不伪装为 ready；
+- 安全与真实性：全部 F-002 自动化只使用内存替身、fake 和临时 SQLite；未读取 `.env.local`、调用真实 Provider、访问非 loopback 网络或创建真实业务数据库；
+- F-001 历史保持：产品验收状态 `PARTIAL`，Step 45M 真实 UAT `FAIL`，Step 45T 真实 UAT `PASS`，门票等非关键费用为 `unknown`，混合交通 fallback 只有离线证据。
+
 ## F-002 Step 6 执行基线
 
-- 状态：`PR_OPEN_CI_PASS`；本地审查和实施提交 CI 已通过，Step 地图在最终 head CI 与合并/归档完成前保持 Step 6 `TODO`；
+- 状态：`PASS`；本地审查、最终 PR head CI、合并和合并提交 main CI 均已完成，Step 6 为 `DONE`；
 - 用户授权：全量门禁、文档收口和交付审查；
 - 审查范围：`HEAD` 到当前工作区的完整 F-002 累计差异，包括未跟踪 persistence 源码和测试；
 - 允许：修复审查发现的 F-002 范围内缺陷、运行全量门禁、同步已经验证的文档事实；
@@ -15,10 +26,10 @@
 - 纵向绿测：真实 `ProviderPlanningJobExecutor` 经纯离线 fake provider 写入临时 SQLite；第一次形成可重试 partial 计划，retry 后第二次形成新的 partial 计划；数据库含 2 个 attempt 和 2 个 plan version，两个 plan ID 不同，user/system source ID 不重叠，attempt 1 plan ID 与 F-001 原规则精确一致；
 - 定向验证：执行器、SQLite Repository 和 SQLite API 共 53 项通过；
 - 最终全量门禁：`scripts/verify.ps1` 再次通过；91 个 Python/脚本文件 format、Ruff、strict mypy，后端 923 项、前端 65 项、文档检查器 23 项和 Vite build 全部通过；
-- 最终审查：按安全、迁移、API、并发、测试和数据完整性清单复审累计差异，无剩余 P0/P1；本轮未创建分支、提交、推送或 PR，远程 CI 与实际交付证据尚未产生，因此 F-002 不归档。
+- 最终审查：按安全、迁移、API、并发、测试和数据完整性清单复审累计差异，无剩余 P0/P1；随后按用户授权完成分支、提交、推送、PR、远程 CI、合并和归档。
 - 交付授权：用户已明确授权创建 `feat/f-002-local-plan-persistence`、精确暂存、提交、推送、创建 PR 并验证远程 CI；分支从与 `origin/main` 一致的 `38340dfed5c169911dc12042f4a90a5e042284c4` 创建，不授权自动合并。
 - 交付事实：32 个 F-002 文件精确暂存，staged diff `+4120/-1220` 且无范围外或未暂存变更；实施提交 `729119b9f583bfa80c421a9231f19694df38ab5f` 已推送；PR #6 为 OPEN、非 Draft、base `main`、head `feat/f-002-local-plan-persistence`；
-- 远程 CI：Windows offline verification run `31923661440` / job `95107606302` 对实施提交通过，耗时 3 分 38 秒。该证据提交推送后仍须验证新的最终 head CI；没有自动合并或归档。
+- 远程 CI：实施提交 run `31923661440` / job `95107606302` 通过；最终 PR head run `31923863259` / job `95108160182` 通过；PR #6 合并后的 main run `31924066600` / job `95108718835` 通过。
 
 ## F-002 Step 5 执行基线
 

@@ -8,7 +8,7 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（F-002，PR #6 已创建且首轮 CI 通过，等待最终 head CI 与合并授权）
+- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-002 已归档）
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -90,8 +90,8 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：F-002 计划持久化、来源与版本（PR #6 已创建且首轮 CI 通过，等待最终 head CI 与合并授权）
-- F-002 任务卡已由用户批准；Step 0–5 已完成。现有 POST/GET/retry API 默认装配本地 SQLite Repository，并新增单计划 DELETE；启动时完成 migration 和一次有界 30 天清理，内部可写入 typed acceptance record；临时数据库已覆盖重启、幂等、并发、冲突、删除、保留期和隐私边界
+- 当前活动任务：无
+- F-002 已通过 PR #6 交付并归档。现有 POST/GET/retry API 默认装配本地 SQLite Repository，并新增单计划 DELETE；启动时完成 migration 和一次有界 30 天清理，内部可写入 typed acceptance record；临时数据库已覆盖重启、幂等、并发、冲突、删除、保留期和隐私边界
 - F-001 已交付并归档；产品状态为 `PARTIAL`，等待用户从 roadmap 选择下一任务
 - 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
 - 当前已完成 Step：F-001 Step 0 至 Step 47，以及补充 Step 45A–45X；D-009 已由 stacked PR #5 合并并由 PR #4 合并到 `main`，Step 45T 是最新 live UAT 且结论为 `PASS`
@@ -111,4 +111,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- 下一步：等待用户批准执行 F-002 Step 6（Step 6 与 Git/PR 授权均已取得；该固定措辞供状态检查器识别）；PR #6 已创建，实施提交 `729119b` 的 Windows offline verification run `31923661440` 已通过。当前只等待交付证据提交的最终 CI；不自动合并，F-001 的 `PARTIAL` 产品状态保持不变
+- 下一步：等待用户从 roadmap 选择并批准下一任务；不自动进入 F-003。F-001 的 `PARTIAL` 产品状态保持不变

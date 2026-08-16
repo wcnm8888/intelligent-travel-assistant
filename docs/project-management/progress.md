@@ -2,14 +2,14 @@
 
 ## 当前状态
 
-- 当前任务：`F-002 计划持久化、来源与版本`
-- 状态：`ACTIVE`；任务卡已批准
-- 当前 Step：`Step 6` PR #6 已创建，实施提交 CI 通过
-- 下一批准动作：Step 6（Step 6 与 Git/PR 授权均已取得）；验证最终文档 head CI，随后等待合并授权
-- 当前分支：`feat/f-002-local-plan-persistence`
-- 当前实施提交：`729119b9f583bfa80c421a9231f19694df38ab5f`
-- `main` 与 `origin/main` 一致
-- Step 0–5 已完成；SQLite 基础设施、Repository/API 装配、单计划删除、30 天启动清理、acceptance record 和隐私边界已实现，前端历史能力仍不在范围内
+- 当前任务：无
+- 状态：`ARCHIVED`
+- 最近完成任务：`F-002 计划持久化、来源与版本`
+- 已完成 Step：`Step 0–6`
+- 当前分支：`main`
+- 交付提交：PR #6 merge commit `34fce5826db30ec30f7ae446ac2eb073a37cece9`
+- main CI：run `31924066600` / job `95108718835` 通过
+- 下一批准动作：无；等待用户从 roadmap 选择并批准下一任务
 
 ## Step 0 结果
 
@@ -60,8 +60,8 @@
 - retry attempt 2/3 已使用 job/attempt/trace 派生的稳定命名空间，attempt 1 标识、Schema、migration 和公开 API 保持不变。
 - 纵向红测先复现第二 attempt `failed`，修复后成功追加第二计划版本；专项 53 项通过，统一门禁通过后端 923 项、前端 65 项、文档检查器 23 项及全部静态、类型和构建门禁。
 - 最终本地复审无剩余 P0/P1；未访问真实 Provider、秘密、非 loopback 网络或真实业务数据库。
-- 用户已授权创建指定功能分支、精确暂存、提交、推送、PR 和远程 CI 验证；仍不授权自动合并或提前归档。
-- PR #6 已创建为 OPEN、非 Draft；实施提交的 Windows offline verification run `31923661440` / job `95107606302` 在 3 分 38 秒内通过。当前追加交付证据并验证最终文档 head，之后仍需单独的合并授权。
+- 用户已授权并完成分支、提交、推送、PR、远程 CI、合并和归档。
+- PR #6 已合并；实施提交 CI、最终 PR head CI 和合并提交 main CI 均通过。F-002 已归档，F-001 历史证据和产品 `PARTIAL` 状态未改变。
 - 若发现边界变更需求、秘密访问需求、真实 Provider 调用需求或超出允许文件清单，必须停止并请求用户确认。
 
 ## 权威入口

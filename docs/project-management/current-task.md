@@ -5,15 +5,25 @@
 - 任务 ID：`F-002`
 - 名称：计划持久化、来源与版本
 - 等级：`L`
-- 状态：`ACTIVE`
+- 状态：`ARCHIVED`
 - 任务卡状态：`APPROVED`
-- 当前 Step：`Step 6 - 完成全量门禁、文档收口和交付审查`（PR #6 OPEN，实施提交 CI 通过）
-- Step 0–5 状态：已完成；Step 5 的删除、清理、acceptance、隐私测试和状态收口均已完成；Step 6 状态：TODO
-- 下一 Step：`Step 6 - 完成全量门禁、文档收口和交付审查`
+- 当前 Step：`Step 6 - 完成全量门禁、文档收口和交付审查（DONE）`
+- Step 0–6 状态：已完成；PR #6 已合并，合并提交 main CI 已通过
+- 下一 Step：`无；等待用户从 roadmap 选择并批准下一任务`
 - 基线分支：`main`
 - 当前功能分支：`feat/f-002-local-plan-persistence`
 - 建议功能分支：`feat/f-002-local-plan-persistence`
 - PR 目标：一个功能分支、一个 PR；仅交付本地 SQLite 持久化基础和恢复能力
+
+当前无活动任务。
+
+## 归档摘要
+
+- PR #6 已以常规 merge commit `34fce5826db30ec30f7ae446ac2eb073a37cece9` 合并至 `main`；
+- 合并提交的 Windows offline verification run `31924066600` / job `95108718835` 在 2 分 58 秒内通过；
+- F-002 Step 0–6 已完成，归档任务卡见 [F-002 plan persistence, source and version](../archive/task-cards/F-002-plan-persistence-source-version.md)；
+- F-001 产品验收状态继续为 `PARTIAL`；Step 45M 历史真实 UAT `FAIL`、Step 45T 真实 UAT `PASS`、unknown 费用不按 0、混合交通 fallback 只有离线证据，均保持不变；
+- 当前不自动进入 F-003，等待用户重新选择并批准任务卡。
 
 ## 用户目标和工程价值
 
@@ -279,7 +289,7 @@ Step 6 仍禁止：
 | Step 3 | 实现持久化 Repository 与任务/attempt/version/source 映射 | DONE |
 | Step 4 | 接入现有 API，完成重启、幂等、并发和冲突语义 | DONE |
 | Step 5 | 完成删除、保留期清理、隐私安全和验收记录持久化 | DONE |
-| Step 6 | 完成全量门禁、文档收口和交付审查 | TODO |
+| Step 6 | 完成全量门禁、文档收口和交付审查 | DONE |
 
 ## Step 6 执行基线
 
