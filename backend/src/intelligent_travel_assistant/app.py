@@ -11,11 +11,13 @@ from pydantic import BaseModel, ConfigDict
 
 from intelligent_travel_assistant.api import (
     PlanningHttpError,
+    create_replan_router,
     create_trip_plan_router,
     error_response,
     input_invalid_error,
 )
 from intelligent_travel_assistant.application.execution import PlanningJobExecutor
+from intelligent_travel_assistant.application.replanning import ReplanApplicationService
 from intelligent_travel_assistant.application.repositories import PlanningJobRepository
 from intelligent_travel_assistant.bootstrap import (
     PlanningPersistence,
@@ -43,6 +45,7 @@ def create_app(
     planning_job_repository: PlanningJobRepository | None = None,
     provider_adapters: ProviderAdapters | None = None,
     planning_job_executor: PlanningJobExecutor | None = None,
+    replan_application_service: ReplanApplicationService | None = None,
 ) -> FastAPI:
     """Create an application instance without requiring third-party credentials."""
 
@@ -85,6 +88,7 @@ def create_app(
         else build_planning_job_executor(repository, resolved_adapters)
     )
     application.state.planning_job_executor = executor
+    application.state.replan_application_service = replan_application_service
 
     @application.exception_handler(PlanningHttpError)
     async def handle_planning_http_error(
@@ -111,6 +115,7 @@ def create_app(
         return HealthResponse()
 
     application.include_router(create_trip_plan_router(repository, executor))
+    application.include_router(create_replan_router(repository, replan_application_service))
     return application
 
 

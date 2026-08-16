@@ -39,6 +39,13 @@ class ApiErrorCode(StrEnum):
     BUDGET_INCOMPLETE = "budget_incomplete"
     IDEMPOTENCY_CONFLICT = "idempotency_conflict"
     JOB_NOT_FOUND = "job_not_found"
+    REPLAN_NOT_FOUND = "replan_not_found"
+    REPLAN_IDEMPOTENCY_CONFLICT = "replan_idempotency_conflict"
+    VERSION_CONFLICT = "version_conflict"
+    CONFIRMATION_CONFLICT = "confirmation_conflict"
+    CONFIRMATION_EXPIRED = "confirmation_expired"
+    REPLAN_NOT_ALLOWED = "replan_not_allowed"
+    REPLAN_SCOPE_NOT_SUPPORTED = "replan_scope_not_supported"
     RETRY_NOT_ALLOWED = "retry_not_allowed"
     INTERNAL_ERROR = "internal_error"
 
