@@ -2,6 +2,7 @@
 
 from intelligent_travel_assistant.adapters.repositories.memory import (
     InMemoryPlanningJobRepository,
+    InMemoryReplanRepository,
 )
 
-__all__ = ["InMemoryPlanningJobRepository"]
+__all__ = ["InMemoryPlanningJobRepository", "InMemoryReplanRepository"]

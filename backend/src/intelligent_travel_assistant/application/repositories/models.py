@@ -21,6 +21,19 @@ from intelligent_travel_assistant.contracts import (
     TripPlanRequest,
     Uncertainty,
 )
+from intelligent_travel_assistant.domain.replanning import (
+    AdjustActivityTime,
+    DeleteActivity,
+    ImpactAnalysis,
+    PlanChangeSet,
+    ReorderActivities,
+    ReplaceActivity,
+    ReplanChoice,
+    ReplanCommand,
+    ReplanDecisionStatus,
+    ReplanOperation,
+    ReplanStatus,
+)
 
 _TERMINAL_STATUSES: Final = frozenset(
     {
@@ -55,6 +68,32 @@ class PlanningJobRepositoryErrorCode(StrEnum):
     RESULT_REQUEST_MISMATCH = "result_request_mismatch"
 
 
+class ReplanRepositoryErrorCode(StrEnum):
+    IDEMPOTENCY_CONFLICT = "replan_idempotency_conflict"
+    REPLAN_NOT_FOUND = "replan_not_found"
+    JOB_NOT_FOUND = "job_not_found"
+    VERSION_CONFLICT = "replan_version_conflict"
+    JOB_VERSION_CONFLICT = "replan_job_version_conflict"
+    INVALID_STATE = "replan_state_invalid"
+    CONFIRMATION_EXPIRED = "confirmation_expired"
+    DECISION_CONFLICT = "decision_conflict"
+    IDENTIFIER_INVALID = "replan_identifier_invalid"
+    JSON_INVALID = "replan_json_invalid"
+    OUTCOME_INVALID = "replan_outcome_invalid"
+    COMMIT_INVALID = "replan_commit_invalid"
+    BASELINE_CONFLICT = "replan_baseline_conflict"
+
+
+class ReplanRepositoryError(ValueError):
+    """Stable, secret-free errors for the independent replan aggregate."""
+
+    __slots__ = ("code",)
+
+    def __init__(self, code: ReplanRepositoryErrorCode) -> None:
+        self.code = code
+        super().__init__(code.value)
+
+
 class PlanningJobRepositoryError(ValueError):
     """Stable repository error that never includes identifiers or request text."""
 
@@ -63,6 +102,208 @@ class PlanningJobRepositoryError(ValueError):
     def __init__(self, code: PlanningJobRepositoryErrorCode) -> None:
         self.code = code
         super().__init__(code.value)
+
+
+@dataclass(frozen=True, slots=True)
+class ReplanDecisionRecord:
+    decision_id: UUID
+    job_id: UUID
+    attempt: int
+    trace_id: UUID
+    baseline_plan_version: int
+    kind: str
+    status: ReplanDecisionStatus
+    command: ReplanCommand
+    impact: ImpactAnalysis
+    choice: ReplanChoice | None
+    created_at: datetime
+    decided_at: datetime | None
+
+    def __post_init__(self) -> None:
+        if not all(
+            isinstance(value, UUID) for value in (self.decision_id, self.job_id, self.trace_id)
+        ):
+            raise ValueError("decision_identifier_invalid")
+        if type(self.attempt) is not int or not 1 <= self.attempt <= 3:
+            raise ValueError("decision_attempt_invalid")
+        if type(self.baseline_plan_version) is not int or self.baseline_plan_version < 1:
+            raise ValueError("decision_plan_version_invalid")
+        if _SAFE_CODE.fullmatch(self.kind) is None:
+            raise ValueError("decision_kind_invalid")
+        if not isinstance(self.status, ReplanDecisionStatus):
+            raise ValueError("decision_status_invalid")
+        if not isinstance(
+            self.command,
+            (ReplaceActivity, DeleteActivity, AdjustActivityTime, ReorderActivities),
+        ):
+            raise ValueError("decision_command_invalid")
+        if not isinstance(self.impact, ImpactAnalysis):
+            raise ValueError("decision_impact_invalid")
+        if self.choice is not None and not isinstance(self.choice, ReplanChoice):
+            raise ValueError("decision_choice_invalid")
+        _require_aware_datetime(self.created_at, "decision_created_at")
+        if self.decided_at is not None:
+            _require_aware_datetime(self.decided_at, "decision_decided_at")
+
+
+@dataclass(frozen=True, slots=True)
+class ReplanRecord:
+    replan_id: UUID
+    job_id: UUID
+    replan_request_id: UUID
+    request_fingerprint: RequestFingerprint
+    baseline_plan_id: UUID
+    baseline_plan_version: int
+    expected_job_version: int
+    trace_id: UUID
+    operation: ReplanOperation
+    command: ReplanCommand
+    impact: ImpactAnalysis | None
+    status: ReplanStatus
+    aggregate_version: int
+    decision: ReplanDecisionRecord | None
+    result_plan_version: int | None
+    result: PlanningJobResult | None = field(repr=False)
+    change_set: PlanChangeSet | None
+    error_code: str | None
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    decided_at: datetime | None
+
+    def __post_init__(self) -> None:
+        identifiers = (
+            self.replan_id,
+            self.job_id,
+            self.replan_request_id,
+            self.baseline_plan_id,
+            self.trace_id,
+        )
+        if any(not isinstance(value, UUID) for value in identifiers):
+            raise ValueError("replan_identifier_invalid")
+        if not isinstance(self.request_fingerprint, RequestFingerprint):
+            raise ValueError("replan_fingerprint_invalid")
+        if type(self.baseline_plan_version) is not int or self.baseline_plan_version < 1:
+            raise ValueError("replan_plan_version_invalid")
+        if type(self.expected_job_version) is not int or self.expected_job_version < 1:
+            raise ValueError("replan_job_version_invalid")
+        if not isinstance(self.operation, ReplanOperation):
+            raise ValueError("replan_operation_invalid")
+        if not isinstance(
+            self.command,
+            (ReplaceActivity, DeleteActivity, AdjustActivityTime, ReorderActivities),
+        ):
+            raise ValueError("replan_command_invalid")
+        if self.command.operation is not self.operation:
+            raise ValueError("replan_operation_mismatch")
+        if self.impact is not None and not isinstance(self.impact, ImpactAnalysis):
+            raise ValueError("replan_impact_invalid")
+        if not isinstance(self.status, ReplanStatus):
+            raise ValueError("replan_status_invalid")
+        if type(self.aggregate_version) is not int or self.aggregate_version < 1:
+            raise ValueError("replan_aggregate_version_invalid")
+        if self.decision is not None and not isinstance(self.decision, ReplanDecisionRecord):
+            raise ValueError("replan_decision_invalid")
+        if self.result_plan_version is not None and (
+            type(self.result_plan_version) is not int or self.result_plan_version < 1
+        ):
+            raise ValueError("replan_result_version_invalid")
+        if self.change_set is not None and not isinstance(self.change_set, PlanChangeSet):
+            raise ValueError("replan_change_set_invalid")
+        if (self.status is ReplanStatus.COMPLETED) != (
+            self.result_plan_version is not None
+            and self.result is not None
+            and self.change_set is not None
+        ):
+            raise ValueError("replan_completed_projection_invalid")
+        if self.result is not None and (
+            not isinstance(self.result, PlanningJobResult)
+            or self.result.plan is None
+            or self.change_set is None
+            or self.result.plan.plan_id != self.change_set.result_plan_id
+        ):
+            raise ValueError("replan_result_projection_invalid")
+        if self.error_code is not None and _SAFE_CODE.fullmatch(self.error_code) is None:
+            raise ValueError("replan_error_code_invalid")
+        for field_name, value in (
+            ("created_at", self.created_at),
+            ("updated_at", self.updated_at),
+            ("expires_at", self.expires_at),
+        ):
+            _require_aware_datetime(value, field_name)
+        if self.updated_at < self.created_at:
+            raise ValueError("replan_timestamp_order_invalid")
+        if self.decided_at is not None:
+            _require_aware_datetime(self.decided_at, "replan_decided_at")
+
+
+@dataclass(frozen=True, slots=True)
+class ReplanReservation:
+    created: bool
+    replan: ReplanRecord
+
+    def __post_init__(self) -> None:
+        if type(self.created) is not bool or not isinstance(self.replan, ReplanRecord):
+            raise ValueError("replan_reservation_invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ReplanOutcome:
+    status: ReplanStatus
+    error_code: str
+
+    def __post_init__(self) -> None:
+        if self.status not in {
+            ReplanStatus.NEEDS_INPUT,
+            ReplanStatus.CONFLICT,
+            ReplanStatus.FAILED,
+            ReplanStatus.REJECTED,
+            ReplanStatus.CANCELLED,
+            ReplanStatus.EXPIRED,
+        }:
+            raise ValueError("replan_outcome_status_invalid")
+        if _SAFE_CODE.fullmatch(self.error_code) is None:
+            raise ValueError("replan_outcome_code_invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ReplanCommit:
+    result: PlanningJobResult
+    change_set: PlanChangeSet
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.result, PlanningJobResult) or self.result.status not in {
+            PlanningStatus.READY,
+            PlanningStatus.PARTIAL,
+        }:
+            raise ValueError("replan_commit_result_invalid")
+        if self.result.plan is None:
+            raise ValueError("replan_commit_plan_required")
+        if not isinstance(self.change_set, PlanChangeSet):
+            raise ValueError("replan_commit_change_set_invalid")
+        if self.change_set.result_plan_id != self.result.plan.plan_id:
+            raise ValueError("replan_commit_plan_mismatch")
+
+
+@dataclass(frozen=True, slots=True)
+class ReplanCommitResult:
+    replan: ReplanRecord
+    job_version: int
+    plan_version: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.replan, ReplanRecord):
+            raise ValueError("replan_commit_result_invalid")
+        if self.replan.status is not ReplanStatus.COMPLETED:
+            raise ValueError("replan_commit_status_invalid")
+        if self.replan.result_plan_version is None:
+            raise ValueError("replan_commit_version_missing")
+        if type(self.job_version) is not int or self.job_version < 2:
+            raise ValueError("replan_commit_job_version_invalid")
+        if type(self.plan_version) is not int or self.plan_version < 2:
+            raise ValueError("replan_commit_plan_version_invalid")
+        if self.replan.result_plan_version != self.plan_version:
+            raise ValueError("replan_commit_version_mismatch")
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +500,11 @@ def result_matches_request(result: PlanningJobResult, request: TripPlanRequest) 
             or result.resolved_destination.adcode == plan.city_adcode
         )
     )
+
+
+def _require_aware_datetime(value: datetime, field: str) -> None:
+    if not isinstance(value, datetime) or value.utcoffset() is None:
+        raise ValueError(f"{field}_invalid")
 
 
 def _require_result_collections(result: PlanningJobResult) -> None:

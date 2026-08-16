@@ -12,6 +12,7 @@ from intelligent_travel_assistant.adapters.persistence.migrations import (
 )
 from intelligent_travel_assistant.adapters.persistence.repository import (
     SqlitePlanningJobRepository,
+    SqliteReplanRepository,
 )
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "SqliteConnectionConfig",
     "SqliteDatabase",
     "SqlitePlanningJobRepository",
+    "SqliteReplanRepository",
     "sqlite_transaction",
 ]

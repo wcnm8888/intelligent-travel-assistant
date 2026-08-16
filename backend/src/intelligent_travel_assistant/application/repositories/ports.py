@@ -11,8 +11,18 @@ from intelligent_travel_assistant.application.repositories.models import (
     PlanningJob,
     PlanningJobReservation,
     PlanningJobResult,
+    ReplanCommit,
+    ReplanCommitResult,
+    ReplanOutcome,
+    ReplanRecord,
+    ReplanReservation,
 )
 from intelligent_travel_assistant.contracts import PlanningStatus, TripPlanRequest
+from intelligent_travel_assistant.domain.replanning import (
+    ImpactAnalysis,
+    ReplanChoice,
+    ReplanCommand,
+)
 
 
 @runtime_checkable
@@ -57,3 +67,69 @@ class AcceptanceRecordRepository(Protocol):
     """Internal typed acceptance evidence writer."""
 
     async def record_acceptance(self, record: AcceptanceRecord) -> AcceptanceRecord: ...
+
+
+@runtime_checkable
+class ReplanRepository(Protocol):
+    """Command-oriented persistence boundary separate from PlanningJobRepository."""
+
+    async def reserve(
+        self,
+        job_id: UUID,
+        replan_request_id: UUID,
+        command: ReplanCommand,
+        *,
+        baseline_plan_id: UUID,
+        baseline_plan_version: int | None = None,
+        expected_job_version: int,
+        trace_id: UUID | None = None,
+    ) -> ReplanReservation: ...
+
+    async def get(self, job_id: UUID, replan_id: UUID) -> ReplanRecord: ...
+
+    async def record_analysis(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        impact: ImpactAnalysis,
+        *,
+        expected_replan_version: int,
+    ) -> ReplanRecord: ...
+
+    async def decide(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        choice: ReplanChoice,
+        *,
+        expected_replan_version: int,
+        expected_job_version: int,
+    ) -> ReplanRecord: ...
+
+    async def begin_execution(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        *,
+        expected_replan_version: int,
+        expected_job_version: int,
+    ) -> ReplanRecord: ...
+
+    async def record_outcome(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        outcome: ReplanOutcome,
+        *,
+        expected_replan_version: int,
+    ) -> ReplanRecord: ...
+
+    async def commit(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        commit: ReplanCommit,
+        *,
+        expected_replan_version: int,
+        expected_job_version: int,
+    ) -> ReplanCommitResult: ...

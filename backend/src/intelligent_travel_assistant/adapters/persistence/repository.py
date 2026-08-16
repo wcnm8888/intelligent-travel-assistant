@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import sqlite3
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import NoReturn, cast
 from uuid import UUID, uuid4
 
@@ -24,6 +25,14 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepositoryErrorCode,
     PlanningJobReservation,
     PlanningJobResult,
+    ReplanCommit,
+    ReplanCommitResult,
+    ReplanDecisionRecord,
+    ReplanOutcome,
+    ReplanRecord,
+    ReplanRepositoryError,
+    ReplanRepositoryErrorCode,
+    ReplanReservation,
     RequestFingerprint,
     request_fingerprint,
     result_matches_request,
@@ -45,6 +54,25 @@ from intelligent_travel_assistant.contracts import (
     Uncertainty,
 )
 from intelligent_travel_assistant.contracts.base import ContractModel
+from intelligent_travel_assistant.domain import (
+    AdjustActivityTime,
+    DataFreshness,
+    DeleteActivity,
+    ImpactAnalysis,
+    ImpactCategory,
+    ImpactDisposition,
+    PlanChangeSet,
+    ReorderActivities,
+    ReplaceActivity,
+    ReplanChoice,
+    ReplanCommand,
+    ReplanDecisionStatus,
+    ReplanOperation,
+    ReplanStatus,
+    SourceAction,
+    SourceActionReason,
+    SourceActionRecord,
+)
 
 _RETENTION_PERIOD = timedelta(days=30)
 _TERMINAL_STATUSES = frozenset(
@@ -946,3 +974,940 @@ class SqlitePlanningJobRepository:
     @staticmethod
     def _raise(code: PlanningJobRepositoryErrorCode) -> NoReturn:
         raise PlanningJobRepositoryError(code)
+
+
+class SqliteReplanRepository:
+    """SQLite adapter for the independent F-003 replan aggregate."""
+
+    def __init__(
+        self,
+        database: SqliteDatabase,
+        *,
+        clock: Callable[[], datetime] | None = None,
+        id_factory: Callable[[], UUID] | None = None,
+    ) -> None:
+        if not isinstance(database, SqliteDatabase):
+            raise TypeError("sqlite_database_invalid")
+        self._database = database
+        self._clock = clock or (lambda: datetime.now(UTC))
+        self._id_factory = id_factory or uuid4
+        self._lock = asyncio.Lock()
+
+    async def reserve(
+        self,
+        job_id: UUID,
+        replan_request_id: UUID,
+        command: ReplanCommand,
+        *,
+        baseline_plan_id: UUID,
+        baseline_plan_version: int | None = None,
+        expected_job_version: int,
+        trace_id: UUID | None = None,
+    ) -> ReplanReservation:
+        _require_replan_ids(job_id, replan_request_id, baseline_plan_id)
+        _require_command(command)
+        fingerprint = _command_fingerprint(command)
+        async with self._lock:
+            try:
+                with sqlite_transaction(self._database.connection):
+                    existing = self._database.connection.execute(
+                        "SELECT * FROM replan_requests WHERE job_id = ? AND replan_request_id = ?",
+                        (str(job_id), str(replan_request_id)),
+                    ).fetchone()
+                    if existing is not None:
+                        if existing["request_fingerprint"] != fingerprint.digest:
+                            _raise_replan(ReplanRepositoryErrorCode.IDEMPOTENCY_CONFLICT)
+                        if UUID(existing["baseline_plan_id"]) != baseline_plan_id:
+                            _raise_replan(ReplanRepositoryErrorCode.BASELINE_CONFLICT)
+                        return ReplanReservation(False, self._hydrate_replan(existing))
+                    trace = trace_id or self._id_factory()
+                    _require_replan_ids(trace)
+                    self._require_current_job_version(
+                        job_id,
+                        expected_job_version,
+                        captured_job_version=expected_job_version,
+                    )
+                    current_version_row = self._database.connection.execute(
+                        """
+                        SELECT current_plan_version FROM planning_attempts
+                        WHERE job_id = ? AND attempt = (
+                            SELECT attempt FROM planning_jobs WHERE job_id = ?
+                        )
+                        """,
+                        (str(job_id), str(job_id)),
+                    ).fetchone()
+                    captured_version = (
+                        int(current_version_row["current_plan_version"])
+                        if current_version_row is not None
+                        and current_version_row["current_plan_version"] is not None
+                        else None
+                    )
+                    if baseline_plan_version is None:
+                        baseline_plan_version = captured_version
+                    if (
+                        type(baseline_plan_version) is not int
+                        or baseline_plan_version < 1
+                        or captured_version != baseline_plan_version
+                    ):
+                        _raise_replan(ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT)
+                    baseline = self._database.connection.execute(
+                        """
+                        SELECT 1 FROM plan_versions
+                        WHERE job_id = ? AND version_number = ? AND plan_id = ?
+                        """,
+                        (str(job_id), baseline_plan_version, str(baseline_plan_id)),
+                    ).fetchone()
+                    if baseline is None:
+                        _raise_replan(ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT)
+                    now = self._now()
+                    replan_id = self._next_id()
+                    self._database.connection.execute(
+                        """
+                        INSERT INTO replan_requests(
+                            replan_id, job_id, replan_request_id, request_fingerprint,
+                            baseline_plan_id, baseline_plan_version, expected_job_version,
+                            trace_id, operation, request_json, impact_json, status,
+                            aggregate_version, decision_id, result_plan_version, error_code,
+                            created_at, updated_at, expires_at, decided_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, NULL, NULL, NULL,
+                            ?, ?, ?, NULL
+                        )
+                        """,
+                        (
+                            str(replan_id),
+                            str(job_id),
+                            str(replan_request_id),
+                            fingerprint.digest,
+                            str(baseline_plan_id),
+                            baseline_plan_version,
+                            expected_job_version,
+                            str(trace),
+                            command.operation.value,
+                            _json_dump(_command_to_obj(command)),
+                            ReplanStatus.ANALYZING.value,
+                            _format_replan_datetime(now),
+                            _format_replan_datetime(now),
+                            _format_replan_datetime(now + timedelta(minutes=15)),
+                        ),
+                    )
+                    return ReplanReservation(True, self._hydrate_replan_by_id(replan_id))
+            except ReplanRepositoryError:
+                raise
+            except (sqlite3.Error, RuntimeError, TypeError, ValueError, KeyError):
+                _raise_replan(ReplanRepositoryErrorCode.JSON_INVALID)
+
+    async def get(self, job_id: UUID, replan_id: UUID) -> ReplanRecord:
+        _require_replan_ids(job_id, replan_id)
+        async with self._lock:
+            try:
+                with sqlite_transaction(self._database.connection, immediate=False):
+                    return self._hydrate_replan_by_id(replan_id, job_id=job_id)
+            except ReplanRepositoryError:
+                raise
+            except (sqlite3.Error, RuntimeError, TypeError, ValueError, KeyError):
+                _raise_replan(ReplanRepositoryErrorCode.JSON_INVALID)
+
+    async def record_analysis(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        impact: ImpactAnalysis,
+        *,
+        expected_replan_version: int,
+    ) -> ReplanRecord:
+        _require_replan_ids(job_id, replan_id)
+        if not isinstance(impact, ImpactAnalysis):
+            _raise_replan(ReplanRepositoryErrorCode.JSON_INVALID)
+        async with self._lock:
+            try:
+                with sqlite_transaction(self._database.connection):
+                    row = self._replan_row(replan_id, job_id)
+                    _check_replan_version(row, expected_replan_version)
+                    if row["status"] != ReplanStatus.ANALYZING.value:
+                        _raise_replan(ReplanRepositoryErrorCode.INVALID_STATE)
+                    attempt_row = self._database.connection.execute(
+                        "SELECT attempt, trace_id FROM planning_jobs WHERE job_id = ?",
+                        (str(job_id),),
+                    ).fetchone()
+                    if attempt_row is None:
+                        _raise_replan(ReplanRepositoryErrorCode.JOB_NOT_FOUND)
+                    decision_id = self._next_id()
+                    now = self._now()
+                    decision_status = (
+                        ReplanDecisionStatus.AUTO_APPROVED
+                        if impact.disposition is ImpactDisposition.AUTO
+                        else ReplanDecisionStatus.REJECTED
+                        if impact.disposition is ImpactDisposition.REJECT
+                        else ReplanDecisionStatus.PENDING
+                    )
+                    decision_created = _format_replan_datetime(now)
+                    decision_decided = (
+                        decision_created
+                        if decision_status is not ReplanDecisionStatus.PENDING
+                        else None
+                    )
+                    self._database.connection.execute(
+                        """
+                        INSERT INTO decision_records(
+                            decision_id, job_id, attempt, trace_id, plan_version, kind, status,
+                            proposal_json, validation_json, user_choice_json, created_at, decided_at
+                        ) VALUES (?, ?, ?, ?, ?, 'replan', ?, ?, ?, NULL, ?, ?)
+                        """,
+                        (
+                            str(decision_id),
+                            str(job_id),
+                            int(attempt_row["attempt"]),
+                            str(row["trace_id"]),
+                            int(row["baseline_plan_version"]),
+                            decision_status.value,
+                            _json_dump(_command_to_obj(_command_from_json(row["request_json"]))),
+                            _json_dump(_impact_to_obj(impact)),
+                            decision_created,
+                            decision_decided,
+                        ),
+                    )
+                    next_status = (
+                        ReplanStatus.AWAITING_CONFIRMATION
+                        if impact.disposition is ImpactDisposition.CONFIRM
+                        else ReplanStatus.REPLANNING
+                        if impact.disposition is ImpactDisposition.AUTO
+                        else ReplanStatus.REJECTED
+                    )
+                    self._database.connection.execute(
+                        """
+                        UPDATE replan_requests
+                        SET impact_json = ?, status = ?, aggregate_version = aggregate_version + 1,
+                            decision_id = ?, updated_at = ?, decided_at = ?
+                        WHERE replan_id = ? AND job_id = ? AND aggregate_version = ?
+                        """,
+                        (
+                            _json_dump(_impact_to_obj(impact)),
+                            next_status.value,
+                            str(decision_id),
+                            decision_created,
+                            decision_decided,
+                            str(replan_id),
+                            str(job_id),
+                            expected_replan_version,
+                        ),
+                    )
+                    if self._database.connection.execute("SELECT changes()").fetchone()[0] != 1:
+                        _raise_replan(ReplanRepositoryErrorCode.VERSION_CONFLICT)
+                    return self._hydrate_replan_by_id(replan_id, job_id=job_id)
+            except ReplanRepositoryError:
+                raise
+            except (sqlite3.Error, RuntimeError, TypeError, ValueError, KeyError):
+                _raise_replan(ReplanRepositoryErrorCode.JSON_INVALID)
+
+    async def decide(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        choice: ReplanChoice,
+        *,
+        expected_replan_version: int,
+        expected_job_version: int,
+    ) -> ReplanRecord:
+        _require_replan_ids(job_id, replan_id)
+        if not isinstance(choice, ReplanChoice):
+            raise TypeError("replan_choice_invalid")
+        async with self._lock:
+            try:
+                with sqlite_transaction(self._database.connection):
+                    row = self._replan_row(replan_id, job_id)
+                    decision_id = row["decision_id"]
+                    if decision_id is None:
+                        _raise_replan(ReplanRepositoryErrorCode.DECISION_CONFLICT)
+                    existing_decision = self._database.connection.execute(
+                        """
+                        SELECT status, user_choice_json FROM decision_records
+                        WHERE decision_id = ?
+                        """,
+                        (decision_id,),
+                    ).fetchone()
+                    if existing_decision is None:
+                        _raise_replan(ReplanRepositoryErrorCode.DECISION_CONFLICT)
+                    if existing_decision["user_choice_json"]:
+                        existing_choice = ReplanChoice(
+                            json.loads(existing_decision["user_choice_json"])["choice"]
+                        )
+                        if existing_choice is choice:
+                            return self._hydrate_replan(row)
+                        _raise_replan(ReplanRepositoryErrorCode.DECISION_CONFLICT)
+                    _check_replan_version(row, expected_replan_version)
+                    if row["status"] != ReplanStatus.AWAITING_CONFIRMATION.value:
+                        _raise_replan(ReplanRepositoryErrorCode.INVALID_STATE)
+                    self._require_current_job_version(
+                        job_id,
+                        expected_job_version,
+                        captured_job_version=int(row["expected_job_version"]),
+                    )
+                    now = self._now()
+                    if now >= _parse_replan_datetime(row["expires_at"]):
+                        decided = _format_replan_datetime(now)
+                        self._database.connection.execute(
+                            """
+                            UPDATE decision_records
+                            SET status = ?, decided_at = ? WHERE decision_id = ?
+                            """,
+                            (ReplanDecisionStatus.EXPIRED.value, decided, decision_id),
+                        )
+                        self._database.connection.execute(
+                            """
+                            UPDATE replan_requests
+                            SET status = ?, error_code = ?,
+                                aggregate_version = aggregate_version + 1,
+                                updated_at = ?, decided_at = ?
+                            WHERE replan_id = ? AND job_id = ? AND aggregate_version = ?
+                            """,
+                            (
+                                ReplanStatus.EXPIRED.value,
+                                ReplanRepositoryErrorCode.CONFIRMATION_EXPIRED.value,
+                                decided,
+                                decided,
+                                str(replan_id),
+                                str(job_id),
+                                expected_replan_version,
+                            ),
+                        )
+                        return self._hydrate_replan_by_id(replan_id, job_id=job_id)
+                    decision_status = (
+                        ReplanDecisionStatus.APPROVED
+                        if choice is ReplanChoice.APPROVE
+                        else ReplanDecisionStatus.CANCELLED
+                    )
+                    next_status = (
+                        ReplanStatus.REPLANNING
+                        if choice is ReplanChoice.APPROVE
+                        else ReplanStatus.CANCELLED
+                    )
+                    decided = _format_replan_datetime(now)
+                    self._database.connection.execute(
+                        """
+                        UPDATE decision_records
+                        SET status = ?, user_choice_json = ?, decided_at = ?
+                        WHERE decision_id = ?
+                        """,
+                        (
+                            decision_status.value,
+                            _json_dump({"choice": choice.value}),
+                            decided,
+                            decision_id,
+                        ),
+                    )
+                    self._database.connection.execute(
+                        """
+                        UPDATE replan_requests
+                        SET status = ?, aggregate_version = aggregate_version + 1,
+                            updated_at = ?, decided_at = ?
+                        WHERE replan_id = ? AND job_id = ? AND aggregate_version = ?
+                        """,
+                        (
+                            next_status.value,
+                            decided,
+                            decided,
+                            str(replan_id),
+                            str(job_id),
+                            expected_replan_version,
+                        ),
+                    )
+                    if self._database.connection.execute("SELECT changes()").fetchone()[0] != 1:
+                        _raise_replan(ReplanRepositoryErrorCode.VERSION_CONFLICT)
+                    return self._hydrate_replan_by_id(replan_id, job_id=job_id)
+            except ReplanRepositoryError:
+                raise
+            except (sqlite3.Error, RuntimeError, TypeError, ValueError, KeyError):
+                _raise_replan(ReplanRepositoryErrorCode.JSON_INVALID)
+
+    async def begin_execution(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        *,
+        expected_replan_version: int,
+        expected_job_version: int,
+    ) -> ReplanRecord:
+        _require_replan_ids(job_id, replan_id)
+        async with self._lock:
+            try:
+                with sqlite_transaction(self._database.connection, immediate=False):
+                    row = self._replan_row(replan_id, job_id)
+                    _check_replan_version(row, expected_replan_version)
+                    self._require_current_job_version(
+                        job_id,
+                        expected_job_version,
+                        captured_job_version=int(row["expected_job_version"]),
+                    )
+                    if row["status"] != ReplanStatus.REPLANNING.value:
+                        _raise_replan(ReplanRepositoryErrorCode.INVALID_STATE)
+                    decision = self._database.connection.execute(
+                        "SELECT status FROM decision_records WHERE decision_id = ?",
+                        (row["decision_id"],),
+                    ).fetchone()
+                    if decision is None or decision["status"] not in {
+                        ReplanDecisionStatus.AUTO_APPROVED.value,
+                        ReplanDecisionStatus.APPROVED.value,
+                    }:
+                        _raise_replan(ReplanRepositoryErrorCode.DECISION_CONFLICT)
+                    return self._hydrate_replan(row)
+            except ReplanRepositoryError:
+                raise
+            except (sqlite3.Error, RuntimeError, TypeError, ValueError, KeyError):
+                _raise_replan(ReplanRepositoryErrorCode.JSON_INVALID)
+
+    async def record_outcome(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        outcome: ReplanOutcome,
+        *,
+        expected_replan_version: int,
+    ) -> ReplanRecord:
+        _require_replan_ids(job_id, replan_id)
+        if not isinstance(outcome, ReplanOutcome):
+            _raise_replan(ReplanRepositoryErrorCode.OUTCOME_INVALID)
+        async with self._lock:
+            try:
+                with sqlite_transaction(self._database.connection):
+                    row = self._replan_row(replan_id, job_id)
+                    _check_replan_version(row, expected_replan_version)
+                    if row["status"] != ReplanStatus.REPLANNING.value:
+                        _raise_replan(ReplanRepositoryErrorCode.INVALID_STATE)
+                    now = _format_replan_datetime(self._now())
+                    cursor = self._database.connection.execute(
+                        """
+                        UPDATE replan_requests
+                        SET status = ?, error_code = ?, aggregate_version = aggregate_version + 1,
+                            updated_at = ?
+                        WHERE replan_id = ? AND job_id = ? AND aggregate_version = ?
+                        """,
+                        (
+                            outcome.status.value,
+                            outcome.error_code,
+                            now,
+                            str(replan_id),
+                            str(job_id),
+                            expected_replan_version,
+                        ),
+                    )
+                    if cursor.rowcount != 1:
+                        _raise_replan(ReplanRepositoryErrorCode.VERSION_CONFLICT)
+                    return self._hydrate_replan_by_id(replan_id, job_id=job_id)
+            except ReplanRepositoryError:
+                raise
+            except (sqlite3.Error, RuntimeError, TypeError, ValueError, KeyError):
+                _raise_replan(ReplanRepositoryErrorCode.OUTCOME_INVALID)
+
+    async def commit(
+        self,
+        job_id: UUID,
+        replan_id: UUID,
+        commit: ReplanCommit,
+        *,
+        expected_replan_version: int,
+        expected_job_version: int,
+    ) -> ReplanCommitResult:
+        _require_replan_ids(job_id, replan_id)
+        if not isinstance(commit, ReplanCommit):
+            _raise_replan(ReplanRepositoryErrorCode.COMMIT_INVALID)
+        async with self._lock:
+            try:
+                with sqlite_transaction(self._database.connection):
+                    row = self._replan_row(replan_id, job_id)
+                    _check_replan_version(row, expected_replan_version)
+                    if row["status"] != ReplanStatus.REPLANNING.value:
+                        _raise_replan(ReplanRepositoryErrorCode.INVALID_STATE)
+                    self._require_current_job_version(
+                        job_id,
+                        expected_job_version,
+                        captured_job_version=int(row["expected_job_version"]),
+                    )
+                    planning = SqlitePlanningJobRepository(
+                        self._database, clock=self._clock, id_factory=self._id_factory
+                    )
+                    current = planning._hydrate_job(planning._job_row(job_id))
+                    if (
+                        current.result is None
+                        or current.result.plan is None
+                        or current.result.plan.plan_id != UUID(row["baseline_plan_id"])
+                        or commit.change_set.baseline_plan_id != UUID(row["baseline_plan_id"])
+                    ):
+                        _raise_replan(ReplanRepositoryErrorCode.BASELINE_CONFLICT)
+                    attempt = self._database.connection.execute(
+                        """
+                        SELECT current_plan_version FROM planning_attempts
+                        WHERE job_id = ? AND attempt = ?
+                        """,
+                        (str(job_id), current.attempt),
+                    ).fetchone()
+                    if attempt is None or int(attempt["current_plan_version"] or 0) != int(
+                        row["baseline_plan_version"]
+                    ):
+                        _raise_replan(ReplanRepositoryErrorCode.BASELINE_CONFLICT)
+                    if not result_matches_request(commit.result, current.request):
+                        _raise_replan(ReplanRepositoryErrorCode.COMMIT_INVALID)
+                    decision = self._database.connection.execute(
+                        "SELECT status FROM decision_records WHERE decision_id = ?",
+                        (row["decision_id"],),
+                    ).fetchone()
+                    if decision is None or decision["status"] not in {
+                        ReplanDecisionStatus.AUTO_APPROVED.value,
+                        ReplanDecisionStatus.APPROVED.value,
+                    }:
+                        _raise_replan(ReplanRepositoryErrorCode.DECISION_CONFLICT)
+
+                    now = self._now()
+                    self._insert_replan_sources(current, commit.result.sources)
+                    plan_version = self._insert_replan_plan_version(
+                        current,
+                        commit,
+                        trace_id=current.trace_id,
+                        created_at=now,
+                    )
+                    metadata = _StoredResultMetadata(
+                        resolved_destination=commit.result.resolved_destination,
+                        violations=commit.result.violations,
+                        warnings=commit.result.warnings,
+                        uncertainties=commit.result.uncertainties,
+                        errors=commit.result.errors,
+                        source_ids=tuple(source.source_id for source in commit.result.sources),
+                    )
+                    metadata_json = _json_dump(metadata.model_dump(mode="json"))
+                    formatted_now = _format_replan_datetime(now)
+                    self._database.connection.execute(
+                        """
+                        INSERT INTO plan_version_lineage(
+                            job_id, child_version, parent_version, replan_id,
+                            decision_id, change_set_json, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(job_id),
+                            plan_version,
+                            int(row["baseline_plan_version"]),
+                            str(replan_id),
+                            row["decision_id"],
+                            _json_dump(_change_set_to_obj(commit.change_set)),
+                            formatted_now,
+                        ),
+                    )
+                    self._database.connection.execute(
+                        """
+                        UPDATE planning_attempts
+                        SET status = ?, retryable = ?, updated_at = ?,
+                            current_plan_version = ?, result_metadata_json = ?
+                        WHERE job_id = ? AND attempt = ?
+                        """,
+                        (
+                            commit.result.status.value,
+                            int(commit.result.retryable),
+                            formatted_now,
+                            plan_version,
+                            metadata_json,
+                            str(job_id),
+                            current.attempt,
+                        ),
+                    )
+                    job_cursor = self._database.connection.execute(
+                        """
+                        UPDATE planning_jobs
+                        SET status = ?, retryable = ?, version = version + 1, updated_at = ?
+                        WHERE job_id = ? AND version = ?
+                        """,
+                        (
+                            commit.result.status.value,
+                            int(commit.result.retryable),
+                            formatted_now,
+                            str(job_id),
+                            expected_job_version,
+                        ),
+                    )
+                    if job_cursor.rowcount != 1:
+                        _raise_replan(ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT)
+                    replan_cursor = self._database.connection.execute(
+                        """
+                        UPDATE replan_requests
+                        SET status = 'completed', result_plan_version = ?, error_code = NULL,
+                            aggregate_version = aggregate_version + 1, updated_at = ?
+                        WHERE replan_id = ? AND job_id = ? AND aggregate_version = ?
+                        """,
+                        (
+                            plan_version,
+                            formatted_now,
+                            str(replan_id),
+                            str(job_id),
+                            expected_replan_version,
+                        ),
+                    )
+                    if replan_cursor.rowcount != 1:
+                        _raise_replan(ReplanRepositoryErrorCode.VERSION_CONFLICT)
+                    completed = self._hydrate_replan_by_id(replan_id, job_id=job_id)
+                    return ReplanCommitResult(
+                        replan=completed,
+                        job_version=expected_job_version + 1,
+                        plan_version=plan_version,
+                    )
+            except ReplanRepositoryError:
+                raise
+            except (sqlite3.Error, RuntimeError, TypeError, ValueError, KeyError):
+                _raise_replan(ReplanRepositoryErrorCode.COMMIT_INVALID)
+
+    def _require_current_job_version(
+        self,
+        job_id: UUID,
+        expected_job_version: int,
+        *,
+        captured_job_version: int,
+    ) -> None:
+        if (
+            type(expected_job_version) is not int
+            or type(captured_job_version) is not int
+            or expected_job_version < 1
+            or expected_job_version != captured_job_version
+        ):
+            _raise_replan(ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT)
+        row = self._database.connection.execute(
+            "SELECT version FROM planning_jobs WHERE job_id = ?", (str(job_id),)
+        ).fetchone()
+        if row is None:
+            _raise_replan(ReplanRepositoryErrorCode.JOB_NOT_FOUND)
+        if int(row["version"]) != captured_job_version:
+            _raise_replan(ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT)
+
+    def _insert_replan_sources(self, job: PlanningJob, sources: tuple[SourceRecord, ...]) -> None:
+        planning = SqlitePlanningJobRepository(
+            self._database, clock=self._clock, id_factory=self._id_factory
+        )
+        current_sources = (
+            {source.source_id: source for source in job.result.sources}
+            if job.result is not None
+            else {}
+        )
+        for source in sources:
+            existing = self._database.connection.execute(
+                "SELECT 1 FROM source_records WHERE job_id = ? AND source_id = ?",
+                (str(job.job_id), str(source.source_id)),
+            ).fetchone()
+            if existing is not None:
+                if current_sources.get(source.source_id) != source:
+                    _raise_replan(ReplanRepositoryErrorCode.COMMIT_INVALID)
+                continue
+            planning._insert_sources(job, (source,))
+
+    def _insert_replan_plan_version(
+        self,
+        job: PlanningJob,
+        commit: ReplanCommit,
+        *,
+        trace_id: UUID,
+        created_at: datetime,
+    ) -> int:
+        row = self._database.connection.execute(
+            "SELECT COALESCE(MAX(version_number), 0) AS value FROM plan_versions WHERE job_id = ?",
+            (str(job.job_id),),
+        ).fetchone()
+        if row is None:
+            _raise_replan(ReplanRepositoryErrorCode.COMMIT_INVALID)
+        version_number = int(row["value"]) + 1
+        plan = commit.result.plan
+        if plan is None:
+            _raise_replan(ReplanRepositoryErrorCode.COMMIT_INVALID)
+        self._database.connection.execute(
+            """
+            INSERT INTO plan_versions(
+                job_id, version_number, plan_id, attempt, trace_id,
+                status, plan_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(job.job_id),
+                version_number,
+                str(plan.plan_id),
+                job.attempt,
+                str(trace_id),
+                commit.result.status.value,
+                _json_dump(plan.model_dump(mode="json")),
+                _format_replan_datetime(created_at),
+            ),
+        )
+        for source in commit.result.sources:
+            self._database.connection.execute(
+                """
+                INSERT INTO plan_version_sources(job_id, version_number, source_id)
+                VALUES (?, ?, ?)
+                """,
+                (str(job.job_id), version_number, str(source.source_id)),
+            )
+        return version_number
+
+    def _replan_row(self, replan_id: UUID, job_id: UUID) -> sqlite3.Row:
+        row = self._database.connection.execute(
+            "SELECT * FROM replan_requests WHERE replan_id = ? AND job_id = ?",
+            (str(replan_id), str(job_id)),
+        ).fetchone()
+        if row is None:
+            _raise_replan(ReplanRepositoryErrorCode.REPLAN_NOT_FOUND)
+        return cast(sqlite3.Row, row)
+
+    def _hydrate_replan_by_id(self, replan_id: UUID, *, job_id: UUID | None = None) -> ReplanRecord:
+        if job_id is None:
+            row = self._database.connection.execute(
+                "SELECT * FROM replan_requests WHERE replan_id = ?", (str(replan_id),)
+            ).fetchone()
+            if row is None:
+                _raise_replan(ReplanRepositoryErrorCode.REPLAN_NOT_FOUND)
+        else:
+            row = self._replan_row(replan_id, job_id)
+        return self._hydrate_replan(row)
+
+    def _hydrate_replan(self, row: sqlite3.Row) -> ReplanRecord:
+        command = _command_from_json(row["request_json"])
+        impact = _impact_from_json(row["impact_json"]) if row["impact_json"] else None
+        change_set = None
+        result = None
+        if row["result_plan_version"] is not None:
+            lineage = self._database.connection.execute(
+                """
+                SELECT change_set_json FROM plan_version_lineage
+                WHERE job_id = ? AND child_version = ? AND replan_id = ?
+                """,
+                (row["job_id"], row["result_plan_version"], row["replan_id"]),
+            ).fetchone()
+            if lineage is not None:
+                change_set = _change_set_from_json(lineage["change_set_json"])
+            planning = SqlitePlanningJobRepository(
+                self._database, clock=self._clock, id_factory=self._id_factory
+            )
+            result = planning._hydrate_job(planning._job_row(UUID(row["job_id"]))).result
+        decision = None
+        if row["decision_id"]:
+            drow = self._database.connection.execute(
+                "SELECT * FROM decision_records WHERE decision_id = ?", (row["decision_id"],)
+            ).fetchone()
+            if drow is not None and impact is not None:
+                choice = None
+                if drow["user_choice_json"]:
+                    choice = ReplanChoice(json.loads(drow["user_choice_json"])["choice"])
+                decision = ReplanDecisionRecord(
+                    decision_id=UUID(drow["decision_id"]),
+                    job_id=UUID(drow["job_id"]),
+                    attempt=int(drow["attempt"]),
+                    trace_id=UUID(drow["trace_id"]),
+                    baseline_plan_version=int(drow["plan_version"] or row["baseline_plan_version"]),
+                    kind=str(drow["kind"]),
+                    status=ReplanDecisionStatus(drow["status"]),
+                    command=command,
+                    impact=impact,
+                    choice=choice,
+                    created_at=_parse_replan_datetime(drow["created_at"]),
+                    decided_at=(
+                        _parse_replan_datetime(drow["decided_at"]) if drow["decided_at"] else None
+                    ),
+                )
+        return ReplanRecord(
+            replan_id=UUID(row["replan_id"]),
+            job_id=UUID(row["job_id"]),
+            replan_request_id=UUID(row["replan_request_id"]),
+            request_fingerprint=RequestFingerprint(row["request_fingerprint"]),
+            baseline_plan_id=UUID(row["baseline_plan_id"]),
+            baseline_plan_version=int(row["baseline_plan_version"]),
+            expected_job_version=int(row["expected_job_version"]),
+            trace_id=UUID(row["trace_id"]),
+            operation=ReplanOperation(row["operation"]),
+            command=command,
+            impact=impact,
+            status=ReplanStatus(row["status"]),
+            aggregate_version=int(row["aggregate_version"]),
+            decision=decision,
+            result_plan_version=(
+                int(row["result_plan_version"]) if row["result_plan_version"] is not None else None
+            ),
+            result=result,
+            change_set=change_set,
+            error_code=row["error_code"],
+            created_at=_parse_replan_datetime(row["created_at"]),
+            updated_at=_parse_replan_datetime(row["updated_at"]),
+            expires_at=_parse_replan_datetime(row["expires_at"]),
+            decided_at=(_parse_replan_datetime(row["decided_at"]) if row["decided_at"] else None),
+        )
+
+    def _next_id(self) -> UUID:
+        identifier = self._id_factory()
+        _require_replan_ids(identifier)
+        return identifier
+
+    def _now(self) -> datetime:
+        now = self._clock()
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("replan_clock_invalid")
+        return now
+
+
+def _require_replan_ids(*identifiers: UUID) -> None:
+    if any(not isinstance(identifier, UUID) for identifier in identifiers):
+        raise ReplanRepositoryError(ReplanRepositoryErrorCode.IDENTIFIER_INVALID)
+
+
+def _require_command(command: ReplanCommand) -> None:
+    if not isinstance(
+        command, (ReplaceActivity, DeleteActivity, AdjustActivityTime, ReorderActivities)
+    ):
+        raise ReplanRepositoryError(ReplanRepositoryErrorCode.JSON_INVALID)
+
+
+def _raise_replan(code: ReplanRepositoryErrorCode) -> NoReturn:
+    raise ReplanRepositoryError(code)
+
+
+def _check_replan_version(row: sqlite3.Row, expected: int) -> None:
+    if type(expected) is not int or expected < 1:
+        _raise_replan(ReplanRepositoryErrorCode.VERSION_CONFLICT)
+    if int(row["aggregate_version"]) != expected:
+        _raise_replan(ReplanRepositoryErrorCode.VERSION_CONFLICT)
+
+
+def _command_fingerprint(command: ReplanCommand) -> RequestFingerprint:
+    return RequestFingerprint(
+        hashlib.sha256(_json_dump(_command_to_obj(command)).encode("utf-8")).hexdigest()
+    )
+
+
+def _command_to_obj(command: ReplanCommand) -> dict[str, object]:
+    if isinstance(command, ReplaceActivity):
+        return {
+            "operation": command.operation.value,
+            "target_activity_id": str(command.target_activity_id),
+            "replacement_categories": list(command.replacement_categories),
+            "reason_code": command.reason_code,
+        }
+    if isinstance(command, DeleteActivity):
+        return {
+            "operation": command.operation.value,
+            "target_activity_id": str(command.target_activity_id),
+            "reason_code": command.reason_code,
+        }
+    if isinstance(command, AdjustActivityTime):
+        return {
+            "operation": command.operation.value,
+            "target_activity_id": str(command.target_activity_id),
+            "start_time": command.start_time.isoformat(),
+            "end_time": command.end_time.isoformat(),
+            "reason_code": command.reason_code,
+        }
+    return {
+        "operation": command.operation.value,
+        "local_date": command.local_date.isoformat(),
+        "ordered_activity_ids": [str(value) for value in command.ordered_activity_ids],
+        "reason_code": command.reason_code,
+    }
+
+
+def _command_from_json(raw: str) -> ReplanCommand:
+    payload = json.loads(raw)
+    operation = ReplanOperation(payload["operation"])
+    if operation is ReplanOperation.REPLACE_ACTIVITY:
+        return ReplaceActivity(
+            UUID(payload["target_activity_id"]),
+            tuple(payload["replacement_categories"]),
+            payload.get("reason_code"),
+        )
+    if operation is ReplanOperation.DELETE_ACTIVITY:
+        return DeleteActivity(UUID(payload["target_activity_id"]), payload.get("reason_code"))
+    if operation is ReplanOperation.ADJUST_ACTIVITY_TIME:
+        return AdjustActivityTime(
+            UUID(payload["target_activity_id"]),
+            time.fromisoformat(payload["start_time"]),
+            time.fromisoformat(payload["end_time"]),
+            payload.get("reason_code"),
+        )
+    return ReorderActivities(
+        date.fromisoformat(payload["local_date"]),
+        tuple(UUID(value) for value in payload["ordered_activity_ids"]),
+        payload.get("reason_code"),
+    )
+
+
+def _impact_to_obj(impact: ImpactAnalysis) -> dict[str, object]:
+    return {
+        "categories": [value.value for value in impact.categories],
+        "disposition": impact.disposition.value,
+        "direct_refs": [str(value) for value in impact.direct_refs],
+        "transitive_refs": [str(value) for value in impact.transitive_refs],
+        "affected_dates": [value.isoformat() for value in impact.affected_dates],
+        "route_refs": [str(value) for value in impact.route_refs],
+        "source_actions": [
+            {
+                "source_id": str(value.source_id),
+                "action": value.action.value,
+                "freshness": value.freshness.value,
+                "reason": value.reason.value,
+            }
+            for value in impact.source_actions
+        ],
+        "required_validations": list(impact.required_validations),
+        "confirmation_required": impact.confirmation_required,
+    }
+
+
+def _impact_from_json(raw: str) -> ImpactAnalysis:
+    payload = json.loads(raw)
+    return ImpactAnalysis(
+        categories=tuple(ImpactCategory(value) for value in payload["categories"]),
+        disposition=ImpactDisposition(payload["disposition"]),
+        direct_refs=tuple(UUID(value) for value in payload["direct_refs"]),
+        transitive_refs=tuple(UUID(value) for value in payload["transitive_refs"]),
+        affected_dates=tuple(date.fromisoformat(value) for value in payload["affected_dates"]),
+        route_refs=tuple(UUID(value) for value in payload["route_refs"]),
+        source_actions=tuple(
+            SourceActionRecord(
+                source_id=UUID(value["source_id"]),
+                action=SourceAction(value["action"]),
+                freshness=DataFreshness(value["freshness"]),
+                reason=SourceActionReason(value["reason"]),
+            )
+            for value in payload["source_actions"]
+        ),
+        required_validations=tuple(payload["required_validations"]),
+        confirmation_required=bool(payload["confirmation_required"]),
+    )
+
+
+def _change_set_to_obj(change_set: PlanChangeSet) -> dict[str, object]:
+    return {
+        "baseline_plan_id": str(change_set.baseline_plan_id),
+        "result_plan_id": str(change_set.result_plan_id),
+        "added_refs": [str(value) for value in change_set.added_refs],
+        "removed_refs": [str(value) for value in change_set.removed_refs],
+        "changed_refs": [str(value) for value in change_set.changed_refs],
+        "added_origins": [[str(added), str(origin)] for added, origin in change_set.added_origins],
+        "change_codes": list(change_set.change_codes),
+    }
+
+
+def _change_set_from_json(raw: str) -> PlanChangeSet:
+    payload = json.loads(raw)
+    return PlanChangeSet(
+        baseline_plan_id=UUID(payload["baseline_plan_id"]),
+        result_plan_id=UUID(payload["result_plan_id"]),
+        added_refs=tuple(UUID(value) for value in payload["added_refs"]),
+        removed_refs=tuple(UUID(value) for value in payload["removed_refs"]),
+        changed_refs=tuple(UUID(value) for value in payload["changed_refs"]),
+        added_origins=tuple((UUID(value[0]), UUID(value[1])) for value in payload["added_origins"]),
+        change_codes=tuple(payload["change_codes"]),
+    )
+
+
+def _json_dump(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _format_replan_datetime(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _parse_replan_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("replan_timestamp_invalid")
+    return parsed

@@ -145,3 +145,78 @@ INITIAL_SCHEMA_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX ix_decision_records_job_created ON decision_records(job_id, created_at)",
     "CREATE INDEX ix_acceptance_records_job_observed ON acceptance_records(job_id, observed_at)",
 )
+
+
+REPLAN_SCHEMA_STATEMENTS: tuple[str, ...] = (
+    """
+    CREATE UNIQUE INDEX uq_plan_versions_job_version_plan
+    ON plan_versions(job_id, version_number, plan_id)
+    """,
+    """
+    CREATE TABLE replan_requests (
+        replan_id TEXT PRIMARY KEY CHECK (length(replan_id) = 36 AND replan_id = lower(replan_id)),
+        job_id TEXT NOT NULL,
+        replan_request_id TEXT NOT NULL CHECK (
+            length(replan_request_id) = 36 AND replan_request_id = lower(replan_request_id)
+        ),
+        request_fingerprint TEXT NOT NULL CHECK (
+            length(request_fingerprint) = 64 AND request_fingerprint = lower(request_fingerprint)
+        ),
+        baseline_plan_id TEXT NOT NULL CHECK (
+            length(baseline_plan_id) = 36 AND baseline_plan_id = lower(baseline_plan_id)
+        ),
+        baseline_plan_version INTEGER NOT NULL CHECK (baseline_plan_version >= 1),
+        expected_job_version INTEGER NOT NULL CHECK (expected_job_version >= 1),
+        trace_id TEXT NOT NULL CHECK (length(trace_id) = 36 AND trace_id = lower(trace_id)),
+        operation TEXT NOT NULL CHECK (operation IN (
+            'replace_activity', 'delete_activity', 'adjust_activity_time', 'reorder_activities'
+        )),
+        request_json TEXT NOT NULL CHECK (length(request_json) > 0),
+        impact_json TEXT,
+        status TEXT NOT NULL CHECK (status IN (
+            'analyzing', 'awaiting_confirmation', 'replanning', 'completed',
+            'needs_input', 'conflict', 'failed', 'cancelled', 'expired', 'rejected'
+        )),
+        aggregate_version INTEGER NOT NULL CHECK (aggregate_version >= 1),
+        decision_id TEXT UNIQUE CHECK (
+            decision_id IS NULL OR (length(decision_id) = 36 AND decision_id = lower(decision_id))
+        ),
+        result_plan_version INTEGER CHECK (result_plan_version IS NULL OR result_plan_version >= 1),
+        error_code TEXT CHECK (error_code IS NULL OR length(error_code) > 0),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        decided_at TEXT,
+        UNIQUE (job_id, replan_request_id),
+        FOREIGN KEY (job_id) REFERENCES planning_jobs(job_id) ON DELETE CASCADE,
+        FOREIGN KEY (job_id, baseline_plan_version, baseline_plan_id)
+            REFERENCES plan_versions(job_id, version_number, plan_id),
+        FOREIGN KEY (job_id, result_plan_version)
+            REFERENCES plan_versions(job_id, version_number),
+        FOREIGN KEY (decision_id) REFERENCES decision_records(decision_id)
+    )
+    """,
+    """
+    CREATE TABLE plan_version_lineage (
+        job_id TEXT NOT NULL,
+        child_version INTEGER NOT NULL CHECK (child_version >= 1),
+        parent_version INTEGER NOT NULL CHECK (parent_version >= 1),
+        replan_id TEXT NOT NULL UNIQUE,
+        decision_id TEXT UNIQUE,
+        change_set_json TEXT NOT NULL CHECK (length(change_set_json) > 0),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (job_id, child_version),
+        CHECK (child_version > parent_version),
+        FOREIGN KEY (job_id, child_version)
+            REFERENCES plan_versions(job_id, version_number) ON DELETE CASCADE,
+        FOREIGN KEY (job_id, parent_version)
+            REFERENCES plan_versions(job_id, version_number),
+        FOREIGN KEY (replan_id) REFERENCES replan_requests(replan_id) ON DELETE CASCADE,
+        FOREIGN KEY (decision_id) REFERENCES decision_records(decision_id)
+    )
+    """,
+    "CREATE INDEX ix_replan_requests_job_status ON replan_requests(job_id, status, updated_at)",
+    "CREATE INDEX ix_replan_requests_expires_at ON replan_requests(expires_at)",
+    "CREATE INDEX ix_replan_requests_job_trace ON replan_requests(job_id, trace_id)",
+    "CREATE INDEX ix_plan_version_lineage_parent ON plan_version_lineage(job_id, parent_version)",
+)

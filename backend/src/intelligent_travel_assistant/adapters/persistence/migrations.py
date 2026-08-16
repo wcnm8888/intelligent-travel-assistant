@@ -8,7 +8,10 @@ import sqlite3
 from dataclasses import dataclass
 
 from intelligent_travel_assistant.adapters.persistence.connection import sqlite_transaction
-from intelligent_travel_assistant.adapters.persistence.schema import INITIAL_SCHEMA_STATEMENTS
+from intelligent_travel_assistant.adapters.persistence.schema import (
+    INITIAL_SCHEMA_STATEMENTS,
+    REPLAN_SCHEMA_STATEMENTS,
+)
 
 
 class MigrationError(RuntimeError):
@@ -61,7 +64,15 @@ INITIAL_SCHEMA_MIGRATION = Migration(
     name="initial_schema",
     statements=INITIAL_SCHEMA_STATEMENTS,
 )
-DEFAULT_MIGRATIONS: tuple[Migration, ...] = (INITIAL_SCHEMA_MIGRATION,)
+REPLAN_SCHEMA_MIGRATION = Migration(
+    version=2,
+    name="replan_schema",
+    statements=REPLAN_SCHEMA_STATEMENTS,
+)
+DEFAULT_MIGRATIONS: tuple[Migration, ...] = (
+    INITIAL_SCHEMA_MIGRATION,
+    REPLAN_SCHEMA_MIGRATION,
+)
 
 
 class MigrationRunner:
