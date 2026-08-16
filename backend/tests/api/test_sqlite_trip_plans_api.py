@@ -110,7 +110,10 @@ def test_app_lifespan_creates_migrates_and_closes_only_the_temp_database(
         assert path.is_file()
         _ = database.connection
         with sqlite3.connect(path) as inspection:
-            assert inspection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 1
+            applied_versions = inspection.execute(
+                "SELECT version, name FROM schema_migrations ORDER BY version"
+            ).fetchall()
+            assert applied_versions == [(1, "initial_schema"), (2, "replan_schema")]
         assert client.get("/api/health").status_code == 200
 
     with pytest.raises(RuntimeError, match="sqlite_database_not_open"):
@@ -261,7 +264,7 @@ def test_future_database_version_prevents_application_startup(tmp_path: Path) ->
             INSERT INTO schema_migrations(version, name, checksum, applied_at)
             VALUES (?, ?, ?, ?)
             """,
-            (2, "future", "f" * 64, FUTURE_MIGRATION_TIMESTAMP),
+            (3, "future", "f" * 64, FUTURE_MIGRATION_TIMESTAMP),
         )
     finally:
         database.close()
