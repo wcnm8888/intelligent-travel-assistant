@@ -1,4 +1,8 @@
+import { useEffect, useRef, useState } from "react";
+
+import { ReplanPanel } from "./ReplanPanel";
 import type { TripPlanResponseDto } from "./tripPlanningApi";
+import type { ReplanCommand, ReplanningApi } from "./replanningApi";
 import type { MoneyDto } from "./tripRequest";
 import { ResultDiagnostics, SourceEvidence } from "./ResultEvidence";
 import type {
@@ -14,7 +18,16 @@ interface TripPlanResultProps {
   response: TripPlanResponseDto & { plan: TripPlanDto };
   onRetry?: () => void;
   onReset?: (field?: string | null) => void;
+  replanApi?: ReplanningApi;
 }
+
+type EditTarget =
+  | {
+      operation:
+        "replace_activity" | "delete_activity" | "adjust_activity_time";
+      activity: PlanDayDto["activities"][number];
+    }
+  | { operation: "reorder_activities"; day: PlanDayDto };
 
 const CATEGORY_LABELS: Record<CostCategory, string> = {
   accommodation: "住宿",
@@ -76,10 +89,14 @@ function DayCard({
   day,
   dayIndex,
   locations,
+  onEdit,
+  replanEnabled,
 }: {
   day: PlanDayDto;
   dayIndex: number;
   locations: ReadonlyMap<string, LocationRefDto>;
+  onEdit: (target: EditTarget, trigger: HTMLButtonElement) => void;
+  replanEnabled: boolean;
 }) {
   const date = dateParts(day.local_date);
   return (
@@ -94,6 +111,20 @@ function DayCard({
         <p>
           住宿锚点 · {locationName(locations, day.accommodation_location_id)}
         </p>
+        {replanEnabled && (
+          <button
+            className="day-replan-trigger"
+            type="button"
+            onClick={(event) =>
+              onEdit(
+                { operation: "reorder_activities", day },
+                event.currentTarget,
+              )
+            }
+          >
+            调整当天顺序
+          </button>
+        )}
       </header>
 
       <div
@@ -135,6 +166,43 @@ function DayCard({
                 {locationName(locations, activity.location_id)} · 至{" "}
                 {formatTime(activity.end_time)}
               </small>
+              {replanEnabled && (
+                <div className="activity-replan-actions">
+                  <button
+                    type="button"
+                    onClick={(event) =>
+                      onEdit(
+                        { operation: "replace_activity", activity },
+                        event.currentTarget,
+                      )
+                    }
+                  >
+                    替换活动
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) =>
+                      onEdit(
+                        { operation: "delete_activity", activity },
+                        event.currentTarget,
+                      )
+                    }
+                  >
+                    删除活动
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) =>
+                      onEdit(
+                        { operation: "adjust_activity_time", activity },
+                        event.currentTarget,
+                      )
+                    }
+                  >
+                    调整时间
+                  </button>
+                </div>
+              )}
             </div>
           </li>
         ))}
@@ -171,19 +239,245 @@ function DayCard({
   );
 }
 
+function ReplanComposer({
+  target,
+  onCancel,
+  onReady,
+}: {
+  target: EditTarget;
+  onCancel: () => void;
+  onReady: (command: ReplanCommand, label: string) => void;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const activity = "activity" in target ? target.activity : null;
+  const [startTime, setStartTime] = useState(
+    activity?.start_time.slice(0, 5) ?? "09:00",
+  );
+  const [endTime, setEndTime] = useState(
+    activity?.end_time.slice(0, 5) ?? "10:00",
+  );
+  const [categories, setCategories] = useState<string[]>(["culture"]);
+  const [order, setOrder] = useState(
+    target.operation === "reorder_activities"
+      ? target.day.activities.map((item) => item.item_id)
+      : [],
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
+
+  const label =
+    target.operation === "reorder_activities"
+      ? `调整 ${target.day.local_date} 活动顺序`
+      : `${
+          target.operation === "replace_activity"
+            ? "替换"
+            : target.operation === "delete_activity"
+              ? "删除"
+              : "调整时间"
+        } · ${activity?.title}`;
+
+  const submit = () => {
+    if (target.operation === "replace_activity") {
+      if (categories.length < 1 || categories.length > 3) {
+        setError("请选择 1–3 个替换类别。");
+        return;
+      }
+      onReady(
+        {
+          operation: target.operation,
+          target_activity_id: target.activity.item_id,
+          replacement_categories: categories,
+        },
+        label,
+      );
+    } else if (target.operation === "delete_activity") {
+      onReady(
+        {
+          operation: target.operation,
+          target_activity_id: target.activity.item_id,
+        },
+        label,
+      );
+    } else if (target.operation === "adjust_activity_time") {
+      if (!startTime || !endTime || endTime <= startTime) {
+        setError("结束时间必须晚于开始时间，且不能改变活动日期。");
+        return;
+      }
+      onReady(
+        {
+          operation: target.operation,
+          target_activity_id: target.activity.item_id,
+          start_time: `${startTime}:00`,
+          end_time: `${endTime}:00`,
+        },
+        label,
+      );
+    } else if (target.operation === "reorder_activities") {
+      onReady(
+        {
+          operation: target.operation,
+          local_date: target.day.local_date,
+          ordered_activity_ids: order,
+        },
+        label,
+      );
+    }
+  };
+
+  const move = (index: number, delta: number) =>
+    setOrder((current) => {
+      const next = [...current];
+      const destination = index + delta;
+      if (destination < 0 || destination >= next.length) return current;
+      [next[index], next[destination]] = [next[destination], next[index]];
+      return next;
+    });
+
+  return (
+    <section
+      className="replan-composer"
+      aria-labelledby="replan-composer-title"
+    >
+      <p>STRUCTURED CHANGE / 不发送完整 Prompt</p>
+      <h3 id="replan-composer-title" ref={heading} tabIndex={-1}>
+        {label}
+      </h3>
+      {target.operation === "replace_activity" && (
+        <fieldset>
+          <legend>替换类别（1–3 项）</legend>
+          {[
+            ["culture", "文化"],
+            ["nature", "自然"],
+            ["food", "餐饮"],
+          ].map(([value, text]) => (
+            <label key={value}>
+              <input
+                type="checkbox"
+                checked={categories.includes(value)}
+                onChange={(event) =>
+                  setCategories((current) =>
+                    event.target.checked
+                      ? [...current, value]
+                      : current.filter((item) => item !== value),
+                  )
+                }
+              />
+              {text}
+            </label>
+          ))}
+        </fieldset>
+      )}
+      {target.operation === "delete_activity" && (
+        <p>
+          将分析删除“{target.activity.title}
+          ”对路线、时间、预算和来源的影响；此时不会改变原计划。
+        </p>
+      )}
+      {target.operation === "adjust_activity_time" && (
+        <div className="replan-time-fields">
+          <label>
+            开始时间
+            <input
+              aria-label="新的开始时间"
+              type="time"
+              value={startTime}
+              onChange={(event) => setStartTime(event.target.value)}
+            />
+          </label>
+          <label>
+            结束时间
+            <input
+              aria-label="新的结束时间"
+              type="time"
+              value={endTime}
+              onChange={(event) => setEndTime(event.target.value)}
+            />
+          </label>
+        </div>
+      )}
+      {target.operation === "reorder_activities" && (
+        <ol className="reorder-list">
+          {order.map((id, index) => {
+            const item = target.day.activities.find(
+              (activityItem) => activityItem.item_id === id,
+            );
+            return (
+              <li key={id}>
+                <span>{item?.title}</span>
+                <button
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => move(index, -1)}
+                >
+                  上移
+                </button>
+                <button
+                  type="button"
+                  disabled={index === order.length - 1}
+                  onClick={() => move(index, 1)}
+                >
+                  下移
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {error && (
+        <p className="replan-form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="replan-composer__actions">
+        <button type="button" onClick={onCancel}>
+          取消
+        </button>
+        <button type="button" onClick={submit}>
+          准备影响分析
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function TripPlanResult({
   response,
   onRetry,
   onReset,
+  replanApi,
 }: TripPlanResultProps) {
-  const { plan } = response;
+  const [completedOverride, setCompletedOverride] = useState<{
+    baselinePlanId: string;
+    response: typeof response;
+  } | null>(null);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [prepared, setPrepared] = useState<{
+    command: ReplanCommand;
+    label: string;
+  } | null>(null);
+  const [baseline, setBaseline] = useState(response);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+
+  const closeReplan = () => {
+    setEditTarget(null);
+    setPrepared(null);
+    window.setTimeout(() => trigger.current?.focus(), 0);
+  };
+  const active =
+    completedOverride?.baselinePlanId === response.plan.plan_id
+      ? completedOverride.response
+      : response;
+  const { plan } = active;
   const locations = new Map(
     plan.locations.map((location) => [location.location_id, location]),
   );
-  const isPartial = response.status === "partial";
-  const isConflict = response.status === "conflict";
+  const isPartial = active.status === "partial";
+  const isConflict = active.status === "conflict";
   const canRetry =
-    isPartial && response.retryable && response.attempt < 3 && Boolean(onRetry);
+    isPartial && active.retryable && active.attempt < 3 && Boolean(onRetry);
   const hasItineraryContent = plan.days.some(
     (day) =>
       day.activities.length > 0 ||
@@ -191,11 +485,11 @@ export function TripPlanResult({
       day.weather !== null,
   );
   const verdict = isConflict
-    ? (response.violations[0]?.message ??
-      response.errors[0]?.message ??
+    ? (active.violations[0]?.message ??
+      active.errors[0]?.message ??
       "计划没有通过确定性约束校验。")
     : isPartial
-      ? `${response.uncertainties.length} 项数据尚未完成，以下计划不是完整验证结果。`
+      ? `${active.uncertainties.length} 项数据尚未完成，以下计划不是完整验证结果。`
       : "日期、路线、时间和预算均已通过服务端确定性校验。";
 
   return (
@@ -210,22 +504,22 @@ export function TripPlanResult({
                 : "代码校验通过 · 可用于决策"}
           </p>
           <h2 id="plan-stage-title">
-            {response.resolved_destination?.city_name ??
-              response.request_summary.city}
+            {active.resolved_destination?.city_name ??
+              active.request_summary.city}
             <span>双日旅笺</span>
           </h2>
           <p className="tracking-summary">
             {plan.start_date}—{plan.end_date} ·{" "}
-            {response.request_summary.travelers} 人 · 尝试 {response.attempt}/3
+            {active.request_summary.travelers} 人 · 尝试 {active.attempt}/3
           </p>
         </div>
-        <div className={`result-stamp result-stamp--${response.status}`}>
+        <div className={`result-stamp result-stamp--${active.status}`}>
           {isConflict ? "约束\n冲突" : isPartial ? "部分\n可用" : "完整\n可用"}
         </div>
       </header>
 
       <div
-        className={`result-verdict result-verdict--${response.status}`}
+        className={`result-verdict result-verdict--${active.status}`}
         role="status"
       >
         <strong>{isConflict ? "×" : isPartial ? "!" : "✓"}</strong>
@@ -255,7 +549,7 @@ export function TripPlanResult({
         </div>
       </section>
 
-      <ResultDiagnostics response={response} />
+      <ResultDiagnostics response={active} />
 
       {hasItineraryContent ? (
         <section className="result-section" aria-labelledby="days-title">
@@ -267,6 +561,15 @@ export function TripPlanResult({
                 dayIndex={index}
                 locations={locations}
                 key={day.local_date}
+                onEdit={(target, button) => {
+                  trigger.current = button;
+                  setBaseline(active);
+                  setPrepared(null);
+                  setEditTarget(target);
+                }}
+                replanEnabled={
+                  active.status === "ready" || active.status === "partial"
+                }
               />
             ))}
           </div>
@@ -311,7 +614,32 @@ export function TripPlanResult({
         </div>
       </section>
 
-      <SourceEvidence sources={response.sources} />
+      <SourceEvidence sources={active.sources} />
+
+      {editTarget && !prepared && (
+        <ReplanComposer
+          target={editTarget}
+          onCancel={closeReplan}
+          onReady={(command, label) => setPrepared({ command, label })}
+        />
+      )}
+      {editTarget && prepared && (
+        <ReplanPanel
+          api={replanApi}
+          baseline={baseline}
+          command={prepared.command}
+          commandLabel={prepared.label}
+          onClose={closeReplan}
+          onCompleted={(result) => {
+            if (result.plan) {
+              setCompletedOverride({
+                baselinePlanId: baseline.plan.plan_id,
+                response: { ...result, plan: result.plan },
+              });
+            }
+          }}
+        />
+      )}
 
       {(isPartial || isConflict) && (canRetry || onReset) && (
         <div className="outcome-actions result-actions">
@@ -327,7 +655,7 @@ export function TripPlanResult({
           )}
         </div>
       )}
-      {isPartial && response.retryable && response.attempt >= 3 && (
+      {isPartial && active.retryable && active.attempt >= 3 && (
         <p className="outcome-action-note">
           本任务已达到 3 次尝试上限，请返回修改需求后创建新任务。
         </p>

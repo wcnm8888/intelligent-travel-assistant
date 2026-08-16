@@ -1,4 +1,5 @@
 import type { PlanningStatus, TripPlanResponseDto } from "./tripPlanningApi";
+import type { ReplanningApi } from "./replanningApi";
 import { TerminalOutcome } from "./ResultEvidence";
 import { TripPlanResult } from "./TripPlanResult";
 import type { TripPlanningViewState } from "./useTripPlanningJob";
@@ -8,6 +9,7 @@ interface PlanningStageProps {
   onResume: () => void;
   onRetry: () => void;
   onReset: (field?: string | null) => void;
+  replanApi?: ReplanningApi;
 }
 
 const TRACKING_STAGES: ReadonlyArray<{
@@ -111,6 +113,7 @@ export function PlanningStage({
   onResume,
   onRetry,
   onReset,
+  replanApi,
 }: PlanningStageProps) {
   const response =
     state.phase === "tracking" ||
@@ -206,6 +209,7 @@ export function PlanningStage({
           response={{ ...response, plan: response.plan }}
           onRetry={onRetry}
           onReset={onReset}
+          replanApi={replanApi}
         />
       )}
 
