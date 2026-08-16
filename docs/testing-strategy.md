@@ -161,9 +161,9 @@ Step 20 的终态测试先因 `PlanningJobResult`/`record_result` 不存在而�
 
 MVP 没有登录和角色权限，不伪造 401/403 测试。未来引入认证时必须重新扩展权限负向矩阵。
 
-## Repository 与 SQLite 测试方向
+## Repository 与 SQLite 测试
 
-持久化任务开始后验证：
+F-002 Step 2–4 已验证：
 
 - Repository 端口与 SQLite adapter 合约一致；
 - 计划版本不可原地覆盖，旧版本可读取；
@@ -173,7 +173,23 @@ MVP 没有登录和角色权限，不伪造 401/403 测试。未来引入认证�
 - 时间、Decimal 和枚举往返不丢失语义；
 - 测试使用临时数据库，不写入真实本地业务数据库。
 
-具体 Schema、索引、事务和迁移测试在第一个持久化任务卡中定义。
+F-002 Step 1 冻结的持久化测试矩阵如下：
+
+- schema/migration：首次建库、重复运行、checksum 漂移、版本顺序、失败 rollback 和高版本 fail closed；
+- connection：`foreign_keys`、WAL、`busy_timeout`、关闭和迁移失败不启动；
+- Repository：同请求复用、异请求幂等冲突、并发创建、状态机、expected version 冲突、retry attempt/trace/limit；
+- round-trip：结构化请求、结果、来源、计划、Decimal、date/time、timezone 和 enum；
+- terminal：ready、partial、conflict、needs_input、failed 及 retryable 组合；
+- version/source：追加式版本、唯一约束、freshness、来源链接和事务失败无伪成功；
+- executor retry：真实执行器第一次发布可重试 partial 后，经 SQLite retry 追加第二个计划版本；attempt 1 UUID 保持兼容，attempt 2/3 的 plan/source 标识按 job/attempt/trace 隔离；
+- lifecycle：重启恢复、单计划删除、30 天保留期边界和未过期保留；
+- privacy：原始 provider body、Prompt、Authorization、Key/Token/JWT/private key/Cookie 拒绝和安全错误摘要；
+- API regression：现有 POST/GET/retry/health 保持兼容，不新增历史计划列表 API；
+- network isolation：临时 SQLite、fake、fixture 和普通 pytest 不读取 `.env.local`，不访问真实 Provider 或非 loopback 网络。
+
+Step 2 已用 12 项测试覆盖连接、migration 和 schema；Step 3 新增 16 项 Repository 测试，覆盖重启恢复、幂等、并发、expected version、retry、五种终态、追加版本、来源、unknown、Decimal/时区、事务回滚、损坏数据和隐私拒绝；Step 4 新增 9 项组合根与 API 集成测试，覆盖默认路径安全、启动 migration/关闭连接、应用重启读取、重复 POST、异请求幂等冲突、16 路并发创建、retry 冲突和高版本数据库 fail closed。
+
+所有 SQLite 测试使用独立 `tmp_path` 数据库和注入时钟/固定 UUID；`APP_ENV=test` 未显式提供临时数据库路径时继续使用内存替身。Step 5 已补充单计划 DELETE、job-owned 级联、删除后幂等键释放、精确 30 天边界、每次最多 1000 条的有界清理、启动清理、未过期保留、typed acceptance record、非法版本和敏感证据拒绝测试。Step 6 新增真实 `ProviderPlanningJobExecutor` → 临时 SQLite → retry → 第二计划版本纵向回归，先红后绿证明 attempt 命名空间修复。统一门禁不读取 `.env.local`，不访问真实 Provider 或非 loopback 网络，也不创建或修改真实本地业务数据库。
 
 ## 前端测试方向
 

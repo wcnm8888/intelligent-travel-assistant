@@ -320,6 +320,36 @@ def test_missing_job_and_invalid_retry_use_safe_errors() -> None:
     assert retry_error.value.code is PlanningJobRepositoryErrorCode.RETRY_NOT_ALLOWED
 
 
+def test_delete_removes_exactly_one_job_and_releases_its_idempotency_key() -> None:
+    repository, _, _ = _repository(
+        JOB_ID_ONE,
+        TRACE_ID_ONE,
+        JOB_ID_TWO,
+        TRACE_ID_TWO,
+    )
+    request = _request()
+    created = asyncio.run(repository.get_or_create(request)).job
+
+    asyncio.run(repository.delete(created.job_id))
+
+    with pytest.raises(PlanningJobRepositoryError) as missing:
+        asyncio.run(repository.get(created.job_id))
+    assert missing.value.code is PlanningJobRepositoryErrorCode.JOB_NOT_FOUND
+    recreated = asyncio.run(repository.get_or_create(request)).job
+    assert recreated.job_id == JOB_ID_TWO
+
+
+def test_delete_missing_job_uses_safe_not_found_error() -> None:
+    repository, _, _ = _repository(JOB_ID_ONE, TRACE_ID_ONE)
+    missing_id = UUID("a0000000-0000-4000-8000-000000000099")
+
+    with pytest.raises(PlanningJobRepositoryError) as missing:
+        asyncio.run(repository.delete(missing_id))
+
+    assert missing.value.code is PlanningJobRepositoryErrorCode.JOB_NOT_FOUND
+    assert str(missing_id) not in str(missing.value)
+
+
 def test_repository_protocol_and_memory_adapter_have_narrow_offline_boundary() -> None:
     repository, _, _ = _repository(JOB_ID_ONE, TRACE_ID_ONE)
     assert isinstance(repository, PlanningJobRepository)

@@ -1,4 +1,4 @@
-"""FastAPI routes for process-local planning-job resources."""
+"""FastAPI routes for local planning-job resources."""
 
 from __future__ import annotations
 
@@ -119,6 +119,27 @@ def create_trip_plan_router(
             raise
         except Exception:
             raise internal_error() from None
+
+    @router.delete(
+        "/{job_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        responses={
+            404: {"model": ApiErrorResponse},
+            500: {"model": ApiErrorResponse},
+        },
+        summary="Delete one local planning job",
+    )
+    async def delete_trip_plan(job_id: str) -> Response:
+        identifier = _job_id(job_id)
+        try:
+            await repository.delete(identifier)
+        except PlanningJobRepositoryError as error:
+            raise repository_http_error(error, operation="delete") from None
+        except PlanningHttpError:
+            raise
+        except Exception:
+            raise internal_error() from None
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.post(
         "/{job_id}/retry",

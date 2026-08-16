@@ -32,9 +32,11 @@ _TERMINAL_STATUSES: Final = frozenset(
     }
 )
 _UNSAFE_TEXT: Final = re.compile(
-    r"authorization\s*:|(?:api[_-]?key|token|secret|password)\s*[=:]",
+    r"authorization\s*:|cookie\s*:|(?:api[_-]?key|token|jwt|secret|password|"
+    r"private[_-]?key)\s*[=:]|-----BEGIN [A-Z ]*PRIVATE KEY-----",
     re.IGNORECASE,
 )
+_SAFE_CODE: Final = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,127}$")
 
 
 class PlanningJobRepositoryErrorCode(StrEnum):
@@ -78,6 +80,68 @@ class RequestFingerprint:
         )
         if len(self.digest) != 64 or has_invalid_character:
             raise ValueError("fingerprint_digest_invalid")
+
+
+class AcceptanceStatus(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    PARTIAL = "partial"
+    NOT_RUN = "not_run"
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptanceEvidence:
+    """Small code-only evidence summary; never a raw log, prompt, or provider body."""
+
+    check_codes: tuple[str, ...]
+    limitation_codes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for values in (self.check_codes, self.limitation_codes):
+            if not isinstance(values, tuple) or len(values) > 50:
+                raise ValueError("acceptance_evidence_invalid")
+            if any(
+                _SAFE_CODE.fullmatch(value) is None or _UNSAFE_TEXT.search(value) is not None
+                for value in values
+            ):
+                raise ValueError("acceptance_evidence_invalid")
+            if len(set(values)) != len(values):
+                raise ValueError("acceptance_evidence_duplicate")
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptanceRecord:
+    """Typed internal acceptance record persisted independently from public APIs."""
+
+    acceptance_id: UUID
+    job_id: UUID
+    attempt: int
+    plan_version: int | None
+    case_id: str
+    status: AcceptanceStatus
+    observed_at: datetime
+    environment: str
+    evidence: AcceptanceEvidence = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.acceptance_id, UUID) or not isinstance(self.job_id, UUID):
+            raise ValueError("acceptance_identifier_invalid")
+        if type(self.attempt) is not int or not 1 <= self.attempt <= 3:
+            raise ValueError("acceptance_attempt_invalid")
+        if self.plan_version is not None and (
+            type(self.plan_version) is not int or self.plan_version < 1
+        ):
+            raise ValueError("acceptance_plan_version_invalid")
+        if _SAFE_CODE.fullmatch(self.case_id) is None:
+            raise ValueError("acceptance_case_invalid")
+        if not isinstance(self.status, AcceptanceStatus):
+            raise ValueError("acceptance_status_invalid")
+        if not isinstance(self.observed_at, datetime) or self.observed_at.utcoffset() is None:
+            raise ValueError("acceptance_timestamp_invalid")
+        if _SAFE_CODE.fullmatch(self.environment) is None:
+            raise ValueError("acceptance_environment_invalid")
+        if not isinstance(self.evidence, AcceptanceEvidence):
+            raise ValueError("acceptance_evidence_invalid")
 
 
 def request_fingerprint(request: TripPlanRequest) -> RequestFingerprint:

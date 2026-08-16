@@ -1,5 +1,117 @@
 # 验收证据索引
 
+## F-002 Step 6 执行基线
+
+- 状态：`DELIVERY_IN_PROGRESS`；本地审查已通过，Step 地图在 PR/CI 交付完成前保持 Step 6 `TODO`；
+- 用户授权：全量门禁、文档收口和交付审查；
+- 审查范围：`HEAD` 到当前工作区的完整 F-002 累计差异，包括未跟踪 persistence 源码和测试；
+- 允许：修复审查发现的 F-002 范围内缺陷、运行全量门禁、同步已经验证的文档事实；
+- 禁止：扩大产品/Schema/migration/API/隐私范围、新增依赖、真实数据库、真实 Provider、秘密访问、分支、提交、推送、PR、合并或提前归档；
+- 必须保持：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不为 0、fallback 仅离线证据。
+- 初次全量门禁：`scripts/verify.ps1` 通过；Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0；91 个 Python/脚本文件 format、Ruff、strict mypy 通过，后端 922 项、前端 65 项、文档检查器 23 项和 Vite build 通过；
+- 范围与安全：`git diff --check` 通过；仓库内无 SQLite/DB 文件；没有 frontend、依赖、lockfile、环境或 CI 变更；没有读取 `.env.local`、调用真实 Provider、访问非 loopback 网络或创建真实业务数据库；
+- 初次阻塞证据：生产执行器以 `_id(job_id, suffix)` 生成 `plan_id`、user/system `source_id` 等稳定标识；retry 仍使用同一 job ID。SQLite schema 同时施加 `UNIQUE(job_id, plan_id)` 和 `PRIMARY KEY(job_id, source_id)`；新增纵向红测精确得到第二 attempt `failed`；
+- 修复证据：用户批准后，attempt 1 继续使用 job ID 命名空间，attempt 2/3 使用 `job_id + attempt + trace_id` 派生 UUIDv5 命名空间；Schema、migration、公开 API、产品和隐私边界未改变；
+- 纵向绿测：真实 `ProviderPlanningJobExecutor` 经纯离线 fake provider 写入临时 SQLite；第一次形成可重试 partial 计划，retry 后第二次形成新的 partial 计划；数据库含 2 个 attempt 和 2 个 plan version，两个 plan ID 不同，user/system source ID 不重叠，attempt 1 plan ID 与 F-001 原规则精确一致；
+- 定向验证：执行器、SQLite Repository 和 SQLite API 共 53 项通过；
+- 最终全量门禁：`scripts/verify.ps1` 再次通过；91 个 Python/脚本文件 format、Ruff、strict mypy，后端 923 项、前端 65 项、文档检查器 23 项和 Vite build 全部通过；
+- 最终审查：按安全、迁移、API、并发、测试和数据完整性清单复审累计差异，无剩余 P0/P1；本轮未创建分支、提交、推送或 PR，远程 CI 与实际交付证据尚未产生，因此 F-002 不归档。
+- 交付授权：用户已明确授权创建 `feat/f-002-local-plan-persistence`、精确暂存、提交、推送、创建 PR 并验证远程 CI；分支从与 `origin/main` 一致的 `38340dfed5c169911dc12042f4a90a5e042284c4` 创建，不授权自动合并。
+
+## F-002 Step 5 执行基线
+
+- 状态：`PASS`；
+- 用户授权：单计划删除、30 天保留期清理、隐私安全收口和 acceptance record 持久化；
+- 允许范围：窄 Repository/maintenance/acceptance port、内存替身、SQLite adapter、单计划 DELETE route、启动清理装配、临时数据库测试和必要文档；
+- 保持不变：schema/migration、既有 POST/GET/retry、unknown/partial 语义及 F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、fallback 仅离线证据；
+- 仍禁止：清空全部数据、历史列表、版本比较/恢复、前端、Provider、依赖、环境文件、真实数据库、真实网络、秘密或原始 Provider/Prompt 持久化。
+- 实现：单计划 delete、DELETE 204/404、job-owned cascade、删除后幂等键释放、migration 后一次最多 1000 条的 30 天 cleanup、内部 typed acceptance record；
+- 精度修复：定向测试发现 SQLite `julianday` 会舍入微秒，已改为有界候选读取后使用 Python aware datetime 精确比较，证明刚过边界删除、晚 1 微秒保留；
+- 隐私：acceptance evidence 只允许代码化 check/limitation，敏感标记、非法 plan version 和不匹配 attempt 均在写入前拒绝或事务回滚；不保存完整日志、Prompt 或 provider body；
+- 验证：Step 5 相关定向 80 项通过；统一门禁中 91 个 Python/脚本文件 format、lint、strict mypy 通过，后端 922 项、前端 65 项、文档检查器 23 项及 Vite build 通过；测试只使用内存与 `tmp_path` SQLite；
+- 状态：Step 0–5 `DONE`，Step 6 `TODO`；下一动作是等待用户明确批准 Step 6。
+
+## F-002 Step 4：现有 API SQLite 装配与恢复语义
+
+- 状态：`PASS`；
+- 用户授权：进入 Step 4，将 SQLite Repository 接入现有 API并验证重启、幂等、并发和冲突语义；
+- 允许范围：settings、bootstrap、app 组合根，临时 SQLite bootstrap/API 测试，必要的 persistence 最小缺陷修复，以及 architecture、api-contract、testing-strategy 和项目状态文档；
+- 保持不变：公开路由/DTO、Repository Protocol、Schema、migration、unknown/partial 语义和 F-001 历史证据；
+- 实现：本地应用默认使用源码树外应用数据目录中的 SQLite；显式路径必须是源码树外绝对路径；lifespan 在服务请求前打开连接并完成 migration，失败时安全停止，并在关闭时释放连接；测试注入优先，无显式路径的 test 模式继续使用内存替身；
+- API 证据：同一临时数据库上的应用重启可恢复 POST/GET 任务；重复 POST 保持原 job，同 ID 异请求返回 409；16 路并发重复创建只产生一个 job/attempt；并发 retry 只有首个成功，后续返回 409；高版本数据库阻止启动且连接关闭；
+- 定向验证：`test_bootstrap.py`、`test_sqlite_trip_plans_api.py` 和既有 API 回归共 43 项通过，其中 Step 4 新增 9 项；
+- 统一门禁：Python 3.13.3、Node 22.16.0、pnpm 11.19.0；91 个 Python/脚本文件 format、lint、strict mypy 通过；后端 913 项、前端 65 项、文档检查器 23 项、Vite build 和文档契约全部通过；
+- 安全与范围：测试只使用 `tmp_path` 数据库；未创建或修改真实业务数据库，未读取 `.env.local` 或秘密，未调用真实 Provider或访问非 loopback 网络；未修改公开路由/DTO、Repository Protocol、Schema、migration、前端、Provider、依赖或环境文件；
+- 状态：Step 0–4 `DONE`，Step 5 `TODO`；仍禁止删除/清理、历史列表、版本比较/恢复和 Step 5 实现；下一动作是等待用户明确批准 Step 5。
+
+## F-002 Step 3：SQLite PlanningJobRepository 映射
+
+- 状态：`PASS`
+- Step 0、Step 1、Step 2、Step 3：`DONE`；Step 4：`TODO`；
+- 实现：persistence adapter 内既有五方法 Repository 映射、typed hydration、job/attempt/trace、幂等指纹、乐观 version、结果 metadata、追加式 plan version 和 source records/link；
+- 原子性：创建 job+attempt、状态更新、终态 source+plan version+attempt+job、retry 新 attempt+job 均在事务中完成；expected version 条件更新失败返回稳定 `VERSION_CONFLICT`；
+- 数据语义：ready、partial、conflict、needs_input、failed 五种终态 round-trip；unknown 金额保持 `null`；Decimal、日期、time、aware datetime、freshness 和安全链接经 typed model 恢复；
+- 安全：allowlist JSON 写入前和读取后校验；秘密样式请求和 source URL 被拒绝并回滚；损坏 JSON fail closed；无 `.env.local`、Provider、非 loopback 网络或真实数据库访问；
+- 定向验证：persistence 28 项通过，其中 Step 3 Repository 16 项；既有内存 Repository 契约 12 项继续通过；
+- 统一门禁：Python 3.13.3、Node 22.16.0、pnpm 11.19.0；90 个 Python/脚本文件 format、lint、strict mypy 通过；后端 904 项、前端 65 项、文档检查器 23 项、Vite build 和文档契约全部通过；
+- 范围：未修改 Repository Protocol、API、前端、Provider、依赖、Schema 或 migration；未创建分支、提交、推送或 PR；
+- 下一动作：等待用户明确批准 Step 4，不自动接入 API。
+
+## F-002 Step 3 执行基线修复
+
+- 状态：`PASS`；
+- 原问题：Step 2 文件清单只覆盖 SQLite 基础设施，没有明确授权 Step 3 Repository adapter 和测试；
+- 用户授权：允许修复 Step 3 文件清单，并在基线门禁通过后重新进入 Step 3；
+- 已允许：persistence 目录内 SQLite `PlanningJobRepository` adapter、typed hydration、job/attempt/version/source 映射、对应临时数据库测试、项目管理文档和最终 README/roadmap 状态收口；
+- 仍禁止：Repository Protocol、API、前端、Provider、依赖、环境文件、真实数据库、删除/清理、历史列表、版本比较/恢复和真实网络；
+- 基线修复本身未实现 Repository、未创建数据库、未读取秘密、未调用 Provider；修复后的文档门禁通过，随后 Step 3 才进入实现。
+
+## F-002 Step 2 实现验证与状态收口
+
+- 状态：`PASS`
+- Step 0、Step 1、Step 2：`DONE`；
+- 已实现：persistence 目录内 SQLite 连接生命周期、事务工具、migration runner、初始 8 表 schema 和索引/约束；
+- 已验证：定向 SQLite 测试 12 项通过；全后端离线 pytest 888 项通过；persistence format、Ruff check、strict mypy 通过；状态收口后的文档检查和 `git diff --check` 通过；
+- 未执行：Repository、API、前端、Provider、真实数据库、真实网络、Step 3；
+- 状态收口：用户已批准修改 `docs/README.md` 和 `docs/project-management/roadmap.md`，并已同步全部当前状态入口；
+- 下一动作：等待用户明确批准进入 Step 3；Step 3 尚未执行。
+
+## F-002 执行基线修复：Step 2 文件清单
+
+- 状态：`PASS`
+- Step 0、Step 1：保持 `DONE`；Step 2：保持 `TODO`；
+- 原问题：执行清单错误地禁止 `backend/src/**` 和 `backend/tests/**`，与 Step 2 的 SQLite/migration 目标冲突；
+- 修复内容：仅允许 `adapters/persistence/**` 基础设施、对应临时测试和项目管理证据文档；Repository、API、前端、Provider、依赖、环境文件和真实数据库仍被禁止；
+- 未执行：SQLite、migration、Repository、API、前端、Provider、数据库创建、Step 2 测试、分支创建、提交、推送、PR 或合并；
+- 未读取：`.env.local`、Key、Token、JWT、私钥、Cookie 或其他秘密；
+- 结论：执行基线修复完成，下一步仍需用户明确批准进入 F-002 Step 2。
+
+## F-002 Step 1：Schema、迁移、连接、Repository contract 和测试矩阵冻结
+
+- 状态：`PASS`
+- 任务状态：`ACTIVE`
+- 当前 Step：`Step 1 DONE`；等待用户批准 Step 2
+- 已只读审计：Repository Protocol、内存 adapter、任务模型、结果/来源模型、状态机、API、架构和测试策略；
+- 已冻结：8 张 SQLite 表、字段与约束、索引、typed JSON 边界、migration runner、事务/rollback、连接 PRAGMA、busy timeout、version/attempt/trace、删除/30 天清理和测试矩阵；
+- 已保持：F-001 `PARTIAL`、Step 45M 历史 `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线证据；
+- 未执行：SQLite、Repository、API、前端、数据库创建、Provider、真实网络、`.env.local` 读取、秘密读取、分支创建、提交、推送、PR 或合并；
+- 设计文档：current-task、implementation-plan、progress、architecture、testing-strategy、decisions 已同步；
+- 结论：Step 1 通过，下一步只能进入 F-002 Step 2。
+
+## F-002 Step 0：事实核对与执行基线
+
+- 状态：`PASS`
+- 任务状态：`ACTIVE`
+- 当前 Step：`Step 0 DONE`
+- 环境：Windows，本地 `main`
+- Git：`main` 与 `origin/main` 均为 `38340dfed5c169911dc12042f4a90a5e042284c4`；Step 0 开始前工作区干净，完成本次基线文档更新后仅有允许清单内 6 份文档变更；`main` 未配置 upstream，但本地远程跟踪引用已直接核对一致；
+- 已核对：项目规则、文档地图、roadmap、current-task、progress、evidence、implementation-plan；
+- 已保留：F-001 `PARTIAL`、Step 45M 历史 `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线证据；
+- 已确认：F-002 数据、隐私、迁移、删除、API、单城市双日和本地 SQLite 边界；
+- 允许修改文件清单已写入 current-task；
+- 未执行：SQLite、Repository、API、前端、Provider、真实网络、`.env.local` 读取、秘密读取、分支创建、提交、推送、PR 或合并；
+- 结论：Step 0 通过，下一步只能进入 F-002 Step 1。
+
 ## 文档职责
 
 本文件只保存任务最终可复现的验收结论、环境、命令入口、人工验收和剩余风险。它不保存完整终端日志、逐 Step 过程、聊天记录、Prompt、秘密、原始第三方响应或重复截图。

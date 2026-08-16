@@ -227,6 +227,22 @@ def test_get_returns_job_and_invalid_or_missing_ids_share_safe_404() -> None:
         assert response.request.url.path not in response.text
 
 
+def test_delete_removes_one_job_and_uses_safe_not_found_contract() -> None:
+    repository, _ = _repository(JOB_ID, TRACE_ID_ONE)
+    with TestClient(create_app(planning_job_repository=repository)) as client:
+        assert client.post("/api/trip-plans", json=_payload()).status_code == 202
+        deleted = client.delete(f"/api/trip-plans/{JOB_ID}")
+        missing_get = client.get(f"/api/trip-plans/{JOB_ID}")
+        missing_delete = client.delete(f"/api/trip-plans/{JOB_ID}")
+        invalid_delete = client.delete("/api/trip-plans/not-a-uuid")
+
+    assert deleted.status_code == 204
+    assert deleted.content == b""
+    for response in (missing_get, missing_delete, invalid_delete):
+        assert response.status_code == 404
+        _assert_safe_error(response.json(), "job_not_found")
+
+
 async def _make_retryable(
     repository: InMemoryPlanningJobRepository,
     request: TripPlanRequest,
@@ -359,14 +375,22 @@ class BrokenRepository:
         del job_id, result, expected_version
         raise RuntimeError("sensitive internal detail")
 
+    async def delete(self, job_id: UUID) -> None:
+        del job_id
+        raise RuntimeError("sensitive internal detail")
+
 
 def test_unexpected_repository_failure_returns_safe_internal_error() -> None:
     with TestClient(create_app(planning_job_repository=BrokenRepository())) as client:
         response = client.post("/api/trip-plans", json=_payload())
+        delete_response = client.delete(f"/api/trip-plans/{JOB_ID}")
 
     assert response.status_code == 500
     _assert_safe_error(response.json(), "internal_error")
     assert "sensitive internal detail" not in response.text
+    assert delete_response.status_code == 500
+    _assert_safe_error(delete_response.json(), "internal_error")
+    assert "sensitive internal detail" not in delete_response.text
 
 
 def test_default_apps_have_isolated_process_local_repositories() -> None:
