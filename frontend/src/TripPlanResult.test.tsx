@@ -1,7 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import partialCase from "../../backend/tests/fixtures/synthetic_hangzhou_partial.json";
+import conflictCase from "../../backend/tests/fixtures/synthetic_hangzhou_conflict.json";
 
 import {
   readyPlanningResponse,
@@ -11,6 +13,34 @@ import { TripPlanResult } from "./TripPlanResult";
 import { parseTripPlanResponse } from "./tripPlanningApi";
 
 describe("TripPlanResult", () => {
+  it("offers the four frozen structured change operations and restores focus on cancel", async () => {
+    const user = userEvent.setup();
+    const response = readyPlanningResponse();
+    if (!response.plan) throw new Error("ready fixture must include a plan");
+    render(<TripPlanResult response={{ ...response, plan: response.plan }} />);
+
+    expect(screen.getAllByRole("button", { name: "替换活动" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "删除活动" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "调整时间" })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: "调整当天顺序" }),
+    ).toHaveLength(2);
+
+    const trigger = screen.getAllByRole("button", { name: "调整时间" })[0];
+    await user.click(trigger);
+    expect(
+      screen.getByRole("heading", { name: /调整时间 · 西湖湖滨步行/ }),
+    ).toHaveFocus();
+    await user.clear(screen.getByLabelText("新的结束时间"));
+    await user.type(screen.getByLabelText("新的结束时间"), "09:00");
+    await user.click(screen.getByRole("button", { name: "准备影响分析" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "结束时间必须晚于开始时间",
+    );
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it("renders a complete two-day plan from the server result", () => {
     const response = readyPlanningResponse();
     if (!response.plan) throw new Error("ready fixture must include a plan");
@@ -108,5 +138,14 @@ describe("TripPlanResult", () => {
     expect(screen.getByText(/地理位置、POI 和路线数据来源/)).toBeVisible();
     expect(screen.getByText("当前有效")).toBeVisible();
     expect(screen.getAllByText("有效期未知").length).toBeGreaterThan(0);
+  });
+
+  it("does not offer replan controls for a conflict baseline", () => {
+    const response = parseTripPlanResponse(conflictCase.response);
+    if (!response.plan) throw new Error("conflict fixture must include a plan");
+    render(<TripPlanResult response={{ ...response, plan: response.plan }} />);
+
+    expect(screen.queryByRole("button", { name: "替换活动" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "调整当天顺序" })).toBeNull();
   });
 });

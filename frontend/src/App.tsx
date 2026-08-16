@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { PlanningStage } from "./PlanningStage";
 import { TripRequestForm } from "./TripRequestForm";
 import type { TripPlanningApi } from "./tripPlanningApi";
+import type { ReplanningApi } from "./replanningApi";
 import {
   DEFAULT_POLLING_POLICY,
   useTripPlanningJob,
@@ -14,12 +15,14 @@ interface AppProps {
   createClientRequestId?: () => string;
   tripPlanApi?: TripPlanningApi;
   pollingPolicy?: PollingPolicy;
+  replanApi?: ReplanningApi;
 }
 
 export function App({
   createClientRequestId,
   tripPlanApi,
   pollingPolicy = DEFAULT_POLLING_POLICY,
+  replanApi,
 }: AppProps) {
   const { state, start, resume, retry, reset } = useTripPlanningJob(
     tripPlanApi,
@@ -134,11 +137,12 @@ export function App({
             void retry();
           }}
           onReset={returnToRequest}
+          replanApi={replanApi}
         />
       </main>
 
       <footer className="product-footer">
-        <span>F-001 · 单城市双日计划</span>
+        <span>F-003 · 局部重规划与影响确认</span>
         <span>计划、来源、时效与冲突均来自服务端终态 · 不推测缺失事实</span>
       </footer>
     </div>
