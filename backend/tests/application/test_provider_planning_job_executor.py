@@ -4,6 +4,7 @@ import asyncio
 import json
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -16,6 +17,12 @@ from intelligent_travel_assistant.adapters.fakes import (
     FakeDeepSeekAdapter,
     FakeOperation,
     FakeQWeatherAdapter,
+)
+from intelligent_travel_assistant.adapters.persistence import (
+    MigrationRunner,
+    SqliteConnectionConfig,
+    SqliteDatabase,
+    SqlitePlanningJobRepository,
 )
 from intelligent_travel_assistant.adapters.providers import (
     DEEPSEEK_MODEL,
@@ -69,6 +76,8 @@ NOW = datetime(2026, 8, 14, 2, tzinfo=UTC)
 FETCHED_AT = NOW + timedelta(seconds=1)
 VALID_UNTIL = NOW + timedelta(hours=1)
 JOB_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+TRACE_ID_ONE = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+TRACE_ID_TWO = UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
 HOTEL_ID = UUID("90000000-0000-4000-8000-000000000001")
 POI_ONE_ID = UUID("90000000-0000-4000-8000-000000000002")
 POI_TWO_ID = UUID("90000000-0000-4000-8000-000000000003")
@@ -246,6 +255,214 @@ def _candidate_json(poi_source_id: UUID) -> str:
             "warnings": ["synthetic candidate"],
         }
     )
+
+
+def _retry_orchestrator() -> OfflinePlanningOrchestrator:
+    """Build two fully offline attempts with distinct provider-owned source IDs."""
+
+    city_results = tuple(
+        _result(
+            Provider.AMAP,
+            CityResolution("杭州市", "330100", "0571", HOTEL_COORDS),
+            f"city_attempt_{attempt}",
+        )
+        for attempt in (1, 2)
+    )
+    accommodation_results = tuple(
+        _result(
+            Provider.AMAP,
+            PoiSearchResult(
+                (
+                    PoiCandidate(
+                        HOTEL_ID,
+                        "西湖附近住宿锚点",
+                        "lodging",
+                        "330100",
+                        "synthetic address",
+                        HOTEL_COORDS,
+                    ),
+                )
+            ),
+            f"accommodation_attempt_{attempt}",
+        )
+        for attempt in (1, 2)
+    )
+    poi_results = tuple(
+        _result(
+            Provider.AMAP,
+            PoiSearchResult(
+                (
+                    PoiCandidate(
+                        POI_ONE_ID,
+                        "西湖",
+                        "scenic_area",
+                        "330100",
+                        None,
+                        POI_ONE_COORDS,
+                    ),
+                    PoiCandidate(
+                        POI_TWO_ID,
+                        "博物馆",
+                        "museum",
+                        "330100",
+                        None,
+                        POI_TWO_COORDS,
+                    ),
+                )
+            ),
+            f"pois_attempt_{attempt}",
+        )
+        for attempt in (1, 2)
+    )
+    route_results: list[ProviderResult[RouteLeg]] = []
+    for attempt in (1, 2):
+        for index, (origin, destination, minutes) in enumerate(
+            (
+                (HOTEL_ID, POI_ONE_ID, 20),
+                (POI_ONE_ID, HOTEL_ID, 22),
+                (HOTEL_ID, POI_TWO_ID, 30),
+                (POI_TWO_ID, HOTEL_ID, 32),
+            )
+        ):
+            source = _source(Provider.AMAP, f"route_attempt_{attempt}_{index}")
+            is_retryable_partial = attempt == 1 and index == 0
+            route_results.append(
+                ProviderResult(
+                    (
+                        ProviderResultStatus.PARTIAL
+                        if is_retryable_partial
+                        else ProviderResultStatus.OK
+                    ),
+                    Provider.AMAP,
+                    RouteLeg(
+                        origin,
+                        destination,
+                        RouteMode.PUBLIC_TRANSIT,
+                        3000,
+                        minutes,
+                        (source.source_id,),
+                    ),
+                    FETCHED_AT,
+                    None,
+                    ("synthetic route",),
+                    (
+                        ProviderError(ProviderErrorCategory.TIMEOUT)
+                        if is_retryable_partial
+                        else None
+                    ),
+                    (source,),
+                )
+            )
+    qweather = FakeQWeatherAdapter(
+        weather_forecast_results=tuple(
+            _result(
+                Provider.QWEATHER,
+                WeatherForecastResult(
+                    HOTEL_ID,
+                    (
+                        DailyWeather(
+                            date(2026, 8, 15), "多云", "多云", Decimal("25"), Decimal("34")
+                        ),
+                        DailyWeather(
+                            date(2026, 8, 16), "阵雨", "多云", Decimal("24"), Decimal("32")
+                        ),
+                    ),
+                ),
+                f"forecast_attempt_{attempt}",
+            )
+            for attempt in (1, 2)
+        ),
+        weather_alert_results=tuple(
+            _result(
+                Provider.QWEATHER,
+                WeatherAlertsResult(HOTEL_ID, ()),
+                f"alerts_attempt_{attempt}",
+            )
+            for attempt in (1, 2)
+        ),
+    )
+    deepseek = FakeDeepSeekAdapter(
+        generation_results=tuple(
+            _result(
+                Provider.DEEPSEEK,
+                ModelTextOutput(_candidate_json(poi_result.source_records[0].source_id)),
+                f"candidate_attempt_{attempt}",
+            )
+            for attempt, poi_result in zip((1, 2), poi_results, strict=True)
+        )
+    )
+    search_results = tuple(
+        result for pair in zip(accommodation_results, poi_results, strict=True) for result in pair
+    )
+    return OfflinePlanningOrchestrator(
+        FakeAmapAdapter(
+            resolve_city_results=city_results,
+            search_pois_results=search_results,
+            calculate_routes_results=tuple(route_results),
+        ),
+        qweather,
+        deepseek,
+        lambda: ToolCallGovernor(clock=lambda: 0.0),
+    )
+
+
+def test_real_executor_retry_appends_a_second_sqlite_plan_version(tmp_path: Path) -> None:
+    database = SqliteDatabase(SqliteConnectionConfig(path=tmp_path / "retry.sqlite3"))
+    connection = database.open()
+    MigrationRunner().run(connection)
+    repository = SqlitePlanningJobRepository(
+        database,
+        clock=lambda: NOW,
+        id_factory=iter((JOB_ID, TRACE_ID_ONE, TRACE_ID_TWO)).__next__,
+    )
+    executor = ProviderPlanningJobExecutor(
+        repository,
+        _retry_orchestrator(),
+        clock=lambda: NOW,
+    )
+
+    async def scenario() -> tuple[PlanningJob, PlanningJob]:
+        reservation = await repository.get_or_create(_request())
+        await executor.execute(reservation.job.job_id)
+        first = await repository.get(reservation.job.job_id)
+        assert first.status is PlanningStatus.PARTIAL
+        assert first.retryable is True
+        assert first.result is not None and first.result.plan is not None
+
+        retried = await repository.retry(first.job_id, expected_version=first.version)
+        assert retried.attempt == 2
+        await executor.execute(retried.job_id)
+        return first, await repository.get(retried.job_id)
+
+    try:
+        first, second = asyncio.run(scenario())
+        retry_namespace = uuid5(
+            NAMESPACE_URL,
+            f"f-002:{JOB_ID}:attempt:2:trace:{TRACE_ID_TWO}",
+        )
+        assert first.result is not None and first.result.plan is not None
+        assert first.result.plan.plan_id == uuid5(NAMESPACE_URL, f"f-001:{JOB_ID}:plan")
+        assert second.status is PlanningStatus.PARTIAL
+        assert second.result is not None and second.result.plan is not None
+        assert second.result.errors == ()
+        assert second.result.plan.plan_id == uuid5(
+            NAMESPACE_URL,
+            f"f-001:{retry_namespace}:plan",
+        )
+        assert second.result.plan.plan_id != first.result.plan.plan_id
+        assert {
+            source.source_id
+            for source in second.result.sources
+            if source.provider.value in {"user", "system"}
+        }.isdisjoint(
+            source.source_id
+            for source in first.result.sources
+            if source.provider.value in {"user", "system"}
+        )
+        assert connection.execute("SELECT COUNT(*) FROM plan_versions").fetchone()[0] == 2
+        assert connection.execute("SELECT COUNT(*) FROM planning_attempts").fetchone()[0] == 2
+    finally:
+        database.close()
 
 
 async def _execute(

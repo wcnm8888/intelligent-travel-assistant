@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文件是 F-001 旅行计划 HTTP API、公开 DTO、状态和错误码的唯一权威说明。对应 Python Schema 位于 `backend/src/intelligent_travel_assistant/contracts/`。五种终态结果快照、POST/GET/retry、前端严格解析与有界轮询均已实现；三家 provider 配置全部就绪时，POST/retry 会调度真实规划执行器，否则只登记 `draft` 资源且不访问 provider。默认测试组合明确禁用本地 provider 配置和外部网络。
+本文件是 F-001 旅行计划 HTTP API、公开 DTO、状态和错误码的唯一权威说明。对应 Python Schema 位于 `backend/src/intelligent_travel_assistant/contracts/`。五种终态结果快照、POST/GET/retry、前端严格解析与有界轮询均已实现；F-002 保持这些公开契约不变，并在本地应用模式默认使用 SQLite Repository。三家 provider 配置全部就绪时，POST/retry 会调度真实规划执行器，否则只登记 `draft` 资源且不访问 provider。默认测试组合明确禁用本地 provider 配置和外部网络。
 
 ## 契约原则
 
@@ -24,7 +24,7 @@
 - 请求体：`TripPlanRequest`；
 - 成功接收：`202 Accepted`，响应为 `TripPlanResponse`，初始可观察状态为 `draft` 或 `normalizing`；
 - Header `Location` 指向 `/api/trip-plans/{job_id}`；
-- 相同 `client_request_id` 和规范化后相同请求体在进程存活期间返回原任务，不重复产生外部调用；
+- 相同 `client_request_id` 和规范化后相同请求体返回原任务；使用同一本地 SQLite 数据库重启后仍保持该幂等语义，不重复产生外部调用；
 - 相同 ID 对应不同请求体返回 `409 idempotency_conflict`；
 - HTTP/Pydantic 格式错误返回 `422 input_invalid`，此时任务可以尚未创建。
 
@@ -33,7 +33,7 @@
 `GET /api/trip-plans/{job_id}`
 
 - 存在时返回 `200 OK` 和当前 `TripPlanResponse`；
-- 不存在、已因进程重启丢失或无效 ID 返回 `404 job_not_found`；
+- 不存在或无效 ID 返回 `404 job_not_found`；使用同一本地 SQLite 数据库重启后，已保存任务仍可查询；
 - 客户端轮询间隔第一版固定不低于 1 秒；终态后停止轮询；
 - 服务端状态是事实来源，前端不得伪造中间阶段。
 
@@ -47,6 +47,15 @@
 - 不可重试、已达上限或非终态任务返回 `409 retry_not_allowed`；
 - `ready`、`conflict` 和 `needs_input` 不允许通过该接口盲目重试；用户必须新建或调整请求。
 
+### 删除单个计划任务
+
+`DELETE /api/trip-plans/{job_id}`
+
+- 存在时原子删除该 job 及其 attempt、内部计划版本、来源关联、decision 和 acceptance 子记录，返回 `204 No Content`；
+- 不存在或 ID 无效返回 `404 job_not_found`；
+- 删除后相同 `client_request_id` 可创建新任务；
+- 不提供批量删除、清空全部数据、历史列表、版本比较或恢复能力。
+
 ### 健康接口
 
 现有 `GET /api/health` 契约保持不变，不依赖任何 provider 凭证。
@@ -59,7 +68,8 @@ HTTP 状态表示是否接受/找到资源；计划 `status` 表示业务阶段�
 | ---: | --- | --- |
 | 202 | 无 | 创建或重试任务已接受 |
 | 200 | 无 | 查询到任务，包括业务 `partial`、`conflict` 或 `failed` |
-| 404 | `job_not_found` | 任务不存在或进程重启后已丢失 |
+| 204 | 无 | 单个计划任务及其 job-owned 数据已删除 |
+| 404 | `job_not_found` | 任务不存在或 ID 无效 |
 | 409 | `idempotency_conflict` | 同一 client request ID 对应不同内容 |
 | 409 | `retry_not_allowed` | 任务状态、次数或 retryable 不允许重试 |
 | 422 | `input_invalid` | HTTP 请求无法通过公开 Schema |
@@ -256,7 +266,8 @@ D-009 及 F-001-CR1 已把最终精确时间交给确定性调度器，同时保
 
 ## 当前限制
 
-- 任务与结果只存于进程内 Repository，进程退出后丢失；
+- 本地应用模式的任务与结果保存于 SQLite；测试可显式注入内存 Repository，或在 `APP_ENV=test` 且未提供临时 SQLite 路径时使用内存替身；
+- 已启动的后台规划不是持久化任务队列，应用退出时不会自动续跑进行中的外部调用；重启只恢复最后一次已提交的任务、attempt、结果和版本快照；
 - 真实规划执行器只有在 DeepSeek、高德和和风三组配置全部就绪时启用；
 - Step 38 只取得一次 live 契约证据；Step 39 和补充 Step 45A、45C、45E 均未取得 ready/partial 真实计划 UAT；Step 45H 已实现确定性调度器但只具备离线证据，不构成新的 live UAT 通过；
-- 局部重规划、SQLite 持久化、多城市和交易能力不属于 F-001。
+- SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。局部重规划、批量清空、历史列表、版本比较/恢复、多城市和交易能力仍不在当前范围内。

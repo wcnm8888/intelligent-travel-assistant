@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from time import monotonic
 from typing import Final
 
+from intelligent_travel_assistant.adapters.persistence import (
+    MigrationRunner,
+    SqliteConnectionConfig,
+    SqliteDatabase,
+    SqlitePlanningJobRepository,
+)
 from intelligent_travel_assistant.adapters.providers import (
     AmapAdapter,
     AmapAdapterConfig,
@@ -16,14 +24,18 @@ from intelligent_travel_assistant.adapters.providers import (
     QWeatherAdapter,
     QWeatherAdapterConfig,
 )
+from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
 from intelligent_travel_assistant.application.execution import PlanningJobExecutor
-from intelligent_travel_assistant.application.repositories import PlanningJobRepository
+from intelligent_travel_assistant.application.repositories import (
+    PlanningJobMaintenanceRepository,
+    PlanningJobRepository,
+)
 from intelligent_travel_assistant.application.services import (
     OfflinePlanningOrchestrator,
     ProviderPlanningJobExecutor,
 )
 from intelligent_travel_assistant.application.tooling import ToolCallGovernor
-from intelligent_travel_assistant.settings import Settings
+from intelligent_travel_assistant.settings import Settings, default_local_sqlite_database_path
 
 MAX_PRIVATE_KEY_BYTES: Final = 16_384
 
@@ -62,6 +74,60 @@ class ProviderAdapters:
     deepseek: DeepSeekAdapter | None = field(default=None, repr=False)
     amap: AmapAdapter | None = field(default=None, repr=False)
     qweather: QWeatherAdapter | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class PlanningPersistence:
+    """Application-owned Repository plus optional SQLite lifecycle resources."""
+
+    repository: PlanningJobRepository = field(repr=False)
+    maintenance: PlanningJobMaintenanceRepository | None = field(default=None, repr=False)
+    database: SqliteDatabase | None = field(default=None, repr=False)
+    database_path: Path | None = field(default=None, repr=False)
+
+    async def start(self) -> None:
+        """Migrate and clean expired rows before the application serves requests."""
+
+        if self.database is None:
+            return
+        path = self.database_path
+        if path is None:
+            raise StartupConfigurationError("sqlite_persistence_invalid")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            connection = self.database.open()
+            MigrationRunner().run(connection)
+            if self.maintenance is not None:
+                await self.maintenance.cleanup_expired(datetime.now(UTC))
+        except (OSError, sqlite3.Error, RuntimeError, ValueError):
+            self.database.close()
+            raise StartupConfigurationError("sqlite_persistence_unavailable") from None
+
+    def close(self) -> None:
+        """Close an owned SQLite connection without affecting injected repositories."""
+
+        if self.database is not None:
+            self.database.close()
+
+
+def build_planning_persistence(settings: Settings) -> PlanningPersistence:
+    """Compose the default local Repository without opening or creating files."""
+
+    if settings.app_env == "test" and settings.sqlite_database_path is None:
+        return PlanningPersistence(repository=InMemoryPlanningJobRepository())
+
+    path = settings.sqlite_database_path or default_local_sqlite_database_path()
+    try:
+        database = SqliteDatabase(SqliteConnectionConfig(path=path))
+        repository = SqlitePlanningJobRepository(database)
+    except (TypeError, ValueError):
+        raise StartupConfigurationError("sqlite_persistence_invalid") from None
+    return PlanningPersistence(
+        repository=repository,
+        maintenance=repository,
+        database=database,
+        database_path=path,
+    )
 
 
 def build_provider_adapters(settings: Settings) -> ProviderAdapters:

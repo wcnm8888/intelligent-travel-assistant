@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文件定义 Intelligent Travel Assistant 当前批准的目标架构。B-000 建立了工程基线和健康检查；F-001 已冻结 provider-neutral 契约、领域校验和 provider 端口，并建立离线 fake、显式状态机、应用编排、调用治理、DeepSeek 本地严格解析/单次修复、最终确定性裁决、进程内 Repository、任务资源 API、React 旅行需求表单、受控轮询与 retry、五种终态界面，以及按完整本地配置条件装配的 DeepSeek、高德、和风 HTTP adapter 和真实规划执行器。synthetic 五终态已通过真实本机浏览器闭环；Step 38 取得一次脱敏 live 契约证据，Step 45T 已取得完整双日 partial 的通过式真实 UAT。产品仍保留 PARTIAL 边界：unknown 费用不按 0 处理，混合交通 fallback 的真实质量未宣称覆盖。
+本文件定义 Intelligent Travel Assistant 当前批准的目标架构。B-000 建立了工程基线和健康检查；F-001 已冻结 provider-neutral 契约、领域校验和 provider 端口，并建立离线 fake、显式状态机、应用编排、调用治理、DeepSeek 本地严格解析/单次修复、最终确定性裁决、任务资源 API、React 旅行需求表单、受控轮询与 retry、五种终态界面，以及按完整本地配置条件装配的 DeepSeek、高德、和风 HTTP adapter 和真实规划执行器。F-002 Step 2–4 已在同一 Repository 端口后实现本地 SQLite 基础设施、持久化 adapter 和现有 API 装配。synthetic 五终态已通过真实本机浏览器闭环；Step 38 取得一次脱敏 live 契约证据，Step 45T 已取得完整双日 partial 的通过式真实 UAT。产品仍保留 PARTIAL 边界：unknown 费用不按 0 处理，混合交通 fallback 的真实质量未宣称覆盖。
 
 ## 系统目标
 
@@ -309,15 +309,15 @@ F-001 Step 18 已在 `application/repositories/` 与 `adapters/repositories/` �
 - 规范化 typed 请求排除 `client_request_id` 后序列化为排序 canonical JSON，并仅保留 SHA-256 摘要；请求正文、Prompt、provider 数据和凭证不进入指纹；
 - 单进程适配器用异步锁原子化 client ID 预留，同 ID/同请求返回已有不可变快照，同 ID/异请求稳定冲突；
 - job 以 version 防止并发丢失更新，普通推进和 retry 都委托唯一状态机；retry 最多 3 个 attempt，并保留 job/client ID、更新 trace；
-- 该实现不跨重启、不跨进程，不包含 SQLite、migration、后台 worker 或 HTTP；F-002 的 SQLite adapter 必须实现同一应用端口而不改变本任务幂等语义。
+- `InMemoryPlanningJobRepository` 仍是单进程测试替身，不跨重启、不跨进程；F-002 的 SQLite adapter 已实现同一应用端口并保持原幂等语义。
 
-F-001 Step 19 已在 `api/` 建立进程内任务的 HTTP adapter：
+F-001 Step 19 已在 `api/` 建立任务资源 HTTP adapter，F-002 Step 4 只更新组合根装配：
 
-- `app.py` 是唯一组合根，每个应用实例默认获得独立的 `InMemoryPlanningJobRepository`；测试可注入应用端口，不需要 provider 配置；
+- `app.py` 是唯一组合根；本地应用默认装配 SQLite Repository，测试可注入应用端口，`APP_ENV=test` 且未显式提供临时 SQLite 路径时使用独立内存替身；
 - POST、GET 和 retry 路由只依赖 `PlanningJobRepository` 与可选的窄 `PlanningJobExecutor` 应用端口，不导入离线编排服务、provider 端口/fake、数据库或网络客户端；
 - job 到 `TripPlanResponse` 的映射只公开请求摘要和可观察任务字段，不公开规范化请求、指纹或内部 version；
 - Repository 的幂等、未找到、retry 策略和未知错误分别映射为固定 409、404、409 和 500 envelope；请求 Schema 错误统一映射为 422，原始验证细节不返回；
-- 未注入 executor 时 POST 只登记 `draft`；注入时只有新建 job 会通过 FastAPI background task 调度一次，幂等复用不重复调度，retry 成功后重新调度同一 job。该机制不是持久化队列，进程退出会丢失在途任务。
+- 未注入 executor 时 POST 只登记 `draft`；注入时只有新建 job 会通过 FastAPI background task 调度一次，幂等复用不重复调度，retry 成功后重新调度同一 job。该机制不是持久化队列，进程退出会中断在途执行，但已提交快照可从 SQLite 恢复。
 
 F-001 Step 20 已建立终态结果快照和 API 映射边界：
 
@@ -480,7 +480,27 @@ D-009 保持状态名称不变：`planning` 已改为生成并校验无最终时
 - Web UI 使用服务端响应作为计划和确认状态的事实来源；
 - 外部响应可按 provider、查询参数和有效期建立受控缓存，但不能把过期缓存伪装为最新数据；
 - 计划、来源、工具调用和用户确认通过 `trace_id`、`plan_id`、`plan_version` 和 `decision_id` 关联；
-- MVP 使用 SQLite，具体表、索引和迁移在后续持久化任务中设计。
+- 本地应用模式使用 SQLite 保存任务、attempt、计划版本和来源；测试仍可通过组合根注入内存 Repository。
+
+### F-002 SQLite 持久化边界
+
+F-002 Step 1 已冻结本地 SQLite 设计，Step 2–4 已实现基础设施、Repository adapter 和现有 API 装配：
+
+- `schema_migrations`、`planning_jobs`、`planning_attempts`、`plan_versions`、`source_records`、`plan_version_sources`、`decision_records` 和 `acceptance_records` 由项目自有 migration runner 建立；
+- `planning_jobs` 保存当前任务快照、allowlist 结构化请求、SHA-256 指纹、attempt、trace、状态、retryable、乐观 version 和 30 天 `expires_at`；`planning_attempts` 保存每次 attempt 的状态和安全终态元数据；
+- `plan_versions` 追加保存经过 typed model 校验的计划 JSON，不能原地覆盖；`source_records` 只保存转换后的来源元数据、获取时间、validity、freshness、归因和安全链接；
+- 真实执行器的 attempt 1 继续沿用 F-001 的 job 级 UUIDv5 标识；retry attempt 2/3 使用由 `job_id + attempt + trace_id` 派生的稳定命名空间，避免同一 job 的追加式 plan/source 标识触发唯一约束，同时保持重启后可复现；
+- 金额、坐标和温度使用十进制文本，时间使用带时区 ISO-8601 文本，JSON 读写前后都必须经过项目 typed model；`unknown` 费用为 `amount=null`，不得转成零；
+- 所有业务记录通过 `job_id` 隔离并启用外键级联删除；单计划 DELETE 由 Repository 原子删除 job，启动时 maintenance port 最多清理 1000 个已到期 job，当前不提供清空全部数据；
+- Repository 继续实现既有 `get_or_create`、`get`、`advance`、`record_result`、`retry` 原子端口；SQLite adapter 不泄漏到 domain、API 或 Agent；
+- 连接初始化固定 `foreign_keys=ON`、`busy_timeout=5000`、`journal_mode=WAL`、`synchronous=FULL`；迁移采用升序版本、checksum 校验、事务提交和失败回滚，不支持自动降级；
+- 持久化保存安全结构化字段，不保存 Key、Token、JWT、私钥、Cookie、Authorization、原始 provider 响应、原始错误 body 或完整 Prompt。
+
+应用组合根在 lifespan 接受请求前创建父目录、打开连接并完成 migration，migration 失败或数据库版本高于应用支持版本时安全停止启动，关闭时释放连接。显式数据库路径必须为项目源码树外的绝对路径；未配置时使用操作系统本地应用数据目录。模块导入本身不创建数据库。`APP_ENV=test` 且未显式提供临时路径时使用内存替身；SQLite 集成测试只使用独立临时数据库。
+
+当前重启恢复的是最后一次已提交快照；后台规划执行不是持久化队列，不承诺重启后自动续跑。Step 5 已实现单计划删除、migration 后一次有界 30 天清理，以及内部 typed acceptance record 写入。验收证据只允许固定 case/environment/status 和代码化 check/limitation，不保存完整日志、Prompt 或 provider body，也没有公开验收记录 API。
+
+该设计不新增历史列表、版本比较或恢复 API，不扩展多城市/多日/局部重规划，不授权真实 Provider 调用。具体字段、事务和测试矩阵以 F-002 当前实施计划为准。
 
 ## 错误与降级
 

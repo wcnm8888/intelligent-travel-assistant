@@ -1,5 +1,7 @@
-"""FastAPI application and health contract."""
+"""FastAPI application, persistence lifespan, and health contract."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Final, Literal
 
 from fastapi import FastAPI, Request
@@ -7,7 +9,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
-from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
 from intelligent_travel_assistant.api import (
     PlanningHttpError,
     create_trip_plan_router,
@@ -17,8 +18,10 @@ from intelligent_travel_assistant.api import (
 from intelligent_travel_assistant.application.execution import PlanningJobExecutor
 from intelligent_travel_assistant.application.repositories import PlanningJobRepository
 from intelligent_travel_assistant.bootstrap import (
+    PlanningPersistence,
     ProviderAdapters,
     build_planning_job_executor,
+    build_planning_persistence,
     build_provider_adapters,
 )
 from intelligent_travel_assistant.settings import Settings, get_settings
@@ -44,22 +47,37 @@ def create_app(
     """Create an application instance without requiring third-party credentials."""
 
     resolved_settings = settings or get_settings()
+    persistence: PlanningPersistence | None = None
+    if planning_job_repository is None:
+        persistence = build_planning_persistence(resolved_settings)
+        repository = persistence.repository
+    else:
+        repository = planning_job_repository
+
+    @asynccontextmanager
+    async def lifespan(_application: FastAPI) -> AsyncIterator[None]:
+        if persistence is not None:
+            await persistence.start()
+        try:
+            yield
+        finally:
+            if persistence is not None:
+                persistence.close()
+
     application = FastAPI(
         title="Intelligent Travel Assistant API",
         version="0.1.0",
+        lifespan=lifespan,
     )
     application.state.settings = resolved_settings
+    application.state.planning_persistence = persistence
+    application.state.sqlite_database = persistence.database if persistence is not None else None
     resolved_adapters = (
         provider_adapters
         if provider_adapters is not None
         else build_provider_adapters(resolved_settings)
     )
     application.state.provider_adapters = resolved_adapters
-    repository = (
-        planning_job_repository
-        if planning_job_repository is not None
-        else InMemoryPlanningJobRepository()
-    )
     application.state.planning_job_repository = repository
     executor = (
         planning_job_executor

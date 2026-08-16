@@ -154,9 +154,18 @@ class ProviderPlanningJobExecutor:
                 PlanningStatus.NORMALIZING,
                 expected_version=job.version,
             )
+        identity_namespace = _execution_identity_namespace(
+            job_id=job.job_id,
+            trace_id=job.trace_id,
+            attempt=job.attempt,
+        )
         started_at = self._now()
         try:
-            request = _offline_request(job.request, job_id=job_id, evaluated_at=started_at)
+            request = _offline_request(
+                job.request,
+                job_id=identity_namespace,
+                evaluated_at=started_at,
+            )
         except DomainInvariantError as error:
             await self._repository.record_result(
                 job_id,
@@ -198,7 +207,7 @@ class ProviderPlanningJobExecutor:
             result = _planning_result(
                 outcome,
                 job.request,
-                job_id=job_id,
+                job_id=identity_namespace,
                 evaluated_at=request.evaluated_at,
             )
             await self._repository.record_result(
@@ -901,3 +910,14 @@ def _internal_failure_result() -> PlanningJobResult:
 
 def _id(job_id: UUID, suffix: str) -> UUID:
     return uuid5(NAMESPACE_URL, f"f-001:{job_id}:{suffix}")
+
+
+def _execution_identity_namespace(*, job_id: UUID, trace_id: UUID, attempt: int) -> UUID:
+    """Keep attempt one stable and isolate identifiers created by later retries."""
+
+    if attempt == 1:
+        return job_id
+    return uuid5(
+        NAMESPACE_URL,
+        f"f-002:{job_id}:attempt:{attempt}:trace:{trace_id}",
+    )

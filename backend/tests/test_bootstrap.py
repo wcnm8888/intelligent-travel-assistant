@@ -18,7 +18,12 @@ from intelligent_travel_assistant.bootstrap import (
     StartupConfigurationError,
     build_provider_adapters,
 )
-from intelligent_travel_assistant.settings import SETTINGS_ENV_FILE, Settings
+from intelligent_travel_assistant.settings import (
+    PROJECT_ROOT,
+    SETTINGS_ENV_FILE,
+    Settings,
+    default_local_sqlite_database_path,
+)
 
 PROVIDER_ENVIRONMENT = (
     "DEEPSEEK_API_KEY",
@@ -73,6 +78,33 @@ def test_test_composition_never_consults_local_dotenv() -> None:
     assert application.state.provider_adapters.report.amap is ProviderActivationState.DISABLED
     assert application.state.provider_adapters.report.qweather is ProviderActivationState.DISABLED
     assert application.state.planning_job_executor is None
+    assert application.state.sqlite_database is None
+
+
+def test_sqlite_database_path_must_be_absolute() -> None:
+    with pytest.raises(ValidationError, match="sqlite database path must be absolute"):
+        _settings(sqlite_database_path=Path("relative/travel-plans.sqlite3"))
+
+
+def test_sqlite_database_path_must_stay_outside_the_project_tree() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="sqlite database path must be outside the project tree",
+    ):
+        _settings(sqlite_database_path=(PROJECT_ROOT / "travel-plans.sqlite3").resolve())
+
+
+def test_default_local_sqlite_path_stays_outside_source_tree(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    local_app_data = (tmp_path / "local-app-data").resolve()
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+
+    path = default_local_sqlite_database_path()
+
+    assert path == local_app_data / "IntelligentTravelAssistant" / "travel-plans.sqlite3"
+    assert not path.exists()
 
 
 def test_test_suite_denies_non_loopback_network() -> None:
@@ -217,6 +249,7 @@ def test_settings_repr_hides_secret_values_and_private_key_path(tmp_path: Path) 
     deepseek_value = "deepseek-" + "sensitive-value"
     amap_value = "amap-" + "sensitive-value"
     settings = _settings(
+        sqlite_database_path=(tmp_path / "private-travel-plans.sqlite3").resolve(),
         deepseek_api_key=deepseek_value,
         amap_api_key=amap_value,
         qweather_api_host="account.qweatherapi.com",
@@ -234,6 +267,7 @@ def test_settings_repr_hides_secret_values_and_private_key_path(tmp_path: Path) 
         "sensitive_project",
         "sensitive_credential",
         str(private_key_path),
+        str((tmp_path / "private-travel-plans.sqlite3").resolve()),
     ):
         assert sensitive not in rendered
 

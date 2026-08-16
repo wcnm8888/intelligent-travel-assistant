@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from intelligent_travel_assistant.application.repositories.models import (
+    AcceptanceRecord,
     PlanningJob,
     PlanningJobReservation,
     PlanningJobResult,
@@ -39,3 +41,19 @@ class PlanningJobRepository(Protocol):
     ) -> PlanningJob: ...
 
     async def retry(self, job_id: UUID, *, expected_version: int) -> PlanningJob: ...
+
+    async def delete(self, job_id: UUID) -> None: ...
+
+
+@runtime_checkable
+class PlanningJobMaintenanceRepository(Protocol):
+    """Internal lifecycle operations that are never exposed as bulk public APIs."""
+
+    async def cleanup_expired(self, now: datetime, *, limit: int = 1000) -> int: ...
+
+
+@runtime_checkable
+class AcceptanceRecordRepository(Protocol):
+    """Internal typed acceptance evidence writer."""
+
+    async def record_acceptance(self, record: AcceptanceRecord) -> AcceptanceRecord: ...

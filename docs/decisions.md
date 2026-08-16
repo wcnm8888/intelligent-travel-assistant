@@ -322,3 +322,28 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 - Step 46 已按“PR #5 合并到功能分支，再复验并合并 PR #4 到 `main`”完成；Step 47 已完成文档归档。F-001 保持产品状态 `PARTIAL`，后续 live 调用、门票价格能力或范围扩展必须重新批准。
 
 批准的实施边界为：每日最多 2 项；时长 `60/120/180` 分钟且景区、博物馆缺省 120 分钟；步行/公交每段缓冲 10/15 分钟；每天最多移除一次最低优先级 optional 并公开 warning；required 容量不足为 conflict、unknown 时长为 needs_input；无可用路线为 failed，只有携带合法 `RouteLeg` 的 partial 数据可形成 partial 计划。交付采用 stacked PR，并批准 Step 45H 的 24–34 文件、1200–2200 行范围例外。详细设计见 [F-001-CR1 变更卡](./project-management/f-001-cr1-deterministic-scheduling.md)。
+
+## D-010：F-002 仅本地 SQLite 的持久化边界
+
+- 状态：`用户已确认；Step 1 已冻结设计；Step 2–5 已实现`
+- 日期：2026-08-15
+- 适用范围：F-002 本地计划、来源、版本、decision 和 acceptance 持久化
+
+### 决策
+
+- SQLite 只作为本地单应用存储，数据库实现必须隔离在 Repository adapter；domain、API 和 Agent 不直接依赖 SQLite；
+- 使用项目自有升序 migration runner，记录 migration checksum，迁移在事务中执行；不支持自动 down migration、自动降级或导入 F-001 进程内状态；
+- 保存经过 allowlist 和 typed model 校验的结构化请求、转换后计划字段、来源 freshness、内部版本和安全验收/decision 摘要；
+- 不保存 Key、Token、JWT、私钥、Cookie、Authorization、provider 原始响应、原始错误 body 或完整 Prompt；
+- 计划版本追加写入，不提供版本比较、恢复或历史列表 API；单计划删除和 migration 后一次最多 1000 条的 30 天过期清理由 Repository/maintenance port 实现，不支持清空全部数据；
+- acceptance record 只接受 typed、代码化的 case/environment/status/check/limitation 摘要，不开放公开写入或查询 API，不保存完整日志、Prompt 或 provider body；
+- `unknown` 费用必须保持 `amount=null`，`partial`、`conflict`、`needs_input` 和 `failed` 不得被持久化或投影为 `ready`；
+- 默认测试使用临时 SQLite、内存/fake 和脱敏 fixture，不读取 `.env.local`，不访问真实 Provider。
+
+### 后果
+
+- F-002 后续实现必须维持既有 `PlanningJobRepository` 方法和幂等/version 语义；
+- attempt 1 保持 F-001 原 job 级 UUIDv5 标识；retry attempt 2/3 使用由 job、attempt 和 trace 派生的稳定命名空间，确保追加式计划版本和来源在同一 job 内不发生标识冲突；
+- schema、JSON、状态或来源不一致时读取必须 fail closed，不能返回未经 typed model 校验的数据库内容；
+- F-001 的高德原始响应和进程内-only 决策不被持久化授权覆盖；只有转换后的必要结构化字段进入本地数据库；
+- 任何云同步、多人、登录、公开部署、版本恢复、历史列表或原始响应留存都需要新的任务和用户确认。

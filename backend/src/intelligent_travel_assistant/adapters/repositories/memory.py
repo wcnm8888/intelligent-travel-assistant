@@ -190,6 +190,14 @@ class InMemoryPlanningJobRepository:
             self._jobs[job_id] = updated
             return updated
 
+    async def delete(self, job_id: UUID) -> None:
+        """Delete exactly one in-memory job for HTTP contract parity."""
+
+        async with self._lock:
+            job = self._get(job_id)
+            del self._jobs[job.job_id]
+            del self._job_id_by_client_request_id[job.client_request_id]
+
     def _get(self, job_id: UUID) -> PlanningJob:
         if not isinstance(job_id, UUID):
             self._raise(PlanningJobRepositoryErrorCode.JOB_NOT_FOUND)
