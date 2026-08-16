@@ -2,13 +2,12 @@
 
 ## 当前状态
 
-- 当前任务：`F-003 局部重规划与影响确认`
-- 任务状态：`ACTIVE`；任务卡已批准
-- 当前 Step：`Step 8`，状态 `ACTIVE`；用户已明确批准
-- 下一动作：推送并创建三层 stacked PR，验证 CI 后按依赖顺序合并，再核验 main CI 和归档
-- 当前分支：`feat/f-003-local-replanning-confirmation`；本地三层 stack 已建立
-- Git 基线：`main` 与 `origin/main` 均为 `c836138240473f079565527b13a0d53516235c45`
-- CI 基线：main run `31924427372` 通过
+- 当前任务：无
+- 最近完成：`F-003 局部重规划与影响确认`
+- 任务状态：`DELIVERED`；`Step 0–8` 全部完成，任务卡已归档
+- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
+- 最近交付 main：`a9f1b83ee558de29e6f7c5b1bef67548fec9240a`
+- 最近交付 main CI：run `31939222646`，`PASS`
 
 ## 最近完成
 
@@ -31,10 +30,11 @@
 - Step 7 独立安全审查覆盖 33/33 个变更源/测试文件，确认 stale confirmation 未绑定 captured job version 的 medium finding；两个其他候选已由 rollback probe 和威胁边界反证排除；
 - Step 7 已按后续明确授权修复 planning/replan trace 错配与 stale confirmation version 绑定：旧确认在 executor 前冲突，并发失败持久化为 conflict，成功提交可重启恢复；
 - Step 7 聚焦 18 项、相关回归 219 项、后端全量 999 项和前端 73 项通过；Ruff、format、strict mypy、ESLint、TypeScript 和 build 通过；浏览器 completed/failed/version conflict 复验通过，390px 无横向溢出且仅 loopback 资源；
-- 未读取秘密、调用真实 Provider、访问非 loopback 网络、创建分支或执行远程写入。
+- 功能验收未读取秘密、调用真实 Provider、访问非 loopback 网络或创建真实数据库；远程写入仅限用户明确批准的交付分支和 PR。
 - Step 8 独立复审发现并关闭重复执行、异常悬挂、确认 TTL、旧版本元数据串版、unknown→ready 和前端确认恢复等阻塞；最终统一入口通过后端 1007、前端 76、文档检查器 24 及全部静态、类型和 build 门禁；
 - Step 8 synthetic UAT 已复验影响预览、确认、completed 新版本/change set、状态焦点和 390px 零溢出；全部业务请求为 loopback，控制台 0 error/0 warning；一次缺失公开夹具日期变量的无效运行不计通过证据；
-- 已建立领域、持久化/应用、API/前端/验收三层本地 stack，共四个代码主题提交；尚未 push、创建 PR、合并或归档。
+- stacked 交付已完成：PR #7、#10、#11 依次通过 CI 并合并；原 PR #8/#9 因 squash ancestry 重叠由干净替代 PR supersede 并关闭；
+- 完整功能合并后 main 提交为 `a9f1b83ee558de29e6f7c5b1bef67548fec9240a`，main CI run `31939222646` 为 `PASS`；F-003 已归档。
 
 ## 已批准边界摘要
 
@@ -48,7 +48,7 @@
 
 ## 当前阻塞和停止条件
 
-- 当前无新增产品决策或技术阻塞；Step 8 已进入，等待远程 CI、依赖顺序合并和归档；
+- 当前无活动任务、无新增产品决策或技术阻塞；下一任务必须由用户从 roadmap 选择并批准；
 - F-003 累计变更涉及 48 个生产/测试文件、12 个文档和 2 个文档检查脚本，当前 diff 为 `+10488/-602`，已超过 35 文件/3,000 行停止阈值；用户已明确选择 stacked PR，范围决策阻塞解除；
 - D-004 已由 D-011 解释为独立 replan lifecycle，PlanningJob 11 状态保持不变；
 - migration、API、UI 或文件规模需要改变批准边界时必须停止；

@@ -1,15 +1,16 @@
 # 验收证据索引
 
-## F-003 Step 8：全量门禁、synthetic UAT 与 stacked 交付（进行中）
+## F-003 Step 8：全量门禁、synthetic UAT、stacked 交付与归档
 
-- 当前结论：`ACTIVE`；本地门禁和 synthetic UAT 已通过，远程 PR/CI、依赖顺序合并、main CI 和归档尚未完成；
+- 结论：`PASS`；本地门禁、synthetic UAT、stacked PR CI、依赖顺序合并、完整功能 main CI 和任务卡归档均已完成；
 - 首次失败证据：统一入口在 strict mypy 发现 `test_replan_repository.py` 的并发测试 helper 缺少返回类型；只补充 `ReplanRecord` 标注后从头完整复跑；
 - 独立复审修复：关闭重复执行、分析/执行/取消异常悬挂、确认 TTL、旧 completed replan 元数据串版、unknown→ready、decision 响应丢失、陈旧确认按钮与焦点等交付阻塞；Schema、migration 和公开 API 未改变；跨 service/worker 原子 claim 仍明确不在本地单进程 composition 范围；
 - 最终自动化门禁：Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0；后端 1007 项、前端 76 项、文档检查器 24 项通过；锁、format、Ruff、strict mypy、ESLint、TypeScript、Vite build 和文档契约通过；
 - UAT：deterministic synthetic FastAPI + Vite 只绑定 `127.0.0.1`；完成创建计划、调整活动时间、影响预览、确认和 completed 新版本/change set；确认态与完成态焦点正确，完整 change ref 可见；`390×844` 的 `scrollWidth/clientWidth` 均为 390；控制台 0 error/0 warning；首次复验因未设置公开夹具日期变量触发预期 `result_request_mismatch`，不计通过证据，按夹具契约重启后通过；
 - 网络与隐私：有效复验的业务请求全部为 `http://127.0.0.1:5173`；未读取 `.env.local` 或秘密，未调用 DeepSeek、高德或和风天气，未创建真实 SQLite；
 - 范围审查：62 个任务文件中 48 个为生产/测试、12 个为文档、2 个为文档检查脚本；无配置、依赖、CI、环境或数据库文件变化，新增内容的常见秘密格式扫描 0 命中；
-- stack：领域 `c441327`，持久化/应用 `d34f0bc`，API `bf949a1`，前端 `b103b64`；远程证据产生前不得将任务或 PR 写为完成；
+- stacked PR：PR #7（领域）、#10（持久化/应用）、#11（API/UI/验收）分别以 CI run `31938572541`、`31938833604`、`31939013363` 通过；PR #8/#9 因 squash ancestry 重叠由等价干净 PR 替代并关闭；
+- 合并证据：PR #7/#10/#11 依次合并；对应 main 逐层提交为 `5140fee3b23e3bb737f1cae248074bbe8d6dc389`、`55558bb7e8084da20c6b790d0ca8a5a91049d6bc`、`a9f1b83ee558de29e6f7c5b1bef67548fec9240a`；最终 main CI run `31939222646` 为 `PASS`；
 - 历史边界：F-001 仍为 `PARTIAL`；Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线证据均未改变。
 
 ## F-003 Step 7：临时 SQLite 纵向、浏览器与独立审查

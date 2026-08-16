@@ -1,13 +1,14 @@
 # 当前实施计划
 
+当前无活动任务，因此没有正在执行的 Step。
+
 ## 当前状态
 
-- 当前任务：`F-003 局部重规划与影响确认`
-- 任务状态：`ACTIVE`；任务卡状态：`APPROVED`
-- 已完成：`Step 0、Step 1、Step 2、Step 3、Step 4、Step 5、Step 6、Step 7`
-- 当前 Step：`Step 8`，状态 `ACTIVE`；用户已明确批准进入
-- 下一动作：完成 stacked PR 推送/CI/依赖顺序合并、main CI 和归档收口
-- 当前分支：`feat/f-003-local-replanning-confirmation`；三层本地 stack 已建立
+- 当前任务：无
+- 最近完成：`F-003 局部重规划与影响确认`，`Step 0–8` 全部 `DONE`
+- 任务状态：`DELIVERED`；任务卡已归档
+- 交付结果：PR #7、#10、#11 已按依赖顺序合并，合并后 main CI run `31939222646` 为 `PASS`
+- 下一动作：由用户从 roadmap 选择候选任务并批准新任务卡；不得自动进入 F-004
 - 基线提交：`c836138240473f079565527b13a0d53516235c45`
 - main CI：run `31924427372`，`success`
 
@@ -76,7 +77,7 @@ Step 1 已按用户批准执行并完成；上述清单只记录本 Step 实际�
 | Step 5 | replan API 与现有 API 回归 | DONE |
 | Step 6 | 前端修改、影响预览和确认流程 | DONE |
 | Step 7 | 临时 SQLite 纵向测试、浏览器 QA 和独立审查 | DONE |
-| Step 8 | 全量门禁、UAT、Git/PR/CI、合并和归档 | ACTIVE |
+| Step 8 | 全量门禁、UAT、Git/PR/CI、合并和归档 | DONE |
 
 ## Step 1 冻结结果
 
@@ -203,11 +204,11 @@ Step 7 已获用户批准，只做临时 SQLite 纵向测试、本机 synthetic 
 
 - 独立复审阻塞已在既定 Step 7 最小生产范围内关闭；最终本地统一门禁通过后端 1007、前端 76、文档检查器 24，并覆盖全部静态、类型、锁文件和构建门禁；
 - synthetic loopback UAT 已复验影响预览、确认、completed 新版本/change set、确认/完成焦点、完整 change ref、390px 零横向溢出和 0 console error/warning；没有真实 Provider 或真实数据库；
-- stack 1：`feat/f-003-replanning-domain`，base `main`，提交 `c441327`；
-- stack 2：`feat/f-003-replanning-persistence`，base stack 1，提交 `d34f0bc`；
-- stack 3：`feat/f-003-local-replanning-confirmation`，base stack 2，提交 `bf949a1`、`b103b64` 和本 Step 文档提交；
-- 每层必须独立通过 Windows offline CI；按 stack 1 → stack 2 → stack 3 顺序合并并在每次 retarget 后复验；
-- 三层全部合并且 main CI 通过后，才允许创建归档提交，将任务卡迁入 archive，并把 current-task 重置为无活动任务。
+- stack 1 由 PR #7 合并到 main，合并提交 `5140fee3b23e3bb737f1cae248074bbe8d6dc389`；
+- squash merge 后原 stack 2/3 出现 ancestry 重叠，未 force-push；以等价干净分支创建 PR #10/#11，原 PR #8/#9 标注 superseded 后关闭；
+- PR #10 合并提交为 `55558bb7e8084da20c6b790d0ca8a5a91049d6bc`，PR #11 合并后功能 main 为 `a9f1b83ee558de29e6f7c5b1bef67548fec9240a`；
+- PR #7/#10/#11 head CI 分别为 run `31938572541`、`31938833604`、`31939013363`，均为 `PASS`；
+- 完整功能合并后 main CI run `31939222646` 为 `PASS`；任务卡已迁入 archive，current-task 已重置为无活动任务。
 
 ## 停止条件
 
