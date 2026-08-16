@@ -182,22 +182,29 @@ Step 31 的和风 adapter 只接受 typed 双日预报或当前预警请求；�
 | `planning` | 使用已验证 observations 生成候选 | 引入无来源实时事实 |
 | `enriching_routes` | 无；Agent 已完成 proposal，应用查询路线并排程 | 改写路线时长、最终时间或排程冲突 |
 | `validating` | 针对违规提出有限修订 | 修改违规集合、扩大影响范围 |
-| `awaiting_confirmation` | 解释影响和可选结果 | 在用户确认前执行重规划 |
-| `replanning` | 在批准范围内生成新候选 | 修改未受影响日期 |
 | `ready` / `partial` | 解释计划和响应用户问题 | 静默改变计划版本 |
 | `failed` | 解释失败和恢复条件 | 继续盲目调用工具 |
 
 允许工具集合由应用状态和策略生成，而不是写死在 Prompt 文本中作为唯一控制。
 
+`awaiting_confirmation` 和 `replanning` 不属于上表的 PlanningJob 状态。F-003 为 replan aggregate 建立独立 lifecycle：等待确认时 Agent 只能解释已经由代码计算并持久化的 impact；进入 replanning 后，Agent 只能在 command 和批准的 affected refs 内生成替换 proposal，不能修改未受影响日期、住宿锚点、城市或硬约束。
+
 ## 局部重规划边界
 
-1. 应用层根据计划依赖图计算直接和间接影响；
-2. `classify_replan_impact` 返回 `same_day`、`adjacent_day`、`cross_city`、`accommodation` 或保守的 `unknown`；
-3. 只有 `same_day` 且所有硬约束仍可验证时可自动继续；
-4. 其他分类进入 `awaiting_confirmation`；
-5. 用户确认记录必须包含影响摘要和基线版本；
-6. 重规划创建新版本，旧版本保持可恢复；
-7. Agent 只能修改批准的受影响集合，应用层在保存前再次检查 diff 范围。
+1. `ReplanCommand` 是四种 frozen/slotted typed value 的 tagged union；请求只保存 allowlist 结构化字段和可空安全 reason code；
+2. `ImpactAnalysis` 由纯确定性函数基于 baseline plan、command、依赖图、预算和来源有效性生成，包含直接/传递 refs、日期、路线、分类集合、预算影响、来源动作和重校验项；
+3. 分类集合只允许 `same_day_low`、`adjacent_day`、`cross_day`、`accommodation_effect`、`budget_risk`、`source_refresh`、`cross_city`、`unknown_impact`；同一分析可含多个分类；
+4. 只有分类集合精确为 `{same_day_low}`，且目标引用、日期所有权、住宿往返、日窗口、路线链、预算可判定性和来源有效性均未越界时自动继续；
+5. adjacent/cross-day、住宿、预算、来源刷新或 unknown impact 进入独立 `awaiting_confirmation`；cross-city 和不支持的操作在 Provider 调用前 rejected；
+6. `SourceAction` 只允许 `reuse/refresh/drop`：未受影响且 fresh/valid 才可 reuse；被替换活动、相邻路线/费用及 stale 必要来源必须 refresh 或 drop，未采用结果不得进入新版本；
+7. `PlanChangeSet` 只描述本次 baseline→result 的 added/removed/changed refs 以及 route/schedule/cost/source 变化；保存前由代码验证 diff 是 impact snapshot 的子集；
+8. `ConfirmationDecision` 只允许 approve/cancel，关联 decision ID、replan trace、baseline、impact snapshot 和 15 分钟有效期；确认不能放宽硬约束或 unknown 语义；
+9. 成功创建新版本但不提供恢复能力；旧版本仅作为追加式审计事实保留。Agent 不拥有 Repository、事务、版本号或确认写入能力。
+
+F-003 Step 2 已把上述 command、impact、source action、budget result 和 change set 落为纯领域
+typed value 与确定性函数。该层没有 Agent 循环、Prompt、Provider port、Repository 或 I/O；
+replacement 后续仍只能由已批准的应用/Provider 边界产生候选，模型不能构造 impact category、
+source freshness、budget risk 或 change-set scope。
 
 ## 日志与追踪
 

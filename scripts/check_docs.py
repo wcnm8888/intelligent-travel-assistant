@@ -94,7 +94,8 @@ TEXT_FILENAMES = {
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]+\]\((?P<target>[^)]+)\)")
 HEADING_ONE = re.compile(r"^#\s+\S", re.MULTILINE)
 STEP_ROW = re.compile(
-    r"^\|\s*Step\s+(?P<step>\d+)\s*\|.*\|\s*(?P<status>DONE|TODO)\s*\|$", re.MULTILINE
+    r"^\|\s*Step\s+(?P<step>\d+)\s*\|.*\|\s*(?P<status>DONE|TODO|ACTIVE)\s*\|$",
+    re.MULTILINE,
 )
 ENV_CREDENTIAL = re.compile(
     r"^[ \t]*[A-Z][A-Z0-9_]*?(?:API_KEY|TOKEN|SECRET|PASSWORD)[ \t]*="
@@ -265,15 +266,15 @@ def check_status_consistency(root: Path) -> list[Issue]:
         ),
         "implementation-plan": (
             "docs/project-management/implementation-plan.md",
-            r"等待用户批准 Step (\d+)",
+            r"(?:当前 Step：`Step|等待用户批准 Step) (\d+)",
         ),
         "progress": (
             "docs/project-management/progress.md",
-            r"下一批准动作：Step (\d+)",
+            r"(?:当前 Step：`Step|下一批准动作：Step) (\d+)",
         ),
         "docs-map": (
             "docs/README.md",
-            r"等待用户批准执行 [A-Z]+-\d{3} Step (\d+)",
+            r"(?:当前 Step|等待用户批准执行 [A-Z]+-\d{3} Step) (\d+)",
         ),
     }
 
@@ -342,12 +343,12 @@ def check_status_consistency(root: Path) -> list[Issue]:
                         f"Step {step} must be DONE",
                     )
                 )
-        if rows.get(current_step) != "TODO":
+        if rows.get(current_step) not in {"TODO", "ACTIVE"}:
             issues.append(
                 Issue(
                     "status-consistency",
                     task_path.relative_to(root).as_posix(),
-                    f"current Step {current_step} must be TODO",
+                    f"current Step {current_step} must be TODO or ACTIVE",
                 )
             )
 

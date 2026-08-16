@@ -1,5 +1,165 @@
 # 验收证据索引
 
+## F-003 Step 8：全量门禁、synthetic UAT 与 stacked 交付（进行中）
+
+- 当前结论：`ACTIVE`；本地门禁和 synthetic UAT 已通过，远程 PR/CI、依赖顺序合并、main CI 和归档尚未完成；
+- 首次失败证据：统一入口在 strict mypy 发现 `test_replan_repository.py` 的并发测试 helper 缺少返回类型；只补充 `ReplanRecord` 标注后从头完整复跑；
+- 独立复审修复：关闭重复执行、分析/执行/取消异常悬挂、确认 TTL、旧 completed replan 元数据串版、unknown→ready、decision 响应丢失、陈旧确认按钮与焦点等交付阻塞；Schema、migration 和公开 API 未改变；跨 service/worker 原子 claim 仍明确不在本地单进程 composition 范围；
+- 最终自动化门禁：Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0；后端 1007 项、前端 76 项、文档检查器 24 项通过；锁、format、Ruff、strict mypy、ESLint、TypeScript、Vite build 和文档契约通过；
+- UAT：deterministic synthetic FastAPI + Vite 只绑定 `127.0.0.1`；完成创建计划、调整活动时间、影响预览、确认和 completed 新版本/change set；确认态与完成态焦点正确，完整 change ref 可见；`390×844` 的 `scrollWidth/clientWidth` 均为 390；控制台 0 error/0 warning；首次复验因未设置公开夹具日期变量触发预期 `result_request_mismatch`，不计通过证据，按夹具契约重启后通过；
+- 网络与隐私：有效复验的业务请求全部为 `http://127.0.0.1:5173`；未读取 `.env.local` 或秘密，未调用 DeepSeek、高德或和风天气，未创建真实 SQLite；
+- 范围审查：62 个任务文件中 48 个为生产/测试、12 个为文档、2 个为文档检查脚本；无配置、依赖、CI、环境或数据库文件变化，新增内容的常见秘密格式扫描 0 命中；
+- stack：领域 `c441327`，持久化/应用 `d34f0bc`，API `bf949a1`，前端 `b103b64`；远程证据产生前不得将任务或 PR 写为完成；
+- 历史边界：F-001 仍为 `PARTIAL`；Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线证据均未改变。
+
+## F-003 Step 7：临时 SQLite 纵向、浏览器与独立审查
+
+- 结论：`PASS`；两个已确认生产问题已在用户批准的最小范围内修复并复验，Step 7 为 `DONE`，未进入 Step 8；
+- 修复：新 plan version 使用 planning job/attempt trace，独立 replan trace 仍保留在 replan/decision；SQLite 与内存 Repository 在 decide/begin_execution/commit 同时校验调用方、当前和创建时捕获的 job version；应用层把执行竞争稳定持久化为 `conflict`；
+- 安全闭环：旧确认在 executor 前返回 `replan_job_version_conflict`，executor 调用为 0；同 baseline 并发最多追加一个 plan version，另一 replan 为 conflict；原计划不被替换；
+- SQLite 纵向：completed、重复幂等、重启恢复、failed 原计划保留和并发冲突 3 项全部通过；迁移版本仍为 1/2，未修改 Schema 或 migration；
+- 测试：聚焦 application/SQLite/API 18 项通过；领域、contract、application、Repository、API 相关回归 219 项通过；后端全量 999 项、前端 73 项通过；Ruff、format、strict mypy、ESLint、TypeScript 和 Vite build 通过；
+- 浏览器：仅 `127.0.0.1` 的 deterministic synthetic FastAPI + Vite；修复后复验 completed、failed 和 version conflict。completed 显示本次 change set；failed/version conflict 保留原计划；`390×844` 下 `scrollWidth == clientWidth == 375`；资源 origin 仅 `http://127.0.0.1:5173`；预期 409 会产生一条浏览器网络错误日志，无未处理脚本异常；
+- 浏览器夹具：增加 `ITA_BROWSER_START_DATE` 仅用于把冻结 synthetic plan/day/weather 日期对齐本次本地请求，避免验收日漂移假失败；未放宽生产 parser，Decimal 仍使用冻结格式 `4000.00`；
+- 反证：synthetic 私密标记虽到达 plan insert 尝试，但同事务水合经 `_load_json` 拒绝并 rollback，没有敏感行持久化；跨 job decision 候选仅在已有任意本地 SQLite 写权限时成立，不形成新增安全边界；
+- 安全报告：本机 Codex Security scan `06bb88d8-daa5-4e63-b39f-4d52ffe0d45f` 已完成并封存；对应 medium finding 的 fix report 已记录本机验证结论；
+- 范围：按后续明确授权仅修改 application replan service、SQLite/内存 ReplanRepository、对应测试和批准文档；未修改 Schema、migration、Repository port、公开 API、Provider、前端、依赖、环境或真实数据库；
+- 安全：未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback 网络，未创建分支、提交、push 或 PR；
+- 下一动作：等待用户明确批准 Step 8；不得自动开始全量交付、UAT、Git/PR/CI 或归档。
+
+## F-003 Step 6：前端影响预览和确认流程
+
+- 结论：`PASS`；四种结构化修改入口、影响预览、高影响确认/取消、replanning、completed 差异、安全终态、unknown/partial 和焦点恢复均已实现；
+- RED：`replanningApi.test.ts` 与 `ReplanPanel.test.tsx` 首次运行因生产模块不存在而在收集阶段失败，既有 65 项仍通过；
+- GREEN：前端 8 个测试文件共 73 项通过；ESLint、TypeScript、Prettier check 和 Vite build 通过；
+- 首轮并行运行时一个既有 `TripRequestForm` 测试超过 5 秒；同一全前端套件串行复跑 73 项通过，未修改测试超时或弱化断言；
+- API client 对额外字段、疑似秘密错误文本、completed/result/change-set/job/version 不一致 fail closed；HTTP 失败只展示安全 error envelope；
+- 原计划在 analyzing、awaiting confirmation、replanning、cancelled、expired、needs_input、conflict、failed 和 rejected 时保持可读且不被替换；只有 completed typed result/change-set 能更新当前显示计划；
+- unknown 金额继续显示未知且不按 0；partial 新版本继续显示 warning/uncertainty，不使用 ready 文案；
+- 范围：仅批准的前端实现/测试与状态文档；没有后端、Schema/migration、Repository、API 契约、Provider、依赖、环境或数据库变更；
+- 安全：未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback 网络，未创建数据库、分支或远程写入；
+- 累计范围审查：F-003 当前工作区共涉及 46 个生产/测试文件，按 tracked numstat 加 untracked 文件行数估算净新增约 8,360 行，超过任务卡 35 文件/3,000 行停止阈值；
+- 用户决策：2026-08-16 明确选择 stacked PR；本次只同步执行基线，未创建分支、提交、push 或 PR；精确 stack/base 关系留待交付 Step 冻结；
+- 下一动作：等待用户明确批准 Step 7；浏览器、临时 SQLite 纵向验证和独立安全/数据审查尚未执行。
+
+## F-003 Step 5：三个窄 replan API 与现有 API 回归
+
+- 结论：`PASS`；严格公共 DTO、create/get/decision 三端点、安全错误映射、后台执行快照及 completed result/change-set 投影已验证；
+- 分支：`main`；未创建功能分支；工作区未提交；HEAD 与 `origin/main` 基线均为 `c836138240473f079565527b13a0d53516235c45`；
+- 环境：本地离线、内存替身和临时 SQLite；未创建真实业务数据库，未读取秘密，未调用真实 Provider 或访问非 loopback 网络；
+
+### 自动化门禁
+
+| 验证项 | 命令入口 | 实际摘要 | 结论 |
+| --- | --- | --- | --- |
+| Step 5 专项 | contracts、replans API、application/repository/persistence replan 测试 | 31 passed | PASS |
+| API 与相关回归 | `pytest backend/tests/api backend/tests/test_bootstrap.py backend/tests/application backend/tests/adapters/persistence backend/tests/contracts -q` | 571 passed | PASS |
+| 后端全量 | `uv run --project backend pytest -q` | 1016 passed | PASS |
+| 静态门禁 | Ruff format/check、strict mypy | 108 files formatted；Ruff 通过；61 source files 无类型问题 | PASS |
+
+### API、数据和范围证据
+
+- 四种 command 为拒绝额外字段的 tagged union，不接收完整 Prompt、provider ID、完整计划或自然语言修改；
+- create/get/decision 返回冻结 ReplanResponse；相同决定幂等，相反决定、过期、baseline 和 command 幂等冲突使用稳定 409，cross-city/scope 使用 422；
+- auto/approve 先返回 replanning 快照再调度 background task；同决定重放不重复执行；completed 才返回 typed result/change-set；
+- F-001 现有 POST/GET/retry/DELETE DTO 与路由回归保持不变；没有列表、compare、restore 或批量清空 API；
+- 未修改 Schema、migration、连接层、Provider adapter、前端、依赖、lockfile 或环境；Step 6 仍为 TODO，等待用户明确批准。
+
+## F-003 Step 4：application replan、确认、并发和原子提交
+
+- 结论：`PASS`；application service、确认 lifecycle、provider-neutral 离线执行、Repository outcome/commit 和 SQLite 原子版本提交均已验证；
+- 分支：`main`；未创建功能分支；工作区未提交；HEAD 与 `origin/main` 基线均为 `c836138240473f079565527b13a0d53516235c45`；
+- 环境：本地离线、内存替身和 `tmp_path` SQLite；未创建真实业务数据库，未读取秘密，未调用真实 Provider 或访问非 loopback 网络；
+
+### 自动化门禁
+
+| 验证项 | 命令入口 | 实际摘要 | 结论 |
+| --- | --- | --- | --- |
+| Step 4 专项 | `uv run --project backend pytest -q backend/tests/application/test_replan_service.py backend/tests/application/test_provider_replanning.py backend/tests/application/test_replan_repository_contract.py backend/tests/adapters/persistence/test_replan_repository.py` | 19 passed | PASS |
+| application + persistence 回归 | `uv run --project backend pytest -q backend/tests/application backend/tests/adapters/persistence` | 494 passed | PASS |
+| 后端全量 | `uv run --project backend pytest -q` | 1001 passed | PASS |
+| 静态门禁 | `ruff format --check backend/src backend/tests`、`ruff check backend/src backend/tests`、`mypy backend/src` | 104 files formatted；Ruff 通过；59 source files 无类型问题 | PASS |
+| 文档与 diff | `uv run --project backend python scripts/check_docs.py`、`git diff --check` | 17 份必需文档、22 个 Markdown 和 diff 通过 | PASS |
+
+### 事务、并发和状态证据
+
+- auto 与 approved replan 才能进入执行；相同决定重放幂等，相反决定冲突，15 分钟 TTL 到期持久化为 expired；
+- 成功 commit 在单事务中写入新 plan version、source links、lineage、当前 attempt/job 和 completed replan；中途 lineage 失败时无新版本、无 lineage、job/replan 均不伪完成；
+- 同 baseline 两个 replan 只有第一个提交成功，第二个得到稳定 job version conflict；确认前及 needs_input/conflict/failed/cancelled/expired 不替换当前计划；
+- ready 和可执行 partial baseline 可进入编排；unknown amount 保持 `null`，partial 不提升为 ready；越界 change set 作为安全 conflict 收口；
+
+### 范围与下一动作
+
+- 未修改 API/contracts、bootstrap/组合根、Schema/migration/连接层、Provider adapter、前端、依赖、lockfile 或环境文件；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 非零语义和混合交通 fallback 仅离线证据保持不变；
+- Step 4 已完成；Step 5 仍为 `TODO`，下一动作只能是等待用户明确批准 replan API 实现。
+
+## F-003 Step 3：migration v2、Replan Repository 和 typed Decision
+
+- 结论：`PASS`；migration v2、Replan Repository、typed Decision 和既有 API migration 基线均已验证；
+- 分支：`main`；未创建功能分支；工作区未提交；基线 `c836138240473f079565527b13a0d53516235c45`；
+- 环境：本地离线、临时 SQLite；未创建真实业务数据库；未调用真实 Provider；
+
+### 自动化门禁
+
+| 验证项 | 命令入口 | 实际摘要 | 结论 |
+| --- | --- | --- | --- |
+| API SQLite migration v2 回归 | `uv run --project backend pytest -q tests/api/test_sqlite_trip_plans_api.py` | 8 passed；明确验证 version 1/2，version 3 fail closed | PASS |
+| Step 3 专项迁移/Repository/typed Decision | `uv run --project backend pytest -q tests/adapters/persistence/test_migrations.py tests/adapters/persistence/test_replan_repository.py tests/application/test_replan_repository_contract.py tests/domain/test_replanning_decisions.py` | 12 passed | PASS |
+| 既有 persistence/application/API 回归 | `uv run --project backend pytest -q tests/adapters/persistence tests/application/test_planning_job_repository.py tests/api/test_sqlite_trip_plans_api.py tests/application/test_provider_planning_job_executor.py` | 81 passed | PASS |
+| 后端全量 | `uv run --project backend pytest -q` | 963 passed | PASS |
+| 静态门禁 | `ruff check backend/src backend/tests`、`ruff format --check backend/src backend/tests`、`mypy --strict backend/src` | 全部通过 | PASS |
+| 文档与 diff | `uv run --project backend python scripts/check_docs.py`、`git diff --check` | 文档状态/安全契约和 diff 均通过 | PASS |
+
+### 数据与隐私边界
+
+- 只保存结构化 command、impact 和 decision；未保存 provider 原始响应、错误 body、完整 Prompt、Key、Token、JWT、Cookie 或 Authorization；
+- 不改变 F-001 `PARTIAL`、45M `FAIL`、45T `PASS`、unknown 非零语义或混合交通 fallback 的离线证据边界；
+- migration v2 仅新增 replan 表与 lineage，不修改既有 F-002 表的业务语义；
+
+### 未覆盖范围与剩余风险
+
+- 未实现 Step 4 的 application service、成功版本提交、完整重规划事务、API 或前端；
+- Step 3 已完成；下一步只允许等待用户明确批准 Step 4；
+
+## F-003 Step 2：纯领域重规划规则
+
+- 结论：`PASS`；四种 typed command、确定性 impact、change set、预算重算和来源 reuse/refresh/drop 已实现；
+- RED：四个新增测试模块首次运行均因 F-003 领域类型不存在而在收集阶段失败，证明测试先行；
+- GREEN：`uv run --project backend pytest backend/tests/domain/test_replanning_*.py -q` 为 35 项通过；
+- 回归：全部 domain 178 项通过；后端全量 981 项通过；
+- 静态门禁：`ruff check backend/src backend/tests`、`ruff format --check backend/src backend/tests`、`mypy backend/src` 全部通过；
+- 语义：只有精确 same_day_low 自动；高影响确认、cross-city 拒绝、共享来源不误删、unknown amount 保持空、change-set scope fail closed；
+- 范围：只新增/修改批准的 domain 源码和四个 domain 测试，并同步允许文档；未修改 Repository、SQLite、migration、API、Provider、前端、依赖、环境或数据库；
+- 安全：没有读取 `.env.local` 或秘密，没有真实 Provider 或非 loopback 网络调用，没有创建分支、提交或远程写入；
+- 下一动作：等待用户明确批准 Step 3；开始前先核对 migration/Repository/Decision 的精确文件清单。
+
+## F-003 Step 1：实现前设计冻结
+
+- 结论：`PASS`；领域模型、八类可组合影响、独立 replan lifecycle、三个窄 API、migration v2、ReplanRepository、测试矩阵和 UI 交互已形成单一冻结契约；
+- 兼容性：`PlanningStatus`、`PlanningJobRepository` 和既有 `TripPlanResponse` 不变；D-004 的旧措辞由 D-011 收口为独立 replan lifecycle；
+- 数据：v2 只新增 `replan_requests` 和 `plan_version_lineage`，复用 typed `decision_records`；v1 数据不改写，既有版本不伪造 lineage；
+- 原子性：确认前无 plan version；成功 ready/可执行 partial 单事务追加；needs_input/conflict/failed/cancelled/expired/rejected 保持原计划；
+- 隐私：只保存 allowlist command、typed impact/change set 和安全代码；不保存完整自然语言修改、Prompt、provider body、秘密或原始错误；
+- UI：冻结现有结果页内局部调整面板、15 分钟确认、baseline 保留、diff、焦点和桌面/390px 门禁；未实现前端；
+- 范围：只修改 Step 1 允许文档；未修改生产源码、测试、Schema/migration 实现、API、Repository、前端、依赖、环境或数据库；
+- 外部边界：未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback 网络，未创建分支或执行远程写入；
+- 下一动作：等待用户明确批准 Step 2；只用 TDD 实现纯领域 command/impact/diff/budget/source，不进入持久化。
+
+## F-003 Step 0：事实核对、执行基线和允许文件清单
+
+- 结论：`PASS`；F-003 任务卡已按用户批准决策激活，Step 0 为 `DONE`，Step 1 保持 `TODO` 且尚未执行；
+- Git 基线：Step 0 开始时工作区干净；本地 `main` 与 `origin/main` 均为 `c836138240473f079565527b13a0d53516235c45`；没有创建分支、提交、推送、PR、合并或其他远程写入；
+- CI 基线：main Windows offline verification run `31924427372` 对基线提交通过；
+- 归档核对：B-000、F-001、F-002 已归档；F-001 产品状态 `PARTIAL`、Step 45M 真实 UAT `FAIL`、Step 45T 真实 UAT `PASS`、unknown 不为 0、混合交通 fallback 仅离线证据均保持不变；
+- 代码基线：PlanningJob 仍使用 F-001 的 11 状态；现有 Repository 没有 replan port；`plan_versions` 没有 lineage/change set；`decision_records` 只有基础表；`acceptance_records` 有 typed 内部写入；migration 只有 version 1；现有 API 和前端没有局部重规划能力；
+- 已批准边界：单城市双日、四种结构化修改、same-day low 自动、高影响确认、cross-city 拒绝、独立 replan lifecycle、15 分钟确认有效期、失败保持原计划、成功追加版本、migration v2、默认离线；
+- 文档治理：已覆盖 F-002 在 current-task/implementation-plan 中残留的 ACTIVE/TODO/PR OPEN 当前措辞；F-003 一个任务、一个 Step 地图和一个交付目标成为当前唯一入口；
+- 修改范围：仅 `docs/README.md`、roadmap、current-task、implementation-plan、progress、evidence 六份批准文档；没有生产源码、测试、Schema、migration、API、Repository、前端、依赖、环境或数据库文件变化；
+- 安全边界：未读取 `.env.local`、Key、Token、JWT、私钥、Cookie 或 Authorization；未调用 DeepSeek、高德或和风天气，未访问非 loopback 网络，未创建或修改数据库；
+- 验证：`uv run --project backend python scripts/check_docs.py` 通过；`git diff --check` 通过；`git diff --name-only` 只包含上述六份文档；
+- 下一动作：等待用户明确批准 F-003 Step 1，只冻结领域、影响、确认、API、migration、Repository、测试和 UI 设计，不进入实现。
+
 ## F-002 最终交付与归档
 
 - 结论：`PASS`；F-002 Step 0–6 已完成并归档；

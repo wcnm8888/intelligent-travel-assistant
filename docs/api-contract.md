@@ -264,10 +264,93 @@ D-009 及 F-001-CR1 已把最终精确时间交给确定性调度器，同时保
 
 上述错误与终态语义已由 Step 45H 红绿测试、状态机和 executor → Repository → API 离线纵向回归锁定。公开字段和状态 enum 未增加；以后若需要扩展仍必须重新审批 API 变更。
 
+## F-003 局部重规划 API（Step 1 冻结，Step 5 已实现）
+
+F-003 保持既有 `POST/GET/retry/DELETE /api/trip-plans` 请求、响应和错误不变，尤其不向
+`TripPlanResponse` 增加内部 job version 或 plan version。客户端以当前 `plan.plan_id` 作为
+公开 baseline token；服务端在创建 replan 时内部捕获 job version 和 plan version。
+
+### 创建 replan
+
+`POST /api/trip-plans/{job_id}/replans`
+
+- 请求体是 `ReplanRequest`，成功返回 `202 Accepted` 和 `ReplanResponse`；
+- `Location` 指向 `/api/trip-plans/{job_id}/replans/{replan_id}`；
+- 只允许当前计划为 `ready` 或具有可执行 plan 的 `partial`；
+- 同一 job 下相同 `replan_request_id` 和同一规范化 command 返回原资源，不重复分析、确认或 Provider 调用；相同 ID 不同 command 返回 `409 replan_idempotency_conflict`；
+- 影响分析在请求内同步完成且零 Provider 调用：仅 `same_day_low` 可直接进入 `replanning`，高影响返回 `awaiting_confirmation`，cross-city/越界操作返回 `422 replan_scope_not_supported`。
+
+公共请求字段：
+
+```json
+{
+  "replan_request_id": "11111111-1111-4111-8111-111111111111",
+  "baseline_plan_id": "22222222-2222-4222-8222-222222222222",
+  "command": {
+    "operation": "adjust_activity_time",
+    "target_activity_id": "33333333-3333-4333-8333-333333333333",
+    "start_time": "10:00:00",
+    "end_time": "12:00:00",
+    "reason_code": "user_schedule_preference"
+  }
+}
+```
+
+`command` 是拒绝额外字段的 tagged union：
+
+| operation | 必需字段 | 冻结约束 |
+| --- | --- | --- |
+| `replace_activity` | `target_activity_id`、`replacement_categories` | 1–3 个安全结构化类别；不接收 provider ID、完整自然语言或完整活动对象 |
+| `delete_activity` | `target_activity_id` | 目标必须属于 baseline；删除后的计划仍须完整重校验住宿往返和其他硬边界 |
+| `adjust_activity_time` | `target_activity_id`、`start_time`、`end_time` | 目的地当地 time，结束晚于开始，活动日期不可改变 |
+| `reorder_activities` | `local_date`、`ordered_activity_ids` | 必须是该日完整、无重复、无新增的现有 activity ID 排列 |
+
+`reason_code` 可空且只允许项目自有安全代码。服务端不接收或持久化完整自然语言修改请求。
+
+### 查询与决定
+
+- `GET /api/trip-plans/{job_id}/replans/{replan_id}`：存在时 `200 OK`；不存在或 job/replan 不匹配返回 `404 replan_not_found`。它是单资源查询，不构成历史列表；客户端只轮询 `analyzing` 或 `replanning`；
+- `POST /api/trip-plans/{job_id}/replans/{replan_id}/decision`：请求只允许 `{ "choice": "approve" }` 或 `cancel`；新的 approve 返回 `202` 并进入 `replanning`，cancel 返回 `200` 和 `cancelled`；
+- 相同决定重放返回当前资源且不重复执行；相反决定返回 `409 confirmation_conflict`；过期返回 `409 confirmation_expired` 并稳定收口为 `expired`；baseline 或 job version 漂移返回 `409 version_conflict`；
+- 决定只对已展示且持久化的 impact snapshot 生效，不能改变 command 或扩大受影响集合。
+
+### ReplanResponse
+
+公开响应精确包含：
+
+```text
+job_id, replan_id, replan_request_id, trace_id, baseline_plan_id,
+operation, status, impact, confirmation_expires_at, decision,
+result, change_set, errors, created_at, updated_at
+```
+
+- `status` 只允许独立 replan lifecycle 的十个值，不复用 `PlanningStatus`；
+- `impact` 在分析完成后非空，包含有序去重的 categories、direct_refs、transitive_refs、affected_dates、route_refs、budget_effect、source_actions、required_validations 和 `confirmation_required`；分析前可为空；
+- `decision` 只包含可空 `decision_id/choice/decided_at`，不回显自由文本；
+- `result` 仅在 `completed` 时为当前 `TripPlanResponse`，其他状态为空；
+- `change_set` 仅在 completed 时非空，包含 baseline/result plan ID 和 added/removed/changed refs、route/schedule/cost/source change codes；只比较本次 baseline→result；
+- `errors` 只含现有安全 `ApiError` 形状，不含 provider body、Prompt、异常、秘密或完整请求。
+
+新增稳定 HTTP 错误边界：
+
+| HTTP | 项目错误 | 使用条件 |
+| ---: | --- | --- |
+| 404 | `job_not_found` / `replan_not_found` | job 或指定 replan 不存在 |
+| 409 | `replan_idempotency_conflict` | 同一 replan request ID 对应不同 command |
+| 409 | `version_conflict` | baseline plan 或内部 job version 已漂移 |
+| 409 | `confirmation_conflict` | 已记录相反决定或当前状态不允许决定 |
+| 409 | `confirmation_expired` | 15 分钟确认窗口已过 |
+| 409 | `replan_not_allowed` | 当前 job 没有 ready/可执行 partial baseline |
+| 422 | `input_invalid` | tagged command 格式、引用或字段不合法 |
+| 422 | `replan_scope_not_supported` | 跨城市、改日期/住宿、增加活动或其他越界操作 |
+| 500 | `internal_error` | 无法安全映射的本地缺陷；原计划保持不变 |
+
+业务 `needs_input/conflict/failed/rejected` 作为已创建 replan 的 `200 GET` 状态返回，不统一转换为 HTTP 5xx。任何失败都不能把原计划投影为 completed。
+
 ## 当前限制
 
 - 本地应用模式的任务与结果保存于 SQLite；测试可显式注入内存 Repository，或在 `APP_ENV=test` 且未提供临时 SQLite 路径时使用内存替身；
 - 已启动的后台规划不是持久化任务队列，应用退出时不会自动续跑进行中的外部调用；重启只恢复最后一次已提交的任务、attempt、结果和版本快照；
 - 真实规划执行器只有在 DeepSeek、高德和和风三组配置全部就绪时启用；
 - Step 38 只取得一次 live 契约证据；Step 39 和补充 Step 45A、45C、45E 均未取得 ready/partial 真实计划 UAT；Step 45H 已实现确定性调度器但只具备离线证据，不构成新的 live UAT 通过；
-- SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。局部重规划、批量清空、历史列表、版本比较/恢复、多城市和交易能力仍不在当前范围内。
+- SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。F-003 Step 5 已实现三个可注入的 replan 端点、严格 DTO 和安全错误映射；默认组合不自行启用 Provider 或后台恢复。批量清空、历史列表、版本比较/恢复、多城市和交易能力仍不在范围内。
