@@ -15,14 +15,14 @@
 
 ## 当前阶段
 
-目标：在已完成的 B-000、F-001 和 F-002 基础上交付可追溯的局部重规划。F-003 Step 0–7 已完成，Step 8 已获批准并完成本地全量门禁与 synthetic UAT；当前执行 stacked PR、CI、合并和归档。
+目标：B-000、F-001、F-002 和 F-003 已完成；当前无活动任务，等待用户选择并批准下一张任务卡。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
 | 0 | B-000 项目与工程基线 | DONE | 已建立可开发、可运行、可验证、可交接的本地工程底座；PR #1 已合并 | 无 |
 | 1 | F-001 单城市双日旅行计划垂直切片 | DONE（产品状态 PARTIAL） | 用户能用真实天气、POI 和路线生成第一份可校验计划 | B-000、外部服务就绪门禁 |
 | 2 | F-002 计划持久化、来源与版本 | DONE | 用户能保存、恢复和追踪计划版本及来源 | F-001 |
-| 3 | F-003 局部重规划与影响确认 | ACTIVE | 用户能调整当天，并在跨日/跨城影响前掌握决定权 | F-002 |
+| 3 | F-003 局部重规划与影响确认 | DONE | 用户能调整当天，并在跨日/跨城影响前掌握决定权 | F-002 |
 | 4 | F-004 多日、多城市与完整约束扩展 | CANDIDATE | 产品覆盖更真实的中国大陆境内自由行路线 | F-003 |
 | 5 | F-005 外部服务韧性、时效与 Agent 评估 | CANDIDATE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004 |
 | 6 | F-006 MVP 体验收口与本地验收 | CANDIDATE | 用户可稳定完成完整本地旅行决策流程 | F-001 至 F-005 |
@@ -70,7 +70,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-003：局部重规划与影响确认
 
-- 状态：`ACTIVE`（Step 8 已进入；本地门禁/UAT 已通过，stacked PR、CI、合并和归档进行中）
+- 状态：`DONE`（PR #7、#10、#11 已合并，完整功能 main CI run `31939222646` 通过，任务已归档）
 - 目标：支持替换、删除或调整某日活动，并基于依赖计算影响范围；
 - 核心价值：当天内部修改可自动完成，高影响变更先由用户确认；
 - 必须验证：same-day、adjacent-day、cross-city、accommodation、unknown、取消确认和版本 diff；
@@ -83,6 +83,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - Step 5 实现结果：三个窄 replan API、严格 DTO、安全错误映射、background execution 快照和 completed result/change-set 投影已实现；专项 31 项、相关回归 571 项和后端全量 1016 项通过，尚未进入前端 UI。
 - Step 6 实现结果：结果页内四种结构化修改、影响预览、确认/取消、completed diff、unknown/partial、安全失败和焦点恢复已实现；前端 73 项与静态/build 门禁通过。
 - Step 7 验收结果：临时 SQLite 纵向、loopback 浏览器和独立安全/数据审查完成；trace 水合与 stale confirmation 问题已按最小授权修复。相关回归 219 项、后端全量 999 项、前端 73 项及静态/build 门禁通过；Schema、migration、公开 API、Provider、前端和隐私边界未改变。
+- Step 8 交付结果：最终本地门禁通过后端 1007、前端 76、文档检查器 24 及全部静态、类型和 build 检查；loopback synthetic UAT 通过；stacked PR #7、#10、#11 按依赖顺序合并，main CI 通过；完整任务卡见 [F-003 archive](../archive/task-cards/F-003-local-replanning-impact-confirmation.md)。
 
 ### F-004：多日、多城市与完整约束扩展
 
