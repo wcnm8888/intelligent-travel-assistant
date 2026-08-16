@@ -4,12 +4,12 @@
 
 - 当前任务：`F-002 计划持久化、来源与版本`
 - 任务状态：`ACTIVE`；任务卡状态：`APPROVED`
-- 当前 Step：`Step 6` 本地交付审查通过，Git/PR 交付执行中
-- 下一批准动作：等待用户批准 Step 6（Step 6 与 Git/PR 授权均已取得；保留此状态锚点供文档检查器识别）；当前执行提交、PR 和远程 CI 验证
+- 当前 Step：`Step 6` PR #6 已创建，实施提交 CI 通过
+- 下一批准动作：等待用户批准 Step 6（Step 6 与 Git/PR 授权均已取得；保留此状态锚点供文档检查器识别）；当前验证最终文档 head CI，随后等待合并授权
 - 当前分支：`feat/f-002-local-plan-persistence`
-- 当前提交：`38340dfed5c169911dc12042f4a90a5e042284c4`
+- 当前实施提交：`729119b9f583bfa80c421a9231f19694df38ab5f`
 - `main` 与 `origin/main`：一致
-- 工作区：包含 Step 0–5 批准范围内的文档、SQLite 基础设施、Repository adapter、组合根、单计划 DELETE、启动清理、acceptance record 和临时测试变更；未修改前端或依赖
+- 工作区：实施提交后仅有本次 PR/CI 交付证据文档变更；未修改生产代码、测试、前端或依赖
 
 ## Step 6 执行基线
 
@@ -17,7 +17,7 @@
 - 审查对象是 `HEAD` 到当前工作区的完整 F-002 累计差异，包括未跟踪的 persistence 源码和测试；
 - 允许对累计审查发现的 F-002 范围内缺陷做最小修复，并同步权威文档；不扩大 Schema、migration、公开 API、产品或隐私边界；
 - 测试继续只使用内存替身和 `tmp_path` SQLite，不创建真实业务数据库，不读取 `.env.local`，不调用真实 Provider 或非 loopback 网络；
-- 本 Step 不创建分支、提交、推送、PR 或合并；这些实际交付动作仍需用户另行明确授权。
+- 本地审查阶段不创建分支、提交、推送、PR 或合并；后续用户已另行授权分支、提交、推送、PR 和 CI，但仍未授权合并。
 
 ## Step 6 审查结果
 
@@ -28,6 +28,7 @@
 - 纵向红测先得到第二 attempt `failed`，修复后得到第二个 `partial` 计划版本、两个 attempt、不同 plan ID 和不重叠 user/system source ID；相关执行器、Repository、API 专项 53 项通过；
 - 修复后统一门禁再次通过：91 个 Python/脚本文件 format、Ruff、strict mypy，后端 923 项、前端 65 项、文档检查器 23 项及 Vite build 全部通过；最终本地复审无剩余 P0/P1；
 - 用户已授权创建指定功能分支、精确暂存、提交、推送、创建 PR 和验证远程 CI；不授权自动合并。任务在 PR/CI 证据形成前不能归档。
+- 实施提交 `729119b9f583bfa80c421a9231f19694df38ab5f` 已推送；PR #6 OPEN、非 Draft、base `main`；Windows offline verification run `31923661440` / job `95107606302` 通过。当前只追加交付证据并验证最终文档 head，不自动合并。
 
 ## 执行基线修复
 

@@ -2,7 +2,7 @@
 
 ## F-002 Step 6 执行基线
 
-- 状态：`DELIVERY_IN_PROGRESS`；本地审查已通过，Step 地图在 PR/CI 交付完成前保持 Step 6 `TODO`；
+- 状态：`PR_OPEN_CI_PASS`；本地审查和实施提交 CI 已通过，Step 地图在最终 head CI 与合并/归档完成前保持 Step 6 `TODO`；
 - 用户授权：全量门禁、文档收口和交付审查；
 - 审查范围：`HEAD` 到当前工作区的完整 F-002 累计差异，包括未跟踪 persistence 源码和测试；
 - 允许：修复审查发现的 F-002 范围内缺陷、运行全量门禁、同步已经验证的文档事实；
@@ -17,6 +17,8 @@
 - 最终全量门禁：`scripts/verify.ps1` 再次通过；91 个 Python/脚本文件 format、Ruff、strict mypy，后端 923 项、前端 65 项、文档检查器 23 项和 Vite build 全部通过；
 - 最终审查：按安全、迁移、API、并发、测试和数据完整性清单复审累计差异，无剩余 P0/P1；本轮未创建分支、提交、推送或 PR，远程 CI 与实际交付证据尚未产生，因此 F-002 不归档。
 - 交付授权：用户已明确授权创建 `feat/f-002-local-plan-persistence`、精确暂存、提交、推送、创建 PR 并验证远程 CI；分支从与 `origin/main` 一致的 `38340dfed5c169911dc12042f4a90a5e042284c4` 创建，不授权自动合并。
+- 交付事实：32 个 F-002 文件精确暂存，staged diff `+4120/-1220` 且无范围外或未暂存变更；实施提交 `729119b9f583bfa80c421a9231f19694df38ab5f` 已推送；PR #6 为 OPEN、非 Draft、base `main`、head `feat/f-002-local-plan-persistence`；
+- 远程 CI：Windows offline verification run `31923661440` / job `95107606302` 对实施提交通过，耗时 3 分 38 秒。该证据提交推送后仍须验证新的最终 head CI；没有自动合并或归档。
 
 ## F-002 Step 5 执行基线
 

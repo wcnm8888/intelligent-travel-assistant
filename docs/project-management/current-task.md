@@ -7,7 +7,7 @@
 - 等级：`L`
 - 状态：`ACTIVE`
 - 任务卡状态：`APPROVED`
-- 当前 Step：`Step 6 - 完成全量门禁、文档收口和交付审查`（本地审查通过，Git/PR 交付执行中）
+- 当前 Step：`Step 6 - 完成全量门禁、文档收口和交付审查`（PR #6 OPEN，实施提交 CI 通过）
 - Step 0–5 状态：已完成；Step 5 的删除、清理、acceptance、隐私测试和状态收口均已完成；Step 6 状态：TODO
 - 下一 Step：`Step 6 - 完成全量门禁、文档收口和交付审查`
 - 基线分支：`main`
@@ -287,7 +287,7 @@ Step 5 已完成并通过。用户已批准 Step 6 及真实 retry 标识冲突�
 
 真实执行器 → SQLite → retry → 第二计划版本纵向红测先复现第二 attempt 降级为 `failed`，修复后证明第二个 `partial` 计划版本、两个 attempt 和互不冲突的来源均已持久化；attempt 1 `plan_id` 精确保持原 UUIDv5 规则。统一门禁通过 923 项后端、65 项前端、23 项文档检查器及全部 format/lint/strict mypy/build/docs。最终本地交付复审无剩余 P0/P1。
 
-用户已明确授权创建 `feat/f-002-local-plan-persistence`、精确暂存、提交、推送、创建 PR 并验证远程 CI；功能分支已从与 `origin/main` 一致的 `38340dfed5c169911dc12042f4a90a5e042284c4` 创建。F-002 仍保持 `ACTIVE`，Step 6 在 PR、CI 和交付证据完成前保持 `TODO`，不得提前归档或自动合并。
+用户已明确授权创建 `feat/f-002-local-plan-persistence`、精确暂存、提交、推送、创建 PR 并验证远程 CI。实施提交为 `729119b9f583bfa80c421a9231f19694df38ab5f`；PR #6 以 `main` 为 base，状态 OPEN、非 Draft；Windows offline verification run `31923661440` / job `95107606302` 在 3 分 38 秒内通过。当前正在追加本交付证据并验证最终文档 head；F-002 保持 `ACTIVE`，Step 6 在最终 head CI 和后续合并/归档授权完成前保持 `TODO`，不得自动合并。
 
 ## 完成定义
 
