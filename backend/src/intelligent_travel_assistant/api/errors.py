@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse
 from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepositoryError,
     PlanningJobRepositoryErrorCode,
+    ReplanRepositoryError,
+    ReplanRepositoryErrorCode,
 )
 from intelligent_travel_assistant.contracts import ApiError, ApiErrorCode, ApiErrorResponse
 
@@ -56,6 +58,65 @@ def input_invalid_error() -> PlanningHttpError:
         422,
         ApiErrorCode.INPUT_INVALID,
         "Request does not match the public API contract.",
+    )
+
+
+def replan_http_error(error: ReplanRepositoryError) -> PlanningHttpError:
+    if error.code is ReplanRepositoryErrorCode.JOB_NOT_FOUND:
+        return job_not_found_error()
+    if error.code is ReplanRepositoryErrorCode.REPLAN_NOT_FOUND:
+        return PlanningHttpError(
+            404, ApiErrorCode.REPLAN_NOT_FOUND, "The replan resource was not found."
+        )
+    if error.code is ReplanRepositoryErrorCode.IDEMPOTENCY_CONFLICT:
+        return PlanningHttpError(
+            409,
+            ApiErrorCode.REPLAN_IDEMPOTENCY_CONFLICT,
+            "The replan request ID is already used for a different command.",
+        )
+    if error.code in {
+        ReplanRepositoryErrorCode.VERSION_CONFLICT,
+        ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT,
+        ReplanRepositoryErrorCode.BASELINE_CONFLICT,
+    }:
+        return PlanningHttpError(
+            409, ApiErrorCode.VERSION_CONFLICT, "The replan baseline has changed."
+        )
+    if error.code is ReplanRepositoryErrorCode.CONFIRMATION_EXPIRED:
+        return confirmation_expired_error()
+    if error.code in {
+        ReplanRepositoryErrorCode.DECISION_CONFLICT,
+        ReplanRepositoryErrorCode.INVALID_STATE,
+    }:
+        return PlanningHttpError(
+            409,
+            ApiErrorCode.CONFIRMATION_CONFLICT,
+            "The confirmation conflicts with the current replan state.",
+        )
+    return internal_error()
+
+
+def confirmation_expired_error() -> PlanningHttpError:
+    return PlanningHttpError(
+        409,
+        ApiErrorCode.CONFIRMATION_EXPIRED,
+        "The confirmation window has expired.",
+    )
+
+
+def replan_not_allowed_error() -> PlanningHttpError:
+    return PlanningHttpError(
+        409,
+        ApiErrorCode.REPLAN_NOT_ALLOWED,
+        "The current plan cannot be replanned.",
+    )
+
+
+def replan_scope_not_supported_error() -> PlanningHttpError:
+    return PlanningHttpError(
+        422,
+        ApiErrorCode.REPLAN_SCOPE_NOT_SUPPORTED,
+        "The requested change is outside the supported replan scope.",
     )
 
 
