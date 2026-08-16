@@ -232,6 +232,48 @@ Step 34 的离线 Agent scorecard 固定 10 类输出：合法精确 JSON，以�
 
 Step 35 的浏览器闭环不拦截任务 API：专用本地组合根把冻结五终态交给 synthetic executor，经真实 FastAPI background task、状态机、进程内 Repository、POST/GET/retry 和 Vite 代理进入 React。自动化锁定新建只调度一次、幂等复用不重复调度、retry 重新调度，以及 ready/partial/conflict/needs_input/failed 的合法路径。轮询按状态图可达性接受因采样遗漏的中间快照，仍拒绝回退和不可达分支。Playwright 在桌面与 `390×844` 验证五终态、partial attempt 2、needs_input 焦点、unknown、来源、零横向溢出和零控制台告警；全部动态业务请求仅访问本机。该证据不证明默认应用已装配真实规划执行器或任何 live provider 可用。
 
+## F-003 冻结测试矩阵（Step 1）
+
+F-003 默认只使用纯领域 fixture、fake provider、MockTransport、独立临时 SQLite 和本机浏览器。所有自动化测试必须阻断非 loopback socket，不读取 `.env.local`，不调用 DeepSeek、高德或和风。
+
+| 层级 | 必测行为 | 关键负向证据 |
+| --- | --- | --- |
+| domain command | 四种 tagged union、引用/日期/顺序/时间合法性、额外字段拒绝 | JSON Patch、完整计划、provider ID、自由文本、add/city/date/accommodation 修改拒绝 |
+| impact classifier | 多分类、直接/传递 refs、same_day_low 自动条件 | 住宿/跨日/预算/来源/unknown 不能误判为自动；cross_city 零 Provider 调用 |
+| diff | baseline→result added/removed/changed、局部性 | 未批准 refs 或另一日静默变化拒绝 |
+| budget | known total、unknown count、assessment 重算 | unknown amount 保持 null，不能转 0；partial 不能升级 ready |
+| source policy | fresh/valid reuse、受影响/stale refresh、未采用 drop | freshness 不提升；旧活动来源不继承给 replacement |
+| lifecycle | 全部允许边和终态无出口 | 未确认/过期/相反决定不能进入 replanning；PlanningStatus 不增加值 |
+| migration v2 | v1→v2、重复运行、checksum、rollback、高版本 fail closed | v1 数据不改写，旧 plan version 不伪造 lineage |
+| SQLite schema | FK、CHECK、唯一约束、索引、job cascade | 跨 job baseline/parent/child、重复 replan ID、非法状态拒绝 |
+| Repository contract | reserve/get/analyze/decide/start/fail/commit 的内存与 SQLite 共享契约 | SQLite 类型不泄漏，typed JSON 损坏读取 fail closed |
+| 幂等 | 同 job 同 ID/同 command 复用 | 同 ID/异 command 稳定冲突且无二次分析/调用 |
+| 并发 | aggregate expected version、job version、baseline version | 双确认、并发 replan 最多一个原子提交；失败方不产生版本 |
+| 原子提交 | plan/source/link/lineage/decision/replan/current snapshot 同事务 | 每个写点故障注入后无半成品，原计划不变 |
+| retry/replan | replan 独立 trace、不增加 attempt | retry 三次上限与 replan 不互相消费或冒充 |
+| replan API | 三端点、Location、202/200/404/409/422、安全 500、严格 DTO | 现有 POST/GET/retry/DELETE 精确回归；无列表/compare/restore 路由 |
+| confirmation | 15 分钟前、恰好到期、到期后、相同/相反重放 | 过期或 stale baseline 无 Provider、无版本写入 |
+| terminal outcomes | completed ready/可执行 partial、needs_input/conflict/failed/cancelled/expired/rejected | 非 completed 不替换 current plan |
+| restart | awaiting confirmation、terminal replan、current plan 和 aggregate version round-trip | 不把 analyzing/replanning 当持久化队列自动续跑 |
+| deletion/retention | 删除 job 和 30 天 cleanup 级联 F-003 子记录 | 不提供清空全部接口；清理不留下 lineage/decision 孤儿 |
+| privacy | allowlist command、safe reason/error、typed impact/change set | secret/header/Prompt/自然语言/provider body fixture 必须拒绝 |
+| UI component | 四入口、面板状态、影响、确认、diff、unknown/partial、焦点 | 颜色非唯一、重复确认禁用、取消/失败保留原计划 |
+| browser | 桌面与 390×844、键盘、live region、无溢出、本机网络清单 | pending/expired/conflict/failed/version conflict 均可恢复且无非本机请求 |
+
+TDD 顺序冻结为：Step 2 先用纯领域红测锁定 command/impact/diff/budget/source；Step 3 用临时 SQLite 红测锁定 migration/Repository/decision；Step 4 锁定 lifecycle、确认、并发和事务；Step 5 锁定 API；Step 6 锁定组件；Step 7 做纵向 SQLite 与浏览器独立审查。每步只运行该层和必要回归，Step 8 才运行统一全量门禁与经单独批准的 UAT。mock/fake 证据不得表述为真实 Provider 通过。
+
+Step 5 已按该顺序完成：公共 DTO 测试先因 replan contracts 不存在而 RED，API 测试再因 `create_app` 尚无 replan service 注入而 RED；随后 31 项专项覆盖四种 tagged command、额外字段/Prompt 拒绝、create/get/decision、Location、202/200/404/409/422、相同/相反决定、精确 15 分钟过期、scope/idempotency/baseline 冲突、background snapshot、completed result/change-set 和非成功原计划保留。API/bootstrap/application/persistence/contracts 回归 571 项、后端全量 1016 项、Ruff、format 和 strict mypy 通过；全部使用内存替身或临时 SQLite，不访问真实 Provider 或秘密。
+
+Step 6 已按组件优先顺序完成：replan API client 与面板测试先因生产模块不存在而 RED；GREEN 后前端 8 个测试文件共 73 项通过，覆盖四入口、结构化时间校验、impact/source/freshness、确认/取消、重复确认禁用、completed diff、unknown/partial、安全失败、conflict baseline 禁止执行和焦点恢复。ESLint、TypeScript、Prettier check 与 Vite build 通过。浏览器、390px、真实 FastAPI + 临时 SQLite 纵向链路和独立安全/数据审查仍属于 Step 7，不以组件测试替代。
+
+Step 7 已完成临时 SQLite API 纵向、桌面/`390×844` loopback 浏览器和独立安全/数据审查。SQLite 成功、幂等、重启、失败和并发路径均通过；plan version 使用 planning trace，独立 replan trace 只保留在 replan/decision；decide/begin_execution/commit 绑定创建时捕获的 job version，stale confirmation 在 executor 前冲突，执行竞争持久化为 conflict。修复后相关回归 219 项、后端全量 999 项、前端 73 项和静态/build 门禁通过；浏览器 completed/failed/version conflict 保留原计划、completed diff、390px 零横向溢出和 loopback-only 资源成立。该证据仍是 synthetic/临时 SQLite，不证明真实 Provider UAT；Step 8 尚未批准。
+
+Step 2 已按该顺序完成：四个测试模块先因领域类型不存在而 RED，再以 35 项测试锁定四种
+command、八类 impact、同日完整重排、跨日依赖、住宿/cross-city/unknown、共享来源、
+fresh/stale/unknown-validity、Decimal/unknown budget、baseline→result diff 和 scope 拒绝。领域
+178 项、后端全量 981 项、Ruff、format 和 strict mypy 通过；这些证据完全离线，不证明
+Repository、SQLite、API、UI 或真实 Provider 行为。
+
 ## 外部适配器和失败注入
 
 适配器合约测试覆盖统一 envelope 的 `ok`、`partial` 和 `unavailable`，并注入：

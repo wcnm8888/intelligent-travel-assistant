@@ -432,23 +432,28 @@ LLM 输出必须先通过 Schema 和领域校验。校验器结果是硬边界�
 ### 局部重规划
 
 ```text
-用户修改 + 基线 plan_version
-→ 代码计算直接影响对象
-→ 扩展依赖影响范围
-→ 分类 same_day / adjacent_day / cross_city / accommodation
-→ same_day：自动进入重规划
-→ 其他类别：展示影响并等待用户确认
-→ 只重新获取过期或受影响数据
-→ 生成新计划版本
-→ 对受影响范围和跨边界约束重新校验
-→ 展示变更摘要，保留旧版本
+结构化修改 + 当前 plan_id
+→ 捕获 job version、plan version 和 replan trace
+→ 纯代码计算直接/传递影响、预算和来源动作
+→ cross_city：Provider 调用和写入前拒绝
+→ 仅 same_day_low：自动进入独立 replan lifecycle 的 replanning
+→ 其他已批准高影响分类：持久化影响快照并等待 15 分钟确认
+→ 只复用仍 fresh/valid 且未受影响的转换后来源
+→ 对批准范围生成候选并执行完整确定性重校验
+→ 单事务追加计划版本、lineage、change set、来源和 decision
+→ 返回本次 baseline→result diff，保留旧版本
 ```
 
-影响范围由确定性代码计算。大模型可以解释影响，但不能自行决定跳过确认。
+F-003 只接受 `replace_activity`、`delete_activity`、`adjust_activity_time` 和
+`reorder_activities` 四种 tagged command。影响范围由确定性代码计算；大模型可以在
+批准范围内生成替换候选和解释结果，但不能分类影响、扩大修改集合、跳过确认或提交版本。
+重规划不增加 planning attempt，也不是 retry、版本恢复或完整计划重生成入口。
 
 ## 显式状态机
 
-F-001 当前子集以 [api-contract.md](./api-contract.md) 和代码中的 `ALLOWED_PLANNING_TRANSITIONS` 为准，包含新增的 `enriching_routes`，且不包含局部重规划状态。下表还展示 F-002/F-003 之后的目标扩展，不能作为 F-001 已实现状态。
+F-001/F-002 的 PlanningJob 状态以 [api-contract.md](./api-contract.md) 和代码中的
+`ALLOWED_PLANNING_TRANSITIONS` 为准，包含 `enriching_routes`，不包含任何局部重规划状态。
+F-003 不修改该状态图；确认和重规划由下方独立 replan lifecycle 承载。
 
 Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转换的应用层裁决入口。它直接读取冻结转换表，不维护第二份状态图；输入和结果均为冻结 typed value。`partial` 与 `failed` 的恢复边只有在显式 retry 且任务被标记为可重试时才成立，其他普通边拒绝 retry 触发。状态机本身无任务存储、attempt、trace、provider 或时钟副作用；完整轨迹与持久化仍由后续应用用例负责。
 
@@ -461,15 +466,28 @@ Step 13 已建立 `PlanningStateMachine.transition` 作为 F-001 单次状态转
 | `planning` | 生成并严格准入无最终时间的 proposal；无规则时长停止等待输入 | `needs_input`、`enriching_routes`、`validating`、`failed` |
 | `enriching_routes` | 按代码推导端点查询实际路线，并由确定性调度器生成精确时间 | `validating`、`partial`、`failed` |
 | `validating` | 执行确定性校验 | `ready`、`partial`、`conflict`、`planning` |
-| `awaiting_confirmation` | 变更跨越自动授权边界 | `replanning`、`ready`、`cancelled` |
-| `replanning` | 对批准影响范围生成新版本 | `validating`、`failed` |
-| `ready` | 计划通过当前必需校验 | `awaiting_confirmation`、`replanning` |
-| `partial` | 有可用结果但数据或预算不完整 | `collecting`、`awaiting_confirmation`、`replanning` |
-| `conflict` | 存在不能自动解决的约束冲突 | `needs_input`、`awaiting_confirmation`、`replanning` |
-| `failed` | 当前请求无法产生安全结果 | `collecting`、`planning`、`cancelled` |
-| `cancelled` | 用户取消当前流程 | 无 |
+| `ready` | 计划通过当前必需校验 | 无；重规划创建独立资源 |
+| `partial` | 有可用结果但数据或预算不完整 | 仅显式 retry 可回到 `normalizing` |
+| `conflict` | 存在不能自动解决的约束冲突 | 无 |
+| `failed` | 当前请求无法产生安全结果 | 仅显式 retry 可回到 `normalizing` |
 
-状态转换由应用层执行并记录原因；工具不能自行改变全局状态。
+PlanningJob 状态转换由应用层执行并记录原因；工具不能自行改变状态。
+
+F-003 独立 replan lifecycle 冻结为：
+
+| replan 状态 | 允许的下一状态 |
+| --- | --- |
+| `analyzing` | `awaiting_confirmation`、`replanning`、`needs_input`、`rejected`、`failed` |
+| `awaiting_confirmation` | `replanning`、`cancelled`、`expired`、`conflict` |
+| `replanning` | `completed`、`needs_input`、`conflict`、`failed` |
+| `rejected`、`completed`、`needs_input`、`conflict`、`failed`、`cancelled`、`expired` | 无 |
+
+`analyzing` 是纯确定性、零 Provider 阶段。只有分类集合精确为 `{same_day_low}` 且所有
+自动执行前置条件成立时才自动进入 `replanning`；`adjacent_day`、`cross_day`、
+`accommodation_effect`、`budget_risk`、`source_refresh` 或 `unknown_impact` 任一出现都进入
+`awaiting_confirmation`。`cross_city` 和不受支持的结构化修改进入 `rejected`。确认只授权已
+持久化的影响快照；unknown impact 经确认后若仍无法收敛为可验证范围，进入 `needs_input`，
+不能靠确认放宽硬边界。
 
 D-009 保持状态名称不变：`planning` 已改为生成并校验无最终时间的 proposal，`enriching_routes` 已改为查询实际路线并运行确定性调度器；无规则可补足的 unknown 游览时长通过新增的 `planning → needs_input` 边安全收口。
 
@@ -501,6 +519,43 @@ F-002 Step 1 已冻结本地 SQLite 设计，Step 2–4 已实现基础设施、
 当前重启恢复的是最后一次已提交快照；后台规划执行不是持久化队列，不承诺重启后自动续跑。Step 5 已实现单计划删除、migration 后一次有界 30 天清理，以及内部 typed acceptance record 写入。验收证据只允许固定 case/environment/status 和代码化 check/limitation，不保存完整日志、Prompt 或 provider body，也没有公开验收记录 API。
 
 该设计不新增历史列表、版本比较或恢复 API，不扩展多城市/多日/局部重规划，不授权真实 Provider 调用。具体字段、事务和测试矩阵以 F-002 当前实施计划为准。
+
+### F-003 migration v2 与 Repository 边界（Step 1 冻结）
+
+F-003 在 v1 之上只前向增加 `replan_requests` 和 `plan_version_lineage`，不改写 v1
+计划版本，也不为旧版本伪造父节点。`decision_records` 继续作为 job-owned typed 决策记录，
+由 `replan_requests.decision_id` 建立可空的一对一关联。
+
+- `replan_requests` 保存 job 内唯一的 `replan_request_id`、SHA-256 command 指纹、
+  baseline plan/version、内部 expected job version、独立 trace、操作、allowlist request JSON、
+  typed impact JSON、replan 状态、15 分钟过期时间、可空 decision/result version、安全错误码、
+  aggregate version 和带时区时间戳；
+- `plan_version_lineage` 以 `(job_id, child_version)` 为主键，保存 parent version、唯一
+  replan ID、可空 decision ID、typed change-set JSON 和创建时间；child/parent 都必须属于
+  同一 job，child 必须大于 parent；
+- v2 为 `plan_versions(job_id, version_number, plan_id)` 增加唯一索引，并让 baseline 的三列
+  外键精确引用同一版本；同时增加 job/replan 幂等唯一约束、job/status/updated、待确认 expires、baseline 和 lineage
+  索引；job 删除继续级联全部 F-003 记录；
+- JSON 只接受项目 typed model 的 `model_dump(mode="json")`，读取时重新校验并 fail closed；
+  不保存完整自然语言修改、Prompt、provider 原始响应或错误 body；
+- migration 2 继续使用既有升序、name/checksum、单 migration 事务和 rollback 规则；v1→v2
+  保留全部数据，重复执行幂等，高版本数据库 fail closed，不支持自动 down migration。
+
+F-003 新增独立 `ReplanRepository`，不修改 `PlanningJobRepository`。它拥有 reserve/get、
+记录分析、确认/取消、开始执行、失败终结和原子提交能力；每个写命令同时检查 replan
+aggregate version，执行和提交还检查捕获的 job version 与 baseline plan/version。成功提交在
+同一 SQLite 事务内写 plan version、采用来源及关联、lineage、decision、replan completed、
+当前 planning attempt 的 plan version、PlanningJob 快照和 version；任一写入失败全部回滚。两个相同 baseline 的并发 replan
+最多一个提交成功，另一方稳定返回 `version_conflict`。失败、冲突、取消、过期和 needs_input
+只更新 replan/decision 安全状态，不替换当前计划。
+
+F-003 Step 2 已实现纯领域 `domain/replanning.py`：四种 command、impact context/analysis、
+source action、budget result 和 plan change set 均为 framework-free frozen/slotted value；分类器
+只依赖显式 baseline 依赖图，不读取 Repository、SQLite、HTTP、Provider、环境或时钟。只有精确
+`same_day_low` 为 AUTO；重排活动集合、共享来源、unknown 费用、跨日依赖、cross-city 和 diff
+scope 都在领域边界 fail closed。Step 2 完成时该实现尚未接入 migration、Repository、application service 或 API；后续接入由 Step 3–5 完成。
+
+F-003 Step 3–5 已依次实现 migration v2、独立 ReplanRepository、application replan 编排和三个窄 HTTP 资源。API 使用严格 tagged command DTO，将 auto/approve 执行作为 background task 调度并先返回 `replanning` 快照；completed 读取通过 typed replan result/change-set 投影，非成功终态继续保留原计划。`create_app` 只接受显式注入的 replan application service，不因路由存在而读取 Provider 配置、恢复持久化执行或访问网络；完整临时 SQLite 纵向装配与浏览器验证仍属于后续批准阶段。
 
 ## 错误与降级
 

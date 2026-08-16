@@ -1574,3 +1574,341 @@ input[type="checkbox"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* F-003 local change desk: editorial annotations layered into the existing result. */
+.day-replan-trigger,
+.activity-replan-actions button,
+.replan-composer button,
+.replan-panel button {
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.day-replan-trigger {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 6px 9px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.activity-replan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.activity-replan-actions button {
+  padding: 4px 7px;
+  border-color: var(--line);
+  font-size: 8px;
+}
+
+.activity-replan-actions button:hover,
+.day-replan-trigger:hover,
+.replan-composer button:hover,
+.replan-panel button:not(:disabled):hover {
+  background: var(--ink);
+  color: var(--paper-raised);
+}
+
+.replan-composer,
+.replan-panel {
+  margin-top: 24px;
+  border: 1px solid var(--ink);
+  background:
+    linear-gradient(
+        135deg,
+        transparent 0 49.4%,
+        rgb(28 27 24 / 4%) 50%,
+        transparent 50.6%
+      )
+      0 0 / 18px 18px,
+    var(--paper-raised);
+  box-shadow: 8px 8px 0 var(--ink);
+}
+
+.replan-composer {
+  padding: 24px;
+}
+
+.replan-composer > p:first-child,
+.replan-panel__header p {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+}
+
+.replan-composer h3,
+.replan-panel h3,
+.replan-panel h4,
+.replan-panel h5 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.replan-composer h3,
+.replan-panel h3 {
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.05;
+}
+
+.replan-composer fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+}
+
+.replan-composer legend,
+.replan-composer label {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.replan-composer label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.replan-time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.replan-time-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.replan-time-fields input {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+.reorder-list {
+  padding: 0;
+  list-style: none;
+}
+
+.reorder-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.replan-composer__actions,
+.confirmation-box > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.replan-composer button,
+.replan-panel button {
+  padding: 9px 12px;
+  font-size: 10px;
+}
+
+.replan-panel button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.replan-form-error,
+.replan-terminal {
+  padding: 12px;
+  border-left: 4px solid var(--danger, #9d342c);
+  background: rgb(157 52 44 / 8%);
+}
+
+.replan-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.replan-live {
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--paper-raised);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.replan-intent,
+.replan-impact,
+.replan-change-set,
+.replan-terminal {
+  margin: 0;
+  padding: 22px;
+}
+
+.replan-section-heading {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+
+.replan-section-heading span {
+  font:
+    900 24px/1 Georgia,
+    serif;
+  color: var(--ink-soft);
+}
+
+.replan-section-heading h4 {
+  font-size: 22px;
+}
+
+.impact-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 0;
+  list-style: none;
+}
+
+.impact-tags li {
+  padding: 5px 8px;
+  border: 1px solid var(--ink);
+  background: var(--accent, #f2c84b);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.impact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 18px 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.impact-grid div {
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.impact-grid dt,
+.replan-change-set dt {
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.impact-grid dd,
+.replan-change-set dd {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.source-actions ul,
+.replan-change-set ul {
+  padding: 0;
+  list-style: none;
+}
+
+.source-actions li {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+}
+
+.confirmation-box {
+  margin-top: 18px;
+  padding: 15px;
+  border: 2px solid var(--ink);
+  background: var(--paper-raised);
+}
+
+.replan-change-set {
+  border-top: 1px solid var(--ink);
+}
+
+.replan-change-set > dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--line);
+}
+
+.replan-change-set > dl div {
+  padding: 10px;
+  border-right: 1px solid var(--line);
+}
+
+.replan-budget-unknown,
+.replan-partial-note {
+  padding: 9px;
+  background: var(--wash);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .replan-composer,
+  .replan-panel {
+    margin-inline: -4px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .replan-panel__header,
+  .replan-intent,
+  .replan-impact,
+  .replan-change-set,
+  .replan-terminal,
+  .replan-composer {
+    padding: 16px;
+  }
+
+  .replan-panel__header,
+  .replan-time-fields,
+  .impact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .replan-panel__header {
+    display: grid;
+  }
+
+  .source-actions li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .source-actions code {
+    grid-column: 1 / -1;
+  }
+}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from uuid import UUID
 
 from intelligent_travel_assistant.application.replanning.models import (
@@ -36,6 +37,7 @@ class ReplanApplicationService:
         self._planning_jobs = planning_jobs
         self._replans = replans
         self._executor = executor
+        self._execution_locks: dict[UUID, asyncio.Lock] = {}
 
     async def create(
         self,
@@ -55,8 +57,34 @@ class ReplanApplicationService:
         )
         if not reservation.created:
             return ReplanApplicationResult(reservation.replan)
-        self._require_baseline(job, request.baseline_plan_id)
-        impact = await self._executor.analyze(job, request.command)
+        try:
+            self._require_baseline(job, request.baseline_plan_id)
+        except ReplanApplicationError as error:
+            await self._replans.record_outcome(
+                job.job_id,
+                reservation.replan.replan_id,
+                ReplanOutcome(ReplanStatus.CONFLICT, str(error)),
+                expected_replan_version=reservation.replan.aggregate_version,
+            )
+            raise
+        try:
+            impact = await self._executor.analyze(job, request.command)
+        except asyncio.CancelledError:
+            await self._replans.record_outcome(
+                job.job_id,
+                reservation.replan.replan_id,
+                ReplanOutcome(ReplanStatus.FAILED, "replan_analysis_cancelled"),
+                expected_replan_version=reservation.replan.aggregate_version,
+            )
+            raise
+        except Exception:
+            failed = await self._replans.record_outcome(
+                job.job_id,
+                reservation.replan.replan_id,
+                ReplanOutcome(ReplanStatus.FAILED, "replan_analysis_failed"),
+                expected_replan_version=reservation.replan.aggregate_version,
+            )
+            return ReplanApplicationResult(failed)
         analyzed = await self._replans.record_analysis(
             request.job_id,
             reservation.replan.replan_id,
@@ -109,6 +137,17 @@ class ReplanApplicationService:
     async def _execute(self, job: PlanningJob, replan: ReplanRecord) -> ReplanApplicationResult:
         if not isinstance(replan, ReplanRecord):
             raise ReplanApplicationError("replan_record_invalid")
+        lock = self._execution_locks.setdefault(replan.replan_id, asyncio.Lock())
+        async with lock:
+            current_job = await self._planning_jobs.get(job.job_id)
+            current = await self._replans.get(job.job_id, replan.replan_id)
+            if current.status is not ReplanStatus.REPLANNING:
+                return ReplanApplicationResult(current)
+            return await self._execute_once(current_job, current)
+
+    async def _execute_once(
+        self, job: PlanningJob, replan: ReplanRecord
+    ) -> ReplanApplicationResult:
         try:
             executable = await self._replans.begin_execution(
                 job.job_id,
@@ -120,7 +159,24 @@ class ReplanApplicationService:
             if error.code is not ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT:
                 raise
             return await self._record_job_version_conflict(replan)
-        execution = await self._executor.execute(job, executable)
+        try:
+            execution = await self._executor.execute(job, executable)
+        except asyncio.CancelledError:
+            await self._replans.record_outcome(
+                job.job_id,
+                executable.replan_id,
+                ReplanOutcome(ReplanStatus.FAILED, "replan_execution_cancelled"),
+                expected_replan_version=executable.aggregate_version,
+            )
+            raise
+        except Exception:
+            terminal = await self._replans.record_outcome(
+                job.job_id,
+                executable.replan_id,
+                ReplanOutcome(ReplanStatus.FAILED, "replan_execution_failed"),
+                expected_replan_version=executable.aggregate_version,
+            )
+            return ReplanApplicationResult(terminal)
         if execution.outcome is not None:
             terminal = await self._replans.record_outcome(
                 job.job_id,
@@ -130,7 +186,13 @@ class ReplanApplicationService:
             )
             return ReplanApplicationResult(terminal)
         if execution.commit is None:
-            raise ReplanApplicationError("replan_execution_result_invalid")
+            terminal = await self._replans.record_outcome(
+                job.job_id,
+                executable.replan_id,
+                ReplanOutcome(ReplanStatus.FAILED, "replan_execution_result_invalid"),
+                expected_replan_version=executable.aggregate_version,
+            )
+            return ReplanApplicationResult(terminal)
         try:
             committed = await self._replans.commit(
                 job.job_id,

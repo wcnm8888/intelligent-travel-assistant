@@ -132,6 +132,17 @@ class DocumentationChecksTest(unittest.TestCase):
     def test_valid_project_passes(self) -> None:
         self.assertEqual(collect_issues(self.root), [])
 
+    def test_active_current_step_passes(self) -> None:
+        current_task = self.root / "docs/project-management/current-task.md"
+        current_task.write_text(
+            current_task.read_text(encoding="utf-8").replace(
+                "| Step 1 | Docs | TODO |", "| Step 1 | Docs | ACTIVE |"
+            ),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(collect_issues(self.root), [])
+
     def test_broken_relative_link_fails(self) -> None:
         self._write("README.md", "# Project\n\n[Missing](./docs/missing.md)\n")
         self.assertIn("broken-relative-link", self._categories())

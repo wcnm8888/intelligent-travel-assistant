@@ -170,6 +170,47 @@ class StubExecutor:
         return self.execution
 
 
+class FailingExecutor(StubExecutor):
+    def __init__(self, impact: ImpactAnalysis, *, fail_analysis: bool = False) -> None:
+        super().__init__(
+            impact, ReplanExecutionResult(outcome=ReplanOutcome(ReplanStatus.FAILED, "unused"))
+        )
+        self.fail_analysis = fail_analysis
+
+    async def analyze(self, job: PlanningJob, command: ReplanCommand) -> ImpactAnalysis:
+        if self.fail_analysis:
+            raise RuntimeError("synthetic analysis failure")
+        return await super().analyze(job, command)
+
+    async def execute(self, job: PlanningJob, replan: ReplanRecord) -> ReplanExecutionResult:
+        self.execution_calls += 1
+        raise RuntimeError("synthetic execution failure")
+
+
+class BlockingExecutor(StubExecutor):
+    def __init__(self, impact: ImpactAnalysis, execution: ReplanExecutionResult) -> None:
+        super().__init__(impact, execution)
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def execute(self, job: PlanningJob, replan: ReplanRecord) -> ReplanExecutionResult:
+        self.execution_calls += 1
+        self.started.set()
+        await self.release.wait()
+        return self.execution
+
+
+class BlockingAnalysisExecutor(StubExecutor):
+    def __init__(self, impact: ImpactAnalysis) -> None:
+        super().__init__(impact, ReplanExecutionResult(commit=_commit()))
+        self.started = asyncio.Event()
+
+    async def analyze(self, job: PlanningJob, command: ReplanCommand) -> ImpactAnalysis:
+        self.started.set()
+        await asyncio.Event().wait()
+        return self.impact
+
+
 def _service(
     impact: ImpactAnalysis,
     execution: ReplanExecutionResult,
@@ -210,6 +251,129 @@ def test_auto_replan_analyzes_executes_and_commits_once() -> None:
     assert repeated.replan == result.replan
     assert executor.analysis_calls == 1
     assert executor.execution_calls == 1
+
+
+def test_concurrent_execute_calls_invoke_executor_once() -> None:
+    async def scenario() -> tuple[ReplanStatus, ReplanStatus, int]:
+        identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
+        executor = BlockingExecutor(
+            _impact(ImpactDisposition.AUTO), ReplanExecutionResult(commit=_commit())
+        )
+        service = ReplanApplicationService(
+            cast(PlanningJobRepository, StubPlanningJobs(_job())),
+            InMemoryReplanRepository(id_factory=identifiers.__next__),
+            executor,
+        )
+        pending = await service.create(_application_request(), defer_execution=True)
+        first = asyncio.create_task(service.execute(JOB_ID, pending.replan.replan_id))
+        await executor.started.wait()
+        second = asyncio.create_task(service.execute(JOB_ID, pending.replan.replan_id))
+        executor.release.set()
+        first_result, second_result = await asyncio.gather(first, second)
+        return first_result.replan.status, second_result.replan.status, executor.execution_calls
+
+    assert asyncio.run(scenario()) == (ReplanStatus.COMPLETED, ReplanStatus.COMPLETED, 1)
+
+
+def test_cancelled_execution_is_persisted_as_failed() -> None:
+    async def scenario() -> tuple[ReplanStatus, str | None]:
+        identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
+        repository = InMemoryReplanRepository(id_factory=identifiers.__next__)
+        executor = BlockingExecutor(
+            _impact(ImpactDisposition.AUTO), ReplanExecutionResult(commit=_commit())
+        )
+        service = ReplanApplicationService(
+            cast(PlanningJobRepository, StubPlanningJobs(_job())), repository, executor
+        )
+        pending = await service.create(_application_request(), defer_execution=True)
+        task = asyncio.create_task(service.execute(JOB_ID, pending.replan.replan_id))
+        await executor.started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        restored = await repository.get(JOB_ID, pending.replan.replan_id)
+        return restored.status, restored.error_code
+
+    assert asyncio.run(scenario()) == (
+        ReplanStatus.FAILED,
+        "replan_execution_cancelled",
+    )
+
+
+def test_cancelled_analysis_is_persisted_as_failed() -> None:
+    async def scenario() -> tuple[ReplanStatus, str | None]:
+        identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID))
+        repository = InMemoryReplanRepository(id_factory=identifiers.__next__)
+        executor = BlockingAnalysisExecutor(_impact(ImpactDisposition.AUTO))
+        service = ReplanApplicationService(
+            cast(PlanningJobRepository, StubPlanningJobs(_job())), repository, executor
+        )
+        task = asyncio.create_task(service.create(_application_request()))
+        await executor.started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        restored = await repository.get(JOB_ID, REPLAN_ID)
+        return restored.status, restored.error_code
+
+    assert asyncio.run(scenario()) == (
+        ReplanStatus.FAILED,
+        "replan_analysis_cancelled",
+    )
+
+
+def test_analysis_and_execution_exceptions_are_persisted_as_safe_failures() -> None:
+    identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID))
+    analysis_executor = FailingExecutor(_impact(ImpactDisposition.AUTO), fail_analysis=True)
+    analysis_service = ReplanApplicationService(
+        cast(PlanningJobRepository, StubPlanningJobs(_job())),
+        InMemoryReplanRepository(id_factory=identifiers.__next__),
+        analysis_executor,
+    )
+    analyzed = asyncio.run(analysis_service.create(_application_request()))
+    assert analyzed.replan.status is ReplanStatus.FAILED
+    assert analyzed.replan.error_code == "replan_analysis_failed"
+
+    identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
+    execution_executor = FailingExecutor(_impact(ImpactDisposition.AUTO))
+    execution_service = ReplanApplicationService(
+        cast(PlanningJobRepository, StubPlanningJobs(_job())),
+        InMemoryReplanRepository(id_factory=identifiers.__next__),
+        execution_executor,
+    )
+    executed = asyncio.run(execution_service.create(_application_request()))
+    assert executed.replan.status is ReplanStatus.FAILED
+    assert executed.replan.error_code == "replan_execution_failed"
+
+
+def test_ready_commit_rejects_preserved_unknown_budget() -> None:
+    partial = _result("partial", plan_id=RESULT_PLAN_ID)
+    assert partial.plan is not None and partial.plan.budget_summary.unknown_count > 0
+    promoted = PlanningJobResult(
+        status=PlanningStatus.READY,
+        resolved_destination=partial.resolved_destination,
+        plan=partial.plan,
+        violations=(),
+        warnings=partial.warnings,
+        uncertainties=partial.uncertainties,
+        sources=partial.sources,
+        errors=(),
+        retryable=False,
+    )
+
+    with pytest.raises(ValueError, match="replan_ready_unknown_budget_invalid"):
+        ReplanCommit(
+            result=promoted,
+            change_set=PlanChangeSet(
+                baseline_plan_id=_result().plan.plan_id,  # type: ignore[union-attr]
+                result_plan_id=RESULT_PLAN_ID,
+                added_refs=(),
+                removed_refs=(),
+                changed_refs=(),
+                added_origins=(),
+                change_codes=(),
+            ),
+        )
 
 
 def test_confirmation_does_not_execute_until_approved() -> None:
