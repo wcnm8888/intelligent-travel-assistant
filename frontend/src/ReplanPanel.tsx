@@ -70,6 +70,9 @@ export function ReplanPanel({
 }: ReplanPanelProps) {
   const titleId = useId();
   const title = useRef<HTMLHeadingElement>(null);
+  const impactTitle = useRef<HTMLHeadingElement>(null);
+  const changesTitle = useRef<HTMLHeadingElement>(null);
+  const errorTitle = useRef<HTMLElement>(null);
   const [snapshot, setSnapshot] = useState<ReplanResponseDto | null>(null);
   const [phase, setPhase] = useState<"editing" | "busy" | "paused" | "settled">(
     "editing",
@@ -80,6 +83,16 @@ export function ReplanPanel({
     title.current?.focus();
   }, []);
 
+  useEffect(() => {
+    if (snapshot?.status === "awaiting_confirmation")
+      impactTitle.current?.focus();
+    if (snapshot?.status === "completed") changesTitle.current?.focus();
+  }, [snapshot?.status]);
+
+  useEffect(() => {
+    if (error) errorTitle.current?.focus();
+  }, [error]);
+
   const finish = (next: ReplanResponseDto) => {
     setSnapshot(next);
     if (next.status === "completed" && next.result && next.change_set)
@@ -87,16 +100,28 @@ export function ReplanPanel({
     setPhase("settled");
   };
 
-  const poll = async (initial: ReplanResponseDto) => {
+  const poll = async (initial: ReplanResponseDto, forceFirstRead = false) => {
     let current = initial;
     for (
       let count = 0;
       count < pollingPolicy.maxPolls &&
-      ["analyzing", "replanning"].includes(current.status);
+      (forceFirstRead && count === 0
+        ? true
+        : ["analyzing", "replanning"].includes(current.status));
       count += 1
     ) {
       await pollingPolicy.wait();
-      current = await api.read(current.job_id, current.replan_id);
+      try {
+        current = await api.read(current.job_id, current.replan_id);
+      } catch (caught) {
+        setError(
+          caught instanceof ReplanningClientError
+            ? `${caught.message} 后台可能仍在执行，请继续刷新确认最终状态。`
+            : "自动刷新暂时失败；后台可能仍在执行，请继续刷新确认最终状态。",
+        );
+        setPhase("paused");
+        return;
+      }
       setSnapshot(current);
     }
     if (["analyzing", "replanning"].includes(current.status)) {
@@ -106,7 +131,10 @@ export function ReplanPanel({
     }
   };
 
-  const safely = async (action: () => Promise<ReplanResponseDto>) => {
+  const safely = async (
+    action: () => Promise<ReplanResponseDto>,
+    recoverableResponseLoss = false,
+  ) => {
     setError(null);
     setPhase("busy");
     try {
@@ -115,12 +143,19 @@ export function ReplanPanel({
       if (["analyzing", "replanning"].includes(next.status)) await poll(next);
       else finish(next);
     } catch (caught) {
+      const shouldRecover =
+        recoverableResponseLoss &&
+        (!(caught instanceof ReplanningClientError) ||
+          caught.retryable ||
+          ["network_unavailable", "response_invalid"].includes(caught.code));
       setError(
-        caught instanceof ReplanningClientError
-          ? caught.message
-          : "局部调整未能安全完成，原计划保持不变。",
+        shouldRecover
+          ? "确认响应未能核实；后台可能仍在执行，请继续刷新确认最终状态。"
+          : caught instanceof ReplanningClientError
+            ? caught.message
+            : "局部调整未能安全完成，原计划保持不变。",
       );
-      setPhase("settled");
+      setPhase(shouldRecover ? "paused" : "settled");
     }
   };
 
@@ -134,8 +169,9 @@ export function ReplanPanel({
     );
   const decide = (choice: "approve" | "cancel") => {
     if (!snapshot) return Promise.resolve();
-    return safely(() =>
-      api.decide(snapshot.job_id, snapshot.replan_id, choice),
+    return safely(
+      () => api.decide(snapshot.job_id, snapshot.replan_id, choice),
+      true,
     );
   };
   const busy = phase === "busy";
@@ -183,7 +219,8 @@ export function ReplanPanel({
             type="button"
             onClick={() => {
               setPhase("busy");
-              void poll(snapshot);
+              setError(null);
+              void poll(snapshot, true);
             }}
           >
             继续刷新局部调整
@@ -207,7 +244,9 @@ export function ReplanPanel({
         <section className="replan-impact" aria-label="修改影响">
           <div className="replan-section-heading">
             <span>01</span>
-            <h4>将影响哪些内容</h4>
+            <h4 ref={impactTitle} tabIndex={-1}>
+              将影响哪些内容
+            </h4>
           </div>
           <ul className="impact-tags">
             {impact.categories.map((category) => (
@@ -258,7 +297,7 @@ export function ReplanPanel({
               </ul>
             )}
           </div>
-          {snapshot?.status === "awaiting_confirmation" && (
+          {snapshot?.status === "awaiting_confirmation" && !error && (
             <div className="confirmation-box">
               <p>
                 <strong>确认前请检查：</strong>
@@ -275,14 +314,14 @@ export function ReplanPanel({
                 <button
                   type="button"
                   onClick={() => void decide("cancel")}
-                  disabled={busy}
+                  disabled={busy || Boolean(error)}
                 >
                   取消并保留原计划
                 </button>
                 <button
                   type="button"
                   onClick={() => void decide("approve")}
-                  disabled={busy}
+                  disabled={busy || Boolean(error)}
                 >
                   确认并生成新版本
                 </button>
@@ -299,7 +338,9 @@ export function ReplanPanel({
         >
           <div className="replan-section-heading">
             <span>02</span>
-            <h4 id={`${titleId}-changes`}>本次版本变化</h4>
+            <h4 id={`${titleId}-changes`} ref={changesTitle} tabIndex={-1}>
+              本次版本变化
+            </h4>
           </div>
           <p>仅比较本次 baseline → result，不提供任意历史版本比较或恢复。</p>
           <ul>
@@ -321,6 +362,17 @@ export function ReplanPanel({
               <dd>{snapshot.change_set.changed_refs.length}</dd>
             </div>
           </dl>
+          <ul className="replan-change-refs">
+            {snapshot.change_set.added_refs.map((reference) => (
+              <li key={`added-${reference}`}>新增对象：{reference}</li>
+            ))}
+            {snapshot.change_set.removed_refs.map((reference) => (
+              <li key={`removed-${reference}`}>删除对象：{reference}</li>
+            ))}
+            {snapshot.change_set.changed_refs.map((reference) => (
+              <li key={`changed-${reference}`}>变更对象：{reference}</li>
+            ))}
+          </ul>
           {snapshot.result?.plan?.budget_summary.unknown_count ? (
             <p className="replan-budget-unknown">
               金额未知 · {snapshot.result.plan.budget_summary.unknown_count}{" "}
@@ -337,7 +389,9 @@ export function ReplanPanel({
 
       {(error || (snapshot && terminalMessage[snapshot.status])) && (
         <div className="replan-terminal" role="alert">
-          <strong>没有替换当前计划</strong>
+          <strong ref={errorTitle} tabIndex={-1}>
+            {phase === "paused" ? "最终状态尚待确认" : "没有替换当前计划"}
+          </strong>
           <p>{error ?? terminalMessage[snapshot!.status]}</p>
         </div>
       )}

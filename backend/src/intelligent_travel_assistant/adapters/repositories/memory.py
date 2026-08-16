@@ -394,6 +394,11 @@ class InMemoryReplanRepository:
                 aggregate_version=current.aggregate_version + 1,
                 decision=decision,
                 updated_at=now,
+                expires_at=(
+                    now + timedelta(minutes=15)
+                    if next_status is ReplanStatus.AWAITING_CONFIRMATION
+                    else current.expires_at
+                ),
                 decided_at=decided_at,
             )
             self._records[replan_id] = updated
@@ -499,7 +504,7 @@ class InMemoryReplanRepository:
         async with self._lock:
             current = self._get(job_id, replan_id)
             self._check_version(current, expected_replan_version)
-            if current.status is not ReplanStatus.REPLANNING:
+            if current.status not in {ReplanStatus.ANALYZING, ReplanStatus.REPLANNING}:
                 _raise_memory(ReplanRepositoryErrorCode.INVALID_STATE)
             now = self._now(not_before=current.updated_at)
             updated = replace(

@@ -279,6 +279,11 @@ class ReplanCommit:
             raise ValueError("replan_commit_result_invalid")
         if self.result.plan is None:
             raise ValueError("replan_commit_plan_required")
+        if (
+            self.result.status is PlanningStatus.READY
+            and self.result.plan.budget_summary.unknown_count > 0
+        ):
+            raise ValueError("replan_ready_unknown_budget_invalid")
         if not isinstance(self.change_set, PlanChangeSet):
             raise ValueError("replan_commit_change_set_invalid")
         if self.change_set.result_plan_id != self.result.plan.plan_id:

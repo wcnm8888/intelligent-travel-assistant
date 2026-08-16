@@ -2,7 +2,11 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ReplanningApi, ReplanResponseDto } from "./replanningApi";
+import {
+  ReplanningClientError,
+  type ReplanningApi,
+  type ReplanResponseDto,
+} from "./replanningApi";
 import { ReplanPanel } from "./ReplanPanel";
 import {
   partialPlanningResponse,
@@ -121,6 +125,10 @@ describe("ReplanPanel", () => {
     await user.click(screen.getByRole("button", { name: "确认并生成新版本" }));
     expect(api.decide).toHaveBeenCalledOnce();
     expect(await screen.findByText("本次版本变化")).toBeVisible();
+    expect(screen.getByText("本次版本变化")).toHaveFocus();
+    expect(screen.getByText(/删除对象：/)).toHaveTextContent(
+      completed.change_set!.removed_refs[0],
+    );
     expect(screen.getByText(/金额未知 · 1 项/)).toBeVisible();
     expect(onCompleted).toHaveBeenCalledWith(
       completed.result,
@@ -234,5 +242,130 @@ describe("ReplanPanel", () => {
     await user.click(approve);
     expect(approve).toBeDisabled();
     expect(decide).toHaveBeenCalledOnce();
+  });
+
+  it("keeps polling recoverable when the background result read fails", async () => {
+    const user = userEvent.setup();
+    const pending = awaitingConfirmationResponse();
+    const replanning = { ...pending, status: "replanning" as const };
+    const read = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ReplanningClientError("network_error", "读取失败"),
+      )
+      .mockResolvedValueOnce(completedResponse());
+    const baseline = readyPlanningResponse();
+    if (!baseline.plan) throw new Error("fixture plan missing");
+    render(
+      <ReplanPanel
+        api={{
+          create: vi.fn().mockResolvedValue(replanning),
+          read,
+          decide: vi.fn(),
+        }}
+        baseline={{ ...baseline, plan: baseline.plan }}
+        command={{
+          operation: "delete_activity",
+          target_activity_id: pending.impact!.direct_refs[0],
+        }}
+        commandLabel="删除活动"
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+        pollingPolicy={{
+          maxPolls: 1,
+          wait: vi.fn().mockResolvedValue(undefined),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "分析影响" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "后台可能仍在执行",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("最终状态尚待确认");
+    await user.click(screen.getByRole("button", { name: "继续刷新局部调整" }));
+    expect(await screen.findByText("本次版本变化")).toBeVisible();
+  });
+
+  it("removes stale confirmation actions after a decision conflict", async () => {
+    const user = userEvent.setup();
+    const pending = awaitingConfirmationResponse();
+    const baseline = readyPlanningResponse();
+    if (!baseline.plan) throw new Error("fixture plan missing");
+    render(
+      <ReplanPanel
+        api={{
+          create: vi.fn().mockResolvedValue(pending),
+          read: vi.fn(),
+          decide: vi
+            .fn()
+            .mockRejectedValue(
+              new ReplanningClientError("version_conflict", "版本冲突"),
+            ),
+        }}
+        baseline={{ ...baseline, plan: baseline.plan }}
+        command={{
+          operation: "delete_activity",
+          target_activity_id: pending.impact!.direct_refs[0],
+        }}
+        commandLabel="删除活动"
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "分析影响" }));
+    await user.click(
+      await screen.findByRole("button", { name: "确认并生成新版本" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("版本冲突");
+    expect(
+      within(screen.getByRole("alert")).getByText("没有替换当前计划"),
+    ).toHaveFocus();
+    expect(
+      screen.queryByRole("button", { name: "确认并生成新版本" }),
+    ).toBeNull();
+  });
+
+  it("can poll after an approved decision response is lost", async () => {
+    const user = userEvent.setup();
+    const pending = awaitingConfirmationResponse();
+    const baseline = readyPlanningResponse();
+    if (!baseline.plan) throw new Error("fixture plan missing");
+    render(
+      <ReplanPanel
+        api={{
+          create: vi.fn().mockResolvedValue(pending),
+          read: vi.fn().mockResolvedValue(completedResponse()),
+          decide: vi
+            .fn()
+            .mockRejectedValue(
+              new ReplanningClientError("http_error", "响应丢失", true),
+            ),
+        }}
+        baseline={{ ...baseline, plan: baseline.plan }}
+        command={{
+          operation: "delete_activity",
+          target_activity_id: pending.impact!.direct_refs[0],
+        }}
+        commandLabel="删除活动"
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+        pollingPolicy={{
+          maxPolls: 1,
+          wait: vi.fn().mockResolvedValue(undefined),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "分析影响" }));
+    await user.click(
+      await screen.findByRole("button", { name: "确认并生成新版本" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "最终状态尚待确认",
+    );
+    await user.click(screen.getByRole("button", { name: "继续刷新局部调整" }));
+    expect(await screen.findByText("本次版本变化")).toBeVisible();
   });
 });

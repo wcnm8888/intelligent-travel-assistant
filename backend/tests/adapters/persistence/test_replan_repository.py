@@ -53,6 +53,7 @@ SECOND_REPLAN_REQUEST_ID = UUID("00000000-0000-4000-8000-000000000010")
 SECOND_REPLAN_ID = UUID("00000000-0000-4000-8000-000000000011")
 SECOND_DECISION_ID = UUID("00000000-0000-4000-8000-000000000012")
 REPLAN_TRACE_ID = UUID("00000000-0000-4000-8000-000000000013")
+THIRD_PLAN_ID = UUID("00000000-0000-4000-8000-000000000014")
 
 
 def _database(path: Path) -> SqliteDatabase:
@@ -179,13 +180,19 @@ def _ready_database(path: Path) -> tuple[SqliteDatabase, PlanningJob]:
     return database, job
 
 
-def _commit(job: PlanningJob) -> ReplanCommit:
+def _commit(
+    job: PlanningJob,
+    *,
+    result_plan_id: UUID = RESULT_PLAN_ID,
+    result: PlanningJobResult | None = None,
+) -> ReplanCommit:
     assert job.result is not None and job.result.plan is not None
+    committed_result = result or _ready_result(plan_id=result_plan_id)
     return ReplanCommit(
-        _ready_result(plan_id=RESULT_PLAN_ID),
+        committed_result,
         PlanChangeSet(
             baseline_plan_id=job.result.plan.plan_id,
-            result_plan_id=RESULT_PLAN_ID,
+            result_plan_id=result_plan_id,
             added_refs=(),
             removed_refs=(),
             changed_refs=(),
@@ -193,6 +200,190 @@ def _commit(job: PlanningJob) -> ReplanCommit:
             change_codes=(),
         ),
     )
+
+
+def test_confirmation_ttl_starts_when_analysis_finishes(tmp_path: Path) -> None:
+    database, job = _ready_database(tmp_path / "confirmation-ttl.sqlite3")
+    current_time = [NOW]
+    try:
+        assert job.result is not None and job.result.plan is not None
+        identifiers = iter((REPLAN_ID, DECISION_ID))
+        repository = SqliteReplanRepository(
+            database, clock=lambda: current_time[0], id_factory=identifiers.__next__
+        )
+        reserved = asyncio.run(
+            repository.reserve(
+                job.job_id,
+                REPLAN_REQUEST_ID,
+                _command(),
+                baseline_plan_id=job.result.plan.plan_id,
+                expected_job_version=job.version,
+                trace_id=REPLAN_TRACE_ID,
+            )
+        )
+        current_time[0] = NOW + timedelta(minutes=7)
+        analyzed = asyncio.run(
+            repository.record_analysis(
+                job.job_id,
+                reserved.replan.replan_id,
+                _confirm_impact(),
+                expected_replan_version=reserved.replan.aggregate_version,
+            )
+        )
+
+        assert analyzed.expires_at == current_time[0] + timedelta(minutes=15)
+    finally:
+        database.close()
+
+
+def test_analysis_failure_can_be_persisted_from_analyzing(tmp_path: Path) -> None:
+    database, job = _ready_database(tmp_path / "analysis-failure.sqlite3")
+    try:
+        assert job.result is not None and job.result.plan is not None
+        repository = SqliteReplanRepository(
+            database, clock=lambda: NOW, id_factory=lambda: REPLAN_ID
+        )
+        reserved = asyncio.run(
+            repository.reserve(
+                job.job_id,
+                REPLAN_REQUEST_ID,
+                _command(),
+                baseline_plan_id=job.result.plan.plan_id,
+                expected_job_version=job.version,
+                trace_id=REPLAN_TRACE_ID,
+            )
+        )
+        failed = asyncio.run(
+            repository.record_outcome(
+                job.job_id,
+                reserved.replan.replan_id,
+                ReplanOutcome(ReplanStatus.FAILED, "replan_analysis_failed"),
+                expected_replan_version=reserved.replan.aggregate_version,
+            )
+        )
+        assert failed.status is ReplanStatus.FAILED
+        assert failed.error_code == "replan_analysis_failed"
+    finally:
+        database.close()
+
+
+def test_completed_replan_keeps_its_historical_result_after_later_commit(
+    tmp_path: Path,
+) -> None:
+    database, job = _ready_database(tmp_path / "historical-result.sqlite3")
+    try:
+        assert job.result is not None and job.result.plan is not None
+        identifiers = iter((REPLAN_ID, DECISION_ID, SECOND_REPLAN_ID, SECOND_DECISION_ID))
+        repository = SqliteReplanRepository(
+            database, clock=lambda: NOW, id_factory=identifiers.__next__
+        )
+        first_reserved = asyncio.run(
+            repository.reserve(
+                job.job_id,
+                REPLAN_REQUEST_ID,
+                _command(),
+                baseline_plan_id=job.result.plan.plan_id,
+                expected_job_version=job.version,
+                trace_id=REPLAN_TRACE_ID,
+            )
+        )
+        first_analyzed = asyncio.run(
+            repository.record_analysis(
+                job.job_id,
+                first_reserved.replan.replan_id,
+                _auto_impact(),
+                expected_replan_version=first_reserved.replan.aggregate_version,
+            )
+        )
+        asyncio.run(
+            repository.commit(
+                job.job_id,
+                first_analyzed.replan_id,
+                _commit(job),
+                expected_replan_version=first_analyzed.aggregate_version,
+                expected_job_version=job.version,
+            )
+        )
+        lineage_json = database.connection.execute(
+            """
+            SELECT change_set_json FROM plan_version_lineage
+            WHERE job_id = ? AND child_version = 2
+            """,
+            (str(job.job_id),),
+        ).fetchone()[0]
+        lineage_payload = json.loads(lineage_json)
+        database.connection.execute(
+            """
+            UPDATE plan_version_lineage SET change_set_json = ?
+            WHERE job_id = ? AND child_version = 2
+            """,
+            (json.dumps(lineage_payload["change_set"]), str(job.job_id)),
+        )
+        next_job = asyncio.run(SqlitePlanningJobRepository(database).get(job.job_id))
+        assert next_job.result is not None and next_job.result.plan is not None
+        second_reserved = asyncio.run(
+            repository.reserve(
+                next_job.job_id,
+                SECOND_REPLAN_REQUEST_ID,
+                _command(),
+                baseline_plan_id=next_job.result.plan.plan_id,
+                expected_job_version=next_job.version,
+                trace_id=REPLAN_TRACE_ID,
+            )
+        )
+        second_analyzed = asyncio.run(
+            repository.record_analysis(
+                next_job.job_id,
+                second_reserved.replan.replan_id,
+                _auto_impact(),
+                expected_replan_version=second_reserved.replan.aggregate_version,
+            )
+        )
+        latest_result = _ready_result(plan_id=THIRD_PLAN_ID)
+        latest_result = PlanningJobResult(
+            status=latest_result.status,
+            resolved_destination=latest_result.resolved_destination,
+            plan=latest_result.plan,
+            violations=latest_result.violations,
+            warnings=("latest-only-warning",),
+            uncertainties=latest_result.uncertainties,
+            sources=latest_result.sources,
+            errors=latest_result.errors,
+            retryable=latest_result.retryable,
+        )
+        asyncio.run(
+            repository.commit(
+                next_job.job_id,
+                second_analyzed.replan_id,
+                _commit(
+                    next_job,
+                    result_plan_id=THIRD_PLAN_ID,
+                    result=latest_result,
+                ),
+                expected_replan_version=second_analyzed.aggregate_version,
+                expected_job_version=next_job.version,
+            )
+        )
+
+        historical = asyncio.run(repository.get(job.job_id, first_analyzed.replan_id))
+        assert historical.result_plan_version == 2
+        assert historical.result is not None and historical.result.plan is not None
+        assert historical.result.plan.plan_id == RESULT_PLAN_ID
+        assert "latest-only-warning" not in historical.result.warnings
+        assert historical.change_set is not None
+        assert historical.change_set.result_plan_id == RESULT_PLAN_ID
+        upgraded_lineage = json.loads(
+            database.connection.execute(
+                """
+                SELECT change_set_json FROM plan_version_lineage
+                WHERE job_id = ? AND child_version = 2
+                """,
+                (str(job.job_id),),
+            ).fetchone()[0]
+        )
+        assert "result_metadata" in upgraded_lineage
+    finally:
+        database.close()
 
 
 def test_sqlite_replan_reserve_is_idempotent_and_typed(tmp_path: Path) -> None:
