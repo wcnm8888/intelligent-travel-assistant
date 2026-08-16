@@ -36,7 +36,7 @@ def _database(path: Path) -> SqliteDatabase:
 def _run_default(path: Path) -> SqliteDatabase:
     database = _database(path)
     connection = database.open()
-    assert MigrationRunner().run(connection) == (1,)
+    assert MigrationRunner().run(connection) == (1, 2)
     return database
 
 
@@ -84,10 +84,12 @@ def test_initial_schema_is_created_and_reused(tmp_path: Path) -> None:
             "plan_version_sources",
             "decision_records",
             "acceptance_records",
+            "replan_requests",
+            "plan_version_lineage",
         }
 
-        assert MigrationRunner().run(connection) == (1,)
-        assert connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 1
+        assert MigrationRunner().run(connection) == (1, 2)
+        assert connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 2
         index_names = {
             row[0]
             for row in connection.execute(
@@ -104,6 +106,10 @@ def test_initial_schema_is_created_and_reused(tmp_path: Path) -> None:
             "ix_source_records_job_freshness",
             "ix_decision_records_job_created",
             "ix_acceptance_records_job_observed",
+            "ix_replan_requests_job_status",
+            "ix_replan_requests_expires_at",
+            "ix_replan_requests_job_trace",
+            "ix_plan_version_lineage_parent",
         } <= index_names
     finally:
         database.close()
@@ -264,7 +270,7 @@ def test_migration_checksum_drift_fails_closed(tmp_path: Path) -> None:
             statements=("CREATE TABLE different(value INTEGER)",),
         )
         with pytest.raises(MigrationHistoryError, match="checksum_mismatch"):
-            MigrationRunner((altered,)).run(database.connection)
+            MigrationRunner((altered, DEFAULT_MIGRATIONS[1])).run(database.connection)
     finally:
         database.close()
 
@@ -280,7 +286,7 @@ def test_failed_migration_rolls_back_all_its_statements(tmp_path: Path) -> None:
     database = _run_default(tmp_path / "rollback.sqlite3")
     try:
         broken = Migration(
-            version=2,
+            version=3,
             name="broken",
             statements=(
                 "CREATE TABLE should_rollback(value INTEGER)",
@@ -299,7 +305,7 @@ def test_failed_migration_rolls_back_all_its_statements(tmp_path: Path) -> None:
         versions = database.connection.execute(
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
-        assert [row[0] for row in versions] == [1]
+        assert [row[0] for row in versions] == [1, 2]
     finally:
         database.close()
 
@@ -312,7 +318,7 @@ def test_higher_database_version_fails_closed(tmp_path: Path) -> None:
                 "INSERT INTO schema_migrations(version, name, checksum, applied_at) "
                 "VALUES (?, ?, ?, ?)"
             ),
-            (2, "future", "b" * 64, "2026-08-15T00:00:00Z"),
+            (3, "future", "b" * 64, "2026-08-15T00:00:00Z"),
         )
         with pytest.raises(MigrationHistoryError, match="history_gap"):
             MigrationRunner().run(database.connection)
