@@ -2,229 +2,226 @@
 
 ## 当前状态
 
-当前无活动任务，因此没有正在执行的 Step。
-
-- 最近完成任务：`F-002 计划持久化、来源与版本`
-- 任务状态：`ARCHIVED`
-- 已完成 Step：`Step 0–6`
-- 交付：PR #6 已合并为 `34fce5826db30ec30f7ae446ac2eb073a37cece9`；合并提交 main CI run `31924066600` 通过
-- 下一批准动作：等待用户从 roadmap 选择并批准下一任务；不自动进入 F-003
-
-## Step 6 执行基线
-
-- 用户已批准全量门禁、文档收口和交付审查；Step 6 在审查与门禁完成前保持 `TODO`；
-- 审查对象是 `HEAD` 到当前工作区的完整 F-002 累计差异，包括未跟踪的 persistence 源码和测试；
-- 允许对累计审查发现的 F-002 范围内缺陷做最小修复，并同步权威文档；不扩大 Schema、migration、公开 API、产品或隐私边界；
-- 测试继续只使用内存替身和 `tmp_path` SQLite，不创建真实业务数据库，不读取 `.env.local`，不调用真实 Provider 或非 loopback 网络；
-- 本地审查阶段不创建分支、提交、推送、PR 或合并；后续用户已另行授权分支、提交、推送、PR 和 CI，但仍未授权合并。
-
-## Step 6 审查结果
-
-- 初次本地统一门禁通过：91 个 Python/脚本文件 format、Ruff、strict mypy，后端 922 项、前端 65 项、文档检查器 23 项及 Vite build 全部通过；
-- 范围检查通过：没有 frontend、依赖、lockfile、环境、CI 或数据库文件变更；没有真实 Provider、非 loopback 网络或真实业务数据库访问；
-- 初次交付阻塞：真实执行器的 `_id(job_id, suffix)` 使 retry 继续生成相同 `plan_id` 和 user/system `source_id`；SQLite schema 的 `UNIQUE(job_id, plan_id)` 与 `PRIMARY KEY(job_id, source_id)` 会拒绝第二个终态；
-- 用户批准后已保持 Schema、migration 和 attempt 1 标识不变，仅为 attempt 2/3 引入由 job/attempt/trace 派生的稳定命名空间；
-- 纵向红测先得到第二 attempt `failed`，修复后得到第二个 `partial` 计划版本、两个 attempt、不同 plan ID 和不重叠 user/system source ID；相关执行器、Repository、API 专项 53 项通过；
-- 修复后统一门禁再次通过：91 个 Python/脚本文件 format、Ruff、strict mypy，后端 923 项、前端 65 项、文档检查器 23 项及 Vite build 全部通过；最终本地复审无剩余 P0/P1；
-- 用户已授权并完成指定功能分支、精确暂存、提交、推送、PR、远程 CI、合并和归档流程。
-- 实施提交 `729119b9f583bfa80c421a9231f19694df38ab5f` 与交付证据提交 `6b9f0ec44522502a334fef5d0b4e1b31e1d5000e` 已通过 PR #6 合并；合并提交 main CI run `31924066600` 通过，F-002 已归档。
-
-## 执行基线修复
-
-- 原文件清单错误地禁止了 Step 2 所需的 SQLite/migration 基础设施和临时测试；
-- 本次只修复 `current-task.md` 的阶段化允许/禁止文件清单；
-- 未修改生产源码、未创建数据库、未运行 Step 2；（以上为基线修复阶段的历史记录）
-- 未读取 `.env.local` 或任何秘密；
-- Step 2 后续已获用户批准并完成实现验证；状态收口在本次获得授权后完成。
-
-## Step 3 执行基线修复
-
-- 用户已批准修复 Step 3 文件清单，并在基线门禁通过后重新进入 Step 3；
-- Step 3 明确允许 persistence 目录内的 SQLite `PlanningJobRepository` adapter、typed hydration、job/attempt/version/source 映射和对应临时数据库测试；
-- Step 3 项目管理文档及最终状态收口所需的 `docs/README.md`、`roadmap.md` 已纳入允许范围；
-- Repository Protocol、API、前端、Provider、依赖、环境文件、真实数据库、删除/清理、版本比较/恢复和历史列表仍禁止修改；
-- 基线修复本身不实现 Repository；门禁通过后才进入 Step 3 实现。
-
-## Step 3 实现验证结果
-
-- 已在 persistence adapter 内实现既有 `PlanningJobRepository` 的五个方法，没有修改 application Protocol；
-- 已实现 allowlist request JSON、typed result metadata、追加式 plan version、source records/link、attempt/trace 和乐观 version 的原子写入与恢复；
-- 已验证重启恢复、幂等创建与冲突、同连接并发更新、跨连接 stale version、retry、两版计划、五种终态、unknown/Decimal/时区/freshness round-trip、事务回滚、损坏数据 fail closed 和隐私字段拒绝；
-- persistence 测试 28 项、后端全量 904 项、前端 65 项、文档检查器 23 项以及统一 format/lint/strict mypy/build/docs 门禁通过；
-- 未接入 API、前端或 Provider，未修改依赖、Schema 或 migration，未创建真实业务数据库，未读取秘密或访问真实网络；
-- Step 3 标记为 `DONE`；Step 4 仍为 `TODO`，等待用户批准。
-
-## Step 4 执行基线
-
-- 用户已明确批准进入 Step 4；
-- 实现仅允许修改 settings、bootstrap、app 组合根，以及临时 SQLite 的 bootstrap/API 集成测试；公开路由、DTO 和 Repository Protocol 不变；
-- 本地模式默认使用应用数据目录中的 SQLite；test 模式只有显式传入 `tmp_path` 数据库路径时才启用 SQLite，否则继续使用内存测试替身；
-- 应用 lifespan 必须在接受请求前完成连接和 migration，失败时 fail closed；shutdown 必须关闭连接；
-- Step 4 验证重启读取、重复 POST、同 client ID 输入冲突、并发创建和 retry 冲突；不实现删除、清理、历史列表、版本比较/恢复或 Step 5；
-- 最终状态收口允许同步 architecture、api-contract、testing-strategy、README、roadmap 和项目管理文档。
-
-## Step 4 实现验证结果
-
-- 已在 settings、bootstrap 和 app 组合根内装配本地 SQLite Repository；显式路径必须为源码树外的绝对路径，默认路径位于操作系统本地应用数据目录，模块导入不创建数据库；
-- lifespan 在接受请求前打开连接并完成 migration，失败或高版本数据库安全停止启动，关闭时释放连接；测试注入优先，`APP_ENV=test` 未显式提供临时路径时继续使用内存替身；
-- 新增 9 项组合根/API 测试，覆盖默认路径安全、迁移与关闭、应用重启恢复、重复 POST、异请求幂等冲突、16 路并发创建、retry 乐观冲突和高版本 fail closed；
-- 统一门禁通过：91 个 Python/脚本文件 format、Ruff、strict mypy，后端 913 项、前端 65 项、文档检查器 23 项和前端 build 全部通过；
-- 未修改公开路由/DTO、Repository Protocol、Schema、migration、前端、Provider 或依赖；未创建真实业务数据库，未读取秘密，未访问真实 Provider 或非 loopback 网络；
-- Step 4 标记为 `DONE`；Step 5 仍为 `TODO`，等待用户批准。
-
-## Step 5 执行基线
-
-- 用户已明确批准 Step 5：单计划删除、30 天保留期启动清理、隐私安全收口和 acceptance record 持久化；
-- 允许修改范围限定为新增窄 Repository/maintenance/acceptance port、内存测试替身、SQLite adapter、单计划 DELETE route、启动清理装配、对应测试和权威文档；
-- 冻结 schema 与 migration 不变；acceptance record 使用既有 `acceptance_records` 表，删除依赖既有 job 级外键级联，清理依据既有 `expires_at` 索引；
-- acceptance record 仅提供内部 typed 写入边界，不新增公开写入或历史查询 API；DELETE 只删除一个明确 job ID，不提供清空全部数据；
-- 测试只使用内存替身和 `tmp_path` SQLite，不读取 `.env.local`，不访问真实 Provider 或非 loopback 网络，不创建真实业务数据库。
-
-## Step 5 实现验证结果
-
-- 已实现单计划 Repository delete 和 `DELETE /api/trip-plans/{job_id}`；存在返回 204，缺失/非法 ID 返回安全 404，删除释放 client request ID；
-- SQLite 删除依赖既有外键级联移除 job-owned attempt、版本、来源关联、decision 和 acceptance；没有批量清空入口；
-- migration 完成后启动一次有界 cleanup，每次最多删除 1000 个 `expires_at <= now` 的 job；aware datetime 在 Python 精确比较，避免 SQLite `julianday` 微秒舍入提前删除；
-- acceptance record 使用固定 status 和代码化 case/environment/check/limitation typed model，只写既有表，校验 attempt/plan version 归属，不开放公开 API；
-- 定向 80 项通过；统一门禁中后端 922 项、前端 65 项和文档检查器 23 项通过；Schema、migration、前端、Provider、依赖和真实业务数据库未改变。
-
-## Step 2 实现验证结果
-
-- 已在允许的 persistence 路径实现 SQLite 连接生命周期、事务工具、migration runner 和初始 schema；
-- 已完成 12 项定向 SQLite 测试、全后端 888 项离线测试、Ruff format/check 和 persistence 目录 strict mypy；
-- 代码与测试没有接入 Repository、API、前端、Provider、依赖或真实数据库；
-- Step 2 状态收口已同步 `docs/README.md`、`roadmap.md`、`current-task.md`、本计划、`progress.md` 和 `evidence.md`；Step 2 现标记为 `DONE`；
-- Step 3 仍为 `TODO`，未获用户批准前不得进入。
+- 当前任务：`F-003 局部重规划与影响确认`
+- 任务状态：`ACTIVE`；任务卡状态：`APPROVED`
+- 已完成：`Step 0、Step 1、Step 2、Step 3、Step 4、Step 5、Step 6、Step 7`
+- 当前 Step：`Step 8`，状态 `ACTIVE`；用户已明确批准进入
+- 下一动作：完成 stacked PR 推送/CI/依赖顺序合并、main CI 和归档收口
+- 当前分支：`feat/f-003-local-replanning-confirmation`；三层本地 stack 已建立
+- 基线提交：`c836138240473f079565527b13a0d53516235c45`
+- main CI：run `31924427372`，`success`
 
 ## Step 0 结果
 
-- 已只读核对项目规则、文档地图、roadmap、current-task、progress、evidence 和本计划。
-- 已核对 F-001 `PARTIAL`、Step 45M 历史真实 UAT `FAIL`、Step 45T 真实 UAT `PASS`、unknown 费用不按 0、混合交通 fallback 仅有离线证据。
-- 已确认当前没有可迁移的旧 SQLite 数据，F-001 结果此前只在进程内存在。
-- 已确认 F-002 的本地 SQLite、结构化字段、来源 freshness、版本、删除、30 天保留期、migration runner、API 和隐私边界。
-- 未实现 SQLite，未修改 Repository，未新增 API，未调用真实 Provider。
-- 未读取 `.env.local`，未读取、复制或输出 Key、Token、JWT、私钥或 Cookie。
+- 核对项目规则、文档地图、roadmap、F-001/F-002 归档、当前架构/测试/决策、相关源码契约、Git 和 CI；
+- 确认 F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不为 0、混合交通 fallback 仅离线证据；
+- 确认当前 PlanningJob 为 11 状态，现有 Repository 没有 replan port，decision 只有基础表，migration 只有 version 1，前端没有局部重规划；
+- 按批准任务卡采用独立 replan lifecycle；旧 D-004 状态机表述留给 Step 1 在长期文档中正式解释和收口；
+- 清除 current-task 与本文件中 F-002 的 ACTIVE/TODO/PR OPEN 当前状态残留；
+- 激活 F-003，建立 Step 地图、阶段化允许文件和停止条件；
+- 未修改源码、测试、Schema、migration、API、前端、依赖、环境或数据库；
+- 未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback 网络；
+- 未创建分支、提交、推送、PR 或合并。
 
-## Step 1 结果：冻结设计
+## Step 1 唯一目标
 
-Step 1 已完成。以下设计只冻结实现边界，不代表 SQLite、Repository 或 API 已实现。
+冻结实现前规格，不写生产代码：
 
-### 1. Schema 总体约束
+1. typed replan command、impact、change set、confirmation、decision 和 lifecycle；
+2. same-day 自动与高影响确认的确定性规则；
+3. retry、replan、版本恢复的边界；
+4. Repository port、事务、幂等、expected version 和并发冲突；
+5. migration v2、`replan_requests`、`plan_version_lineage` 和现有 decision_records 映射；
+6. 三个窄 replan API 的请求、响应和稳定错误；
+7. 来源 reuse/refresh/drop、预算、unknown 和终态语义；
+8. UI 信息架构、影响预览、确认/取消/过期/冲突和视觉门禁；
+9. 测试矩阵、文件估算和一个 PR/stacked PR 阈值复核。
 
-- SQLite 只保存项目自有、经过 typed model 校验的结构化数据；所有 UUID 用小写 canonical string，枚举用受限 TEXT，布尔值用 `INTEGER NOT NULL CHECK (value IN (0, 1))`。
-- `Decimal` 金额、坐标和温度使用规范化十进制 TEXT；日期、time 和带时区 datetime 使用规范化 ISO-8601 TEXT，禁止 SQLite REAL/浮点承载金额。
-- JSON 只保存 `model_dump(mode="json")` 后的 allowlist 结构，写入前和读取后都必须重新经过 Pydantic/领域模型校验；数据库 JSON 不得直接返回 API。
-- `planning_jobs` 是任务当前快照；`planning_attempts` 保存每个 attempt 的当前状态与终态元数据；`plan_versions` 追加保存带计划的结果快照；source、decision、acceptance 均由 job 级外键隔离。
-- 所有业务表通过 `job_id` 归属任务，启用 `PRAGMA foreign_keys=ON`；删除任务时级联删除其 attempt、version、source link、decision 和 acceptance 记录。
+## Step 1 允许文件
 
-### 2. 表与字段冻结
+- `docs/README.md`；
+- `docs/project-management/roadmap.md`；
+- `docs/project-management/current-task.md`；
+- `docs/project-management/implementation-plan.md`；
+- `docs/project-management/progress.md`；
+- `docs/project-management/evidence.md`；
+- `docs/architecture.md`；
+- `docs/api-contract.md`；
+- `docs/agent-domain-spec.md`；
+- `docs/design-spec.md`；
+- `docs/testing-strategy.md`；
+- `docs/decisions.md`。
 
-| 表 | 主键 | 核心字段与 nullable 语义 |
+Step 1 已按用户批准执行并完成；上述清单只记录本 Step 实际文档边界，不授权实现。
+
+## Step 1 禁止
+
+- 生产源码、测试、Schema、migration、Repository、API 或前端实现；
+- 依赖、lockfile、环境文件、CI 或真实数据库；
+- `.env.local`、秘密、真实 Provider 和非 loopback 网络；
+- 分支、提交、推送、PR、合并；
+- 历史列表、任意版本比较/恢复、清空全部、多城市、多日、住宿锚点/城市/日期修改；
+- 未经 UI 设计批准进入前端实现；
+- 自动进入 Step 2。
+
+## 后续 Step 地图
+
+| Step | 独立验证目标 | 状态 |
 | --- | --- | --- |
-| `schema_migrations` | `version INTEGER` | `name TEXT NOT NULL`、`checksum TEXT NOT NULL`、`applied_at TEXT NOT NULL`；已执行版本不可改名或改 checksum |
-| `planning_jobs` | `job_id TEXT` | `trace_id`、`client_request_id`、`request_fingerprint`、`request_json`、`status`、`attempt`、`version`、`retryable`、`created_at`、`updated_at`、`expires_at`；`client_request_id/request_json` 非空，`version >= 1`，`attempt 1..3` |
-| `planning_attempts` | `(job_id, attempt)` | `trace_id`、`status`、`retryable`、`started_at`、`updated_at`、`result_metadata_json`、`current_plan_version`；中间态 metadata/version 可空，终态 metadata 必须非空 |
-| `plan_versions` | `(job_id, version_number)` | `plan_id`、`attempt`、`trace_id`、`status`、`plan_json`、`created_at`；`plan_json` 对有计划结果非空，追加写入，不原地更新 |
-| `source_records` | `(job_id, source_id)` | `attempt`、`provider`、`source_type`、`provider_record_id` 可空、`fetched_at`、`valid_until` 可空、`freshness`、`reference_url` 可空、`attributions_json`、`warnings_json`；不含原始响应 |
-| `plan_version_sources` | `(job_id, version_number, source_id)` | 连接 `plan_versions` 与 `source_records`；三列均非空，外键必须同一 job |
-| `decision_records` | `decision_id TEXT` | `job_id`、`attempt`、`trace_id`、`plan_version` 可空、`kind`、`status`、`proposal_json`、`validation_json`、`user_choice_json` 可空、`created_at`、`decided_at` 可空；只保存安全结构化摘要 |
-| `acceptance_records` | `acceptance_id TEXT` | `job_id`、`attempt`、`plan_version` 可空、`case_id`、`status`、`observed_at`、`environment`、`evidence_json`；不保存原始 provider 响应、Prompt、秘密或完整日志 |
+| Step 0 | 事实、执行基线和文件清单 | DONE |
+| Step 1 | 规格、架构、数据、API、测试和 UI 设计冻结 | DONE |
+| Step 2 | 纯领域影响分析、diff、预算和来源策略 | DONE |
+| Step 3 | migration v2、Replan Repository、Decision 持久化 | DONE |
+| Step 4 | application replan、确认、并发和事务提交 | DONE |
+| Step 5 | replan API 与现有 API 回归 | DONE |
+| Step 6 | 前端修改、影响预览和确认流程 | DONE |
+| Step 7 | 临时 SQLite 纵向测试、浏览器 QA 和独立审查 | DONE |
+| Step 8 | 全量门禁、UAT、Git/PR/CI、合并和归档 | ACTIVE |
 
-约束和索引：
+## Step 1 冻结结果
 
-- `planning_jobs.client_request_id` UNIQUE；`request_fingerprint` 为 64 位小写 SHA-256；`(job_id, attempt)`、`(job_id, version_number)` 唯一。
-- `plan_versions.plan_id` 在任务范围内唯一；`plan_version_sources`、decision 和 acceptance 的外键均为 `ON DELETE CASCADE`。
-- 索引 `planning_jobs(expires_at)`、`planning_jobs(updated_at)`、`planning_jobs(status)`、`planning_attempts(job_id, attempt)`、`plan_versions(job_id, created_at)`、`source_records(job_id, freshness, valid_until)`、`decision_records(job_id, created_at)` 和 `acceptance_records(job_id, observed_at)`。
-- 不提供全局历史计划查询索引；F-002 不新增历史列表 API。
+- 四种 typed command、八类可组合 impact、reuse/refresh/drop、change set 和 unknown/partial 语义已冻结；
+- PlanningJob 11 状态保持不变；独立十状态 replan lifecycle 和 15 分钟 confirmation TTL 已冻结；
+- 三个窄 API、严格 DTO、幂等/版本/确认冲突和现有 API 兼容边界已冻结；
+- migration v2 只新增 `replan_requests`、`plan_version_lineage`，复用 typed `decision_records`，无损保留 v1；
+- 新增独立 ReplanRepository port；PlanningJobRepository 不变；成功提交单事务，非成功终态保留原计划；
+- Step 2–7 分层测试矩阵和现有结果页内局部调整面板已冻结；未实施任何代码、Schema、migration、API 或 UI。
 
-### 3. 结果快照与状态语义
+## Step 2 唯一目标和允许文件
 
-- `ready`：必须有 `plan_json`，无 error/violation，`retryable=false`。
-- `partial`：必须有 `plan_json`，且至少有 warning、uncertainty、violation 或 error；保留可恢复状态和来源。
-- `conflict`：可有或没有 `plan_json`，必须保留 violation/error；不允许 retryable。
-- `needs_input`：没有 `plan_json`，必须保留安全 error；不允许 retryable。
-- `failed`：没有 `plan_json`，必须保留安全 `ApiError` 摘要；是否 retryable 只取 typed error 的 retryable 语义。
-- `unknown` 不是任务状态；费用以 `confidence="unknown"`、`amount=null`、预算 `unknown_count` 和 `budget_indeterminate` 保存。来源 freshness 以 `fresh/stale/unknown_validity` 保存，不推测缺失时效。
-- `result_metadata_json` 只保存 resolved destination、violations、warnings、uncertainties、errors 和 source ID 引用等安全字段；完整计划只放在 `plan_versions.plan_json`，来源从 `source_records` 重建。
-- GET 恢复时必须先重新构造 `TripPlanRequest`、`PlanningJobResult` 和 `PlanningJob`；任何 JSON/外键/状态不一致都作为持久化损坏错误停止，不能返回伪造快照。
+Step 2 用 TDD 实现纯领域 `ReplanCommand`、`ImpactAnalysis`、`PlanChangeSet`、预算重算和来源 reuse/refresh/drop 策略，不接触持久化或应用服务。
 
-### 4. Migration runner
+只允许：
 
-- 首个 schema 版本为 `1`，一次性建立上述表、约束和索引；后续版本按递增整数注册，执行顺序严格升序。
-- runner 只接受项目内显式 migration 清单，记录 `(version, name, checksum, applied_at)`；已执行版本 checksum/name 不一致立即失败。
-- 每个 migration 在单独事务中执行：`BEGIN IMMEDIATE` → 校验前置版本 → 执行 SQL → 写入 `schema_migrations` → `COMMIT`；异常统一 `ROLLBACK`，不留下半个版本。
-- 不支持自动 down migration、自动降级或猜测修复。数据库版本高于当前代码、checksum 漂移、迁移失败或 schema 不完整时 fail closed，应用不启动。
-- F-001 进程内状态没有迁移来源；首次 SQLite 启动不导入旧内存 job，也不伪造历史版本。
+- `backend/src/intelligent_travel_assistant/domain/replanning.py`；
+- `backend/src/intelligent_travel_assistant/domain/__init__.py`；
+- `backend/tests/domain/test_replanning_commands.py`；
+- `backend/tests/domain/test_replanning_impact.py`；
+- `backend/tests/domain/test_replanning_change_set.py`；
+- `backend/tests/domain/test_replanning_budget_sources.py`；
+- F-003 项目管理文档和真实受影响的 architecture/agent-domain-spec/testing-strategy。
 
-### 5. SQLite 连接与事务
+禁止 Repository、SQLite、migration、API、前端、依赖、环境、真实 Provider、分支和远程写入。完成后停止，不进入 Step 3。
 
-- 采用标准库 SQLite，Repository adapter 与 `application` Protocol 隔离；连接由 Repository 生命周期创建/关闭，应用组合根负责注入，领域层不接触 SQLite。
-- 连接初始化固定 `foreign_keys=ON`、`busy_timeout=5000`、`journal_mode=WAL`、`synchronous=FULL`；数据库文件位于本地应用数据目录，不位于源码、Git 或前端静态目录。
-- async port 由 adapter 的单连接串行执行边界承载；同一连接不被并发线程直接共享，关闭时先停止新操作并等待在途事务完成。
-- `get` 使用一致性读；`get_or_create`、`advance`、`record_result`、`retry`、delete 和 cleanup 使用 `BEGIN IMMEDIATE`，所有相关行和子表写入在同一事务中完成。
-- busy/locked 超过 5 秒返回内部 persistence failure，不伪装成业务版本冲突；业务版本冲突只由 expected version 条件更新产生。
+## Step 2 完成证据
 
-### 6. Repository contract 映射
+- RED：四个新增测试模块最初因 F-003 类型未导出而在收集阶段失败；
+- GREEN：35 项 command/impact/change-set/budget/source 测试通过；
+- 回归：领域 178 项、后端全量 981 项通过；
+- 静态门禁：后端 Ruff check、Ruff format check、strict mypy 均通过；
+- 边界：实现只在批准的 domain 模块、domain 导出和四个测试文件内；没有持久化、HTTP、Provider 或前端副作用。
 
-- `get_or_create(request)`：先生成 fingerprint；以 `client_request_id UNIQUE` 原子插入 job 与 attempt 1。唯一冲突后读取已有 job，同 fingerprint 返回 `created=false`，不同 fingerprint 返回 `IDEMPOTENCY_CONFLICT`。
-- `get(job_id)`：读取 job 当前字段、current attempt、plan version、source records 和 result metadata，经过 typed hydration 后返回不可变 `PlanningJob`。
-- `advance(...)`：校验状态机和 retryable 规则，执行 `WHERE job_id=? AND version=?` 的条件更新；影响行数为 0 时返回 `VERSION_CONFLICT`，成功则 version 加 1。
-- `record_result(...)`：先完成现有 typed result 和 request match 校验，再在一个事务中写 sources、plan version、result metadata、attempt 和 job 当前快照；任何一项失败全部回滚。
-- `retry(...)`：读取并校验 expected version、当前状态和 attempt < 3；保留旧 attempt/version，新增 attempt 与 trace，清空当前结果引用，状态回到 `normalizing`，version 加 1。
-- 后续新增的 `delete(job_id)` 和 `cleanup_expired(now)` 属于 Repository/maintenance port，不改变现有五个方法；Step 1 不实现，也不新增 HTTP 路由。
-- 所有 Repository error 继续使用现有稳定错误码；SQLite 异常不得泄漏 SQL、路径、参数、请求文本或内部堆栈。
+## Step 3 唯一目标和精确文件清单
 
-### 7. 版本、删除与保留期
+Step 3 已完成 migration v2、独立 ReplanRepository 和 typed Decision 持久化；未实现应用服务、确认流程、API、前端或 Provider 接入。
 
-- job `version` 是并发控制版本，每次成功状态/结果/retry 写入都递增；`plan_versions.version_number` 是计划快照序号，只在产生带计划结果时递增，二者不混用。
-- 计划版本只追加，不比较、不恢复、不原地覆盖；旧版本仅作为内部审计和 F-003 前置基线，不提供历史列表接口。
-- `expires_at = created_at + 30 days`，使用注入的 aware UTC 时钟计算；启动后 migration 完成再执行一次有界 cleanup。
-- 单计划删除在事务中删除 `planning_jobs`，依赖级联移除所有子记录；不存在的 job 返回现有 `JOB_NOT_FOUND` 语义。F-002 不支持清空全部数据。
+允许修改：
 
-### 8. 测试矩阵冻结
+- `backend/src/intelligent_travel_assistant/domain/replanning.py`、`domain/__init__.py`；
+- `backend/src/intelligent_travel_assistant/application/repositories/models.py`、`ports.py`、`__init__.py`；
+- `backend/src/intelligent_travel_assistant/adapters/persistence/schema.py`、`migrations.py`、`repository.py`、`__init__.py`；
+- `backend/src/intelligent_travel_assistant/adapters/repositories/memory.py`、`__init__.py`；
+- `backend/tests/domain/test_replanning_commands.py`、`test_replanning_decisions.py`；
+- `backend/tests/application/test_replan_repository_contract.py`；
+- `backend/tests/adapters/persistence/test_migrations.py`、`test_replan_repository.py`；
+- `backend/tests/api/test_sqlite_trip_plans_api.py`，仅更新 migration v2 测试基线；
+- 本文件、`current-task.md`、`progress.md`、`evidence.md`；
+- `docs/architecture.md`、`docs/testing-strategy.md`，仅在确有 Step 3 影响时修改。
 
-| 层级 | 必测内容 | 隔离与证据 |
-| --- | --- | --- |
-| schema/migration | 首次建库、重复运行、checksum 漂移、顺序、失败 rollback、版本过高 fail closed | 每个用例独立 `tempfile` 数据库；不触碰本地业务 DB |
-| connection | PRAGMA、WAL、busy timeout、关闭、迁移失败不启动 | 本地临时文件；不启动真实服务 |
-| repository | 同请求复用、异请求冲突、20 路并发、状态机、version conflict、retry attempt/trace/limit | fixed UUID、注入时钟、SQLite adapter 与内存 adapter 同一 contract |
-| persistence round-trip | request、result、source、plan、Decimal、date/time、timezone、enum | typed model 重建后逐字段比较 |
-| terminal states | ready、partial、conflict、needs_input、failed 与 retryable 组合 | 复用五个 synthetic fixtures，标记离线 |
-| version/source | append-only、唯一约束、source freshness、链接关系、旧版本不变 | 事务提交前后和失败回滚断言 |
-| lifecycle | 重启读取、单计划删除、30 天边界 cleanup、未过期保留 | 两个 Repository 实例共享临时 DB；不使用默认真实路径 |
-| privacy | 拒绝原始 provider body、Prompt、Authorization、Key/Token/JWT/private key/Cookie；错误摘要脱敏 | AST/模式扫描与 DB JSON 内容断言 |
-| API regression | 现有 POST/GET/retry/health DTO 和状态不变；不新增历史 API | FastAPI TestClient 注入 fake/SQLite 临时 adapter |
-| network boundary | 普通 pytest、文档门禁和 SQLite 测试不访问外网或真实 Provider | `APP_ENV=test`、loopback-only fixture、无 `.env.local` 读取 |
+禁止修改连接层、现有 PlanningJobRepository contract、API、组合根、Provider、前端、依赖、环境文件、真实数据库和其他未列文件；不进入 Step 4。
 
-Step 1 只冻结矩阵；具体测试文件和实现归入 Step 2–5。
+## Step 3 完成证据
 
-## Step 地图
+- API SQLite 生命周期 8 项、Step 3 专项 12 项、相关 persistence/application/API 回归 81 项、后端全量 963 项通过；
+- Ruff check、Ruff format check、strict mypy 通过；
+- migration 历史明确为 version 1/2，version 3 继续触发高版本 fail-closed；
+- 未修改 API 生产实现、连接层、Provider、前端、依赖、环境或真实数据库；
+- Step 4 保持 TODO，等待用户单独批准。
 
-| Step | 目标 | 状态 |
-| --- | --- | --- |
-| 0 | 事实核对、Git 基线、已确认决策和允许文件清单 | DONE |
-| 1 | 冻结 Schema、migration、Repository contract、SQLite 连接边界和测试矩阵 | DONE |
-| 2 | 实现 SQLite 连接、migration runner 和基础 schema | DONE |
-| 3 | 实现持久化 Repository 与任务/attempt/version/source 映射 | DONE |
-| 4 | 接入现有 API，完成重启、幂等、并发和冲突语义 | DONE |
-| 5 | 完成删除、保留期清理、隐私安全和验收记录持久化 | DONE |
-| 6 | 完成全量门禁、文档收口和交付审查 | TODO |
+## Step 4 唯一目标和精确文件清单
 
-## Step 2 输入与禁止项
+Step 4 已完成 application replan、确认、并发、离线 provider-neutral 执行编排和原子事务提交。精确生产、测试与文档文件以 current-task 的 Step 4 清单为准。
 
-Step 2 的唯一目标是实现 SQLite 连接、migration runner 和基础 schema。该 Step 已获批准并完成。
+本 Step 禁止 API/contracts、bootstrap/组合根、Schema/migration/连接层、Provider adapter、前端、依赖、环境、真实数据库和真实 Provider；不进入 Step 5。
 
-输入为已批准的 F-002 current-task、当前 Repository Protocol/内存 adapter、当前 API 与状态契约、测试策略和质量门禁；实现已限制在 persistence 基础设施和临时 SQLite 测试。
+## Step 4 完成证据
 
-Step 2 不得扩大到 Repository 接入、API、历史 UI、版本比较/恢复、多城市、局部重规划、真实 Provider、登录、同步、多用户或公网部署。
+- application service 编排 reserve → analysis → confirmation/auto → execution → outcome/commit，并保持重复创建和相同确认幂等；
+- 15 分钟过期、相反决定、stale job/replan version 和同 baseline 并发均 fail closed；
+- SQLite commit 单事务追加 plan version、source link、lineage 并更新当前 attempt/job/replan；注入 lineage 写入失败时完整回滚；
+- provider-neutral executor 仅依赖注入端口，change set 超出已分析对象时返回安全 conflict；没有连接真实 Provider；
+- Step 4 专项 19 项、application+persistence 494 项、后端全量 1001 项、Ruff、format、strict mypy、文档和 diff 门禁通过；
+- Step 5 保持 TODO，未修改 API、组合根、Schema/migration/连接层、Provider adapter、前端、依赖或环境。
+
+## Step 5 唯一目标和精确文件清单
+
+Step 5 已获用户批准，只实现三个窄 replan API、严格公共 DTO、安全错误映射、completed result/change-set 读取投影和 `create_app` 的最小可注入装配。精确生产、测试和文档文件以 current-task 的 Step 5 清单为准。
+
+禁止 Schema/migration/连接层、Provider adapter、前端、依赖、环境、真实数据库、真实 Provider、历史列表、版本比较/恢复、批量清空、多城市、多日和 Step 6。
+
+## Step 5 完成证据
+
+- 严格公共 DTO 覆盖四种 tagged command、decision、impact、result 和 change set，拒绝额外字段、Prompt 和未知操作；
+- 三个窄 API 覆盖 Location、202/200、404/409/422/安全 500、幂等、确认冲突、精确 TTL 和 scope 拒绝；
+- auto/approve 先返回 replanning 快照并由 background task 执行；同决定重放不重复执行，非成功终态保持原计划；
+- completed typed result/change-set 可由内存和 SQLite Repository 读取；现有 POST/GET/retry/DELETE 回归保持不变；
+- Step 5 专项 31 项、相关回归 571 项、后端全量 1016 项、Ruff、format 和 strict mypy 通过；
+- 未进入 Step 6，未修改 Schema/migration/连接层、Provider adapter、前端、依赖或环境。
+
+## Step 6 唯一目标和精确文件清单
+
+Step 6 已获用户批准，只实现结果页内四种结构化修改入口、影响预览、确认/取消、执行状态、completed 差异和可访问恢复流程。精确生产、测试和文档文件以 current-task 的 Step 6 清单为准。
+
+禁止后端、Schema/migration、Repository、API 契约、Provider、依赖、环境、真实数据库、历史列表、版本比较/恢复、多城市、多日和 Step 7。浏览器与临时 SQLite 纵向验证留在 Step 7。
+
+## Step 6 完成证据
+
+- 新增严格 replan client/parser 与结果页内局部调整面板，覆盖四入口、结构化编辑、impact、确认/取消、replanning、completed diff、安全终态、unknown/partial 和焦点恢复；
+- 两个新模块缺失的 RED 证据已取得；GREEN 后前端 73 项测试通过；lint、typecheck、format check 与 Vite build 通过；
+- 首轮并行全门禁中一个既有表单测试因 5 秒超时失败；串行复跑全前端 73 项通过，判定为并行资源竞争而非产品回归；
+- 未修改后端、Schema/migration、Repository、API 契约、Provider、依赖、环境或数据库；未进入 Step 7。
+- 累计 46 个生产/测试文件、估算净新增约 8,360 行已超过任务卡停止阈值；用户已确认采用 stacked PR，建议按领域 → 持久化/应用 → API/前端/验收组织，精确 Git 边界留待交付 Step 冻结。
+
+## Step 7 唯一目标和精确文件清单
+
+Step 7 已获用户批准，只做临时 SQLite 纵向测试、本机 synthetic 浏览器 QA 和独立安全/数据审查。允许新增 `backend/tests/api/test_sqlite_replans_api.py`、`backend/tests/browser_replan_support.py`，并更新 `docs/README.md`、roadmap、current-task、implementation-plan、progress、evidence；`docs/testing-strategy.md` 只可记录实际测试证据。浏览器临时产物必须被 Git 忽略。
+
+禁止修改生产源码、Schema/migration、Repository/API contract、前端、Provider、依赖/lockfile、环境文件或真实数据库；禁止读取秘密、调用真实 Provider、访问非 loopback 网络、创建分支、提交、推送或创建 PR。完成后停止，不进入 Step 8。
+
+## Step 7 完成证据
+
+- 临时 SQLite 纵向 3 项中 failed 路径通过，成功/重启和并发路径因 replan trace 与 planning job/attempt trace 不一致而失败；事务正确 rollback，但资源停留 `replanning`；
+- 浏览器在桌面和 `390×844` 验证 completed、failed、expired、version conflict，原计划保留、completed diff、零横向溢出和 loopback-only 请求成立；
+- 33 个变更源/测试文件独立安全审查完成，确认 stale confirmation 未绑定 captured job version 的 medium finding；私密文本与跨 job decision 两个候选被反证排除；
+- 下一次授权必须同时修复 trace/计划版本水合一致性，以及 decide/begin_execution 在执行前对持久化 `expected_job_version` 的检查；保持 Schema、migration、公开 API、Provider、前端、unknown/partial 和隐私边界不变；
+- 用户已批准最小修改 application replan service、SQLite/内存 ReplanRepository 及对应测试；Schema、migration、公开 API、Provider、前端、unknown/partial 和隐私边界保持不变；
+- 修复后聚焦回归 18 项、相关领域/contract/application/Repository/API 回归 219 项、后端全量 999 项和前端 73 项通过；Ruff、format、strict mypy、ESLint、TypeScript 和 build 通过；
+- SQLite 成功提交、幂等、重启恢复和同 baseline 并发路径通过；stale confirmation 在 executor 前冲突，竞争失败持久化为 conflict；planning plan version 使用原 planning trace，replan trace 仍独立留存；
+- 浏览器复验 completed、failed 和 version conflict，`390×844` 无横向溢出且只有 loopback 资源；Step 7 标记 DONE，Step 8 保持 TODO。
+
+## Step 8 交付计划与当前证据
+
+- 独立复审阻塞已在既定 Step 7 最小生产范围内关闭；最终本地统一门禁通过后端 1007、前端 76、文档检查器 24，并覆盖全部静态、类型、锁文件和构建门禁；
+- synthetic loopback UAT 已复验影响预览、确认、completed 新版本/change set、确认/完成焦点、完整 change ref、390px 零横向溢出和 0 console error/warning；没有真实 Provider 或真实数据库；
+- stack 1：`feat/f-003-replanning-domain`，base `main`，提交 `c441327`；
+- stack 2：`feat/f-003-replanning-persistence`，base stack 1，提交 `d34f0bc`；
+- stack 3：`feat/f-003-local-replanning-confirmation`，base stack 2，提交 `bf949a1`、`b103b64` 和本 Step 文档提交；
+- 每层必须独立通过 Windows offline CI；按 stack 1 → stack 2 → stack 3 顺序合并并在每次 retarget 后复验；
+- 三层全部合并且 main CI 通过后，才允许创建归档提交，将任务卡迁入 archive，并把 current-task 重置为无活动任务。
 
 ## 停止条件
 
-发现任何已确认的数据、隐私、迁移、删除或 API 边界需要变化；发现 F-001 历史事实可能被改写；需要读取秘密或调用真实 Provider；或需要修改未列入允许范围的文件时，立即停止并请求确认。
+- 任一已批准产品、数据、隐私或 API 边界需要改变；
+- migration v2 无法无损保留 v1；
+- 需要新增依赖、读取秘密或调用真实 Provider；
+- 需要版本恢复、历史列表、跨城市、多日、登录、同步或公网能力；
+- UI 设计未批准但要求进入实现；
+- 预计超过 35 个生产/测试文件或净新增 3000 行而未重新批准；
+- 文档、代码、Schema 或 Git 事实无法一致解释。
 
 ## 权威入口
 
-- 当前任务：[current-task.md](./current-task.md)
-- 路线图：[roadmap.md](./roadmap.md)
+- 任务卡：[current-task.md](./current-task.md)
 - 进度：[progress.md](./progress.md)
+- 路线图：[roadmap.md](./roadmap.md)
 - 证据：[evidence.md](./evidence.md)

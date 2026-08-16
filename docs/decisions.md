@@ -185,7 +185,7 @@
 
 ### 后果
 
-- 应用状态机必须包含 `awaiting_confirmation` 和 `replanning`；
+- 应用层必须拥有 `awaiting_confirmation` 和 `replanning`；F-003 将其落实为独立 replan lifecycle，不扩展既有 `PlanningJob.status`；
 - 确认记录需关联 `trace_id`、基线版本、影响摘要和用户选择；
 - 测试必须分别覆盖 same-day、adjacent-day、cross-city、accommodation 和 unknown；
 - 取消确认不会改变原计划，确认后生成新版本而不是原地覆盖。
@@ -347,3 +347,38 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 - schema、JSON、状态或来源不一致时读取必须 fail closed，不能返回未经 typed model 校验的数据库内容；
 - F-001 的高德原始响应和进程内-only 决策不被持久化授权覆盖；只有转换后的必要结构化字段进入本地数据库；
 - 任何云同步、多人、登录、公开部署、版本恢复、历史列表或原始响应留存都需要新的任务和用户确认。
+
+## D-011：F-003 使用独立 replan lifecycle 和原子追加版本
+
+- 状态：`用户已批准；Step 1 设计已冻结；Step 2–5 已实现；等待 Step 6`
+- 日期：2026-08-16
+- 适用范围：F-003 单城市双日计划的结构化局部修改、影响确认和版本提交
+
+### 决策
+
+- 不修改 F-001/F-002 的 11 个 `PlanningJob.status`；重规划使用独立 replan aggregate 和
+  `analyzing/awaiting_confirmation/replanning/completed/needs_input/conflict/failed/cancelled/expired/rejected`
+  lifecycle；
+- 只接受替换活动、删除活动、调整活动时间和同日重排四种 tagged command，不接受 JSON Patch、
+  完整新计划、完整自然语言修改、跨城市、住宿锚点、日期或城市修改；
+- 影响分类允许多值；只有精确 `same_day_low` 自动执行，adjacent/cross-day、住宿、预算、
+  来源刷新和 unknown impact 必须先持久化影响快照并确认，cross-city 在 Provider 调用前拒绝；
+- 确认有效期 15 分钟，只授权展示过的影响快照；重复同决定幂等，相反决定、过期确认和基线漂移
+  返回稳定冲突；
+- replan 不增加 planning attempt，不复用 retry 额度；每次 replan 使用独立 trace，并用 aggregate
+  version、job expected version 和 baseline plan/version 做乐观并发控制；
+- 成功 ready 或可执行 partial 在单事务中追加 plan version、来源、lineage、change set、decision
+  和当前快照；失败、conflict、needs_input、cancelled、expired 不替换原计划；
+- migration v2 只增加 `replan_requests` 和 `plan_version_lineage`，复用 typed
+  `decision_records`；v1 数据无损保留，旧版本不伪造 lineage；
+- 新增三个窄 replan API，不改变现有 POST/GET/retry/DELETE DTO；不新增历史列表、任意版本比较或恢复；
+- UI 在当前结果页内提供局部调整面板和影响确认，不创建历史计划页面；默认测试与 CI 完全离线。
+
+### 后果
+
+- D-004 中“应用状态机包含确认/重规划”从本决定起解释为独立 replan 状态机，不是
+  `PlanningStatus` 扩展；现有状态机、Repository contract 和前端严格 `TripPlanResponse` 解析保持兼容；
+- confirmation 或重规划进行中，服务端和 UI 都继续把原 plan ID 作为当前可用计划；只有原子提交后
+  才切换到新 plan ID；
+- `unknown` 金额保持 `null`，来源 freshness 不因复用或确认而提升，`partial` 不得投影为 ready；
+- 任何新增活动、多城市/多日、恢复旧版本、完整请求保存、依赖新增或真实 Provider 验收都需要新的批准。

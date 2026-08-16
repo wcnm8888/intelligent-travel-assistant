@@ -15,14 +15,14 @@
 
 ## 当前阶段
 
-目标：在已完成的 B-000 工程底座上持续交付可恢复、可验证的本地旅行规划能力。F-001 与 F-002 均已完成交付并归档；当前无活动任务，等待用户从候选任务中选择并批准下一任务。
+目标：在已完成的 B-000、F-001 和 F-002 基础上交付可追溯的局部重规划。F-003 Step 0–7 已完成，Step 8 已获批准并完成本地全量门禁与 synthetic UAT；当前执行 stacked PR、CI、合并和归档。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
 | 0 | B-000 项目与工程基线 | DONE | 已建立可开发、可运行、可验证、可交接的本地工程底座；PR #1 已合并 | 无 |
 | 1 | F-001 单城市双日旅行计划垂直切片 | DONE（产品状态 PARTIAL） | 用户能用真实天气、POI 和路线生成第一份可校验计划 | B-000、外部服务就绪门禁 |
 | 2 | F-002 计划持久化、来源与版本 | DONE | 用户能保存、恢复和追踪计划版本及来源 | F-001 |
-| 3 | F-003 局部重规划与影响确认 | CANDIDATE | 用户能调整当天，并在跨日/跨城影响前掌握决定权 | F-002 |
+| 3 | F-003 局部重规划与影响确认 | ACTIVE | 用户能调整当天，并在跨日/跨城影响前掌握决定权 | F-002 |
 | 4 | F-004 多日、多城市与完整约束扩展 | CANDIDATE | 产品覆盖更真实的中国大陆境内自由行路线 | F-003 |
 | 5 | F-005 外部服务韧性、时效与 Agent 评估 | CANDIDATE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004 |
 | 6 | F-006 MVP 体验收口与本地验收 | CANDIDATE | 用户可稳定完成完整本地旅行决策流程 | F-001 至 F-005 |
@@ -70,11 +70,19 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-003：局部重规划与影响确认
 
-- 状态：`CANDIDATE`
+- 状态：`ACTIVE`（Step 8 已进入；本地门禁/UAT 已通过，stacked PR、CI、合并和归档进行中）
 - 目标：支持替换、删除或调整某日活动，并基于依赖计算影响范围；
 - 核心价值：当天内部修改可自动完成，高影响变更先由用户确认；
 - 必须验证：same-day、adjacent-day、cross-city、accommodation、unknown、取消确认和版本 diff；
 - 非目标：多人协作、自动购买替代票务和无确认跨日改写。
+- 当前批准边界：保持单城市双日；支持替换、删除、调整时间和同日顺序，不新增活动、不修改城市/日期/住宿锚点；影响分析为确定性代码，replan lifecycle 独立于现有 PlanningJob status；高影响确认有效期 15 分钟；成功只追加新版本，不提供历史列表、任意版本比较或恢复；默认测试完全离线。
+- Step 1 冻结结果：八类可组合 impact、十状态独立 lifecycle、三个窄 API、migration v2 两张新表、独立 ReplanRepository、分层测试矩阵和现有结果页内 UI 契约均已冻结；未实施代码或数据库。
+- Step 2 实现结果：纯领域 command、impact、change set、预算重算和来源 reuse/refresh/drop 策略已由 35 项新增测试锁定；领域 178 项、后端全量 981 项和静态门禁通过，尚未进入 migration、Repository、API、Provider 或 UI。
+- Step 3 实现结果：migration v2、独立 ReplanRepository、内存/SQLite adapter 和 typed Decision 已实现；API migration 基线、专项、相关回归和后端全量 963 项通过，尚未进入 application service、公开 API 或 UI。
+- Step 4 实现结果：application replan、确认/取消/过期、provider-neutral 离线执行和 SQLite 原子版本提交已实现；同 baseline 并发只允许一个提交成功，失败路径保持原计划；专项 19 项、application+persistence 494 项和后端全量 1001 项通过，尚未进入公开 API、Provider adapter 或 UI。
+- Step 5 实现结果：三个窄 replan API、严格 DTO、安全错误映射、background execution 快照和 completed result/change-set 投影已实现；专项 31 项、相关回归 571 项和后端全量 1016 项通过，尚未进入前端 UI。
+- Step 6 实现结果：结果页内四种结构化修改、影响预览、确认/取消、completed diff、unknown/partial、安全失败和焦点恢复已实现；前端 73 项与静态/build 门禁通过。
+- Step 7 验收结果：临时 SQLite 纵向、loopback 浏览器和独立安全/数据审查完成；trace 水合与 stale confirmation 问题已按最小授权修复。相关回归 219 项、后端全量 999 项、前端 73 项及静态/build 门禁通过；Schema、migration、公开 API、Provider、前端和隐私边界未改变。
 
 ### F-004：多日、多城市与完整约束扩展
 
