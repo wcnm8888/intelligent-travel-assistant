@@ -137,6 +137,32 @@ def calculate_multiday_lodging_cost(
     return _from_minor_units(_to_minor_units(per_night) * (day_count - 1))
 
 
+def calculate_multicity_lodging_costs(
+    per_night_costs: tuple[Money | None, ...],
+    nights: tuple[int, ...],
+) -> tuple[Money | None, ...]:
+    """Scale each city independently while preserving unknown accommodation costs."""
+
+    if (
+        not isinstance(per_night_costs, tuple)
+        or not isinstance(nights, tuple)
+        or not 2 <= len(per_night_costs) <= 3
+        or len(per_night_costs) != len(nights)
+    ):
+        raise DomainInvariantError("multicity_lodging_invalid", field="per_night_costs")
+    totals: list[Money | None] = []
+    for per_night, night_count in zip(per_night_costs, nights, strict=True):
+        if type(night_count) is not int or not 1 <= night_count <= 6:
+            raise DomainInvariantError("multicity_nights_invalid", field="nights")
+        if per_night is None:
+            totals.append(None)
+        elif isinstance(per_night, Money):
+            totals.append(_from_minor_units(_to_minor_units(per_night) * night_count))
+        else:
+            raise DomainInvariantError("multicity_lodging_invalid", field="per_night_costs")
+    return tuple(totals)
+
+
 def _require_travelers(value: object) -> None:
     if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 8:
         raise DomainInvariantError("travelers_invalid", field="travelers")

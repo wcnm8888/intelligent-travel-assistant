@@ -13,8 +13,8 @@ from pathlib import Path
 import httpx2
 import pytest
 from fastapi.testclient import TestClient
+from tests.browser_multiday_support import create_browser_app
 
-from browser_multiday_support import create_browser_app
 from intelligent_travel_assistant.app import create_app
 from intelligent_travel_assistant.settings import Settings
 
