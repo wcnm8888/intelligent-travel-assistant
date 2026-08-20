@@ -1,14 +1,26 @@
 # 验收证据索引
 
+## F-004A Step 7：stacked PR、CI、合并与归档
+
+- 最终结论：`PASS`；F-004A Step 0–7 已完成，三层功能、完整功能 main CI 和任务卡归档均已交付；
+- Stack 1：PR #13，提交 `5e943ceddd0a8679c14d18ed4408d873b57712f8`，PR CI run `32358298975`=`PASS`；
+- Stack 2：初始 PR #14 的 CI run `32358368917` 因 SQLite 纵向测试导入 Stack 3 browser helper 导致 Ruff import 分类失败；没有隐藏该失败。按 clean-restack 规则将纵向测试移入 Stack 3，以 PR #16 替代并关闭 #14；PR #16 提交 `62ec23c62e4e85680a82e893e68e920bb2351254`，CI run `32358898889`=`PASS`；
+- Stack 3：初始累计 PR #15 的 CI run `32358429186`=`PASS`，但因前层 squash ancestry 由 clean PR #17 替代并关闭；PR #17 提交 `583e9da34b0d45e84a65da620cbb5d5fa8330a3c`，CI run `32359383850`=`PASS`；全程未 force-push；
+- 合并顺序：#13 → #16 → #17，均 squash merge；完整功能 main CI run `32359762190`=`PASS`，耗时 4m36s；
+- 最终本地门禁：后端 `1101 passed`、前端 `88 passed`、文档检查器 `24 passed`，Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、依赖锁和文档契约通过；
+- UAT：loopback synthetic 覆盖 3 日 ready、7 日 partial/unknown、2 日 V2 ready/replan；390px 无水平溢出，日期焦点/可访问名称正确，console 0 error/0 warning；
+- 历史与真实性边界：F-001 仍为 `PARTIAL`；Step 45M 真实 `FAIL`、Step 45T 真实 `PASS`、unknown 不为 0、混合交通 fallback 仅离线证据均保留；F-004A 未调用真实 Provider，不把 synthetic 证据表述为真实天气、路线、预算或 Provider 质量；
+- 数据与安全：schema version 保持 2，无 migration v3；未读取/输出秘密，未创建真实业务数据库；临时 SQLite、浏览器会话和本地监听均隔离并收口。
+
 ## F-004A Step 7：本地全量门禁、synthetic UAT 与交付准备
 
-- 当前结论：`LOCAL_PASS / DELIVERY_ACTIVE`；用户已明确授权修复范围内缺陷、复跑门禁与 UAT，并继续三层 stacked PR、远程 CI、依序合并和归档；
+- 当时阶段结论：`LOCAL_PASS / DELIVERY_ACTIVE`；用户已明确授权修复范围内缺陷、复跑门禁与 UAT，并继续三层 stacked PR、远程 CI、依序合并和归档；
 - 回归修复：在不改变公开 URI/DTO、Schema/migration、Repository 方法集合、Provider adapter、unknown/partial 或隐私边界的前提下，关闭 3–7 日 application replan 写前拒绝、proposal priority 顺序、V2 日数文案、SQLite retry/source 唯一性、五终态重启恢复、日期导航焦点和长文本窄屏换行缺口；
 - 最终本地门禁：`scripts/verify.ps1` 通过，包含 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，Ruff format/lint、strict mypy、后端 `1101 passed`、Prettier、ESLint、TypeScript、前端 `88 passed`、Vite build、文档检查器 `24 passed` 和 17 份必需文档/23 份 Markdown 契约；
 - synthetic UAT：真实本机 Vite → FastAPI loopback 覆盖 3 日 ready、7 日 partial/unknown、2 日 V2 ready/replan；七日 unknown 门票保持“金额未知”且不是 `¥0`；2 日显示 8 个既有 replan 控件；390px 下 `scrollWidth == clientWidth == 375`，日期按钮把焦点送入带日期可访问名称的日卡，焦点轮廓可见；控制台 0 error/0 warning；
 - 真实性边界：多日浏览器 fixture 仅验证 UI、API、SQLite 和状态投影，不证明生产 Provider 预算或真实天气/路线质量；legacy DTO/API/fingerprint 由独立自动化回归覆盖；没有调用 DeepSeek、高德或和风天气；
 - 安全与清理：未读取 `.env.local`、Key、Token、JWT、私钥或 Cookie；业务请求仅访问 `127.0.0.1`；临时 SQLite 位于系统临时目录；浏览器会话及 8000/5173 监听进程已关闭；没有创建真实业务数据库；
-- 远程交付尚未完成：三层精确暂存、PR、CI、clean restack、依序合并、最终 main CI 和归档证据将在完成后收口，当前不得宣称 F-004A 已交付。
+- 当时远程交付尚未完成；后续 PR、CI、clean restack、依序合并、最终 main CI 和归档证据见本文件上方最终结论。
 
 ## F-004A Step 6：临时 SQLite 纵向、synthetic 浏览器 QA 和独立审查
 

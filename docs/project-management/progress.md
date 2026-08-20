@@ -2,13 +2,14 @@
 
 ## 当前状态
 
-- 当前任务：`F-004A 单城市 2–7 日计划扩展`
-- 任务状态：`APPROVED / ACTIVE`
-- 当前 Step：`Step 7 - 全量门禁、UAT、stacked PR、CI、合并和归档`，状态 `ACTIVE`
-- 已完成：Step 0 执行基线；Step 1 设计冻结；Step 2 多日领域基础；Step 3 contracts、Repository/API 与 SQLite 重启恢复；Step 4 多日 Provider 编排和治理；Step 5 前端多日交互；Step 6 临时 SQLite 纵向、浏览器 QA 和独立审查
-- 下一动作：按已批准范围完成三层 stacked PR、远程 CI、clean restack、依序合并、main CI 和归档
-- 本地 Git 基线：`main`/HEAD/本地 `origin/main`=`e17cf4fe65407d98389a2713622adf398acc6f1b`
-- 最新已确认 main CI：run `31939795749`=`PASS`；Step 0 未联网复查
+- 当前任务：无
+- 最近完成：`F-004A 单城市 2–7 日计划扩展`
+- 任务状态：`DELIVERED / ARCHIVED`
+- Step 状态：Step 0–7 全部 `DONE`
+- 交付 PR：#13、#16、#17；#14/#15 被 clean-restacked PR 替代并关闭
+- 完整功能 main：`583e9da34b0d45e84a65da620cbb5d5fa8330a3c`
+- main CI：run `32359762190`=`PASS`
+- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
 
 ## Step 7 本地交付门禁
 
@@ -17,7 +18,7 @@
 - 最终统一门禁通过：后端 `1101 passed`、前端 `88 passed`、文档检查器 `24 passed`，并通过 Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、依赖锁和文档契约；
 - loopback synthetic UAT 覆盖 3 日 ready、7 日 partial/unknown 和 2 日 V2 ready/replan；`390×844` 无水平溢出，日期跳转焦点和可访问名称正确，控制台 0 error/0 warning；
 - UAT 未调用真实 Provider、未读取秘密、未创建真实业务数据库；临时 SQLite 位于系统临时目录，进程和浏览器会话已按精确 PID/会话关闭；
-- 当前正在按冻结三层边界精确暂存和交付，尚未宣称远程 CI、合并或归档完成。
+- 三层已依序合并；#14/#15 因层间测试依赖和 squash ancestry 由 #16/#17 clean restack 替代，无 force-push；完整功能 main CI run `32359762190` 通过，任务卡已归档。
 
 ## Step 0 完成摘要
 
@@ -61,7 +62,7 @@
 
 ## 当前阻塞和停止条件
 
-- 当前无技术阻塞；Step 6 已完成实现、验证、浏览器 QA、独立审查和状态收口，Step 7 尚未获独立执行批准；
+- 当前无技术阻塞；Step 0–7 已全部完成，F-004A 已交付归档；
 - 若同 URI 的严格兼容、schema v2 水合或冻结调用预算不能成立，必须停止并重新决策；
 - 已将“未列文件即停止”修正为受控相邻扩展：同层直接依赖、对应测试/fixture、机械门禁修复和五份状态文档由一次 Step 批准覆盖并留痕；
 - 若需改变冻结语义、新增依赖或 migration、扩大 Provider/外部调用、读取秘密、跨 Step/stack，或未预期生产/测试文件超过 5 个，必须停止并集中确认；
