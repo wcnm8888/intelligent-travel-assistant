@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, time, timedelta
 from enum import StrEnum
 from typing import Final
@@ -54,6 +54,15 @@ _ACTIVITY_FIELDS: Final = frozenset(
     {"location_id", "local_date", "title", "start_time", "end_time", "source_ids"}
 )
 _PROPOSAL_DAY_FIELDS: Final = frozenset({"local_date", "selections"})
+_MULTICITY_PROPOSAL_DAY_FIELDS: Final = frozenset(
+    {
+        "local_date",
+        "departure_city_index",
+        "arrival_city_index",
+        "overnight_city_index",
+        "selections",
+    }
+)
 _SELECTION_FIELDS: Final = frozenset(
     {
         "location_id",
@@ -302,7 +311,7 @@ class DeepSeekProposalResolver:
                 governor,
                 ToolCallCapability.REPAIR_PLAN_CANDIDATE,
                 lambda: self._deepseek.repair_plan_candidate(
-                    PlanCandidateRepairRequest(context, raw_output, validation_code)
+                    _proposal_repair_request(context, raw_output, validation_code)
                 ),
             )
             if repaired.status is ProviderResultStatus.UNAVAILABLE:
@@ -325,6 +334,22 @@ class DeepSeekProposalResolver:
         return ProposalResolution(_with_proposal(generated, proposal), False, None)
 
 
+def _proposal_repair_request(
+    context: PlanningContext,
+    raw_output: str,
+    validation_code: CandidateValidationCode,
+) -> PlanCandidateRepairRequest:
+    if context.request_version != "3":
+        return PlanCandidateRepairRequest(context, raw_output, validation_code)
+    safe_context = replace(
+        context,
+        interests=(),
+        hard_constraints=(),
+        free_text="",
+    )
+    return PlanCandidateRepairRequest(safe_context, "", validation_code)
+
+
 def parse_plan_proposal(raw_output: str, context: PlanningContext) -> PlanProposal:
     """Parse the exact LLM proposal boundary; execution facts are forbidden extras."""
 
@@ -344,15 +369,19 @@ def parse_plan_proposal(raw_output: str, context: PlanningContext) -> PlanPropos
     root = _exact_object(value, _ROOT_FIELDS)
     expected_dates = _expected_dates(context)
     days_value = _list(root["days"], exact_length=len(expected_dates))
-    allowed_locations = {item.location_id for item in context.locations}
+    locations = {item.location_id: item for item in context.locations}
+    allowed_locations = set(locations)
     allowed_sources = set(context.activity_source_ids)
     days = tuple(
         _parse_proposal_day(
             item,
             allowed_locations=allowed_locations,
             allowed_sources=allowed_sources,
+            location_city_adcodes={key: value.city_adcode for key, value in locations.items()},
+            context=context,
+            day_offset=day_offset,
         )
-        for item in days_value
+        for day_offset, item in enumerate(days_value)
     )
     if tuple(item.local_date for item in days) != expected_dates:
         raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
@@ -369,9 +398,18 @@ def _parse_proposal_day(
     *,
     allowed_locations: set[UUID],
     allowed_sources: set[UUID],
+    location_city_adcodes: dict[UUID, str],
+    context: PlanningContext,
+    day_offset: int,
 ) -> ProposalDay:
-    item = _exact_object(value, _PROPOSAL_DAY_FIELDS)
+    is_multicity = context.request_version == "3"
+    item = _exact_object(
+        value,
+        _MULTICITY_PROPOSAL_DAY_FIELDS if is_multicity else _PROPOSAL_DAY_FIELDS,
+    )
     local_date = _date(item["local_date"])
+    minimum = 0 if is_multicity else 1
+    maximum = 1 if is_multicity and _is_transfer_day(context, day_offset) else 2
     selections = tuple(
         _parse_selection(
             selection,
@@ -379,13 +417,45 @@ def _parse_proposal_day(
             allowed_locations=allowed_locations,
             allowed_sources=allowed_sources,
         )
-        for selection in _list(item["selections"], min_length=1, max_length=2)
+        for selection in _list(item["selections"], min_length=minimum, max_length=maximum)
     )
     if tuple(selection.priority_rank for selection in selections) != tuple(
         range(1, len(selections) + 1)
     ):
         raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
-    return ProposalDay(local_date, selections)
+    if not is_multicity:
+        return ProposalDay(local_date, selections)
+    if day_offset >= len(context.day_city_indices):
+        raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
+    indices = tuple(
+        item[field]
+        for field in (
+            "departure_city_index",
+            "arrival_city_index",
+            "overnight_city_index",
+        )
+    )
+    if (
+        any(type(index) is not int for index in indices)
+        or indices != context.day_city_indices[day_offset]
+    ):
+        raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
+    allowed_city_adcodes = {context.city_adcodes[indices[0]], context.city_adcodes[indices[1]]}
+    if any(
+        location_city_adcodes[item.location_id] not in allowed_city_adcodes for item in selections
+    ):
+        raise CandidateValidationError(
+            CandidateValidationCode.POI_REFERENCE_INVALID,
+            repairable=True,
+        )
+    return ProposalDay(local_date, selections, *indices)
+
+
+def _is_transfer_day(context: PlanningContext, day_offset: int) -> bool:
+    if day_offset >= len(context.day_city_indices):
+        return False
+    departure, arrival, _overnight = context.day_city_indices[day_offset]
+    return departure != arrival
 
 
 def _parse_selection(
@@ -538,7 +608,7 @@ def _expected_dates(context: PlanningContext) -> tuple[date, ...]:
         if day_count != 2 or (context.expected_dates and context.expected_dates != derived):
             raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
         return derived
-    if context.request_version != "2" or context.expected_dates != derived:
+    if context.request_version not in {"2", "3"} or context.expected_dates != derived:
         raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
     return derived
 

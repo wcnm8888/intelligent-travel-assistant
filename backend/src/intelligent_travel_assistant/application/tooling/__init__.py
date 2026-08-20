@@ -12,6 +12,8 @@ from intelligent_travel_assistant.application.tooling.governance import (
     ToolCallPolicy,
     ToolCallRecord,
     ToolCallSnapshot,
+    multicity_task_timeout_seconds,
+    multicity_tool_call_policies,
     multiday_task_timeout_seconds,
     multiday_tool_call_policies,
 )
@@ -30,4 +32,6 @@ __all__ = [
     "ToolCallSnapshot",
     "multiday_task_timeout_seconds",
     "multiday_tool_call_policies",
+    "multicity_task_timeout_seconds",
+    "multicity_tool_call_policies",
 ]

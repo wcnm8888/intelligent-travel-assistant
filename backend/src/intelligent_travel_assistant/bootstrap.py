@@ -31,11 +31,14 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepository,
 )
 from intelligent_travel_assistant.application.services import (
+    MultiCityPlanningOrchestrator,
     OfflinePlanningOrchestrator,
     ProviderPlanningJobExecutor,
 )
 from intelligent_travel_assistant.application.tooling import (
     ToolCallGovernor,
+    multicity_task_timeout_seconds,
+    multicity_tool_call_policies,
     multiday_task_timeout_seconds,
     multiday_tool_call_policies,
 )
@@ -171,7 +174,27 @@ def build_planning_job_executor(
             task_timeout_seconds=multiday_task_timeout_seconds(request.day_count),
         ),
     )
-    return ProviderPlanningJobExecutor(repository, orchestrator)
+    multicity_orchestrator = MultiCityPlanningOrchestrator(
+        adapters.amap,
+        adapters.qweather,
+        adapters.deepseek,
+        lambda city_count, day_count: ToolCallGovernor(
+            clock=monotonic,
+            policies=multicity_tool_call_policies(
+                city_count=city_count,
+                day_count=day_count,
+            ),
+            task_timeout_seconds=multicity_task_timeout_seconds(
+                city_count=city_count,
+                day_count=day_count,
+            ),
+        ),
+    )
+    return ProviderPlanningJobExecutor(
+        repository,
+        orchestrator,
+        multicity_orchestrator=multicity_orchestrator,
+    )
 
 
 def _build_deepseek(settings: Settings) -> DeepSeekAdapter | None:
