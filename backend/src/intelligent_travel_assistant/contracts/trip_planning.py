@@ -1045,20 +1045,14 @@ def _response_version_discriminator(value: object) -> str | None:
 
 
 PlanningRequest = Annotated[
-    Annotated[TripPlanRequest, Tag("legacy")]
-    | Annotated[TripPlanRequestV2, Tag("v2")]
-    | Annotated[TripPlanRequestV3, Tag("v3")],
+    Annotated[TripPlanRequest, Tag("legacy")] | Annotated[TripPlanRequestV2, Tag("v2")],
     Discriminator(_request_version_discriminator),
 ]
 PlanningPlan = Annotated[
-    Annotated[TripPlan, Tag("legacy")]
-    | Annotated[TripPlanV2, Tag("v2")]
-    | Annotated[TripPlanV3, Tag("v3")],
+    Annotated[TripPlan, Tag("legacy")] | Annotated[TripPlanV2, Tag("v2")],
     Discriminator(_plan_version_discriminator),
 ]
 PlanningResponse = Annotated[
-    Annotated[TripPlanResponse, Tag("legacy")]
-    | Annotated[TripPlanResponseV2, Tag("v2")]
-    | Annotated[TripPlanResponseV3, Tag("v3")],
+    Annotated[TripPlanResponse, Tag("legacy")] | Annotated[TripPlanResponseV2, Tag("v2")],
     Discriminator(_response_version_discriminator),
 ]
