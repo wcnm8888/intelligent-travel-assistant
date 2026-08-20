@@ -1,14 +1,16 @@
 # 当前实施计划
 
+当前无活动任务，因此没有正在执行的 Step。
+
 ## 当前状态
 
-- 当前任务：`F-004A 单城市 2–7 日计划扩展`
-- 任务状态：`APPROVED / ACTIVE`
-- 当前 Step：`Step 7 - 全量门禁、UAT、stacked PR、CI、合并和归档`，状态 `ACTIVE`
-- 已完成：Step 0 执行基线；Step 1 设计冻结；Step 2 多日领域基础；Step 3 contracts、Repository/API 和 SQLite 重启恢复；Step 4 多日 Provider 编排和治理；Step 5 前端多日交互；Step 6 临时 SQLite 纵向、浏览器 QA 和独立审查
-- 下一动作：本地全量门禁与 synthetic UAT 已通过；按批准完成三层 stacked PR、远程 CI、clean restack、依序合并、main CI 和归档
-- 本地 Git 基线：`e17cf4fe65407d98389a2713622adf398acc6f1b`
-- 最新已确认 main CI：run `31939795749`，`PASS`；本 Step 遵守非 loopback 禁令，未重新联网查询
+- 当前任务：无
+- 最近完成：`F-004A 单城市 2–7 日计划扩展`，`Step 0–7` 全部 `DONE`
+- 任务状态：`DELIVERED`；任务卡已归档
+- 交付结果：PR #13、#16、#17 已按依赖顺序合并；完整功能 main 提交为 `583e9da34b0d45e84a65da620cbb5d5fa8330a3c`
+- clean restack：PR #14/#15 分别由 #16/#17 替代并关闭，没有 force-push
+- main CI：run `32359762190`，`PASS`
+- 下一动作：由用户从 roadmap 选择候选任务并批准新任务卡；不得自动进入 F-004B、F-005 或 F-006
 
 ## Step 0 结果
 
@@ -113,7 +115,7 @@ Step 1 只冻结实现前设计，没有写生产代码：
 - 独立审查发现测试组合根可能误用既存或非临时 SQLite；已 fail closed 为系统临时目录内、启动前不存在的文件，并增加两项负向测试；
 - 相关回归 48 项、Ruff、strict mypy 和 `git diff --check` 通过；未调用真实 Provider、读取秘密、访问非 loopback、创建真实业务数据库或执行 Git 远程动作。
 
-状态说明：Step 6 实现、验证、独立审查和状态文档同步均已完成；当前只等待 Step 7 的独立执行批准。
+状态说明：Step 6 实现、验证、独立审查和状态文档同步均已完成；Step 7 随后完成门禁、UAT、stacked 交付、main CI 和归档。
 
 ## Step 地图
 
@@ -126,7 +128,7 @@ Step 1 只冻结实现前设计，没有写生产代码：
 | Step 4 | DeepSeek/QWeather/路线多日编排和失败语义 | DONE |
 | Step 5 | 前端多日输入、展示和 replan 范围 UI | DONE |
 | Step 6 | 临时 SQLite 纵向、浏览器 QA 和独立审查 | DONE |
-| Step 7 | 全量门禁、UAT、stacked PR、CI、合并和归档 | TODO |
+| Step 7 | 全量门禁、UAT、stacked PR、CI、合并和归档 | DONE |
 
 ## 阶段文件和交付规则
 
