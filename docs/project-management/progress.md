@@ -2,57 +2,112 @@
 
 ## 当前状态
 
-- 当前任务：无
-- 最近完成：`F-003 局部重规划与影响确认`
-- 任务状态：`DELIVERED`；`Step 0–8` 全部完成，任务卡已归档
-- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
-- 最近交付 main：`a9f1b83ee558de29e6f7c5b1bef67548fec9240a`
-- 最近交付 main CI：run `31939222646`，`PASS`
+- 当前任务：`F-004A 单城市 2–7 日计划扩展`
+- 任务状态：`APPROVED / ACTIVE`
+- 当前 Step：`Step 7 - 全量门禁、UAT、stacked PR、CI、合并和归档`，状态 `ACTIVE`
+- 已完成：Step 0 执行基线；Step 1 设计冻结；Step 2 多日领域基础；Step 3 contracts、Repository/API 与 SQLite 重启恢复；Step 4 多日 Provider 编排和治理；Step 5 前端多日交互；Step 6 临时 SQLite 纵向、浏览器 QA 和独立审查
+- 下一动作：按已批准范围完成三层 stacked PR、远程 CI、clean restack、依序合并、main CI 和归档
+- 本地 Git 基线：`main`/HEAD/本地 `origin/main`=`e17cf4fe65407d98389a2713622adf398acc6f1b`
+- 最新已确认 main CI：run `31939795749`=`PASS`；Step 0 未联网复查
 
-## 最近完成
+## Step 7 本地交付门禁
 
-- B-000、F-001、F-002 均已交付并归档；
-- F-003 L 级任务卡及产品、影响分级、确认、数据、API、migration、UI 和隐私决策已获用户批准；
-- Step 0 已核对文档、代码、Schema、Git 和 CI，并清除 F-002 的当前状态残留；
-- F-003 Step 1 已完成领域、lifecycle、API、migration v2、Repository、测试矩阵和 UI 设计冻结；
-- F-003 Step 2 已用 TDD 实现纯领域 command、impact、change set、预算和来源策略；35 项新增测试、178 项领域回归和 981 项后端全量测试通过；
-- Step 3 已实现 migration v2、`replan_requests`、`plan_version_lineage`、独立 ReplanRepository port、内存替身、SQLite adapter 和 typed Decision 映射；
-- Step 3 的 API SQLite 生命周期 8 项、专项 12 项、相关回归 81 项和后端全量 963 项通过；Ruff、format 与 strict mypy 通过；
-- API 测试已明确验证 migration 1/2，并以 version 3 保持未来数据库 fail-closed；Step 3 已完成并收口；
-- Step 4 已实现 application replan service、确认/取消/过期、provider-neutral 离线执行、Repository outcome/commit 和 SQLite 原子版本提交；
-- Step 4 专项 19 项、application+persistence 回归 494 项、后端全量 1001 项通过；Ruff、format、strict mypy、文档与 diff 门禁通过；
-- 同 baseline 并发只允许一个提交成功；失败、conflict、取消和过期保持原计划，unknown 不转为 0，partial 不伪装 ready；
-- Step 5 已实现三个窄 replan API、严格 DTO、安全错误映射、后台执行快照和 completed result/change-set 投影；
-- Step 5 专项 31 项、相关回归 571 项和后端全量 1016 项通过；108 文件 format、Ruff 与 61 source files strict mypy 通过；
-- 既有 POST/GET/retry/DELETE API 形状保持不变；未修改 Provider adapter、前端、依赖、环境、Schema/migration 或连接层，未创建真实业务数据库；
-- Step 6 已实现四种结构化前端入口、影响与来源预览、确认/取消、执行状态、completed 差异、unknown/partial、安全失败和焦点恢复；前端 73 项测试及 lint/typecheck/format/build 通过；
-- Step 7 已新增临时 SQLite 纵向测试并执行桌面/`390×844` synthetic 浏览器 QA；浏览器 completed、failed、expired、version conflict 均保留原计划且无横向溢出；
-- Step 7 独立安全审查覆盖 33/33 个变更源/测试文件，确认 stale confirmation 未绑定 captured job version 的 medium finding；两个其他候选已由 rollback probe 和威胁边界反证排除；
-- Step 7 已按后续明确授权修复 planning/replan trace 错配与 stale confirmation version 绑定：旧确认在 executor 前冲突，并发失败持久化为 conflict，成功提交可重启恢复；
-- Step 7 聚焦 18 项、相关回归 219 项、后端全量 999 项和前端 73 项通过；Ruff、format、strict mypy、ESLint、TypeScript 和 build 通过；浏览器 completed/failed/version conflict 复验通过，390px 无横向溢出且仅 loopback 资源；
-- 功能验收未读取秘密、调用真实 Provider、访问非 loopback 网络或创建真实数据库；远程写入仅限用户明确批准的交付分支和 PR。
-- Step 8 独立复审发现并关闭重复执行、异常悬挂、确认 TTL、旧版本元数据串版、unknown→ready 和前端确认恢复等阻塞；最终统一入口通过后端 1007、前端 76、文档检查器 24 及全部静态、类型和 build 门禁；
-- Step 8 synthetic UAT 已复验影响预览、确认、completed 新版本/change set、状态焦点和 390px 零溢出；全部业务请求为 loopback，控制台 0 error/0 warning；一次缺失公开夹具日期变量的无效运行不计通过证据；
-- stacked 交付已完成：PR #7、#10、#11 依次通过 CI 并合并；原 PR #8/#9 因 squash ancestry 重叠由干净替代 PR supersede 并关闭；
-- 完整功能合并后 main 提交为 `a9f1b83ee558de29e6f7c5b1bef67548fec9240a`，main CI run `31939222646` 为 `PASS`；F-003 已归档。
+- 用户已批准修复 Step 7 范围内缺陷、复跑门禁和 UAT，并继续三层 stacked PR、CI、依序合并及归档；只有真正越过冻结边界时暂停；
+- 修复并锁定 3–7 日 replan 在任何 reservation/decision/executor 写入前拒绝、proposal priority 顺序、V2 日数文案、SQLite retry/source 唯一性、五终态恢复、日期导航焦点和长文本窄屏换行；
+- 最终统一门禁通过：后端 `1101 passed`、前端 `88 passed`、文档检查器 `24 passed`，并通过 Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、依赖锁和文档契约；
+- loopback synthetic UAT 覆盖 3 日 ready、7 日 partial/unknown 和 2 日 V2 ready/replan；`390×844` 无水平溢出，日期跳转焦点和可访问名称正确，控制台 0 error/0 warning；
+- UAT 未调用真实 Provider、未读取秘密、未创建真实业务数据库；临时 SQLite 位于系统临时目录，进程和浏览器会话已按精确 PID/会话关闭；
+- 当前正在按冻结三层边界精确暂存和交付，尚未宣称远程 CI、合并或归档完成。
 
-## 已批准边界摘要
+## Step 0 完成摘要
 
-- 单城市双日；四种结构化活动修改；不新增活动，不改城市、日期或住宿锚点；
-- same-day low impact 自动，高影响确认，cross-city 拒绝；
-- 独立 replan lifecycle，确认有效期 15 分钟；
-- conflict/failed/取消/过期保持原计划；
-- 成功追加新版本，不支持历史列表、任意版本比较或恢复；
-- migration v2 方向；默认完全离线，live UAT 另行限次授权；
-- unknown 不按 0，partial 不伪装 ready。
+- B-000、F-001、F-002、F-003 归档事实已核对；F-001 仍为 `PARTIAL`；
+- Step 45M 真实 `FAIL`、Step 45T 真实 `PASS`、unknown 不按 0 和混合交通 fallback 仅离线证据均未改变；
+- F-002/F-003 数据已位于 schema version 2；F-004A 默认不做 migration v3；
+- F-004 已拆为已激活的 F-004A 和仍为候选的 F-004B；多城市与城际 Provider 不在当前任务；
+- 当前双日硬编码和可复用领域/Repository/SQLite/Provider/UI 边界已完成只读审计；
+- 已修正 AGENTS 应用现状、F-003 design 状态、D-011 状态和过期 Git/CI 当前指针；
+- F-004A 完整任务卡、Step 0–7、停止条件、阶段化允许文件和三层 clean-restack 规则已建立；
+- Step 0 只修改获批治理/长期文档，没有源码、测试、数据库、依赖、环境或前端变化；
+- 未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback 网络，未创建分支或远程写入。
+
+## 当前产品与技术边界
+
+- 单城市、连续 2–7 日、每日最多 2 项、一个住宿锚点；
+- 旧双日 request/response/fingerprint/计划数据/replan 必须兼容；新请求使用严格 version 2；
+- schema v2 typed JSON；无关系型新需求证据时不增加 migration；
+- unknown 金额保持空，partial 不伪装 ready，天气缺日按可用性降级；
+- route 上限 `min(28, 4 × day_count)`、并发 2；DeepSeek generation/repair 各 1；
+- 3–7 日 replan 在 Provider/decision/version 写入前拒绝；
+- 无多城市、跨夜、城际 Provider、历史/恢复、登录/同步/公网或 live UAT。
+
+## Step 1 完成摘要
+
+- 冻结 legacy/V2 独立类型、2–7 日日期/窗口/计划不变量、每日最多 2 项和同一住宿锚点；
+- 冻结同 URI callable discriminator/tagged union、V2 request/plan/response format 标识和未知版本 422；
+- 冻结 legacy synthetic fingerprint golden；Repository 方法与 schema v2 不变，按 request version typed 水合；
+- 冻结 legacy/V2 两日 replan 兼容和 3–7 日在 Provider/写入前 `replan_scope_not_supported`；
+- 冻结 route、POI、天气、DeepSeek 和动态总期限策略；单次 timeout 和外部服务集合不变；
+- 冻结结束日期、动态窗口/日卡、日导航、2/3/7 日和 390px UI；
+- 冻结领域、contracts、Repository/SQLite、API、Provider、五终态、前端、浏览器和隐私测试矩阵；
+- 未修改源码、测试、Schema、migration、依赖、环境或数据库，未读取秘密、调用 Provider或联网。
+
+## Step 6 完成摘要
+
+- V2 2/3/7 日已通过真实 API、executor、临时 SQLite、schema v2、重启、幂等和删除纵向；V2 create/retry 调度遗漏已在用户批准的最小范围内修复；
+- 桌面两日、桌面三日和 `390×844` 七日 partial 浏览器闭环通过；末日可达并聚焦，3–7 日 replan 隐藏，unknown 门票显示“金额未知”且非 `¥0`，无横向溢出和 console warning/error；
+- 所有动态浏览器请求仅访问 `127.0.0.1`，无真实 Provider；临时库仅含 migration 1/2，三日为 ready、七日为 partial/unknown_count=1；
+- 独立审查的唯一 P1 已修复：browser SQLite 路径必须位于系统临时目录且启动前不存在；相关负向测试、48 项回归、Ruff、strict mypy 和 diff 检查通过。
 
 ## 当前阻塞和停止条件
 
-- 当前无活动任务、无新增产品决策或技术阻塞；下一任务必须由用户从 roadmap 选择并批准；
-- F-003 累计变更涉及 48 个生产/测试文件、12 个文档和 2 个文档检查脚本，当前 diff 为 `+10488/-602`，已超过 35 文件/3,000 行停止阈值；用户已明确选择 stacked PR，范围决策阻塞解除；
-- D-004 已由 D-011 解释为独立 replan lifecycle，PlanningJob 11 状态保持不变；
-- migration、API、UI 或文件规模需要改变批准边界时必须停止；
-- 预计超过 35 个生产/测试文件或净新增 3000 行时必须重新决定单 PR 或 stacked PR。
+- 当前无技术阻塞；Step 6 已完成实现、验证、浏览器 QA、独立审查和状态收口，Step 7 尚未获独立执行批准；
+- 若同 URI 的严格兼容、schema v2 水合或冻结调用预算不能成立，必须停止并重新决策；
+- 已将“未列文件即停止”修正为受控相邻扩展：同层直接依赖、对应测试/fixture、机械门禁修复和五份状态文档由一次 Step 批准覆盖并留痕；
+- 若需改变冻结语义、新增依赖或 migration、扩大 Provider/外部调用、读取秘密、跨 Step/stack，或未预期生产/测试文件超过 5 个，必须停止并集中确认；
+- 任一 stack 超过 35 个生产/测试文件或净新增 3000 行，必须重新拆分。
+
+## 执行治理效率修正
+
+- 原因：F-004A 原规则把核心文件清单当作绝对白名单，Step 1 的传递依赖遗漏导致正常 contract、测试和状态收口被拆成多次逐文件授权；
+- 修正：后续 Step 批准覆盖已冻结目标的直接相邻实现、对应测试/fixture、机械门禁修复和状态文档；执行时先披露路径和理由，完成时统一列证据；
+- 安全边界：产品/API 语义、Schema/migration、依赖、数据隐私、真实 Provider、秘密、数据库、远程 Git、跨 Step/stack 和规模阈值仍需新授权；
+- 治理修正已在 Step 4 生效：已披露的相邻组合根 `bootstrap.py` 随同一 Step 完成并在 evidence 留痕，没有产生逐文件重复授权。
+
+## Step 5 实现摘要
+
+- 表单支持显式结束日期、2–7 日动态日窗口、D+1 至 D+5 开始边界、1/8 日拒绝和首错焦点；用户已编辑的结束日期不会被开始日期静默覆盖；
+- 未显式编辑结束日期的双日提交继续生成原 legacy DTO；显式日期范围生成 tagged V2 DTO，既有 URI、轮询、retry 和终态流程不变；
+- parser 严格校验 V2 response/plan 标签、连续日期和 2–7 日结构；结果页动态展示摘要、可访问日期导航与所有日卡；
+- 3–7 日不显示可执行局部调整并明确范围，V2 恰好两日保留 replan；7 日 partial 继续显示天气缺失和 unknown 金额，不显示 `¥0`；
+- 统一离线门禁通过后端 1088 项、前端 87 项、文档检查器 24 项及全部 format、lint、typecheck、build；未修改后端、Schema、migration、Provider、依赖、环境或数据库，未访问真实 Provider 或非 loopback 网络。
+
+## Step 2 实现摘要
+
+- TDD RED：多日请求、时间计划和预算函数尚不存在，三个测试模块在收集阶段按预期失败；
+- 最小 GREEN：新增独立 2–7 日请求/时间模型，基础 offset 扩到 0–6，legacy 双日模型继续严格 `{0,1}`；
+- scheduler 校验并遍历 2–7 日 proposal、窗口和每日 1–2 项，住宿往返路线最多 3 段/日；
+- 餐饮按人数与天数、住宿按夜数计算，unknown 保持空；final validation 遍历全部日期、路线和天气覆盖；
+- 专项 136 项与后端全量 1065 项通过；format、Ruff、strict mypy、文档检查和 diff 检查通过；
+- 未修改 contracts、Repository、SQLite/schema/migration、API、Provider adapter、前端、依赖、环境或数据库；未读取秘密、调用真实 Provider、创建分支或远程写入。
+
+## Step 3 实现摘要
+
+- 以 callable discriminator 建立 legacy/V2 request、plan 和 response 联合；legacy JSON 与指纹 golden 不变，未知版本 422；
+- 内存和 SQLite Repository 在方法集合、事务与 schema v2 不变的前提下持久化并严格水合 V2 typed JSON；损坏版本或 request/plan 不匹配 fail closed；
+- 同一 trip-plan URI 支持 V2 创建、GET、幂等、删除和重启恢复；V2 草稿不调用 legacy executor；3–7 日 replan 在写入前拒绝；
+- 增补 V2 两日 completed replan contract，序列化保留 response/plan 两层 V2 标签；
+- 聚焦测试 26 项通过；统一门禁通过后端 1073 项、前端 76 项、文档检查器 24 项及全部 format、lint、strict mypy、TypeScript 和 build；
+- schema/migration、Provider adapter、前端、依赖、环境和真实数据库未变化；未读取秘密、调用真实 Provider、创建分支或远程写入。
+
+## Step 4 实现摘要
+
+- DeepSeek V2 proposal 使用请求版本、完整日期和动态 2–7 日规则；legacy 双日行为保持不变；
+- QWeather 一次 7 日预报映射完整请求日期，缺日返回 partial 且不补拉；
+- Provider executor 以 N 日窗口、POI 上限、餐饮按天和住宿按夜生成 typed `TripPlanV2`，unknown 仍为 `None`；
+- governor 按请求使用冻结 route cap、并发和 deadline；3/7 日 fake 纵向证明路线调用为 `2D` 且 active calls 归零；
+- 专项 403 项和统一门禁通过：后端 1088 项、前端 76 项、文档检查器 24 项，以及 format、lint、strict mypy、TypeScript 和 build；
+- `bootstrap.py` 是唯一预先披露的受控相邻生产文件；未修改 API、Repository、Schema、migration、前端、依赖、环境或数据库，未读取秘密或调用真实 Provider。
 
 ## 权威入口
 

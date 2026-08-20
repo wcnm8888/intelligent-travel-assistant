@@ -206,6 +206,21 @@ typed value 与确定性函数。该层没有 Agent 循环、Prompt、Provider p
 replacement 后续仍只能由已批准的应用/Provider 边界产生候选，模型不能构造 impact category、
 source freshness、budget risk 或 change-set scope。
 
+## F-004A 多日 Agent 边界（Step 1 冻结，Step 4 已实现）
+
+- Agent 仍是单编排 Agent，不因 2–7 日扩展拆分为多 Agent，也不获得 Repository、SQLite、状态机或最终预算裁决权；
+- legacy 双日上下文和 DeepSeek 行为保持不变；V2 上下文显式携带 `request_version`、完整 `expected_dates` 和按 offset 排序的 2–7 个窗口；
+- DeepSeek proposal 的 `days` 必须与 `expected_dates` 精确一一对应，每日 1–2 项，只能引用应用提供的 POI/source ID；仍不得输出最终时间、路线、provider、freshness、费用 confidence 或终态；
+- generation 与唯一一次 repair 使用同一个按 day_count 构造的严格 Schema；repair 只接收项目自有无值诊断，不接收原始模型输出、Provider body、秘密或字段值；
+- POI 目录由应用使用最多 3 次搜索和有界候选上限构建；Agent 不能自行扩大地点目录、城市或交通方式；
+- 确定性 scheduler、路线链、天气日期覆盖、费用、来源引用和 final validation 继续在 Agent 输出之后执行；
+- route 调用按日期/链路稳定顺序、并发 2 和 `min(28, 4 × day_count)` 总预算执行；Agent 不能要求额外调用或修改 fallback 顺序；
+- 天气缺日、freshness unknown 或非关键费用 unknown 时，Agent 只能解释代码产生的 partial/uncertainty，不能补写天气、金额或 ready；
+- `day_count > 2` 的 replan 在进入 Agent/Provider 前拒绝；V2 两日只能复用 F-003 已批准的四种结构化 command，不扩大修改范围；
+- Prompt、日志和持久化继续排除完整用户请求、完整 Prompt、provider 原始响应、错误 body 和凭证。
+
+Step 4 已按上述边界实现：V2 `PlanningContext` 显式携带完整日期，DeepSeek generation/repair 使用动态 N 日规则且仍各最多一次；应用按请求创建 governor，路线并发、调用预算和 deadline 由代码裁决；天气缺日、候选日期缺失和 unknown 均在本地确定性边界收口。测试只使用 fake/MockTransport，没有把离线证据描述为真实 Provider 质量。
+
 ## 日志与追踪
 
 - `trace_id`：贯穿 API 请求、Agent 阶段、工具调用、计划版本和响应；
