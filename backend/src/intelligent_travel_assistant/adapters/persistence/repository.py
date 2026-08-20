@@ -9,7 +9,7 @@ import re
 import sqlite3
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
-from typing import NoReturn, cast
+from typing import Literal, NoReturn, cast
 from uuid import UUID, uuid4
 
 from pydantic import Field, TypeAdapter
@@ -25,6 +25,8 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepositoryErrorCode,
     PlanningJobReservation,
     PlanningJobResult,
+    PlanningJobResultV3,
+    PlanningResult,
     ReplanCommit,
     ReplanCommitResult,
     ReplanDecisionRecord,
@@ -53,7 +55,9 @@ from intelligent_travel_assistant.contracts import (
     SourceRecord,
     TripPlan,
     TripPlanRequestV2,
+    TripPlanRequestV3,
     TripPlanV2,
+    TripPlanV3,
     Uncertainty,
 )
 from intelligent_travel_assistant.contracts.base import ContractModel
@@ -100,6 +104,18 @@ class _StoredResultMetadata(ContractModel):
     """Typed, allowlisted terminal metadata stored outside the plan snapshot."""
 
     resolved_destination: ResolvedDestination | None
+    violations: tuple[ConstraintViolation, ...] = Field(max_length=50)
+    warnings: tuple[str, ...] = Field(max_length=50)
+    uncertainties: tuple[Uncertainty, ...] = Field(max_length=50)
+    errors: tuple[ApiError, ...] = Field(max_length=20)
+    source_ids: tuple[UUID, ...] = Field(max_length=100)
+
+
+class _StoredResultMetadataV3(ContractModel):
+    """V3 metadata variant stored in the existing result JSON column."""
+
+    result_version: Literal["3"]
+    resolved_destinations: tuple[ResolvedDestination, ...] = Field(max_length=3)
     violations: tuple[ConstraintViolation, ...] = Field(max_length=50)
     warnings: tuple[str, ...] = Field(max_length=50)
     uncertainties: tuple[Uncertainty, ...] = Field(max_length=50)
@@ -255,7 +271,7 @@ class SqlitePlanningJobRepository:
     async def record_result(
         self,
         job_id: UUID,
-        result: PlanningJobResult,
+        result: PlanningResult,
         *,
         expected_version: int,
     ) -> PlanningJob:
@@ -265,7 +281,7 @@ class SqlitePlanningJobRepository:
                 with sqlite_transaction(self._database.connection):
                     current = self._hydrate_job(self._job_row(job_id))
                     self._require_version(current, expected_version)
-                    if not isinstance(result, PlanningJobResult):
+                    if not isinstance(result, (PlanningJobResult, PlanningJobResultV3)):
                         self._raise(PlanningJobRepositoryErrorCode.RESULT_INVALID)
                     if not result_matches_request(result, current.request):
                         self._raise(PlanningJobRepositoryErrorCode.RESULT_REQUEST_MISMATCH)
@@ -280,14 +296,26 @@ class SqlitePlanningJobRepository:
                         self._raise(PlanningJobRepositoryErrorCode.TRANSITION_NOT_ALLOWED)
 
                     updated_at = self._now(not_before=current.updated_at)
-                    metadata = _StoredResultMetadata(
-                        resolved_destination=result.resolved_destination,
-                        violations=result.violations,
-                        warnings=result.warnings,
-                        uncertainties=result.uncertainties,
-                        errors=result.errors,
-                        source_ids=tuple(source.source_id for source in result.sources),
-                    )
+                    metadata: _StoredResultMetadata | _StoredResultMetadataV3
+                    if isinstance(result, PlanningJobResultV3):
+                        metadata = _StoredResultMetadataV3(
+                            result_version="3",
+                            resolved_destinations=result.resolved_destinations,
+                            violations=result.violations,
+                            warnings=result.warnings,
+                            uncertainties=result.uncertainties,
+                            errors=result.errors,
+                            source_ids=tuple(source.source_id for source in result.sources),
+                        )
+                    else:
+                        metadata = _StoredResultMetadata(
+                            resolved_destination=result.resolved_destination,
+                            violations=result.violations,
+                            warnings=result.warnings,
+                            uncertainties=result.uncertainties,
+                            errors=result.errors,
+                            source_ids=tuple(source.source_id for source in result.sources),
+                        )
                     metadata_json = self._dump_json(metadata.model_dump(mode="json"))
                     self._insert_sources(current, result.sources)
                     plan_version = self._insert_plan_version(current, result, updated_at)
@@ -552,7 +580,7 @@ class SqlitePlanningJobRepository:
     def _insert_plan_version(
         self,
         job: PlanningJob,
-        result: PlanningJobResult,
+        result: PlanningResult,
         created_at: datetime,
     ) -> int | None:
         if result.plan is None:
@@ -724,17 +752,22 @@ class SqlitePlanningJobRepository:
         request: PlanningRequest,
         metadata_json: str | None,
         plan_version: int | None,
-    ) -> PlanningJobResult | None:
+    ) -> PlanningResult | None:
         if status not in _TERMINAL_STATUSES:
             if metadata_json is not None or plan_version is not None:
                 raise ValueError("stored_nonterminal_result_invalid")
             return None
         if metadata_json is None:
             raise ValueError("stored_terminal_metadata_missing")
-        metadata = _StoredResultMetadata.model_validate(self._load_json(metadata_json))
-        if len(set(metadata.source_ids)) != len(metadata.source_ids):
+        if isinstance(request, TripPlanRequestV3):
+            metadata_v3 = _StoredResultMetadataV3.model_validate(self._load_json(metadata_json))
+            source_ids = metadata_v3.source_ids
+        else:
+            metadata = _StoredResultMetadata.model_validate(self._load_json(metadata_json))
+            source_ids = metadata.source_ids
+        if len(set(source_ids)) != len(source_ids):
             raise ValueError("stored_result_source_duplicate")
-        sources = self._hydrate_sources(job_id, attempt, metadata.source_ids)
+        sources = self._hydrate_sources(job_id, attempt, source_ids)
         plan = self._hydrate_plan(
             job_id=job_id,
             trace_id=trace_id,
@@ -742,8 +775,20 @@ class SqlitePlanningJobRepository:
             status=status,
             request=request,
             plan_version=plan_version,
-            expected_source_ids=metadata.source_ids,
+            expected_source_ids=source_ids,
         )
+        if isinstance(request, TripPlanRequestV3):
+            return PlanningJobResultV3(
+                status=status,
+                resolved_destinations=metadata_v3.resolved_destinations,
+                plan=plan if isinstance(plan, TripPlanV3) else None,
+                violations=metadata_v3.violations,
+                warnings=metadata_v3.warnings,
+                uncertainties=metadata_v3.uncertainties,
+                sources=sources,
+                errors=metadata_v3.errors,
+                retryable=retryable,
+            )
         return PlanningJobResult(
             status=status,
             resolved_destination=metadata.resolved_destination,
@@ -823,6 +868,9 @@ class SqlitePlanningJobRepository:
         plan = _PLANNING_PLAN_ADAPTER.validate_python(self._load_json(self._text(row, "plan_json")))
         if isinstance(request, TripPlanRequestV2):
             if not isinstance(plan, TripPlanV2):
+                raise ValueError("stored_plan_format_mismatch")
+        elif isinstance(request, TripPlanRequestV3):
+            if not isinstance(plan, TripPlanV3):
                 raise ValueError("stored_plan_format_mismatch")
         elif type(plan) is not TripPlan:
             raise ValueError("stored_plan_format_mismatch")
@@ -1720,7 +1768,7 @@ class SqliteReplanRepository:
                 self._database, clock=self._clock, id_factory=self._id_factory
             )
             current = planning._hydrate_job(planning._job_row(UUID(row["job_id"])))
-            if current.result is None:
+            if not isinstance(current.result, PlanningJobResult):
                 _raise_replan(ReplanRepositoryErrorCode.JSON_INVALID)
             plan_version = int(row["result_plan_version"])
             plan_row = self._database.connection.execute(
@@ -1839,7 +1887,7 @@ class SqliteReplanRepository:
         return identifier
 
     def _backfill_legacy_replan_lineage(self, current: PlanningJob, *, plan_version: int) -> None:
-        if current.result is None:
+        if not isinstance(current.result, PlanningJobResult):
             _raise_replan(ReplanRepositoryErrorCode.COMMIT_INVALID)
         metadata = _StoredResultMetadata(
             resolved_destination=current.result.resolved_destination,

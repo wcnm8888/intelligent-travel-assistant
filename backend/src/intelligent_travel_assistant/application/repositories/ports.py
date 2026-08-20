@@ -10,7 +10,7 @@ from intelligent_travel_assistant.application.repositories.models import (
     AcceptanceRecord,
     PlanningJob,
     PlanningJobReservation,
-    PlanningJobResult,
+    PlanningResult,
     ReplanCommit,
     ReplanCommitResult,
     ReplanOutcome,
@@ -45,7 +45,7 @@ class PlanningJobRepository(Protocol):
     async def record_result(
         self,
         job_id: UUID,
-        result: PlanningJobResult,
+        result: PlanningResult,
         *,
         expected_version: int,
     ) -> PlanningJob: ...

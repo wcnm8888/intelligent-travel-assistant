@@ -68,7 +68,7 @@ class ProviderNeutralReplanExecutor:
         )
 
     async def execute(self, job: PlanningJob, replan: ReplanRecord) -> ReplanExecutionResult:
-        if job.result is None or job.result.plan is None:
+        if not isinstance(job.result, PlanningJobResult) or job.result.plan is None:
             return ReplanExecutionResult(
                 outcome=ReplanOutcome(ReplanStatus.FAILED, "replan_baseline_missing")
             )
@@ -78,6 +78,10 @@ class ProviderNeutralReplanExecutor:
         if result.plan is None:
             return ReplanExecutionResult(
                 outcome=ReplanOutcome(ReplanStatus.FAILED, "replan_result_missing")
+            )
+        if not isinstance(job.result.plan, TripPlan) or not isinstance(result.plan, TripPlan):
+            return ReplanExecutionResult(
+                outcome=ReplanOutcome(ReplanStatus.FAILED, "replan_scope_not_supported")
             )
         impact = replan.impact
         if impact is None:

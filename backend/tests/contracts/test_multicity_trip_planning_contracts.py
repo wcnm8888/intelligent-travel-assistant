@@ -8,9 +8,12 @@ from datetime import date, timedelta
 from typing import cast
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from intelligent_travel_assistant.contracts import (
+    PlanningPlan,
+    PlanningRequest,
+    PlanningResponse,
     PlanningStatus,
     TripPlanRequestV3,
     TripPlanResponseV3,
@@ -526,3 +529,23 @@ def test_v3_accepts_all_five_valid_terminal_shapes() -> None:
         PlanningStatus.NEEDS_INPUT,
         PlanningStatus.FAILED,
     ]
+
+
+def test_v3_is_the_third_strict_branch_of_all_planning_unions() -> None:
+    request: PlanningRequest = TypeAdapter(PlanningRequest).validate_python(request_payload())
+    response: PlanningResponse = TypeAdapter(PlanningResponse).validate_python(response_payload())
+    plan: PlanningPlan = TypeAdapter(PlanningPlan).validate_python(response_payload()["plan"])
+
+    assert isinstance(request, TripPlanRequestV3)
+    assert isinstance(response, TripPlanResponseV3)
+    assert response.plan is not None and type(plan) is type(response.plan)
+
+    for field, value in (
+        ("request_version", "4"),
+        ("request_version", 3),
+        ("request_version", None),
+    ):
+        payload = request_payload()
+        payload[field] = value
+        with pytest.raises(ValidationError):
+            TypeAdapter(PlanningRequest).validate_python(payload)

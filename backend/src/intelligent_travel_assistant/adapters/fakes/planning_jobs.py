@@ -9,6 +9,8 @@ from uuid import UUID
 from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepository,
     PlanningJobResult,
+    PlanningJobResultV3,
+    PlanningResult,
 )
 from intelligent_travel_assistant.contracts import PlanningStatus
 
@@ -40,11 +42,11 @@ class SyntheticPlanningJobExecutor:
     def __init__(
         self,
         repository: PlanningJobRepository,
-        result: PlanningJobResult,
+        result: PlanningResult,
         *,
         wait_between_states: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
-        if not isinstance(result, PlanningJobResult):
+        if not isinstance(result, (PlanningJobResult, PlanningJobResultV3)):
             raise TypeError("synthetic_result_invalid")
         self._repository = repository
         self._result = result

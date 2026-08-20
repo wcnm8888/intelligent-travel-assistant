@@ -15,8 +15,10 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJob,
     PlanningJobReservation,
     PlanningJobResult,
+    PlanningResult,
 )
 from intelligent_travel_assistant.contracts import (
+    PlanningRequest,
     PlanningStatus,
     TripPlanRequest,
     TripPlanResponse,
@@ -342,7 +344,7 @@ def test_retry_limit_maps_to_the_same_stable_conflict() -> None:
 
 
 class BrokenRepository:
-    async def get_or_create(self, request: TripPlanRequest) -> PlanningJobReservation:
+    async def get_or_create(self, request: PlanningRequest) -> PlanningJobReservation:
         del request
         raise RuntimeError("sensitive internal detail")
 
@@ -368,7 +370,7 @@ class BrokenRepository:
     async def record_result(
         self,
         job_id: UUID,
-        result: PlanningJobResult,
+        result: PlanningResult,
         *,
         expected_version: int,
     ) -> PlanningJob:
