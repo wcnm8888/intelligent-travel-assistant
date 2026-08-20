@@ -22,7 +22,9 @@ from intelligent_travel_assistant.contracts import (
     TripPlan,
     TripPlanRequest,
     TripPlanRequestV2,
+    TripPlanRequestV3,
     TripPlanV2,
+    TripPlanV3,
     Uncertainty,
 )
 from intelligent_travel_assistant.domain.replanning import (
@@ -397,7 +399,7 @@ class AcceptanceRecord:
 def request_fingerprint(request: PlanningRequest) -> RequestFingerprint:
     """Hash normalized typed input, excluding the idempotency key itself."""
 
-    if not isinstance(request, TripPlanRequest):
+    if not isinstance(request, (TripPlanRequest, TripPlanRequestV3)):
         raise TypeError("request_type_invalid")
     normalized = request.model_dump(mode="json", exclude={"client_request_id"})
     canonical = json.dumps(
@@ -434,6 +436,42 @@ class PlanningJobResult:
 
 
 @dataclass(frozen=True, slots=True)
+class PlanningJobResultV3:
+    """Validated V3 terminal payload with ordered multi-city destinations."""
+
+    status: PlanningStatus
+    resolved_destinations: tuple[ResolvedDestination, ...]
+    plan: TripPlanV3 | None
+    violations: tuple[ConstraintViolation, ...]
+    warnings: tuple[str, ...]
+    uncertainties: tuple[Uncertainty, ...]
+    sources: tuple[SourceRecord, ...]
+    errors: tuple[ApiError, ...]
+    retryable: bool
+
+    def __post_init__(self) -> None:
+        if self.status not in _TERMINAL_STATUSES:
+            raise ValueError("result_status_invalid")
+        if not isinstance(self.resolved_destinations, tuple) or len(self.resolved_destinations) > 3:
+            raise ValueError("result_destinations_invalid")
+        if not all(isinstance(item, ResolvedDestination) for item in self.resolved_destinations):
+            raise ValueError("result_destinations_invalid")
+        _require_result_collections(self)
+        _require_terminal_shape(self)
+        if (
+            self.status is PlanningStatus.READY
+            and self.plan is not None
+            and self.plan.budget_summary.unknown_count > 0
+        ):
+            raise ValueError("result_ready_unknown_budget_invalid")
+        _require_safe_result_text(self)
+        _require_result_references(self)
+
+
+PlanningResult = PlanningJobResult | PlanningJobResultV3
+
+
+@dataclass(frozen=True, slots=True)
 class PlanningJob:
     """Immutable in-process snapshot of one planning job."""
 
@@ -448,7 +486,7 @@ class PlanningJob:
     retryable: bool
     created_at: datetime
     updated_at: datetime
-    result: PlanningJobResult | None = field(default=None, repr=False)
+    result: PlanningResult | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         identifiers = (self.job_id, self.trace_id, self.client_request_id)
@@ -456,7 +494,7 @@ class PlanningJob:
             raise ValueError("job_identifier_invalid")
         if not isinstance(self.request_fingerprint, RequestFingerprint):
             raise ValueError("request_fingerprint_invalid")
-        if not isinstance(self.request, TripPlanRequest):
+        if not isinstance(self.request, (TripPlanRequest, TripPlanRequestV3)):
             raise ValueError("request_invalid")
         if self.request.client_request_id != self.client_request_id:
             raise ValueError("client_request_id_mismatch")
@@ -477,7 +515,7 @@ class PlanningJob:
             if self.status in _TERMINAL_STATUSES:
                 raise ValueError("terminal_job_missing_result")
         elif (
-            not isinstance(self.result, PlanningJobResult)
+            not isinstance(self.result, (PlanningJobResult, PlanningJobResultV3))
             or self.result.status is not self.status
             or self.result.retryable is not self.retryable
         ):
@@ -494,27 +532,44 @@ class PlanningJobReservation:
             raise ValueError("reservation_invalid")
 
 
-def result_matches_request(result: PlanningJobResult, request: PlanningRequest) -> bool:
+def result_matches_request(result: PlanningResult, request: PlanningRequest) -> bool:
     """Prevent a valid payload from being attached to a different request."""
 
+    if isinstance(request, TripPlanRequestV3):
+        if not isinstance(result, PlanningJobResultV3):
+            return False
+        if result.plan is None:
+            return True
+        v3_plan = result.plan
+        if not isinstance(v3_plan, TripPlanV3):
+            return False
+        return (
+            v3_plan.start_date == request.start_date
+            and v3_plan.end_date == request.end_date
+            and v3_plan.budget_summary.budget == request.total_budget
+            and len(result.resolved_destinations) == len(request.city_stays)
+            and tuple(item.adcode for item in result.resolved_destinations) == v3_plan.city_adcodes
+        )
+    if not isinstance(result, PlanningJobResult):
+        return False
     if result.plan is None:
         return True
-    plan = result.plan
+    legacy_plan = result.plan
     if isinstance(request, TripPlanRequestV2):
-        if not isinstance(plan, TripPlanV2):
+        if not isinstance(legacy_plan, TripPlanV2):
             return False
         expected_end_date = request.end_date
     else:
-        if type(plan) is not TripPlan:
+        if type(legacy_plan) is not TripPlan:
             return False
         expected_end_date = request.start_date + timedelta(days=1)
     return (
-        plan.start_date == request.start_date
-        and plan.end_date == expected_end_date
-        and plan.budget_summary.budget == request.total_budget
+        legacy_plan.start_date == request.start_date
+        and legacy_plan.end_date == expected_end_date
+        and legacy_plan.budget_summary.budget == request.total_budget
         and (
             result.resolved_destination is None
-            or result.resolved_destination.adcode == plan.city_adcode
+            or result.resolved_destination.adcode == legacy_plan.city_adcode
         )
     )
 
@@ -524,7 +579,7 @@ def _require_aware_datetime(value: datetime, field: str) -> None:
         raise ValueError(f"{field}_invalid")
 
 
-def _require_result_collections(result: PlanningJobResult) -> None:
+def _require_result_collections(result: PlanningResult) -> None:
     collections: tuple[tuple[object, ...], ...] = (
         result.violations,
         result.warnings,
@@ -548,7 +603,7 @@ def _require_result_collections(result: PlanningJobResult) -> None:
         raise ValueError("result_retryable_invalid")
 
 
-def _require_terminal_shape(result: PlanningJobResult) -> None:
+def _require_terminal_shape(result: PlanningResult) -> None:
     if result.status is PlanningStatus.READY:
         if result.plan is None or result.retryable or result.errors or result.violations:
             raise ValueError("result_ready_invalid")
@@ -577,7 +632,7 @@ def _require_terminal_shape(result: PlanningJobResult) -> None:
         raise ValueError("result_retryable_invalid")
 
 
-def _require_safe_result_text(result: PlanningJobResult) -> None:
+def _require_safe_result_text(result: PlanningResult) -> None:
     values = [*result.warnings]
     values.extend(error.message for error in result.errors)
     values.extend(item.message for item in result.violations)
@@ -589,12 +644,15 @@ def _require_safe_result_text(result: PlanningJobResult) -> None:
         raise ValueError("result_text_unsafe")
 
 
-def _require_result_references(result: PlanningJobResult) -> None:
+def _require_result_references(result: PlanningResult) -> None:
     known_source_ids = {source.source_id for source in result.sources}
     if len(known_source_ids) != len(result.sources):
         raise ValueError("result_source_id_duplicate")
     referenced_source_ids: set[UUID] = set()
-    if result.resolved_destination is not None:
+    if isinstance(result, PlanningJobResultV3):
+        for destination in result.resolved_destinations:
+            referenced_source_ids.update(destination.source_ids)
+    elif result.resolved_destination is not None:
         referenced_source_ids.update(result.resolved_destination.source_ids)
     if result.plan is not None:
         known_location_ids = {location.location_id for location in result.plan.locations}
@@ -603,6 +661,10 @@ def _require_result_references(result: PlanningJobResult) -> None:
             referenced_source_ids.update(location.source_ids)
         for cost in result.plan.budget_summary.cost_items:
             referenced_source_ids.update(cost.source_ids)
+        if isinstance(result.plan, TripPlanV3):
+            for segment in result.plan.intercity_segments:
+                referenced_source_ids.update(segment.source_ids)
+                referenced_source_ids.update(segment.fare.source_ids)
         for day in result.plan.days:
             referenced_location_ids.add(day.accommodation_location_id)
             if day.weather is not None:
