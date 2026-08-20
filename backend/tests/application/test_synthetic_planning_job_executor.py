@@ -6,10 +6,19 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from tests.application.test_multicity_planning_job_repository import (
+    request as multicity_request,
+)
+from tests.application.test_multicity_planning_job_repository import (
+    result as multicity_result,
+)
 
 from intelligent_travel_assistant.adapters.fakes import SyntheticPlanningJobExecutor
 from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
-from intelligent_travel_assistant.application.repositories import PlanningJobResult
+from intelligent_travel_assistant.application.repositories import (
+    PlanningJobResult,
+    PlanningJobResultV3,
+)
 from intelligent_travel_assistant.contracts import (
     PlanningStatus,
     TripPlanRequest,
@@ -140,3 +149,28 @@ def test_synthetic_executor_replays_retryable_partial_on_the_same_job() -> None:
     assert attempt == 2
     assert second_trace != first_trace
     assert status is PlanningStatus.PARTIAL
+
+
+def test_synthetic_executor_publishes_and_retries_a_v3_terminal_result() -> None:
+    async def scenario() -> tuple[int, PlanningStatus, str]:
+        repository = InMemoryPlanningJobRepository()
+        job = (await repository.get_or_create(multicity_request())).job
+        executor = SyntheticPlanningJobExecutor(
+            repository,
+            multicity_result(unknown_fare=True, retryable=True),
+        )
+
+        await executor.execute(job.job_id)
+        first = await repository.get(job.job_id)
+        await repository.retry(job.job_id, expected_version=first.version)
+        await executor.execute(job.job_id)
+        second = await repository.get(job.job_id)
+
+        assert isinstance(second.result, PlanningJobResultV3) and second.result.plan is not None
+        return second.attempt, second.status, second.result.plan.plan_format_version
+
+    attempt, status, plan_format_version = asyncio.run(scenario())
+
+    assert attempt == 2
+    assert status is PlanningStatus.PARTIAL
+    assert plan_format_version == "3"
