@@ -1,14 +1,16 @@
 # 当前实施计划
 
+当前无活动任务，因此没有正在执行的 Step。
+
 ## 当前状态
 
-- 当前任务：`F-004B1 多城市领域、用户提供的城际段与离线约束`
-- 任务状态：`ACTIVE / APPROVED`
-- 等待用户批准 Step 8
-- Step 0–7：`DONE`
-- 当前分支：`feat/f-004b1-multicity-ui-delivery`
-- 基线：`main == origin/main == 1a3e0a050721c72a6e83941f0cb5b2077decb1c7`
-- 本轮停止点：Step 7 已收口；四层 Draft PR 与 CI 已完成，不进入 merge、main CI 或归档
+- 当前任务：无
+- 最近完成：`F-004B1 多城市领域、用户提供的城际段与离线约束`
+- 任务状态：`DELIVERED / ARCHIVED`
+- Step 0–8：`DONE`
+- 完整功能 main：`c1fecb0e5545a25330aa179e7f25decd58c07139`
+- main CI：run `32384768085`，`PASS`
+- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
 
 ## Step 0：执行基线与治理收口
 
@@ -279,7 +281,7 @@
 
 唯一目标：按依赖顺序合并四层交付，复核完整 main CI，并归档任务。
 
-状态：`TODO`；当前未授权。
+状态：`DONE`。
 
 核心文件：
 
@@ -294,6 +296,15 @@
 - 归档只复制最终任务事实，不改写既有历史 evidence 或归档任务卡；
 - F-001 PARTIAL、Step 45M FAIL、Step 45T PASS、unknown、混合交通 fallback 仅离线、F-004A 无真实 Provider UAT 均保留；
 - current-task 关闭且 roadmap 无意外 ACTIVE 任务。
+
+完成结果：
+
+- PR #19、#23、#24、#25 已依序 squash merge为 `9f37e4f`、`712fd51`、`ec499fb`、`c1fecb0`；
+- #20/#21/#22 在父层 squash 后分别由 clean-restacked #23/#24/#25 替代并关闭；替代分支均从最新 main 创建且只 cherry-pick 所属层净提交，无 force-push；
+- 替代 PR CI `32382212012`、`32383225699`、`32384318796` 和各层 main CI `32381619737`、`32382625338`、`32383721748`、`32384768085` 全部成功；
+- 完整任务卡已归档，roadmap 不再有 ACTIVE 任务，current-task 已关闭；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A/F-004B1 无真实 Provider UAT 均保留；
+- 未读取秘密、调用真实 Provider、修改 Schema/migration/依赖或删除历史证据。
 
 ## 核心文件清单 + 受控相邻扩展
 

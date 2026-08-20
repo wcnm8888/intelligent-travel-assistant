@@ -1,5 +1,19 @@
 # 验收证据索引
 
+## F-004B1 Step 8：clean-restack、依序合并、main CI 与归档
+
+- 日期：2026-08-20；结论：`PASS`；用户明确批准 Step 8，本次完成依序 squash merge、必要 clean-restack、逐层 main CI、归档 PR 准备和任务关闭；
+- Stack 1：PR #19 在 CI `32379371761` 成功后合并为 `9f37e4f81f19da42003592fef43f80c01ce5b629`，main CI `32381619737`=`PASS`；
+- Stack 2：从最新 main 创建 `feat/f-004b1-multicity-persistence-api-restack`，只 cherry-pick 原第二层三个净提交；本地 backend `1157`、frontend `88`、docs `24` 全量通过；PR #23 CI `32382212012`=`PASS`，合并为 `712fd516358c80f1aa9a46aae3a0d88b2d9248f8`，main CI `32382625338`=`PASS`；原 #20 留下替代说明后关闭；
+- Stack 3：从最新 main 创建 `feat/f-004b1-multicity-planning-restack`，只 cherry-pick planning 净提交；本地 backend `1166`、frontend `88`、docs `24` 全量通过；PR #24 CI `32383225699`=`PASS`，合并为 `ec499fb25151955aeca8805771edd2b594fd861d`，main CI `32383721748`=`PASS`；原 #21 留下替代说明后关闭；
+- Stack 4：从最新 main 创建 `feat/f-004b1-multicity-ui-delivery-restack`，只 cherry-pick UI/docs 层净提交；本地 backend `1166`、frontend `95`、docs `24` 全量通过；PR #25 CI `32384318796`=`PASS`，合并为 `c1fecb0e5545a25330aa179e7f25decd58c07139`，完整功能 main CI `32384768085`=`PASS`；原 #22 留下替代说明后关闭；
+- clean-restack 事实：#23/#24/#25 均以当时最新 `origin/main` 为唯一基线，只移植所属层净提交；未 amend、rebase、force-push、删除远程分支、隐藏失败或改写原 PR 历史；
+- GitHub 最终事实：#19/#23/#24/#25 `MERGED`，#20/#21/#22 `CLOSED` 且指向对应替代 PR；Step 7 的首轮失败 runs `32377941830`/`32378099288` 继续保留；
+- 归档：新增 [F-004B1 完整任务卡](../archive/task-cards/F-004B1-multicity-domain-user-intercity-offline.md)，roadmap 将 F-004B1 设为 DONE，current-task/implementation-plan/progress/docs README 统一关闭任务；没有改写既有历史 evidence 或旧归档卡；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A/F-004B1 无真实 Provider UAT 均保持；
+- 安全边界：未读取 `.env.local`、秘密或本地 Provider 配置，未调用 DeepSeek、高德、和风或城际 Provider，未修改业务数据库、Schema/migration、依赖或 lockfile；
+- 下一动作：当前没有活动任务；等待用户从 roadmap 选择并批准下一任务卡，不自动进入 F-005、F-004B2 或 F-006。
+
 ## F-004B1 Step 7：全量门禁与四层 stacked PR 交付
 
 - 日期：2026-08-20；结论：`PASS`；用户明确批准 Step 7，本次完成 commit、push、四层 Draft PR、远程 CI 与独立范围 review，没有进入 Step 8 的 ready/merge/main CI/归档；

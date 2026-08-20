@@ -1,12 +1,16 @@
 # 当前任务
 
+当前无活动任务。
+
+以下为最近完成的 F-004B1 关闭摘要，完整任务卡已归档。
+
 ## 任务元数据
 
 - 任务 ID：`F-004B1`
 - 名称：多城市领域、用户提供的城际段与离线约束
 - 等级：`L`
-- 状态：`ACTIVE / APPROVED`
-- 当前 Step：`Step 8 - 合并、main CI 与归档`，状态 `TODO`，等待用户单独批准
+- 状态：`DELIVERED / ARCHIVED`
+- 最近完成 Step：`Step 8 - 合并、main CI 与归档`，状态 `DONE`
 - Step 0：`DONE`；只完成事实复核、任务激活、治理文档、状态漂移修正和首层本地分支创建
 - Step 1：`DONE`；已冻结领域、V3 DTO/API、Repository/schema v2、Provider、测试和 UI 契约，未实现生产代码
 - Step 2：`DONE`；已以 TDD 实现纯多城市领域与独立 V3 contracts，未接入 Repository/API、SQLite、Provider 或前端
@@ -15,9 +19,11 @@
 - Step 5：`DONE`；已实现显式多城市编辑、严格 V3 parser、结果信息架构和本机 job 指针重启恢复，未进入临时 SQLite/浏览器纵向或独立审查
 - Step 6：`DONE`；已完成临时 SQLite 纵向、loopback synthetic desktop/390px 浏览器 QA、网络/console/accessibility 和独立隐私兼容审查，未进入全量门禁或交付
 - Step 7：`DONE`；全量门禁、四层 stacked Draft PR、逐层独立 review 和远程 CI 已通过，未 merge 或归档
+- Step 8：`DONE`；clean-restack、依序 squash merge、完整功能 main CI、归档和任务关闭已完成
 - 基线提交：`1a3e0a050721c72a6e83941f0cb5b2077decb1c7`
-- 当前本地分支：`feat/f-004b1-multicity-ui-delivery`
-- 远程交付：Draft PR #19 → #20 → #21 → #22 已按四层直接 base 创建并通过 CI；尚未 merge
+- 完整功能 main：`c1fecb0e5545a25330aa179e7f25decd58c07139`
+- 远程交付：PR #19/#23/#24/#25 已依序 squash merge；#20/#21/#22 由 clean-restacked PR 替代并关闭；main CI run `32384768085`=`PASS`
+- 归档任务卡：[F-004B1 多城市领域、用户提供的城际段与离线约束](../archive/task-cards/F-004B1-multicity-domain-user-intercity-offline.md)
 
 ## 用户目标与工程价值
 
@@ -190,9 +196,9 @@ V3 使用严格 `request_version="3"`，至少包含：
 | Step 5 | 实现前端多城市编辑、严格 V3 解析、结果展示和离线恢复 | DONE |
 | Step 6 | 完成临时 SQLite 纵向、loopback synthetic 浏览器 QA、隐私审查和独立 review | DONE |
 | Step 7 | 完成本地全量门禁、四层 stacked PR 准备、clean-restack 与远程 CI | DONE |
-| Step 8 | 按依赖合并、完整 main CI、归档和最终状态收口 | TODO |
+| Step 8 | 按依赖合并、完整 main CI、归档和最终状态收口 | DONE |
 
-每次只执行一个单独批准的 Step。Step 7 完成不构成 Step 8 授权。
+Step 0–8 已全部完成；当前没有活动任务。
 
 ## 分支与 stacked PR
 
@@ -205,7 +211,7 @@ V3 使用严格 `request_version="3"`，至少包含：
 
 每层以直接前层为 base。前层 squash merge 后，从最新 main 创建干净后续分支，只移植该层净变更并重新验证；不得 force-push 重写已审查历史。归档 PR 仅在交付 Step 单独批准后可选创建。Step 0 只创建首层本地分支，不提交、不 push、不创建 PR。
 
-当前 Draft PR 为 #19（base `main`）、#20（base #19 head）、#21（base #20 head）和 #22（base #21 head）。四层最终 CI 均成功；Step 7 期间只使用普通追加提交与逐层 merge 传播独立门禁修正，没有 force-push。后续 squash/clean-restack、合并、main CI 与归档只属于 Step 8。
+最终交付为 #19、#23、#24、#25。父层 squash 后，后续层分别从最新 main 创建干净分支并只移植所属层净提交；原 #20/#21/#22 保留审计历史并关闭。没有 amend、rebase 或 force-push。
 
 ## 文档更新契约
 
@@ -232,4 +238,4 @@ V3 使用严格 `request_version="3"`，至少包含：
 
 ## 下一入口
 
-等待用户审查 Step 7 证据并单独批准 F-004B1 Step 8。不得自动标记 PR ready、merge、clean-restack、运行 main CI、创建归档任务卡或关闭当前任务。
+F-004B1 已关闭。等待用户从 roadmap 选择并批准下一任务卡；不得自动启动 F-005、F-004B2、F-006 或任何实现 Step。
