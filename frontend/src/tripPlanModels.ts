@@ -115,7 +115,7 @@ export interface BudgetSummaryDto {
   cost_items: CostItemDto[];
 }
 
-export interface TripPlanDto {
+interface TripPlanBaseDto {
   plan_id: string;
   city_adcode: string;
   start_date: string;
@@ -124,6 +124,14 @@ export interface TripPlanDto {
   days: PlanDayDto[];
   budget_summary: BudgetSummaryDto;
 }
+
+export type LegacyTripPlanDto = TripPlanBaseDto;
+
+export interface TripPlanV2Dto extends TripPlanBaseDto {
+  plan_format_version: "2";
+}
+
+export type TripPlanDto = LegacyTripPlanDto | TripPlanV2Dto;
 
 export interface ConstraintViolationDto {
   code: string;
@@ -503,17 +511,33 @@ export function isResolvedDestination(
 }
 
 export function isTripPlan(value: unknown): value is TripPlanDto {
+  const isVersion2 = isRecord(value) && "plan_format_version" in value;
   if (
     !isRecord(value) ||
-    !hasExactKeys(value, [
-      "plan_id",
-      "city_adcode",
-      "start_date",
-      "end_date",
-      "locations",
-      "days",
-      "budget_summary",
-    ]) ||
+    !hasExactKeys(
+      value,
+      isVersion2
+        ? [
+            "plan_format_version",
+            "plan_id",
+            "city_adcode",
+            "start_date",
+            "end_date",
+            "locations",
+            "days",
+            "budget_summary",
+          ]
+        : [
+            "plan_id",
+            "city_adcode",
+            "start_date",
+            "end_date",
+            "locations",
+            "days",
+            "budget_summary",
+          ],
+    ) ||
+    (isVersion2 && value.plan_format_version !== "2") ||
     !isUuid(value.plan_id) ||
     typeof value.city_adcode !== "string" ||
     !ADCODE_PATTERN.test(value.city_adcode) ||
@@ -524,7 +548,9 @@ export function isTripPlan(value: unknown): value is TripPlanDto {
     value.locations.length > 20 ||
     !value.locations.every(isLocation) ||
     !Array.isArray(value.days) ||
-    value.days.length !== 2 ||
+    (isVersion2
+      ? value.days.length < 2 || value.days.length > 7
+      : value.days.length !== 2) ||
     !value.days.every(isPlanDay) ||
     !isBudgetSummary(value.budget_summary)
   ) {
@@ -536,9 +562,34 @@ export function isTripPlan(value: unknown): value is TripPlanDto {
     plan.locations.map((location) => location.location_id),
   );
   if (locations.size !== plan.locations.length) return false;
+  const dayDifference = Math.round(
+    (Date.parse(`${plan.end_date}T00:00:00Z`) -
+      Date.parse(`${plan.start_date}T00:00:00Z`)) /
+      86_400_000,
+  );
+  if (dayDifference + 1 !== plan.days.length) return false;
   if (
-    plan.days[0].local_date !== plan.start_date ||
-    plan.days[1].local_date !== plan.end_date
+    plan.days.some(
+      (day, index) =>
+        day.local_date !==
+        new Date(
+          Date.parse(`${plan.start_date}T00:00:00Z`) + index * 86_400_000,
+        )
+          .toISOString()
+          .slice(0, 10),
+    )
+  )
+    return false;
+  if (
+    isVersion2 &&
+    (plan.days.some(
+      (day) =>
+        day.activities.length < 1 ||
+        day.activities.length > 2 ||
+        day.routes.length > 3 ||
+        (day.weather !== null && day.weather.forecast_date !== day.local_date),
+    ) ||
+      new Set(plan.days.map((day) => day.accommodation_location_id)).size !== 1)
   )
     return false;
   return plan.days.every(

@@ -354,3 +354,57 @@ result, change_set, errors, created_at, updated_at
 - 真实规划执行器只有在 DeepSeek、高德和和风三组配置全部就绪时启用；
 - Step 38 只取得一次 live 契约证据；Step 39 和补充 Step 45A、45C、45E 均未取得 ready/partial 真实计划 UAT；Step 45H 已实现确定性调度器但只具备离线证据，不构成新的 live UAT 通过；
 - SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。F-003 Step 5 已实现三个可注入的 replan 端点、严格 DTO 和安全错误映射；默认组合不自行启用 Provider 或后台恢复。批量清空、历史列表、版本比较/恢复、多城市和交易能力仍不在范围内。
+
+## F-004A version 2 多日契约（Step 1 冻结，尚未实现）
+
+### 请求判别与 URI
+
+现有 URI 全部保留。`POST /api/trip-plans` 的 body 是严格联合：
+
+- 没有 `request_version`：只按现有 `TripPlanRequest` 校验；旧字段、默认值、额外字段拒绝和请求指纹完全不变；
+- `request_version` 精确为字符串 `"2"`：只按 `TripPlanRequestV2` 校验；
+- 其他版本、`null`、数字 2、同时满足不了对应模型或多余字段：422 `input_invalid`；不得回退尝试另一版本。
+
+FastAPI/OpenAPI 使用 callable discriminator + tagged union 表达“缺失=legacy、`2`=V2”，不把 endpoint 降为未约束 `dict`，也不增加 envelope。若实现无法保持该 oneOf 和既有客户端请求，必须停止，不得自行新增 `/api/v2`。
+
+### `TripPlanRequestV2`
+
+| 字段 | 类型 | 规则 |
+| --- | --- | --- |
+| `request_version` | literal string | 必须为 `"2"` |
+| `client_request_id` | UUID | 与 legacy 相同的幂等键 |
+| `city` | string | 与 legacy 相同；一个中国大陆城市 |
+| `start_date` | date | 目的地当地 D+1 至 D+5 |
+| `end_date` | date | 含首尾共 2–7 日，必须连续且晚于开始日 |
+| `travelers`、`total_budget` | legacy 类型 | 规则不变 |
+| `preferences`、`pace`、`transport_modes` | legacy 类型 | 不新增模式或自由 Prompt |
+| `accommodation` | legacy 类型 | 一个住宿区域/POI；一晚金额可空 |
+| `day_windows` | 2–7 个 V2 window | offset 精确为 `0..day_count-1`，唯一、正时长、不跨夜 |
+| `intercity_transport_cost` | Money/null | 保留用户聚合输入；不代表本任务支持跨城或实时票价 |
+| `meal_budget_per_person_per_day` | Money | 默认和 legacy 相同 |
+
+V2 window 的 `day_offset` 是严格整数 0–6；bool、字符串和越界值拒绝。字段顺序不影响指纹，但字段集合和数组顺序参与 canonical JSON；只排除 `client_request_id`。
+
+### V2 任务响应
+
+POST、GET 和 retry 对 V2 job 返回 `TripPlanResponseV2`：
+
+- 保留 job/trace/client ID、status、attempt、retryable、resolved destination、violations、warnings、uncertainties、sources 和 errors 的现有语义；
+- 新增顶层 `response_version="2"`；V2 request summary 含 `request_version="2"`、start/end date、travelers 和 budget；
+- `plan` 为 `TripPlanV2 | null`；非空时含 `plan_format_version="2"`，days 长度为 2–7 且逐日覆盖请求日期；
+- V2 `PlanDay` 每日最多 2 项活动、最多 3 条路线；来源、天气、费用和 unknown 形状复用现有类型；
+- legacy response 不增加 `response_version`、`request_version`、`plan_format_version` 或其他字段。
+
+GET/retry 的 response union 由持久化请求版本决定，不能由 Accept header、查询参数或客户端猜测切换。DELETE 继续返回 204；同 client ID/同版本同 body 复用，同 client ID/任何字段或版本不同返回既有 409 `idempotency_conflict`。
+
+### Replan 兼容
+
+- legacy 双日行为不变；
+- V2 恰好 2 日可使用现有三个 replan URI，并返回与 job request version 对应的 typed plan；
+- V2 3–7 日创建 replan 返回 422 `replan_scope_not_supported`；检查发生在 replan reserve、decision、executor 和 Provider 前；
+- 拒绝路径不得创建 replan/decision/lineage/plan version，不修改 job/current plan/version，不调 Provider；
+- 不新增多日 replan command、历史列表、版本比较或恢复 API。
+
+### 稳定错误和兼容门禁
+
+F-004A 不新增稳定错误码。日期跨度、窗口集合和版本字段错误使用 422 `input_invalid`；幂等冲突、Repository version 冲突、retry/delete/not-found 和安全 500 保持现有映射。legacy golden 必须逐字段、逐 JSON 形状保持不变；synthetic legacy 请求的 SHA-256 fingerprint 固定为 `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd`。

@@ -2,6 +2,7 @@ import type { PlanningStatus, TripPlanResponseDto } from "./tripPlanningApi";
 import type { ReplanningApi } from "./replanningApi";
 import { TerminalOutcome } from "./ResultEvidence";
 import { TripPlanResult } from "./TripPlanResult";
+import { tripDayCount } from "./tripRequest";
 import type { TripPlanningViewState } from "./useTripPlanningJob";
 
 interface PlanningStageProps {
@@ -60,11 +61,16 @@ const TERMINAL_LABELS: Record<
 };
 
 function RequestSummary({ response }: { response: TripPlanResponseDto }) {
+  const dayCount = tripDayCount(
+    response.request_summary.start_date,
+    response.request_summary.end_date,
+  );
   return (
     <p className="tracking-summary">
       <strong>{response.request_summary.city}</strong> ·{" "}
-      {response.request_summary.start_date}起 ·{" "}
-      {response.request_summary.travelers} 人 · 任务尝试 {response.attempt}/3
+      {response.request_summary.start_date}—{response.request_summary.end_date}{" "}
+      · {dayCount ?? "?"} 日 · {response.request_summary.travelers} 人 ·
+      任务尝试 {response.attempt}/3
     </p>
   );
 }
@@ -187,7 +193,9 @@ export function PlanningStage({
             服务端状态 · {response.status.replaceAll("_", " ")}
           </p>
           <h2 id="plan-stage-title">
-            {state.phase === "paused" ? "任务仍在等待" : "正在形成双日计划"}
+            {state.phase === "paused"
+              ? "任务仍在等待"
+              : `正在形成${tripDayCount(response.request_summary.start_date, response.request_summary.end_date) ?? "多"}日计划`}
           </h2>
           <RequestSummary response={response} />
           <ProgressTrack response={response} />

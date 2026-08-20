@@ -1,5 +1,109 @@
 # 验收证据索引
 
+## F-004A Step 7：本地全量门禁、synthetic UAT 与交付准备
+
+- 当前结论：`LOCAL_PASS / DELIVERY_ACTIVE`；用户已明确授权修复范围内缺陷、复跑门禁与 UAT，并继续三层 stacked PR、远程 CI、依序合并和归档；
+- 回归修复：在不改变公开 URI/DTO、Schema/migration、Repository 方法集合、Provider adapter、unknown/partial 或隐私边界的前提下，关闭 3–7 日 application replan 写前拒绝、proposal priority 顺序、V2 日数文案、SQLite retry/source 唯一性、五终态重启恢复、日期导航焦点和长文本窄屏换行缺口；
+- 最终本地门禁：`scripts/verify.ps1` 通过，包含 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，Ruff format/lint、strict mypy、后端 `1101 passed`、Prettier、ESLint、TypeScript、前端 `88 passed`、Vite build、文档检查器 `24 passed` 和 17 份必需文档/23 份 Markdown 契约；
+- synthetic UAT：真实本机 Vite → FastAPI loopback 覆盖 3 日 ready、7 日 partial/unknown、2 日 V2 ready/replan；七日 unknown 门票保持“金额未知”且不是 `¥0`；2 日显示 8 个既有 replan 控件；390px 下 `scrollWidth == clientWidth == 375`，日期按钮把焦点送入带日期可访问名称的日卡，焦点轮廓可见；控制台 0 error/0 warning；
+- 真实性边界：多日浏览器 fixture 仅验证 UI、API、SQLite 和状态投影，不证明生产 Provider 预算或真实天气/路线质量；legacy DTO/API/fingerprint 由独立自动化回归覆盖；没有调用 DeepSeek、高德或和风天气；
+- 安全与清理：未读取 `.env.local`、Key、Token、JWT、私钥或 Cookie；业务请求仅访问 `127.0.0.1`；临时 SQLite 位于系统临时目录；浏览器会话及 8000/5173 监听进程已关闭；没有创建真实业务数据库；
+- 远程交付尚未完成：三层精确暂存、PR、CI、clean restack、依序合并、最终 main CI 和归档证据将在完成后收口，当前不得宣称 F-004A 已交付。
+
+## F-004A Step 6：临时 SQLite 纵向、synthetic 浏览器 QA 和独立审查
+
+- 结论：`PASS`；Step 6 已完成，当前 Step 7 为 `TODO` 并等待用户明确批准；
+- RED 与修复：首轮纵向测试发现 V2 POST 永久停留 `draft`，根因为 API 仅调度精确 legacy 类型；用户批准后只调整 create/retry 对合法 V2 的既有 executor 调度，并增加 API 回归；公开 URI/DTO、Schema、migration、Repository、Provider 和前端未改变；
+- SQLite：临时库覆盖 V2 2/3/7 日终态、重启恢复、幂等和删除；三日库 migration=`1,2`、status=`ready`、plan version=1，七日库 migration=`1,2`、status=`partial`、plan version=1、unknown_count=1；无 migration v3；
+- 浏览器：真实本机 Vite → FastAPI loopback 覆盖桌面 legacy 两日、桌面 V2 三日和 `390×844` V2 七日 partial；两日保留 replan，三/七日隐藏 replan 并显示范围说明；七日末日可达且焦点进入 `trip-day-7`；unknown 门票显示“金额未知”且不是 `¥0`；无横向溢出或 console warning/error；CDP 记录的动态请求仅为 `127.0.0.1` 和内联 `data:`；
+- 独立审查：发现 synthetic SQLite 仅校验绝对路径可能误触真实库的 P1；已强制路径位于系统临时目录且启动前不存在，并增加拒绝项目路径和既存临时文件测试；复验无剩余阻塞 finding；
+- 验证：相关 API/SQLite/Repository/executor 回归 48 项通过；Ruff、strict mypy、`git diff --check` 通过；Step 7 全量门禁尚未执行；
+- 安全：未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback，未创建/修改真实业务数据库，未修改 schema/migration、依赖、lockfile 或环境文件，未创建分支或执行远程 Git；
+- 下一动作：等待用户明确批准 Step 7；不得自动执行全量门禁、UAT、stacked PR、CI、合并或归档。
+
+## F-004A Step 5：前端多日输入、动态展示和 replan 范围 UI
+
+- 结论：`PASS`；Step 5 实现、验证和状态收口完成，当前 Step 6 为 `TODO` 并等待用户明确批准；
+- TDD：新增 V2 parser 和日期导航测试先分别因 3/7 日响应被旧双日 parser 拒绝、导航组件缺失而失败；实现严格 tagged V2 解析和 `TripDayNavigation` 后转绿；
+- 表单：显式结束日期、2–7 日动态窗口、默认双日 legacy 兼容、显式日期 V2、D+1 至 D+5、1/8 日拒绝、窗口错误和首错焦点均已覆盖；
+- 结果：2/3/7 日动态摘要、可换行日期导航、全部日卡和键盘焦点已覆盖；3–7 日无可执行 replan，V2 两日保留既有 F-003 控件；
+- 数据语义：7 日 partial fixture 保持 warning、天气缺失和 unknown 门票金额，页面显示“金额未知”且不显示 `¥0`；legacy fixture 和五终态回归继续通过；
+- 验证：前端相关专项 75 项通过；统一 `scripts/verify.ps1` 在 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下通过后端 1088 项、前端 87 项、文档检查器 24 项，以及 Ruff format/lint、strict mypy、Prettier、ESLint、TypeScript、Vite build 和依赖锁检查；
+- 范围与安全：只修改 Step 5 批准的 14 个既有前端文件并新增 2 个日期导航文件，以及批准的状态/UI/测试文档；未修改后端、公开 API、Repository、Schema、migration、Provider、依赖、lockfile、环境或数据库；未读取秘密、调用真实 Provider、访问非 loopback 网络、创建分支或远程写入；
+- 下一动作：等待用户明确批准 Step 6；不得自动执行临时 SQLite 纵向、synthetic 浏览器 QA 或独立审查。
+
+## F-004A Step 4：DeepSeek/QWeather/路线多日编排和失败语义
+
+- 结论：`PASS`；Step 4 实现、验证和状态收口完成，当前 Step 5 为 `TODO` 并等待用户明确批准；
+- TDD：新增动态 governor/期限测试最初因导出不存在而 collection 失败；新增 3/7 日真实 executor + fake Provider 纵向最初因缺少请求级 governor 和 V2 投影失败；7 日随后暴露旧 8 次路线预检查，移除该重复全局检查后由请求 policy 唯一裁决；
+- 实现：V2 上下文、proposal/DeepSeek 日期规则、QWeather 2–7 日单次映射、N 日离线请求/路线/预算/typed plan 和请求级不可变 governor 已完成；legacy 默认 policy、双日 payload、公开 API、Repository、schema version 2 和 migration 序列不变；
+- 失败与不确定性：缺少预期 proposal 日期本地 fail closed；7 日天气缺中间日只返回 partial 且调用一次；门票 unknown 保持 `None`，partial 不提升 ready；既有 terminal、fallback、deadline、异常 peer 和外部取消回归继续通过；
+- 范围：核心 Step 4 文件外，预先披露并修改 `backend/src/intelligent_travel_assistant/bootstrap.py`，仅用于按请求 day count 创建 governor；这是治理规则允许的受控相邻组合根依赖，没有新增公开能力；
+- 验证：Step 4 专项 `403 passed`；统一 `scripts/verify.ps1` 通过 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0，后端 `1088 passed`、前端 `76 passed`、文档检查器 `24 passed`，并通过 Ruff format/lint、strict mypy、Prettier、ESLint、TypeScript、Vite build 和依赖锁检查；
+- 安全：未读取 `.env.local` 或秘密，未调用真实 Provider、访问非 loopback 网络、创建真实数据库、分支、提交、push、PR 或合并；未修改 Schema、migration、依赖、lockfile、环境或前端；F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 和 fallback 历史边界不变；
+- 下一动作：等待用户明确批准 Step 5；不得自动修改前端或进入 UI 实现。
+
+## F-004A 阶段授权与文件范围治理修正
+
+- 结论：原“未列文件一律禁止”规则过度依赖设计阶段穷举路径，已造成直接 contract 依赖、对应测试和状态收口重复请求授权，影响开发效率；
+- 新规则：一次 Step 批准覆盖核心清单及满足已冻结行为所必需的同层直接依赖、对应测试/fixture、机械门禁修复和五份状态文档；相邻扩展先说明路径与原因，完成后统一留痕，不再逐文件追加授权；
+- 仍需确认：产品/API 语义变化、Schema/migration、依赖、数据/隐私边界、秘密或真实外部访问、真实数据库、Git 远程写入、跨 Step/stack，以及超过 5 个未预期生产/测试文件；
+- 本次仅修改治理和状态文档；Step 3 保持 `DONE`，Step 4 保持 `TODO`，没有修改生产源码、测试、Schema、migration、Provider、前端、依赖、环境或数据库，也没有进入 Step 4。
+
+## F-004A Step 3：version 2 contracts、Repository/API 兼容与 SQLite 重启恢复
+
+- 结论：`PASS`；Step 3 实现、验证和状态文档同步完成，当前 Step 4 为 `TODO` 并等待用户明确批准；
+- TDD/兼容：V2 contract/API 测试先以 6 个预期失败证明端点仍仅接受 legacy；实现后同 URI request/response callable discriminator、未知版本 422、legacy 无标签 JSON 和 fingerprint golden 全部通过；
+- Repository/SQLite：内存与 SQLite 使用显式 typed request/plan 联合，V2 计划可重启读取、幂等复用和删除；请求或计划版本损坏、request/plan 格式不配对均 fail closed；migration 仍精确为 version 1/2；
+- replan：3–7 日在 service/reserve/write 前返回 `replan_scope_not_supported`；增补契约证明 V2 两日 completed replan 序列化保留 `response_version` 和 `plan_format_version`；
+- 门禁：聚焦增补 26 项通过；统一 `scripts/verify.ps1` 在 Python 3.13.3、Node.js 22.16.0、pnpm 11.19.0 下通过，覆盖 121 个 Python/脚本文件 format、Ruff 和 strict mypy、后端 1073 项、前端 76 项、文档检查器 24 项、Prettier、ESLint、TypeScript 和 Vite build；
+- 范围与安全：schema、migration、Provider adapter、前端、依赖、环境和真实数据库未修改；未读取 `.env.local` 或秘密，未访问真实 Provider 或非 loopback 网络，未创建分支、提交、push、PR 或合并；F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 和 fallback 历史边界未改变；
+- 下一动作：等待用户明确批准 Step 4；不得自动实现 Provider 多日编排。
+
+## F-004A Step 2：多日领域、排程、预算与最终校验
+
+- 结论：`PASS`；实现、验证和状态文档同步均已完成，Step 2 为 `DONE`，当前 Step 3 为 `TODO` 并等待用户明确批准；
+- TDD RED：新增多日测试首次运行在收集阶段分别因 `MultiDayTripRequestInput`、`MultiDayTimePlan` 和多日预算函数缺失而失败，没有伪造 RED；
+- 日期/窗口：新增独立 version 2 领域请求，支持连续 2–7 日并计算 `day_count`；基础 offset 为 0–6，legacy 双日请求和 `TwoDayTimePlan` 行为不变；
+- 排程：proposal 必须为连续 2–7 日、每日 1–2 项、priority 连续且 selection 日期匹配；逐日住宿往返链最多 3 段，2/3/7 日确定性结果已覆盖；
+- 预算：餐饮按每人每日 × 人数 × 天数，住宿按每晚 × (`day_count - 1`)；Decimal 通过 minor units 精确缩放，未知金额保持 `None` 而不是 0；
+- 终检：schedule/routes 按候选日数遍历，3/7 日和中间日窗口冲突已覆盖；天气必须精确覆盖全部日期，中间日缺失产生 `weather_incomplete`；
+- 测试：相关专项 136 项、后端全量 1065 项、format、Ruff、strict mypy、文档检查和 `git diff --check` 全部通过；格式/Ruff 首轮只发现新增文件机械格式和 import 顺序，修正后统一复验通过；
+- 范围：只修改批准的 6 个生产文件、2 个既有测试、4 个新增测试和 4 份项目管理文档；未修改 contracts、Repository、SQLite/schema/migration、API、Provider adapter、前端、依赖、环境或数据库；
+- 安全：未读取 `.env.local` 或秘密，未访问真实 Provider 或非 loopback 网络，未创建数据库、分支、提交、push、PR 或合并；F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 和 fallback 历史边界未改变；
+- 状态收口：README、current-task、implementation-plan、progress 和 evidence 已统一为 Step 0–2 `DONE`、Step 3 `TODO`；
+- 下一动作：等待用户明确批准 Step 3；不得自动实现 contracts、Repository、SQLite 或 API。
+
+## F-004A Step 1：实现前设计冻结
+
+- 结论：`PASS`；领域、version 2 DTO/API、Repository/schema v2、Provider 治理、测试矩阵和 UI 设计均已形成闭集结论；Step 2 保持 `TODO`；
+- 领域：legacy 类型独立保留；V2 冻结 2–7 日、offset 全集、每日 1–2 项、同一住宿锚点、N 日 proposal/scheduler/final validation、餐饮按日和住宿按夜；
+- API：现有 URI 接受“无 version=legacy、精确 `request_version="2"`=V2”的严格 tagged union；V2 plan/response 有显式 format 标识；未知/模糊版本 422；不新增 `/api/v2`；
+- 兼容：legacy response 不增加字段；读取 synthetic legacy fixture 后用现有生产 fingerprint 算法得到 golden `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd`；V2 不通过补全 legacy 计算指纹；
+- Repository/SQLite：port 方法集合、表、索引和事务不变；`request_version` 缺失/`2` 分别选择唯一 typed model，request/plan format 不一致 fail closed；schema migration 仍只有 version 1/2，无 migration v3；
+- replan：legacy 双日不变，V2 两日可 typed 映射复用 F-003；3–7 日使用既有 `replan_scope_not_supported`，检查发生在 reserve/decision/executor/Provider 前且零写入；
+- Provider：resolve 1、POI 3、forecast 1、alert 1、generation 1、repair 1；route 并发 2、上限 `min(28,4D)`；legacy/两日 90 秒，多日 `min(180,90+18×(D-2))` 秒；单次 timeout 不变；QWeather 不追加补拉；
+- UI：结束日期、动态窗口、动态日卡、可访问日导航、2/3/7 日和桌面/390px 门禁已冻结；3–7 日不显示可执行 replan；
+- 测试：领域、contracts、legacy golden、Repository/临时 SQLite、API、replan 零写入、Provider 治理、五终态、前端、浏览器和隐私矩阵已写入 testing-strategy；
+- 只读探针：首次把整份 wrapper fixture 误传给 `TripPlanRequest` 得到预期 strict validation error；改为读取其 `request` 节点后得到上述 fingerprint golden，没有修改文件、数据库或状态；
+- 范围：只修改 Step 1 获批文档；未修改生产源码、测试、Schema、migration、Repository、API、Provider、前端、依赖、环境或数据库；
+- 安全：未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback 网络，未创建分支、提交、push、PR 或合并；
+- 下一动作：等待用户明确批准 Step 2，以 TDD 实现可变日期/窗口、排程、预算和最终校验；不得自动执行。
+
+## F-004A Step 0：事实、漂移修正与执行基线
+
+- 结论：`PASS`；已批准 F-004A 已激活，Step 0 完成，Step 1 保持 `TODO` 并等待用户明确批准；
+- Git：进入 Step 时工作区干净；`main`、HEAD、本地 `origin/main` 均为 `e17cf4fe65407d98389a2713622adf398acc6f1b`；最近提交为 F-003 归档提交；
+- CI：任务启动前只读核对的最新 main run `31939795749` 为 `PASS`；本 Step 按禁止非 loopback 网络的边界未重新访问 GitHub，未把未查询结果伪装为新证据；
+- 历史：B-000、F-001、F-002、F-003 归档保持；F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0 和混合交通 fallback 仅离线证据均未改变；
+- Schema：代码 migration 列表只包含 version 1/2；当前 version 2 增加 replan 两表并复用 typed decision；F-004A 默认不增加 migration v3；
+- 双日审计：公开请求派生结束日，窗口 offset 固定 0/1，计划恰好两日，DeepSeek/天气/最终校验、固定路线数组、餐饮乘 2、Repository 结果匹配和前端 parser/标签均含双日假设；
+- 复用审计：单城市 PlanStructure、住宿往返路线链、确定性 scheduler、预算/unknown、来源/freshness、五终态、Repository 幂等/乐观锁、SQLite typed JSON 和 F-003 独立 lifecycle 可继续复用；
+- 文档：修正 AGENTS 已失效应用事实和 PR 默认规则、F-003 design 状态、D-011 状态、项目入口与过期 Git/CI 指针；写入 F-004A 任务卡、Step 0–7、F-004A/F-004B 拆分、三层 stack 和 clean-restack 规则；
+- 边界：只修改获批治理/长期文档；没有生产源码、测试、Schema、migration、Repository、API、Provider、前端、依赖、环境或数据库变化；
+- 安全：未读取 `.env.local` 或秘密，未调用 DeepSeek/高德/和风天气，未访问非 loopback 网络，未创建真实数据库、分支、提交、push、PR 或合并；
+- 下一动作：等待用户明确批准 Step 1；只冻结领域、version 2 DTO/API 兼容、Repository/schema v2 typed JSON、调用预算、测试矩阵和 UI 设计，不得自动实现。
+
 ## F-003 Step 8：全量门禁、synthetic UAT、stacked 交付与归档
 
 - 结论：`PASS`；本地门禁、synthetic UAT、stacked PR CI、依赖顺序合并、完整功能 main CI 和任务卡归档均已完成；

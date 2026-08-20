@@ -372,3 +372,75 @@ export function partialPlanningResponse(): TripPlanResponseDto {
     retryable: true,
   });
 }
+
+export function multidayPlanningPayload(dayCount = 3): TripPlanResponseDto {
+  const response = readyPlanningResponse();
+  if (!response.plan) throw new Error("ready fixture must include a plan");
+  const template = response.plan.days[0];
+  const days = Array.from({ length: dayCount }, (_, index) => {
+    const localDate = `2026-08-${String(15 + index).padStart(2, "0")}`;
+    const activityId = `91000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
+    const routeBase = index * 2;
+    return {
+      ...template,
+      local_date: localDate,
+      activities: template.activities.map((activity) => ({
+        ...activity,
+        item_id: activityId,
+        title: `第 ${index + 1} 天 synthetic 活动`,
+      })),
+      routes: template.routes.map((route, routeIndex) => ({
+        ...route,
+        route_id: `92000000-0000-4000-8000-${String(routeBase + routeIndex + 1).padStart(12, "0")}`,
+      })),
+      weather: template.weather
+        ? { ...template.weather, forecast_date: localDate }
+        : null,
+    };
+  });
+  const endDate = days.at(-1)?.local_date;
+  if (!endDate) throw new Error("multiday fixture requires at least one day");
+  return {
+    ...response,
+    response_version: "2",
+    request_summary: {
+      ...response.request_summary,
+      request_version: "2",
+      end_date: endDate,
+    },
+    plan: {
+      ...response.plan,
+      plan_format_version: "2",
+      end_date: endDate,
+      days,
+    },
+  };
+}
+
+export function multidayPartialPlanningPayload(
+  dayCount = 7,
+): TripPlanResponseDto {
+  const response = multidayPlanningPayload(dayCount);
+  const partial = partialPlanningResponse();
+  if (!response.plan || !partial.plan) {
+    throw new Error("multiday partial fixture requires plans");
+  }
+
+  return {
+    ...response,
+    status: "partial",
+    plan: {
+      ...response.plan,
+      days: response.plan.days.map((day, index) =>
+        index === response.plan!.days.length - 1
+          ? { ...day, routes: [], weather: null }
+          : day,
+      ),
+      budget_summary: partial.plan.budget_summary,
+    },
+    warnings: partial.warnings,
+    uncertainties: partial.uncertainties,
+    errors: partial.errors,
+    retryable: true,
+  };
+}

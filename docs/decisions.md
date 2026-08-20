@@ -350,7 +350,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-011：F-003 使用独立 replan lifecycle 和原子追加版本
 
-- 状态：`用户已批准；Step 1 设计已冻结；Step 2–5 已实现；等待 Step 6`
+- 状态：`已实现、验收并随 F-003 交付归档`
 - 日期：2026-08-16
 - 适用范围：F-003 单城市双日计划的结构化局部修改、影响确认和版本提交
 
@@ -382,3 +382,33 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
   才切换到新 plan ID；
 - `unknown` 金额保持 `null`，来源 freshness 不因复用或确认而提升，`partial` 不得投影为 ready；
 - 任何新增活动、多城市/多日、恢复旧版本、完整请求保存、依赖新增或真实 Provider 验收都需要新的批准。
+
+## D-012：F-004 拆分并以兼容 version 2 扩展单城市 2–7 日
+
+- 状态：`用户已批准；F-004A Step 1–4 已完成；等待 Step 5`
+- 日期：2026-08-18
+- 适用范围：F-004A 单城市连续 2–7 日计划；F-004B 多城市与城际交通仍为候选
+
+### 决策
+
+- 将原 F-004 拆为 F-004A 单城市 2–7 日和 F-004B 多城市/城际交通，当前只激活 F-004A；
+- 保持一个城市、一个住宿锚点、每日最多 2 项和现有步行/公交能力；不支持跨夜、跨城或新增 Provider；
+- 旧 `TripPlanRequest`、旧响应 JSON、canonical fingerprint、已保存双日数据和 F-003 双日 replan 行为必须保持兼容；
+- 新请求使用可严格判别的 `request_version="2"`、显式结束日期和 2–7 个窗口；优先复用现有 URI，若无法证明严格兼容则停止，不自行新增 `/api/v2`；
+- schema version 2 的 typed JSON 足以承载新请求/计划时不增加 migration v3，不改写旧记录；新关系型需求必须重新批准；
+- 餐饮按天数、住宿按夜数计算，unknown 金额保持 `null`；天气缺日或 freshness 不确定时保留可用计划并按规则进入 partial；
+- route 并发保持 2，每任务上限为 `min(28, 4 × day_count)`；DeepSeek generation/repair 各 1，和风仍使用 7 日预报；
+- `day_count > 2` 的 replan 在 Provider、decision 和 plan version 写入前以稳定 scope 错误拒绝；
+- 默认测试完全离线，不读取秘密、不调用真实 Provider；真实 UAT 需要独立次数、费用和停止条件批准；
+- 采用领域/contracts、application/Repository/API/Provider、UI/UAT/docs 三层 stacked PR；前层 squash 后从最新 main clean restack，不 force-push 重写已审查历史。
+- legacy DTO 保持独立；V2 使用 `TripPlanRequestV2`、`TripPlanV2`、`TripPlanResponseV2` 和显式 request/plan/response format 标识，不通过 optional 字段混合版本；
+- Repository 方法集合和 SQLite 表不变，按 request version 严格选择 typed model；legacy synthetic 请求 fingerprint 固定为 `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd`；
+- legacy/两日任务总期限保持 90 秒；V2 三至七日总期限为 `min(180, 90 + 18 × (day_count - 2))` 秒，单次 timeout 不变；POI 调用仍最多 3，候选上限为 `min(20, max(6, 2 × day_count + 2))`；
+- V2 两日可经 typed 映射复用 F-003；任何 3–7 日 replan 在持久化和 Provider 前使用既有 `replan_scope_not_supported` 拒绝。
+
+### 后果
+
+- F-004A 必须先把所有生产双日常量收敛为受 2–7 日约束的显式模型，同时保留 legacy golden；
+- 旧应用遇到 version 2 数据只允许 fail closed，不得损坏、删除或误投影；回滚不需要数据库 down migration；
+- 版本比较/恢复、历史列表、多城市、城际 Provider、登录/同步/公网和 3–7 日局部重规划继续需要独立任务；
+- 任一 stack 超过 35 个生产/测试文件或净新增 3000 行，或需要 migration v3/新依赖时必须停止并重新拆分。

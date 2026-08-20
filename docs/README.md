@@ -8,7 +8,7 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-003 已交付并归档）
+- 当前任务：[current-task.md](./project-management/current-task.md)（F-004A 已激活；Step 0–6 已完成，Step 7 `ACTIVE`，本地门禁与 synthetic UAT 已通过，正在执行 stacked 交付）
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -48,7 +48,7 @@ AGENTS.md
 | 文档地图 | 当前 | 文档职责、权威关系、入口和状态 | 文档新增、归档、改名或职责变化 | 不保留历史正文 | 本文件 |
 | 产品说明 | 当前 | 用户、场景、目标、范围、成功标准和非目标 | 产品方向或范围获批准变更 | 不保留历史正文 | [product-brief.md](./product-brief.md) |
 | 架构 | 当前 | 当前模块、依赖方向、数据流、部署和外部边界 | 架构边界获批准变更 | 不保留历史正文 | [architecture.md](./architecture.md) |
-| API 契约 | 当前 | F-001 HTTP 路由、公开 DTO、状态、幂等和稳定错误码 | 公开 API、DTO 或错误语义变化 | 不保留历史正文 | [api-contract.md](./api-contract.md) |
+| API 契约 | 当前 | 旅行计划与局部重规划 HTTP 路由、公开 DTO、状态、幂等和稳定错误码 | 公开 API、DTO 或错误语义变化 | 不保留历史正文 | [api-contract.md](./api-contract.md) |
 | 验收样例 | 当前 | F-001 固定 synthetic 请求、代表性终态和禁止行为 | 验收 case、固定输入或预期结果变化 | 不保留历史正文 | [acceptance-cases.md](./acceptance-cases.md) |
 | 技术栈 | 当前 | 运行时、框架、关键依赖及版本策略 | 技术选型或版本基线变化 | 不保留历史正文 | [tech-stack.md](./tech-stack.md) |
 | 设计规格 | 当前 | 当前已批准的轻量 Web UI 流程和状态契约 | 用户流程或设计基线变化 | 不保留历史正文 | [design-spec.md](./design-spec.md) |
@@ -90,10 +90,13 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：无
+- 当前活动任务：F-004A 单城市 2–7 日计划扩展
+- 当前 Step 7（全量门禁、UAT、stacked PR、CI、合并和归档）为 `TODO`，等待用户明确批准；Step 0–6 已完成
+- F-004A 阶段治理已改为“核心清单 + 受控相邻扩展”：一次 Step 批准覆盖直接依赖、对应测试/fixture、机械门禁修复和五份状态文档；产品/API 语义、Schema/migration、依赖、隐私、外部访问、跨 Step/stack 和规模扩张仍需新确认
+- F-004A 已完成多日领域基础、version 2 contracts、Repository/API 兼容、schema v2 SQLite 重启恢复、离线多日 Provider 编排、前端多日交互、临时 SQLite 纵向和真实本机 synthetic 浏览器验收；不包含多城市、城际 Provider、版本恢复或真实 Provider 验收
 - F-003 已交付并归档：单城市双日范围内支持四种结构化修改、确定性影响分析、15 分钟高影响确认、独立 replan lifecycle、migration v2、独立 Repository、三个窄 API 和结果页内影响预览/确认；PR #7、#10、#11 已合并，完整功能 main CI run `31939222646` 通过
 - F-002 已通过 PR #6 交付并归档。现有 POST/GET/retry API 默认装配本地 SQLite Repository，并新增单计划 DELETE；启动时完成 migration 和一次有界 30 天清理，内部可写入 typed acceptance record；临时数据库已覆盖重启、幂等、并发、冲突、删除、保留期和隐私边界
-- F-001 已交付并归档；产品状态为 `PARTIAL`，等待用户从 roadmap 选择下一任务
+- F-001 已交付并归档；产品状态保持 `PARTIAL`
 - 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
 - 当前已完成 Step：F-001 Step 0 至 Step 47，以及补充 Step 45A–45X；D-009 已由 stacked PR #5 合并并由 PR #4 合并到 `main`，Step 45T 是最新 live UAT 且结论为 `PASS`
 - 当前归档结论：F-001 已交付，但产品验收状态保留为 `PARTIAL`；门票等非关键费用保持 `unknown`，不按 0 处理。Step 45M 历史 `FAIL` 保留，混合交通 fallback 仍只有离线证据
@@ -112,4 +115,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- 下一步：等待用户从 roadmap 选择并批准下一任务卡；不得自动启动 F-004。F-001 `PARTIAL` 保持不变
+- 下一步：等待用户明确批准 F-004A Step 7；不得自动执行全量门禁、UAT、stacked PR、CI、合并或归档。F-001 `PARTIAL` 保持不变
