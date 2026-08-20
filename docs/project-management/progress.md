@@ -4,11 +4,11 @@
 
 - 当前任务：`F-004B1 多城市领域、用户提供的城际段与离线约束`
 - 任务状态：`ACTIVE / APPROVED`
-- 当前 Step：`Step 7 - 全量门禁与 stacked PR 交付`，状态 `TODO`
-- Step 0–6：`DONE`
-- 当前分支：`feat/f-004b1-multicity-domain-contracts`
+- 当前 Step：`Step 8 - 合并、main CI 与归档`，状态 `TODO`
+- Step 0–7：`DONE`
+- 当前分支：`feat/f-004b1-multicity-ui-delivery`
 - 当前基线：`1a3e0a050721c72a6e83941f0cb5b2077decb1c7`
-- 下一批准动作：Step 7；不得自动进入
+- 下一批准动作：Step 8；不得自动进入
 
 ## Step 0 完成摘要
 
@@ -96,11 +96,20 @@
 - 本轮创建的两份 synthetic 临时 SQLite 已在精确进程关闭后从系统临时目录删除；未读取秘密、调用真实 Provider/非 loopback 服务、修改 schema/migration/依赖/lockfile 或执行远程 Git 写入；
 - F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持。
 
+## Step 7 完成摘要
+
+- 最终累计全量门禁通过：strict mypy 134 files、backend `1166 passed`、frontend `95 passed`、build 与 24 项文档检查器均成功；
+- Draft PR #19/#20/#21/#22 按 domain → persistence/API → planning → UI/docs 的直接 base 拓扑创建；最终 CI runs `32379371761`、`32379662820`、`32379802803`、`32379941695` 全部成功；
+- 首轮 #19/#20 CI 失败未隐藏；V3 union、测试辅助模块和 fail-closed 兼容被校正到所属层，并以普通追加提交逐层传播，无 force-push；
+- 四层生产/测试净新增 1679/1393/2120/2497，累计 7689；每层 ≤30 文件且净新增 ≤2500，累计未超过 8000；
+- diff/range/依赖/秘密复核通过，无 migration、Schema、依赖、lockfile 或城际 Provider 文件变更；review 无阻塞 finding；
+- 四个 PR 保持 Draft；未 merge、未运行 main CI、未归档、未读取秘密或调用真实 Provider。
+
 ## 阻塞与停止条件
 
-当前没有事实冲突或技术阻塞。Step 7 尚未授权。
+当前没有事实冲突或技术阻塞。Step 8 尚未授权。
 
-如需 migration v3、新依赖、新 Provider、隐私边界变化、源码/测试/数据库修改、真实外部调用、远程 Git 写入、跨 Step/stack，或发现未预期范围超过批准阈值，立即停止并请求确认。
+如需改变已批准 merge/clean-restack 拓扑、migration v3、新依赖、新 Provider、隐私边界变化、真实外部调用，或出现无法解释的 CI/文档事实冲突，立即停止并请求确认。
 
 ## 权威入口
 

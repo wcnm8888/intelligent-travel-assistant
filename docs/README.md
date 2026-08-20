@@ -8,7 +8,7 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（F-004B1 已批准并激活；Step 0–6 已完成）
+- 当前任务：[current-task.md](./project-management/current-task.md)（F-004B1 已批准并激活；Step 0–7 已完成）
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -91,7 +91,7 @@ AGENTS.md
 ## 当前状态
 
 - 当前活动任务：F-004B1 多城市领域、用户提供的城际段与离线约束
-- 当前 Step 7：全量门禁与 stacked PR 交付，状态 TODO；等待用户单独批准执行 F-004B1 Step 7
+- 当前 Step 8：合并、main CI 与归档，状态 TODO；等待用户单独批准执行 F-004B1 Step 8
 - F-004B1 Step 0 已完成：归档基线、PR/CI、无活动任务和干净工作区已复核，任务卡/Step 0–8/roadmap/D-013 已收口，并已创建首层本地分支；没有提交、push、PR、源码、测试、数据库或外部调用
 - F-004B1 Step 1 已完成设计冻结：独立 V3 DTO、城市/夜数/用户段/缓冲/终态、同 URI API、Repository/schema v2、全 V3 replan 前置拒绝、Provider 治理、前端和测试矩阵已收口；尚未实现代码或测试
 - F-004B1 Step 2 已以 TDD 实现纯多城市领域和独立 V3 request/plan/response contracts：覆盖城市/夜数/相邻用户段、同日 +08:00 时间、三种方式缓冲、逐日/跨日连续性、住宿/活动/市内路线、用户费用/unknown、来源和五终态；该 Step 当时未接入 Planning unions、Repository/API、SQLite、Provider 或前端
@@ -99,6 +99,7 @@ AGENTS.md
 - F-004B1 Step 4 已实现离线 V3 planning、按城市复用现有 Provider ports、确定性城市/转移/缓冲/预算/来源注入和调用治理；全部证据来自 fake/MockTransport，城际 Provider 调用为 0
 - F-004B1 Step 5 已实现默认单城市/显式多城市表单、2/3 城及相邻段编辑、严格 V3 parser、独立多城市结果和本机 job UUID 重启恢复；前端 95 项与静态/build 门禁通过，真实 desktop/390px 与临时 SQLite 纵向仍属于 Step 6
 - F-004B1 Step 6 已完成临时 SQLite create/read/restart/retry/delete、2/3 城与五终态纵向；真实 loopback 浏览器覆盖 desktop/390px、重启恢复、键盘焦点、零横向溢出、零 console error/warning、无障碍引用与仅 loopback 网络。独立隐私/兼容审查覆盖 36 个生产文件变更项且无可报告 finding；证据仍为 synthetic，不代表真实 Provider UAT
+- F-004B1 Step 7 已完成全量门禁和四层 stacked Draft PR #19/#20/#21/#22；最终 CI runs `32379371761`、`32379662820`、`32379802803`、`32379941695` 全部成功。首轮 #19/#20 分层 CI 失败已如实保留并以普通追加提交修正，无 force-push；四 PR 尚未 merge
 - F-004B1 沿用“核心清单 + 受控相邻扩展”：一次 Step 批准覆盖直接依赖、对应测试/fixture、机械门禁修复和五份状态文档；产品/API 语义、Schema/migration、依赖、隐私、外部访问、跨 Step/stack 和规模扩张仍需新确认
 - F-004A 已完成多日领域基础、version 2 contracts、Repository/API 兼容、schema v2 SQLite 重启恢复、离线多日 Provider 编排、前端多日交互、临时 SQLite 纵向和真实本机 synthetic 浏览器验收；PR #13/#16/#17 已依序合并，完整功能 main CI run `32359762190` 通过；不包含多城市、城际 Provider、版本恢复或真实 Provider 验收
 - F-003 已交付并归档：单城市双日范围内支持四种结构化修改、确定性影响分析、15 分钟高影响确认、独立 replan lifecycle、migration v2、独立 Repository、三个窄 API 和结果页内影响预览/确认；PR #7、#10、#11 已合并，完整功能 main CI run `31939222646` 通过
@@ -122,4 +123,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- 下一步：等待用户批准 F-004B1 Step 7；不得自动进入全量门禁、提交、push、stacked PR、CI、F-005 或 F-004B2。F-001 `PARTIAL` 保持不变
+- 下一步：等待用户批准 F-004B1 Step 8；不得自动标记 PR ready、merge、clean-restack、运行 main CI、归档、进入 F-005 或 F-004B2。F-001 `PARTIAL` 保持不变
