@@ -61,6 +61,7 @@ from intelligent_travel_assistant.contracts import (
     TransportMode,
     TripPlan,
     TripPlanRequestV2,
+    TripPlanRequestV3,
     TripPlanV2,
     Uncertainty,
     ViolationSeverity,
@@ -239,6 +240,8 @@ def _offline_request(
     job_id: UUID,
     evaluated_at: datetime,
 ) -> OfflinePlanningRequest:
+    if isinstance(request, TripPlanRequestV3):
+        raise ValueError("multicity_planning_not_implemented")
     trip: TripRequestInput | MultiDayTripRequestInput
     if isinstance(request, TripPlanRequestV2):
         end_date = request.end_date
