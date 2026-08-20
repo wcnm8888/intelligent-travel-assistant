@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ReplanPanel } from "./ReplanPanel";
+import { TripDayNavigation } from "./TripDayNavigation";
 import type { TripPlanResponseDto } from "./tripPlanningApi";
 import type { ReplanCommand, ReplanningApi } from "./replanningApi";
 import type { MoneyDto } from "./tripRequest";
@@ -91,21 +92,29 @@ function DayCard({
   locations,
   onEdit,
   replanEnabled,
+  current,
 }: {
   day: PlanDayDto;
   dayIndex: number;
   locations: ReadonlyMap<string, LocationRefDto>;
   onEdit: (target: EditTarget, trigger: HTMLButtonElement) => void;
   replanEnabled: boolean;
+  current: boolean;
 }) {
   const date = dateParts(day.local_date);
   return (
-    <article className="itinerary-day">
+    <article
+      className={`itinerary-day${current ? " itinerary-day--current" : ""}`}
+      data-current={current}
+      id={`trip-day-${dayIndex + 1}`}
+      tabIndex={-1}
+      aria-label={`第 ${dayIndex + 1} 天，${day.local_date} 行程`}
+    >
       <header className="day-heading">
         <div className="day-date" aria-label={day.local_date}>
           <strong>{date.day}</strong>
           <span>
-            {date.weekday} · 第{dayIndex + 1 === 1 ? "一" : "二"}天
+            {date.weekday} · 第 {dayIndex + 1} 天
           </span>
         </div>
         <p>
@@ -160,7 +169,7 @@ function DayCard({
           <li key={activity.item_id}>
             <time>{formatTime(activity.start_time)}</time>
             <span className="activity-pin" aria-hidden="true" />
-            <div>
+            <div className="activity-copy">
               <strong>{activity.title}</strong>
               <small>
                 {locationName(locations, activity.location_id)} · 至{" "}
@@ -459,6 +468,7 @@ export function TripPlanResult({
     label: string;
   } | null>(null);
   const [baseline, setBaseline] = useState(response);
+  const [activeDate, setActiveDate] = useState(response.plan.start_date);
   const trigger = useRef<HTMLButtonElement | null>(null);
 
   const closeReplan = () => {
@@ -471,6 +481,9 @@ export function TripPlanResult({
       ? completedOverride.response
       : response;
   const { plan } = active;
+  const currentDate = plan.days.some((day) => day.local_date === activeDate)
+    ? activeDate
+    : plan.start_date;
   const locations = new Map(
     plan.locations.map((location) => [location.location_id, location]),
   );
@@ -506,7 +519,7 @@ export function TripPlanResult({
           <h2 id="plan-stage-title">
             {active.resolved_destination?.city_name ??
               active.request_summary.city}
-            <span>双日旅笺</span>
+            <span>{plan.days.length}日旅笺</span>
           </h2>
           <p className="tracking-summary">
             {plan.start_date}—{plan.end_date} ·{" "}
@@ -529,6 +542,13 @@ export function TripPlanResult({
       <section className="result-section" aria-labelledby="plan-summary-title">
         <h3 id="plan-summary-title">计划摘要</h3>
         <div className="summary-grid">
+          <div>
+            <span>行程跨度</span>
+            <strong>{plan.days.length} 天</strong>
+            <small>
+              {plan.start_date}—{plan.end_date}
+            </small>
+          </div>
           <div>
             <span>已知费用</span>
             <strong>{formatMoney(plan.budget_summary.known_total)}</strong>
@@ -554,6 +574,25 @@ export function TripPlanResult({
       {hasItineraryContent ? (
         <section className="result-section" aria-labelledby="days-title">
           <h3 id="days-title">逐日安排</h3>
+          <TripDayNavigation
+            days={plan.days}
+            activeDate={currentDate}
+            onSelect={(localDate) => {
+              setActiveDate(localDate);
+              const index = plan.days.findIndex(
+                (day) => day.local_date === localDate,
+              );
+              window.setTimeout(
+                () => document.getElementById(`trip-day-${index + 1}`)?.focus(),
+                0,
+              );
+            }}
+          />
+          {plan.days.length > 2 && (
+            <p className="multiday-replan-boundary" role="note">
+              当前仅支持双日计划局部调整；此计划仍可完整查看、重试或返回修改。
+            </p>
+          )}
           <div className="day-list">
             {plan.days.map((day, index) => (
               <DayCard
@@ -568,8 +607,10 @@ export function TripPlanResult({
                   setEditTarget(target);
                 }}
                 replanEnabled={
-                  active.status === "ready" || active.status === "partial"
+                  plan.days.length === 2 &&
+                  (active.status === "ready" || active.status === "partial")
                 }
+                current={day.local_date === currentDate}
               />
             ))}
           </div>

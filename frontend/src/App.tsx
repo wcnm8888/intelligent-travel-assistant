@@ -40,12 +40,22 @@ export function App({
   const returnToRequest = (field: string | null = null) => {
     reset();
     setRequestExpanded(true);
-    const target =
-      field === "accommodation.area_or_poi" ? "accommodation" : field;
+    const target = (() => {
+      if (field === "accommodation.area_or_poi") return "accommodation";
+      if (field === "start_date") return "startDate";
+      if (field === "end_date" || field === "day_windows") return "endDate";
+      const windowField = /^day_windows\.(\d+)\.(start_time|end_time)$/.exec(
+        field ?? "",
+      );
+      if (!windowField) return field;
+      const [, index, timeField] = windowField;
+      return `dayWindows.${index}.${timeField === "start_time" ? "startTime" : "endTime"}`;
+    })();
     window.setTimeout(() => {
       const permitted = new Set([
         "city",
         "startDate",
+        "endDate",
         "travelers",
         "totalBudget",
         "transportModes",
@@ -54,7 +64,12 @@ export function App({
         "mealBudgetPerPersonPerDay",
         "freeText",
       ]);
-      const safeTarget = target && permitted.has(target) ? target : "city";
+      const safeTarget =
+        target &&
+        (permitted.has(target) ||
+          /^dayWindows\.\d+\.(startTime|endTime)$/.test(target))
+          ? target
+          : "city";
       requestPanel.current
         ?.querySelector<HTMLElement>(`[data-field="${safeTarget}"]`)
         ?.focus();
@@ -85,7 +100,7 @@ export function App({
           </div>
           <div>
             <dt>当前范围</dt>
-            <dd>单城市 · 双日</dd>
+            <dd>单城市 · 2—7 日</dd>
           </div>
           <div>
             <dt>币种</dt>
@@ -142,7 +157,7 @@ export function App({
       </main>
 
       <footer className="product-footer">
-        <span>F-003 · 局部重规划与影响确认</span>
+        <span>F-004A · 单城市 2—7 日计划</span>
         <span>计划、来源、时效与冲突均来自服务端终态 · 不推测缺失事实</span>
       </footer>
     </div>

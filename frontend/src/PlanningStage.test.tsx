@@ -75,7 +75,7 @@ describe("PlanningStage", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: /杭州双日旅笺/ })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /杭州2日旅笺/ })).toBeVisible();
     expect(
       screen.getAllByText(/已知费用4500元超过用户总预算4000元/),
     ).toHaveLength(2);

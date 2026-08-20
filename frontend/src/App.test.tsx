@@ -12,6 +12,7 @@ import {
   partialPlanningResponse,
   planningResponse,
   readyPlanningResponse,
+  multidayPlanningPayload,
 } from "./test/tripPlanningFixtures";
 import {
   parseTripPlanResponse,
@@ -19,6 +20,7 @@ import {
   type TripPlanningApi,
 } from "./tripPlanningApi";
 import type { TripPlanRequestDto } from "./tripRequest";
+import { addCalendarDays, currentShanghaiDate } from "./tripRequest";
 import type { PollingPolicy } from "./useTripPlanningJob";
 
 const RETRY_TRACE_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
@@ -45,10 +47,13 @@ const immediatePolling: PollingPolicy = {
 
 async function submitValidRequest(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("目的地城市 *"), "杭州");
-  await user.type(screen.getByLabelText("开始日期 *"), "2026-08-15");
+  await user.type(
+    screen.getByLabelText("开始日期 *"),
+    addCalendarDays(currentShanghaiDate(), 1),
+  );
   await user.type(screen.getByLabelText("总预算 *"), "4000.00");
   await user.type(screen.getByLabelText("住宿区域或 POI *"), "湖滨银泰附近");
-  await user.click(screen.getByRole("button", { name: /生成双日计划/ }));
+  await user.click(screen.getByRole("button", { name: /生成2日计划/ }));
 }
 
 describe("App trip planning flow", () => {
@@ -69,6 +74,54 @@ describe("App trip planning flow", () => {
     expect(screen.getByRole("form", { name: "行前设定" })).toBeVisible();
     expect(screen.getByText("计划将在这里展开")).toBeVisible();
     expect(api.create).not.toHaveBeenCalled();
+  });
+
+  it("submits a tagged three-day request and renders the terminal plan", async () => {
+    const user = userEvent.setup();
+    const api: TripPlanningApi = {
+      create: vi
+        .fn()
+        .mockResolvedValue(parseTripPlanResponse(multidayPlanningPayload(3))),
+      read: vi.fn(),
+      retry: vi.fn(),
+    };
+    render(
+      <App
+        createClientRequestId={() => FIXED_CLIENT_ID}
+        tripPlanApi={api}
+        pollingPolicy={immediatePolling}
+      />,
+    );
+
+    const startDate = addCalendarDays(currentShanghaiDate(), 1);
+    await user.type(screen.getByLabelText("目的地城市 *"), "杭州");
+    await user.type(screen.getByLabelText("开始日期 *"), startDate);
+    await user.clear(screen.getByLabelText("结束日期 *"));
+    await user.type(
+      screen.getByLabelText("结束日期 *"),
+      addCalendarDays(startDate, 2),
+    );
+    await user.type(screen.getByLabelText("总预算 *"), "4000.00");
+    await user.type(screen.getByLabelText("住宿区域或 POI *"), "湖滨银泰附近");
+    await user.click(screen.getByRole("button", { name: "生成3日计划" }));
+
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request_version: "2",
+        start_date: startDate,
+        end_date: addCalendarDays(startDate, 2),
+        day_windows: expect.arrayContaining([
+          expect.objectContaining({ day_offset: 2 }),
+        ]),
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(await screen.findByText("代码校验通过 · 可用于决策")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: /杭州市\s+3日旅笺/ }),
+    ).toBeVisible();
+    expect(screen.getByText("第 3 天 synthetic 活动")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "替换活动" })).toBeNull();
   });
 
   it("submits once, follows server phases and stops at the terminal status", async () => {

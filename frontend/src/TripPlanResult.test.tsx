@@ -8,6 +8,8 @@ import conflictCase from "../../backend/tests/fixtures/synthetic_hangzhou_confli
 import {
   readyPlanningResponse,
   partialPlanningResponse,
+  multidayPlanningPayload,
+  multidayPartialPlanningPayload,
 } from "./test/tripPlanningFixtures";
 import { TripPlanResult } from "./TripPlanResult";
 import { parseTripPlanResponse } from "./tripPlanningApi";
@@ -47,7 +49,7 @@ describe("TripPlanResult", () => {
     render(<TripPlanResult response={{ ...response, plan: response.plan }} />);
 
     expect(
-      screen.getByRole("heading", { name: /杭州市双日旅笺/ }),
+      screen.getByRole("heading", { name: /杭州市2日旅笺/ }),
     ).toBeVisible();
     expect(screen.getByText("西湖湖滨步行")).toBeVisible();
     expect(screen.getByText("浙江省博物馆参观")).toBeVisible();
@@ -147,5 +149,86 @@ describe("TripPlanResult", () => {
 
     expect(screen.queryByRole("button", { name: "替换活动" })).toBeNull();
     expect(screen.queryByRole("button", { name: "调整当天顺序" })).toBeNull();
+  });
+
+  it("renders a wrapped accessible three-day index and blocks unsupported replan", async () => {
+    const user = userEvent.setup();
+    const parsed = parseTripPlanResponse(multidayPlanningPayload(3));
+    if (!parsed.plan) throw new Error("multiday fixture must include a plan");
+    render(<TripPlanResult response={{ ...parsed, plan: parsed.plan }} />);
+
+    expect(
+      screen.getByRole("heading", { name: /杭州市3日旅笺/ }),
+    ).toBeVisible();
+    expect(screen.getByText("3 天")).toBeVisible();
+    expect(
+      screen.getByRole("navigation", { name: "行程日期导航" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /第 1 天.*当前日期/ }),
+    ).toHaveAttribute("aria-current", "date");
+    expect(screen.getByText("第 3 天 synthetic 活动")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "替换活动" })).toBeNull();
+    expect(screen.getByText(/当前仅支持双日计划局部调整/)).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: /第 3 天.*2026-08-17/ }),
+    );
+    await waitFor(() =>
+      expect(document.getElementById("trip-day-3")).toHaveFocus(),
+    );
+    expect(document.getElementById("trip-day-3")).toHaveAccessibleName(
+      "第 3 天，2026-08-17 行程",
+    );
+    expect(
+      screen.getByRole("button", { name: /第 3 天.*当前日期/ }),
+    ).toHaveAttribute("aria-current", "date");
+  });
+
+  it("keeps structured replan controls for a tagged version 2 two-day plan", () => {
+    const parsed = parseTripPlanResponse(multidayPlanningPayload(2));
+    if (!parsed.plan) throw new Error("multiday fixture must include a plan");
+    render(<TripPlanResult response={{ ...parsed, plan: parsed.plan }} />);
+
+    expect(screen.getAllByRole("button", { name: "替换活动" })).toHaveLength(2);
+    expect(screen.queryByText(/当前仅支持双日计划局部调整/)).toBeNull();
+  });
+
+  it("renders all seven days while preserving partial and unknown semantics", () => {
+    const parsed = parseTripPlanResponse(multidayPartialPlanningPayload());
+    if (!parsed.plan) throw new Error("multiday fixture must include a plan");
+    render(<TripPlanResult response={{ ...parsed, plan: parsed.plan }} />);
+
+    expect(
+      screen.getByRole("heading", { name: /杭州市7日旅笺/ }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByRole("button", { name: /第 \d 天.*2026-08-/ }),
+    ).toHaveLength(7);
+    expect(screen.getByText("第 7 天 synthetic 活动")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("2 项数据尚未完成");
+    expect(screen.getByText("完整预算不可判定")).toBeVisible();
+    expect(screen.getByText("天气数据缺失")).toBeVisible();
+    const ticket = screen
+      .getByText("门票", { selector: "strong" })
+      .closest("li");
+    expect(ticket).not.toBeNull();
+    expect(within(ticket!).getByText("金额未知")).toBeVisible();
+    expect(within(ticket!).queryByText("¥0")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "替换活动" })).toBeNull();
+  });
+
+  it("preserves a maximum-length unbroken activity title in the day card", () => {
+    const payload = multidayPlanningPayload(3);
+    const plan = payload.plan;
+    if (!plan) throw new Error("multiday fixture must include a plan");
+    const longTitle = "超".repeat(500);
+    plan.days[0].activities[0].title = longTitle;
+    const parsed = parseTripPlanResponse(payload);
+    if (!parsed.plan) throw new Error("multiday fixture must include a plan");
+
+    render(<TripPlanResult response={{ ...parsed, plan: parsed.plan }} />);
+
+    expect(screen.getByText(longTitle)).toBeVisible();
   });
 });

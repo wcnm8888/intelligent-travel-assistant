@@ -64,19 +64,25 @@ export interface ApiErrorDto {
   retryable: boolean;
 }
 
-export interface TripPlanResponseDto {
+interface TripRequestSummaryDto {
+  city: string;
+  start_date: string;
+  end_date: string;
+  travelers: number;
+  budget: MoneyDto;
+}
+
+interface TripRequestSummaryV2Dto extends TripRequestSummaryDto {
+  request_version: "2";
+}
+
+interface TripPlanResponseBaseDto {
   job_id: string;
   trace_id: string;
   client_request_id: string;
   status: PlanningStatus;
   attempt: number;
-  request_summary: {
-    city: string;
-    start_date: string;
-    end_date: string;
-    travelers: number;
-    budget: MoneyDto;
-  };
+  request_summary: TripRequestSummaryDto;
   resolved_destination: ResolvedDestinationDto | null;
   plan: TripPlanDto | null;
   violations: ConstraintViolationDto[];
@@ -88,6 +94,16 @@ export interface TripPlanResponseDto {
   created_at: string;
   updated_at: string;
 }
+
+export type LegacyTripPlanResponseDto = TripPlanResponseBaseDto;
+
+export interface TripPlanResponseV2Dto extends TripPlanResponseBaseDto {
+  response_version: "2";
+  request_summary: TripRequestSummaryV2Dto;
+}
+
+export type TripPlanResponseDto =
+  LegacyTripPlanResponseDto | TripPlanResponseV2Dto;
 
 export interface TripPlanningApi {
   create(
@@ -141,6 +157,7 @@ const RESPONSE_KEYS = [
   "created_at",
   "updated_at",
 ] as const;
+const RESPONSE_V2_KEYS = [...RESPONSE_KEYS, "response_version"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -302,16 +319,23 @@ function sourceReferencesAreValid(response: TripPlanResponseDto): boolean {
   return referencedSourceIds.every((sourceId) => knownSourceIds.has(sourceId));
 }
 
-function isRequestSummary(value: unknown): boolean {
+function isRequestSummary(value: unknown, version2: boolean): boolean {
   return (
     isRecord(value) &&
-    hasExactKeys(value, [
-      "city",
-      "start_date",
-      "end_date",
-      "travelers",
-      "budget",
-    ]) &&
+    hasExactKeys(
+      value,
+      version2
+        ? [
+            "request_version",
+            "city",
+            "start_date",
+            "end_date",
+            "travelers",
+            "budget",
+          ]
+        : ["city", "start_date", "end_date", "travelers", "budget"],
+    ) &&
+    (!version2 || value.request_version === "2") &&
     typeof value.city === "string" &&
     isDate(value.start_date) &&
     isDate(value.end_date) &&
@@ -323,9 +347,11 @@ function isRequestSummary(value: unknown): boolean {
 }
 
 export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
+  const version2 = isRecord(value) && "response_version" in value;
   if (
     !isRecord(value) ||
-    !hasExactKeys(value, RESPONSE_KEYS) ||
+    !hasExactKeys(value, version2 ? RESPONSE_V2_KEYS : RESPONSE_KEYS) ||
+    (version2 && value.response_version !== "2") ||
     !isUuid(value.job_id) ||
     !isUuid(value.trace_id) ||
     !isUuid(value.client_request_id) ||
@@ -333,7 +359,7 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
     !Number.isInteger(value.attempt) ||
     Number(value.attempt) < 1 ||
     Number(value.attempt) > 3 ||
-    !isRequestSummary(value.request_summary) ||
+    !isRequestSummary(value.request_summary, version2) ||
     !(
       value.resolved_destination === null ||
       isResolvedDestination(value.resolved_destination)
@@ -381,9 +407,16 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
   }
 
   const response = value as unknown as TripPlanResponseDto;
+  const planVersionMatches =
+    response.plan === null ||
+    (version2
+      ? "plan_format_version" in response.plan &&
+        response.plan.plan_format_version === "2"
+      : !("plan_format_version" in response.plan));
   if (
     !terminalShapeIsValid(response) ||
     !sourceReferencesAreValid(response) ||
+    !planVersionMatches ||
     (response.plan !== null &&
       (response.plan.start_date !== response.request_summary.start_date ||
         response.plan.end_date !== response.request_summary.end_date ||

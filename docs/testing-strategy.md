@@ -266,13 +266,52 @@ Step 5 已按该顺序完成：公共 DTO 测试先因 replan contracts 不存�
 
 Step 6 已按组件优先顺序完成：replan API client 与面板测试先因生产模块不存在而 RED；GREEN 后前端 8 个测试文件共 73 项通过，覆盖四入口、结构化时间校验、impact/source/freshness、确认/取消、重复确认禁用、completed diff、unknown/partial、安全失败、conflict baseline 禁止执行和焦点恢复。ESLint、TypeScript、Prettier check 与 Vite build 通过。浏览器、390px、真实 FastAPI + 临时 SQLite 纵向链路和独立安全/数据审查仍属于 Step 7，不以组件测试替代。
 
-Step 7 已完成临时 SQLite API 纵向、桌面/`390×844` loopback 浏览器和独立安全/数据审查。SQLite 成功、幂等、重启、失败和并发路径均通过；plan version 使用 planning trace，独立 replan trace 只保留在 replan/decision；decide/begin_execution/commit 绑定创建时捕获的 job version，stale confirmation 在 executor 前冲突，执行竞争持久化为 conflict。修复后相关回归 219 项、后端全量 999 项、前端 73 项和静态/build 门禁通过；浏览器 completed/failed/version conflict 保留原计划、completed diff、390px 零横向溢出和 loopback-only 资源成立。该证据仍是 synthetic/临时 SQLite，不证明真实 Provider UAT；Step 8 尚未批准。
+Step 7 已完成临时 SQLite API 纵向、桌面/`390×844` loopback 浏览器和独立安全/数据审查。SQLite 成功、幂等、重启、失败和并发路径均通过；plan version 使用 planning trace，独立 replan trace 只保留在 replan/decision；decide/begin_execution/commit 绑定创建时捕获的 job version，stale confirmation 在 executor 前冲突，执行竞争持久化为 conflict。修复后相关回归 219 项、后端全量 999 项、前端 73 项和静态/build 门禁通过；浏览器 completed/failed/version conflict 保留原计划、completed diff、390px 零横向溢出和 loopback-only 资源成立。该证据仍是 synthetic/临时 SQLite，不证明真实 Provider UAT；F-003 Step 8 后续已完成全量交付、stacked PR、main CI 和归档。
 
 Step 2 已按该顺序完成：四个测试模块先因领域类型不存在而 RED，再以 35 项测试锁定四种
 command、八类 impact、同日完整重排、跨日依赖、住宿/cross-city/unknown、共享来源、
 fresh/stale/unknown-validity、Decimal/unknown budget、baseline→result diff 和 scope 拒绝。领域
 178 项、后端全量 981 项、Ruff、format 和 strict mypy 通过；这些证据完全离线，不证明
 Repository、SQLite、API、UI 或真实 Provider 行为。
+
+## F-004A 冻结测试矩阵（Step 1）
+
+F-004A 默认使用纯领域 fixture、fake/MockTransport、独立临时 SQLite 和 loopback synthetic 浏览器；测试导入应用前设置 `APP_ENV=test`，不读取 `.env.local`，拒绝非 loopback socket。旧双日 golden 与 version 2 用例必须并存，不能通过批量改写旧 fixture 获得绿色。
+
+| 层级 | 正向行为 | 必须失败或降级的行为 |
+| --- | --- | --- |
+| 日期输入 | 2、3、7 日；D+1/D+5 开始边界；day_count 计算 | 1、8 日、反向、非连续、datetime/bool/字符串冒充日期 |
+| 窗口 | offset `0..D-1` 唯一全集；每窗正时长 | 缺失、重复、越界、乱序绑定、零/反向/跨夜 |
+| proposal | 2/3/7 日精确日期顺序，每日 1–2 项、连续 priority | 缺日、重复、越界、3 项、目录外 POI/source、最终时间/路线/终态字段 |
+| scheduler | 每日住宿往返链、最多 3 段、固定输入确定性 | required 容量不足 conflict；无规则时长 needs_input；不完整路线不发布 |
+| final validation | N 日日期/窗口/路线/天气/来源/预算全覆盖 | 只校验首尾两日、天气错日、路线跨日、地点异城、来源悬空 |
+| 预算 | 餐饮 × 人数 × D；住宿 × (D-1)；Decimal round-trip | unknown→0、少算中间日/夜、partial→ready |
+| request contracts | legacy 原 JSON；V2 2/3/7 日严格字段 | 未知版本、数字 2、V2 缺 end/date windows、legacy 混入 V2 字段 |
+| response contracts | legacy 原 shape；V2 response/plan format 标识及 2–7 days | 按数组长度猜版本、request/response/plan format 不一致、额外字段 |
+| fingerprint | legacy fixture digest golden；V2 同 body 跨 client ID 相同 | legacy 被补 V2 字段后重算、版本/end/window 变化仍同 digest |
+| Repository contract | 内存/SQLite 对两 request kind 共享 get/create/get/advance/result/retry/delete | port 新增 SQLite 类型；同 client ID 跨版本复用；损坏 JSON 读取成功 |
+| SQLite v2 | V2 request/plan/source/version 写入、重启恢复、retry 新版本、删除级联 | schema version 变化、migration 3、旧记录改写、format/request 类型错配 |
+| API | 同 POST/GET/retry/DELETE URI；legacy 逐字段 golden；V2 oneOf | 模糊 union 回退、未知版本非 422、内部 fingerprint/version 泄漏 |
+| replan | legacy 双日不变；V2 两日 typed 映射 | 3–7 日在 reserve/decision/executor/provider 前 422，数据库写入为 0 |
+| Provider governance | D=2 route 8/90s；D=3..7 route 4D、并发 2、派生总期限 | 第 4D+1 调用、并发 3、deadline 后调用、取消后 active call 非零 |
+| POI | 最多 3 次 HTTP，候选上限公式，7 日目录足够有界 | 第 4 次搜索、超过 20 条进入上下文、目录外活动 |
+| QWeather | 单次 7 日请求，完整/部分日期映射 | 第二次补拉；缺日造数据；partial 被投影 ready |
+| DeepSeek | generation 1、repair 1；动态 2–7 日 Schema | 第二次 repair、完整 Prompt/原文进入错误、模型提供最终时间/路线 |
+| 五终态 | ready/partial/conflict/needs_input/failed 多日 round-trip | terminal 无合法 shape、partial 无 warning、failed 暴露原始 body |
+| 前端表单 | end date、动态窗口、2/3/7 日提交、首错焦点 | 1/8 日提交、用户 end date 被静默覆盖、offset 直接编辑 |
+| 前端结果 | 动态日导航/卡、unknown/partial、V2 restart、V2 两日 replan | 固定 days[0]/days[1]、3–7 日显示可执行 replan、横向导航唯一入口 |
+| 浏览器 | 桌面/390px、2/3/7 日、键盘、焦点、0 overflow、loopback only | 非本机请求、console error、颜色唯一表达、长行程不可到达末日 |
+| 隐私 | allowlist typed JSON、safe errors、临时 SQLite | Key/Token/JWT/Cookie/Authorization/Prompt/provider body 被读取或持久化 |
+
+关键 golden：现有 synthetic legacy 请求指纹固定为 `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd`；旧 response fixture 必须做精确键集合比较。SQLite 测试每例使用独立 `tmp_path`，断言 migration 表仍只有 version 1/2，并在关闭连接后验证文件可重新打开。
+
+Step 4 已完成 Provider/编排/治理层：直接专项 403 项覆盖 3/7 日 executor、动态 proposal 日期、route cap/deadline、POI 上限、QWeather 单次完整/缺日映射及既有 terminal/fallback/取消语义；统一离线门禁通过后端 1088 项、前端 76 项、文档检查器 24 项和全部静态/构建检查。所有 Provider 证据来自 fake 或 MockTransport；没有读取 `.env.local`、调用真实 Provider 或创建真实数据库。
+
+Step 5 已完成前端组件层：RED 证明旧 parser 拒绝严格 tagged 3/7 日响应且日期导航组件尚不存在；GREEN 后前端全量 87 项覆盖 legacy/V2 请求判别、2/3/7 日输入与展示、1/8 日拒绝、动态窗口、首错焦点、V2 两日 replan、3–7 日范围阻断和 7 日 partial/unknown。统一门禁同时通过后端 1088 项、文档检查器 24 项和全部静态/构建检查；真实本机 synthetic 浏览器、390px overflow 和临时 SQLite 纵向仍保留给 Step 6。
+
+Step 6 已完成临时 SQLite 与真实本机 synthetic 浏览器闭环。首轮 RED 发现 V2 create/retry 未调度既有 executor；最小修复后，2/3/7 日可经同一 API 写入 schema v2、重启恢复、幂等读取和删除。浏览器覆盖 desktop legacy 两日、desktop V2 三日及 `390×844` V2 七日 partial：末日可达并聚焦，3–7 日无 replan，unknown 门票不是 0，无横向溢出或 console warning/error，动态请求仅到 loopback。独立审查进一步要求 browser 测试数据库位于系统临时目录且启动前不存在，负向测试拒绝项目路径和既存文件。相关回归 48 项及 Ruff、strict mypy、diff 检查通过；这些证据仍是 synthetic，不证明真实 Provider 质量。
+
+TDD/交付顺序冻结为：Step 2 领域日期/窗口/排程/预算/final validation；Step 3 contracts/Repository/API/SQLite；Step 4 Provider/编排/治理；Step 5 前端；Step 6 临时 SQLite 纵向、浏览器与独立审查；Step 7 全量门禁和三层 stacked 交付。任一实现 Step 必须先取得该层 RED，再最小 GREEN 和相关回归；mock/synthetic 不得表述为 live Provider 通过。
 
 ## 外部适配器和失败注入
 

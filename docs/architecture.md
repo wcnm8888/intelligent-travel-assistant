@@ -557,6 +557,38 @@ scope 都在领域边界 fail closed。Step 2 完成时该实现尚未接入 mig
 
 F-003 Step 3–5 已依次实现 migration v2、独立 ReplanRepository、application replan 编排和三个窄 HTTP 资源。API 使用严格 tagged command DTO，将 auto/approve 执行作为 background task 调度并先返回 `replanning` 快照；completed 读取通过 typed replan result/change-set 投影，非成功终态继续保留原计划。`create_app` 只接受显式注入的 replan application service，不因路由存在而读取 Provider 配置、恢复持久化执行或访问网络；完整临时 SQLite 纵向装配与浏览器验证仍属于后续批准阶段。
 
+### F-004A 单城市 2–7 日架构（Step 1 冻结，Step 2–4 已实现）
+
+F-004A 在不改变现有单城市边界、PlanningStatus、SQLite schema version 2 和旧双日公开形状的前提下，引入严格可辨识的多日类型。旧类型继续作为兼容入口，不通过给旧模型增加 optional 字段来混合语义。
+
+- `TripPlanRequest`、`TripRequestInput`、`TwoDayTimePlan`、`TripPlan` 和 `TripPlanResponse` 保持 legacy 定义；
+- 新增 `TripPlanRequestV2`、`MultiDayTripRequestInput`、`MultiDayTimePlan`、`TripPlanV2` 和 `TripPlanResponseV2`；应用边界使用 `PlanningRequest`、`PlanningPlan`、`PlanningResponse` 显式联合；
+- V2 请求必须携带 `request_version="2"`、显式 `start_date/end_date` 和 2–7 个窗口；V2 plan 携带 `plan_format_version="2"`，V2 response 携带 `response_version="2"`，避免仅凭数组长度猜测类型；
+- `day_count = (end_date - start_date).days + 1`，只允许 2–7；开始日期继续使用现有 D+1 至 D+5 上海本地日历门禁，结束日期由连续跨度决定，不因天气覆盖不足而缩短；
+- `DailyAvailability` 的基础 offset 校验扩为 0–6；legacy `TwoDayTimePlan` 仍额外要求 `{0,1}`，`MultiDayTimePlan` 要求窗口集合精确等于 `range(day_count)`；
+- proposal、candidate、plan days 和天气日期都必须与 `expected_dates = start_date..end_date` 精确一一对应，拒绝缺日、重复、越界和乱序；
+- `PlanStructure` 继续要求全部地点属于一个 `city_adcode`；每个 plan day 必须引用同一个住宿锚点；活动不得跨夜，每日 1–2 项；完整路线链最多为每天 3 段；
+- scheduler 继续以实际路线、60/120/180 分钟时长、类别缺省和步行/公交缓冲生成最终时间；固定输入必须得到固定输出；最终校验按日期遍历而非硬编码 offset 0/1；
+- 餐饮为每人每日金额 × 人数 × `day_count`；住宿为一晚金额 × (`day_count - 1`)；Decimal、费用 confidence 和 unknown 规则不变；
+- QWeather 缺少任一请求日期、响应只有部分日期或 validity/freshness 不可确定时保留已验证事实并形成 partial；不得补造日天气或把缺日转为 ready。
+
+Repository port 的方法集合保持不变，只有 typed 参数和快照内部类型扩为显式联合。legacy 指纹继续对原 `TripPlanRequest.model_dump(mode="json", exclude={"client_request_id"})` 做相同 canonical JSON 和 SHA-256；V2 指纹对包含 `request_version/end_date/day_windows` 的 V2 dump 使用同一序列化规则。禁止先把 legacy 请求补成 V2 再计算指纹。
+
+SQLite 水合按以下闭集判别：`request_version` 缺失时只用 legacy model；值精确为 `"2"` 时只用 V2 model；其他值、冲突字段或对应 plan format 不一致时以现有安全 Repository 错误 fail closed。`planning_jobs.request_json`、`plan_versions.plan_json`、来源链接、attempt、trace、version 和事务边界不变，因此不需要 migration v3，也不重写 v1/v2 数据。旧应用遇到 V2 JSON 会因额外字段拒绝并停止读取，不得删除或错误投影该记录。
+
+F-003 对 legacy 双日计划保持原行为；V2 恰好 2 日时可经严格 typed 映射构造现有 replan impact context。任何 `day_count > 2` 的 replan 必须在 reserve、decision、executor 和 Provider 之前返回既有 `replan_scope_not_supported`，不产生 replan、decision、plan version 或 current-plan 写入。
+
+Provider 治理使用按任务构造的不可变 policy，不修改 legacy 默认值：
+
+- resolve city 1、POI search 3、forecast 1、current alert 1、generation 1、repair 1；各单次 timeout 保持现值；
+- route 并发保持 2，route `max_calls = min(28, 4 × day_count)`；legacy/V2 两日仍为 8；
+- 任务总期限为 legacy/两日 90 秒；V2 三至七日使用 `min(180, 90 + 18 × (day_count - 2))` 秒，只补偿额外有界路线批次，不增加单次超时或 HTTP 次数；
+- 每日最多 3 个 primary route requirement；双模式 fallback 只使用总预算剩余额度，按日期和住宿往返链稳定顺序尝试，预算耗尽后不得继续调用；缺少必要路线时按现有安全 route failure 收口，不发布不完整路线链；
+- POI HTTP 调用数仍不超过 3，单次候选上限使用 `min(20, max(6, 2 × day_count + 2))`，为最多 14 项活动提供有界目录；
+- QWeather 仍只发一次 7 日 forecast 请求和一次 current-alert 请求；请求行程超出响应覆盖时按部分天气处理，不追加天气调用。
+
+Step 2–4 已依次落地多日领域/排程/终检、V2 contracts/Repository/API/schema v2 水合，以及 Provider 编排。组合根按请求创建不可变 `ToolCallGovernor`；legacy 默认 policy 不变，V2 3–7 日使用冻结路线预算和总期限。DeepSeek 只接收版本化完整日期上下文并继续输出无最终时间 proposal；QWeather 缺日只保留已验证日期并形成 partial；executor 生成 typed `TripPlanV2`，unknown 费用仍为空。该实现没有新增公开端点、Schema、migration、Provider 或依赖。
+
 ## 错误与降级
 
 稳定错误类别方向：

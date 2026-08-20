@@ -12,6 +12,7 @@ import {
 } from "./tripPlanningApi";
 import {
   FIXED_JOB_ID,
+  multidayPlanningPayload,
   partialPlanningResponse,
   planningResponse,
   readyPlanningResponse,
@@ -320,6 +321,48 @@ describe("tripPlanningApi", () => {
         },
       }),
     ).toThrowError(/无法识别的数据/);
+  });
+
+  it.each([3, 7])(
+    "accepts a strictly tagged version 2 %i-day response",
+    (dayCount) => {
+      const response = parseTripPlanResponse(multidayPlanningPayload(dayCount));
+      expect(
+        (response as unknown as { response_version: string }).response_version,
+      ).toBe("2");
+      expect(response.plan?.days).toHaveLength(dayCount);
+    },
+  );
+
+  it("rejects ambiguous or inconsistent version 2 response tags and dates", () => {
+    const response = multidayPlanningPayload(3) as unknown as Record<
+      string,
+      unknown
+    >;
+    const plan = response.plan as Record<string, unknown>;
+    const summary = response.request_summary as Record<string, unknown>;
+    expect(() =>
+      parseTripPlanResponse({ ...response, response_version: undefined }),
+    ).toThrowError(TripPlanningClientError);
+    expect(() =>
+      parseTripPlanResponse({
+        ...response,
+        plan: { ...plan, plan_format_version: undefined },
+      }),
+    ).toThrowError(TripPlanningClientError);
+    expect(() =>
+      parseTripPlanResponse({
+        ...response,
+        request_summary: { ...summary, request_version: "3" },
+      }),
+    ).toThrowError(TripPlanningClientError);
+    const days = plan.days as Array<Record<string, unknown>>;
+    expect(() =>
+      parseTripPlanResponse({
+        ...response,
+        plan: { ...plan, days: [days[0], days[0], days[2]] },
+      }),
+    ).toThrowError(TripPlanningClientError);
   });
 
   it("rejects dangling location references in a terminal plan", () => {
