@@ -589,6 +589,49 @@ Provider 治理使用按任务构造的不可变 policy，不修改 legacy 默�
 
 Step 2–4 已依次落地多日领域/排程/终检、V2 contracts/Repository/API/schema v2 水合，以及 Provider 编排。组合根按请求创建不可变 `ToolCallGovernor`；legacy 默认 policy 不变，V2 3–7 日使用冻结路线预算和总期限。DeepSeek 只接收版本化完整日期上下文并继续输出无最终时间 proposal；QWeather 缺日只保留已验证日期并形成 partial；executor 生成 typed `TripPlanV2`，unknown 费用仍为空。该实现没有新增公开端点、Schema、migration、Provider 或依赖。
 
+### F-004B1 多城市与用户提供城际段架构（Step 4 planning/治理已实现）
+
+F-004B1 在 legacy/V2 之外增加独立 V3 变体，不继承单城市请求或计划形状，也不改变现有 11 个 `PlanningStatus`。V3 仍经过 contract → application → domain → adapter → Repository 的既有依赖方向；城市顺序、城际段、日期连续性、缓冲、费用和终态均由 typed model 与确定性代码裁决，LLM 不能改写。
+
+#### 类型与领域边界
+
+- `TripPlanRequestV3` 复用通用值类型，但字段集合独立：`request_version="3"`、日期、窗口、旅客/预算/偏好/市内方式、2–3 个 `CityStayV3`、1–2 个 `UserProvidedIntercitySegmentV3` 和餐饮预算；不含单城市 `city/accommodation/intercity_transport_cost`；
+- `CityStayV3` 固定为 `city/nights/accommodation`；城市文本按既有规范化规则唯一，Step 4 解析后的 adcode 也必须唯一且属于中国大陆；
+- `UserProvidedIntercitySegmentV3` 固定为相邻城市索引、`rail/air/coach`、出发/到达站点、带 `+08:00` 的出发/到达时间和可空用户票价；段数精确为城市数减 1；
+- `day_count` 只允许 3–7，2 城至少 3 日、3 城至少 4 日；每城 `nights >= 1` 且夜数之和精确等于 `day_count - 1`；
+- 第 i 个转移日由前 i 个城市累计夜数唯一派生；段必须在该上海本地自然日内从索引 i 到 i+1，`arrival_at > departure_at`，拒绝跨夜、第三城市、联程和重复城市闭环；
+- `PlanIntercitySegmentV3` 保存系统段 ID、城市索引、方式、站点 location ID、时间、一个 `CostItem` 和用户来源；`TripPlanV3` 保存有序 `city_adcodes`、1–2 个段、3–7 个 `PlanDayV3`、地点和预算；
+- `PlanDayV3` 显式保存 `departure_city_index/arrival_city_index/overnight_city_index/intercity_segment_id`。非转移日三个索引相同且 segment ID 为空；转移日必须为 i/i+1/i+1 并引用唯一段；
+- 转移日最多 1 项活动，其他日 1–2 项；活动地点只能属于当天出发或到达城市，市内 `RouteLeg` 两端必须同城，不能用步行/公交 leg 横跨城市。
+
+#### 排程、预算、来源与终态
+
+- scheduler 先按城市夜数构造每日城市骨架，再把用户段作为不可变占用区间：铁路前/后 60/30 分钟、航空 120/60、长途客运 45/30；活动和市内路线不得进入占用区间；
+- 转移日前活动只能在出发城市并在出发缓冲前结束；转移日后活动只能在到达城市并在到达缓冲后开始；固定输入必须得到固定顺序和时间；
+- 住宿按每城 `one_night_cost × nights`，餐饮按每日金额 × 人数 × day_count，市内交通沿用现有规则；每个城际段始终产生费用项，用户票价为 `user_provided`，缺失为 `unknown/amount=null`；
+- 用户段产生 `provider=user`、`source_type=user_provided_intercity_segment` 的来源，`fetched_at` 表示本地记录时间，`valid_until=null`、`freshness=unknown_validity`，warning 明确“用户提供、未核验班次/余票/库存”；该来源不能被提升为 Provider 验证事实；
+- 用户已提供所有必需段字段且确定性计划完整时，未核验 availability 本身不阻止 `ready`，因为 F-004B1 只对用户输入做可执行性规划；但任何金额、天气、路线或其他已纳入预算/执行判断的 unknown 继续按既有规则产生 `partial`；
+- 请求字段缺失/形状非法在创建 job 前 422；城市解析歧义或必要地点信息不足为 `needs_input`；日期/住宿/段/缓冲不可同时满足为 `conflict`；必要 Provider/路线/模型失败且不能形成安全计划为 `failed`；不得用 warning 把 conflict/failed 提升为 partial。
+
+#### Repository、SQLite 与 API 数据流
+
+- `PlanningRequest/PlanningPlan/PlanningResponse` 联合显式增加 V3 tag；legacy/V2 的 `PlanningJobResult` 保持不变，新增独立 `PlanningJobResultV3(resolved_destinations, plan, terminal fields)`，由内部 `PlanningResult` 联合承载；V3 request/plan/response 分别以 `request_version/plan_format_version/response_version="3"` 判别，未知或冲突版本 fail closed；
+- `PlanningJobRepository` 方法集合、attempt/trace/version/expected_version、append-only plan version、source 关联、DELETE 和 30 天清理不变；`PlanningJob.request/result` 只扩展为 request/result typed union，并校验 V3 request 只能搭配 V3 result/plan；
+- V3 指纹继续排除 `client_request_id`，对 V3 原始 typed dump 做相同 canonical JSON + SHA-256；禁止把 legacy/V2 转成 V3 后重算；
+- `planning_jobs.request_json` 和 `plan_versions.plan_json` 已能保存严格 typed JSON，表、列、索引、外键和 migration 1/2 均不需要变化；读取必须先按 tag 选唯一 model，再校验 request/plan/response format 一致；
+- 旧应用遇到 V3 JSON 因额外 tag/字段拒绝并 fail closed；不得删除、改写或投影为 legacy/V2；回滚通过重新部署支持 V3 的应用完成；
+- POST/GET/retry/DELETE 继续使用现有 URI；GET/retry 响应由持久化 request tag 决定；V3 replan 在 API 读取 job 后、创建 service/reserve/decision/executor/Provider 之前返回既有 422 `replan_scope_not_supported`。
+
+#### Provider 编排与交付边界
+
+- 城际 Provider port、adapter 和 HTTP 调用数为 0；用户段直接作为 immutable input fact 进入 scheduler，不经 DeepSeek 生成或修复；
+- 现有城市 Provider 可按城市复用：resolve city ≤ C、POI HTTP ≤ 3C、forecast ≤ C、current alert ≤ C；DeepSeek generation 1/repair 1 是整任务上限，不按城市倍增；
+- 城市 fan-out 并发 2，route 并发 2，route 总调用 ≤ `min(28, 4 × day_count)`，总 deadline ≤ 180 秒；adapter 内 retry 必须计入同一调用和总时限，取消后 active call 收敛为 0；
+- POI、天气、路线和模型测试只允许 fake/MockTransport/synthetic；Step 4 不读取 `.env.local`，不调用真实高德、和风、DeepSeek 或城际服务；
+- 四层交付保持 domain/contracts → persistence/API → planning → UI/delivery；Step 2 不进入 Repository/API，Step 3 不进入 Provider/UI，Step 4 不进入 UI，Step 5 才实现前端。
+
+Step 4 已按该边界实现独立 `MultiCityPlanningOrchestrator`。城市事实通过并发 2 的有界 fan-out 复用现有 Amap/QWeather ports，所有城市共享一个 governor 和一次全局 DeepSeek proposal/repair 预算；proposal 只包含逐日城市索引与 namespaced POI 引用，用户站点、城际段原文和 fare 不进入模型 payload。确定性应用层再注入用户段、缓冲、市内路线、活动时刻、预算、来源和 terminal。deadline 前置拒绝与取消 drain 已由离线测试证明；没有新增城际 port/adapter、Schema、migration、依赖或真实调用。
+
 ## 错误与降级
 
 稳定错误类别方向：

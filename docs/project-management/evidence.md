@@ -1,5 +1,110 @@
 # 验收证据索引
 
+## F-004B1 Step 6：临时 SQLite 纵向、loopback 浏览器与独立审查
+
+- 日期：2026-08-20；结论：`PASS`；用户明确批准进入 Step 6，本次没有进入 Step 7 全量门禁、Git 交付或远程 CI；
+- TDD/纵向修复：`SyntheticPlanningJobExecutor` 首轮 V3 测试以 `synthetic_result_invalid` RED，扩为显式 `PlanningResult` 后转绿；临时 SQLite API 支持模块首轮缺失 RED，完成后覆盖 create/read/restart/retry/delete。retry 先暴露 source id、再暴露 plan id 唯一冲突；确认这是 schema v2 的既有 job 唯一性后，只让 browser synthetic executor 按 attempt 生成新标识，不改 Repository/schema/migration；
+- SQLite 证据：新纵向模块 `10 passed`；联合 legacy/V2/V3 API、SQLite、Repository 与 executor 集合 `45 passed in 16.85s`。覆盖 2/3 城、ready/partial/conflict/needs_input/failed、幂等、重启、retry attempt 2、DELETE、安全临时路径和 V3 replan 前置拒绝；
+- 浏览器链路：真实 `127.0.0.1` Vite → FastAPI → schema v2 SQLite → synthetic executor 生成 2 城 3 日 partial；desktop `1440×1000` 与 `390×844` 均为横向 overflow 0，刷新后恢复 job/result，retry 到 attempt 2 成功；58 条资源/API 请求全部为 `127.0.0.1`，页面 console error 0、warning 0；
+- 键盘与 accessibility：第三日通过 Enter 可达并更新焦点，skip link 可聚焦并进入 `trip-request-form`，删除/新增第三城后焦点有效；DOM audit 为 duplicate ids 0、missing ARIA refs 0、unlabeled active interactive elements 0、H1 1、live regions 3；新增第三城最初因触发按钮 disabled 导致焦点落到 body，新增 RED 后修复为聚焦 `cityStays.2.city`，专项 `7 passed`；
+- 前端/静态回归：前端 `10 files / 95 passed`，Prettier、ESLint 0 warning、TypeScript 和 Vite build 通过；触及后端四文件 Ruff format/check、strict mypy `Success: no issues found in 4 source files`；文档检查器通过 17 份必需文档、24 份 Markdown 与 CI/status/safety contracts，`git diff --check` 通过；当前 shell Node 为项目固定 `22.16.0`；
+- 独立审查：Codex Security diff scan `efd6640a-731a-47ce-b4e8-58bf3931d5dc`，snapshot digest `82326e4f44ca85c0dd2b404d4e327976761d8ede97a4c34df822296b8787a800`；36/36 生产文件 review item、6/6 信任面完成，coverage `complete`、finding 0。覆盖 contracts/domain、Repository/SQLite、API/replan、planning/provider governance、frontend 和 compatibility；TAC advisory connector 返回 `USER_NOT_LOGGED_IN`，因此 TAC 状态保持未验证；
+- 隐私与网络：SQLite 只保存 allowlist typed JSON；浏览器 `localStorage` 只保存 job UUID；未持久化票号、订单号、证件、乘客、联系方式、Cookie、Authorization、完整 Prompt 或 Provider 原始响应；未读取 `.env.local`、秘密或本地 Provider 配置，未调用 DeepSeek、高德、和风、城际 Provider 或非 loopback 服务；
+- 清理与 Git：精确关闭 browser、Vite 和 uvicorn 后，删除本轮两份 `ita-f004b1-*.sqlite3` synthetic 临时文件；`HEAD == main == origin/main == 1a3e0a0`，仍在 `feat/f-004b1-multicity-domain-contracts`，未 commit/push/PR/merge；schema/migration、依赖/lockfile 无 Step 6 差异；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持；本 Step synthetic 证据不证明任何真实 Provider 质量；
+- 下一动作：等待用户明确批准 Step 7；不得自动运行全量门禁、提交、push、创建四层 stacked PR、远程 CI 或进入 F-005/F-004B2。
+
+## F-004B1 Step 5：前端多城市交互与离线恢复
+
+- 日期：2026-08-20；结论：`PASS`；用户明确批准进入 Step 5，本次没有进入临时 SQLite/loopback 浏览器、独立审查或交付 Step；
+- TDD RED：新增 V3 parser/表单测试后，严格 V3 response 被旧 parser 以 `response_invalid` 拒绝，页面找不到“多城市” radio；同次运行其余既有前端 `88 passed`，证明失败只对应本层缺失行为；
+- 请求与表单：新增独立 V3 request DTO；默认仍为单城市，只有显式 scope 选择提交 V3。2/3 城卡、每城住宿/夜数、相邻 rail/air/coach 段、累计夜数派生转移日、`+08:00` datetime、fare null/user、字段首错和缓冲窗口拒绝均由 typed state 形成；
+- 顺序治理：城市只通过有可访问名称的上移/下移按钮调整；卡自身字段随城市移动，所有相邻段立即清空并 live 披露；第三城删除只移除第二相邻段，焦点回到第二城标题；不以拖拽为唯一入口；
+- 严格响应：V3 parser 校验独立 response/summary/plan tag、有序 destinations/adcodes、3–7 日、日城市连续性、站点/段/地点/source 引用、固定 user source 语义、terminal shape；tag 漂移、伪造 Provider source 和 ready 携带 unknown 均 fail closed；legacy/V2 parser 回归保持；
+- 结果语义：路线/停留、转移日、住宿城市、城际段/市内路线分组、三种缓冲、user_provided/unknown、partial 诊断与 source/freshness 可读；V3 不渲染 replan 控件，并固定说明修改需新建任务；unknown cost item 显示“未知/金额未知”，不伪装实时/已核验；
+- 离线恢复：V3 create 后只向本机 `localStorage` 写入 key `ita.active-v3-job` 的 job UUID；重启后只调用同源 GET 读取 SQLite 权威快照，不保存请求、站点、时间、fare、Prompt 或 Provider 数据；损坏/未知响应进入安全错误且不删除服务端记录；legacy/V2 不写恢复指针；
+- 验证：专项 `7 passed`，前端全量 `10 files / 95 passed`；Prettier check、ESLint 0 warning、TypeScript、Vite production build 通过，构建产物 JS `298.11 kB`/gzip `88.78 kB`；实际 Node 24.19.0 相对声明 22.16.0 仅产生 engine warning；
+- 范围与安全：本 Step 只修改批准的前端入口、相邻结果组件/fixture/tests/styles 和当前文档；`frontend/package.json`、`pnpm-lock.yaml` 无差异；未修改 backend/schema/migration，未创建数据库、读取 `.env.local`/秘密或调用任何 Provider/外部服务；未 commit/push/PR/merge；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持；
+- 未覆盖范围：desktop/390px 真浏览器、0 overflow、keyboard/console/network、临时 SQLite create/read/restart/retry/delete、五终态与独立隐私/兼容审查必须等待 Step 6 单独批准。
+
+## F-004B1 Step 4：离线多城市 planning 与调用治理
+
+- 日期：2026-08-20；结论：`PASS`；用户明确批准进入 Step 4，本次没有进入前端、浏览器或交付 Step；
+- TDD RED 1：新增 Step 4 测试后，collection 因 `MultiCityPlanningOrchestrator` 和多城市治理策略不存在失败，证明旧 executor 无法执行 V3；
+- TDD RED 2：首个 V3 纵向测试进入 proposal parser 后因日期校验只接受 `request_version="2"` 失败，并错误尝试 repair；扩展为严格 V2/V3 日期全集判别后转绿；
+- 编排：新增独立 `MultiCityPlanningOrchestrator`，按城市复用现有 Amap/QWeather ports，全任务只调用一次 DeepSeek generation，唯一 repair 仍由 governor 控制；legacy/V2 继续走既有 `OfflinePlanningOrchestrator`；
+- 确定性边界：proposal 必须逐日复制 departure/arrival/overnight 城市索引并只引用合法城市 POI；应用注入用户段、三种缓冲、市内路线、活动时刻、逐城住宿、餐饮、城际 fare、来源和 terminal，不允许模型改写城市或段；
+- 调用治理：策略精确为 resolve ≤ C、POI ≤ 3C、forecast/alert ≤ C、generation/repair 各 1、route ≤ min(28,4D)、城市 fan-out 2、route concurrency 2、deadline 180 秒；两城纵向实际为 resolve 2、POI 6、forecast 2、alert 2、generation 1、route 4；
+- deadline/取消：deadline 在首个 Provider call 前耗尽时调用为 0 并返回安全诊断；取消时两条在途 route peer 完整 drain、active=0 且后续 route 未启动；
+- 隐私与城际边界：V3 model payload 不含用户站点、城际段原文或 fare；repair 不接收原始模型输出、自由文本、兴趣或硬约束；没有新增铁路/航空/客运 port、adapter、HTTP/MCP 或调用；
+- executor/API：既有 executor 对 V3 分派独立编排器，同 URI create/retry 可调度 V3；Provider 组合不完整时仍不启用真实 executor；V3 replan 写前拒绝保持；
+- 验证：Step 4 新增集合 `9 passed`；application 全目录 `505 passed`；API/contracts/持久化相关 `141 passed`；bootstrap `22 passed`；DeepSeek/parser 相邻 `102 passed`；Ruff format `130 files already formatted`、Ruff lint `All checks passed`、strict mypy `Success: no issues found in 63 source files`、`git diff --check` 通过；
+- 范围与安全：schema.py、migrations.py、Repository 方法集合、依赖、lockfile、前端均未修改；未读取 `.env.local`/秘密/Provider 配置，未调用真实 Provider、非 loopback 服务或远程 Git；未 commit/push/PR/merge；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持；
+- 未覆盖范围：前端多城市输入/解析/展示/离线恢复、浏览器、完整临时 SQLite 纵向和交付仍未实现或验证，必须等待 Step 5–8 单独批准。
+
+## F-004B1 Step 3：V3 typed unions、SQLite schema v2、同 URI API 与 replan 写前拒绝
+
+- 日期：2026-08-20；结论：`PASS`；用户明确批准进入 Step 3，本次没有进入 V3 planning、Provider 编排或前端；
+- TDD RED 1：新增 application/SQLite/API 测试后，collection 因 `PlanningJobResultV3` 不存在失败，证明 V3 不能通过 Repository 边界；
+- TDD RED 2：新增无 plan 跨版本终态负向测试后，V3 job 接受 legacy failed result 且未抛错；将 request/result variant 匹配置于 plan-null 快路径之前后转绿；
+- contracts/API：`PlanningRequest/PlanningPlan/PlanningResponse` 精确扩为 legacy/V2/V3 tagged union；POST/GET/retry/DELETE 保持原 URI，V3 使用独立 response/summary/plural destinations，非法/模糊 tag 返回既有 422；
+- Repository：新增独立 `PlanningJobResultV3` 与内部 `PlanningResult` union；port 方法集合不变；V3 fingerprint 排除 client ID，城市顺序、夜数、窗口、站点、时间和 fare 继续参与；
+- SQLite：V3 request/result/plan/source 只进入 schema v2 的既有 JSON/版本表；重启水合、retry attempt 2、DELETE 级联、30 天有界清理、plan tag 损坏 fail closed 和旧 models 读取 V3 失败均通过；migration 表仍精确为 1/2；
+- replan：API 与 application service 的 create/decide/execute 对 V3 前置返回 `replan_scope_not_supported`；spy 证明 reserve/lookup/decision/executor 调用为 0，SQLite `replan_requests/decision_records/plan_version_lineage` 均为 0，job version/status 不变；
+- Provider 边界：trip API 不为 V3 调度现有 executor；两个受 union 影响的既有 Provider service 只新增 V3 fail-closed guard，不实现 V3 Provider；相邻纯离线回归 `33 passed`；
+- 验证：Step 3 新增集合 `31 passed`；Repository/API/replan 相关回归 `170 passed`；SQLite API 重启/兼容回归 `17 passed`；Ruff format `130 files already formatted`、Ruff lint `All checks passed`、strict mypy `Success: no issues found in 130 source files`；
+- 范围与安全：未修改 schema.py、migrations.py、依赖、lockfile、前端或 Provider adapter；临时数据库只由 pytest `tmp_path`/系统临时目录创建并关闭；未读取 `.env.local`/秘密/Provider 配置，未调用外部服务或执行 commit/push/PR/merge；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持不变；
+- 未覆盖范围：V3 planning、按城市 Provider 编排、调用预算/deadline/cancellation、前端、浏览器和完整端到端终态仍未实现或验证；这些必须等待对应 Step 单独批准。
+
+## F-004B1 Step 2：多城市纯领域与独立 V3 contracts
+
+- 日期：2026-08-20；结论：`PASS`；用户明确批准只进入 Step 2，本次没有进入 Repository/API、SQLite、Provider 或前端；
+- TDD RED 1：新增领域与 contract 测试后，collection 分别因 `CityStay` 和 `TripPlanRequestV3` 不存在失败；这是当前层能力缺失，不是环境或外部服务失败；
+- TDD RED 2：初次 GREEN 审查新增两个负向测试，分别证明 plan 可在转移前跨日跳城、response 可偏离 summary 夜数派生转移日；两项均以 `DID NOT RAISE ValidationError` 失败，最小连续性校验后转绿；
+- TDD RED 3：五终态对齐审查证明携带 `errors` 的 ready 响应未被拒绝；补齐 ready/needs_input/retryable 终态 shape，并用一个正向测试覆盖全部五种合法终态后转绿；
+- 领域实现：新增 2–3 城/3–7 日、每城至少一晚、累计夜数派生转移日、相邻用户段、+08:00 同日时间、rail 60/30、air 120/60、coach 45/30、普通/转移日活动和同城市内路线规则；
+- 预算/状态：逐城住宿成本保留 unknown，城际 fare 只允许 `user_provided` 或 `unknown/null`，五终态由显式事实确定性分类；未核验 availability 本身不伪装成 partial 信号；
+- V3 contracts：新增独立 request/plan/response、city stay、user segment、plan segment/day、request summary，以及住宿/站点/活动/路线引用、跨日连续性、来源与终态 final validation；V3 尚未接入现有 Planning unions；
+- 验证：新增测试最终 `33 passed`；domain/contracts、相邻 legacy/V2 和 fingerprint 定向回归最终 `102 passed`；Ruff format `126 files already formatted`、Ruff lint `All checks passed`、strict mypy `Success: no issues found in 126 source files`；
+- 兼容：legacy 固定 fingerprint `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd` 与 V2 fingerprint 定向测试通过；现有 `PlanningRequest/PlanningPlan/PlanningResponse` 仍只含 legacy/V2；
+- 范围与安全：未修改 Repository/API、SQLite Schema/migration、Provider、前端、fixture、依赖或 lockfile；未创建数据库、读取 `.env.local`/秘密/Provider 配置、调用外部服务或执行 commit/push/PR/merge；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持不变；
+- 未覆盖范围：尚未证明 V3 fingerprint、Repository/SQLite round-trip、同 URI API、replan 写前拒绝、Provider planning、前端或浏览器行为；这些必须等待对应 Step 单独批准。
+
+## F-004B1 Step 1：领域、API、Repository、Provider、UI 与测试设计冻结
+
+- 日期：2026-08-20；结论：`PASS`；用户已明确批准进入 Step 1，本次只完成实现前设计冻结；
+- 事实锚点：读取现有 V2 strict tagged contracts、PlanningJob/Repository typed model、schema/migration 1/2、SQLite TypeAdapter 水合、V2 replan scope 检查和前端单城市 request/response 入口；未发现与已批准任务卡冲突；
+- 领域/架构：冻结独立 V3 request/plan/response 与 `PlanningJobResultV3`、2–3 城/3–7 日、每城至少一晚、累计夜数派生转移日、相邻用户段、每日城市骨架、方式缓冲、预算/来源和五终态；
+- API/兼容：冻结同 URI legacy/V2/V3 callable discriminator、V3 精确字段、三个 `"3"` format tag、canonical fingerprint、稳定 violation/uncertainty code 和 legacy/V2 键集合不变；
+- Repository/SQLite：冻结现有方法集合、typed request/plan/result union、request/result 匹配、schema v2 typed JSON、migration 仅 1/2、旧应用读取 V3 fail closed 和无 migration v3；
+- replan：冻结全部 V3 在 service/reserve/decision/executor/Provider/write 前返回既有 422 `replan_scope_not_supported`，拒绝路径写入和外部调用均为 0；
+- Agent/Provider：冻结用户段 immutable、城市 namespaced POI、确定性排程与终检、resolve≤C、POI≤3C、forecast/alert≤C、generation 1/repair 1、route≤min(28,4D)、两类并发 2、deadline≤180 秒和城际 Provider 调用 0；
+- UI：冻结显式单/多城市模式、2–3 个城市停留卡、相邻段卡、夜数/时间/缓冲错误、V3 结果与离线恢复、V3 无 replan、desktop/390px/键盘/焦点门禁；
+- 测试：冻结 Step 2–7 分层 RED/GREEN、legacy/V2 golden、V3 正负矩阵、schema 1/2 不变、临时 SQLite、loopback synthetic、隐私与调用预算断言；
+- 自动化门禁：文档检查器通过，报告 17 份必需文档、24 个 Markdown 文件及 CI/status/safety contract 有效；检查器自身 24 项 unittest 通过；`git diff --check` 通过；
+- 范围与安全：未修改源码、测试、前端生产文件、fixture、Schema、migration、依赖、lockfile 或数据库；未读取 `.env.local`、秘密或 Provider 配置，未调用真实 Provider或未批准外部服务；
+- Git 边界：HEAD 保持 Step 0 基线，没有 staged change、commit、push、PR、merge 或远程分支；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持不变；
+- 未覆盖范围：未进入 Step 2，没有新增 V3 代码或测试，也没有证明多城市运行、SQLite 往返、Provider 编排、前端或浏览器行为；这些必须等待对应 Step 单独批准。
+
+## F-004B1 Step 0：事实复核、任务激活与治理基线
+
+- 日期：2026-08-20；结论：`PASS`；执行范围仅为 Step 0 文档治理与本地分支创建；
+- Git 基线：修改前 `HEAD == main == origin/main == 1a3e0a050721c72a6e83941f0cb5b2077decb1c7`，工作区干净；从该基线创建本地 `feat/f-004b1-multicity-domain-contracts`；
+- GitHub 事实：CI run `32360800884` 在 `main`/`1a3e0a0` 上 completed/success；PR #13、#16、#17、#18 为 MERGED，#14/#15 为 CLOSED 且无 merge commit，与 F-004A clean-restack 归档记录一致；
+- 任务事实：激活前 `current-task.md` 明确“当前无活动任务”；激活后 roadmap 恰有一个 `ACTIVE` 行，current-task、implementation-plan、progress 和 docs/README 统一指向 F-004B1 Step 1 `TODO`/待批准；
+- 文档结果：完整已批准任务卡、Step 0–8、F-004B1 → F-005 → F-004B2 顺序、D-013 和“核心文件清单 + 受控相邻扩展”已写入当前权威文档；product-brief 的 F-004A“批准但未实现”和 api-contract 的“尚未实现”状态漂移已修正；
+- 自动化门禁：`uv run --project backend --frozen python scripts/check_docs.py --root .` 通过，报告 17 份必需文档、24 个 Markdown 文件及 CI/status/safety contract 有效；文档检查器自身 24 项 unittest 通过；`git diff --check` 通过；
+- 范围证据：diff 只包含批准的治理和当前事实文档；未修改源码、测试、前端、fixture、依赖、lockfile、Schema、migration、数据库或既有归档任务卡；本段仅新增于 evidence 顶部，未改写后续历史证据；
+- 安全证据：未读取 `.env.local`、秘密或 Provider 本地配置，未调用 DeepSeek、高德、和风天气或城际 Provider，未访问未批准外部服务；
+- Git 写入边界：没有 commit、push、PR、merge 或其他远程 Git 写入；
+- 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持不变；
+- 未覆盖范围：未进入 Step 1，没有实现或测试 V3、多城市、城际段、Repository/API、Provider 编排、前端或 SQLite 往返；这些必须等待后续 Step 单独批准。
+
 ## F-004A Step 7：stacked PR、CI、合并与归档
 
 - 最终结论：`PASS`；F-004A Step 0–7 已完成，三层功能、完整功能 main CI 和任务卡归档均已交付；

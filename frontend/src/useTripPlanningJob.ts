@@ -48,6 +48,37 @@ export const DEFAULT_POLLING_POLICY: PollingPolicy = {
   wait: waitForNextPoll,
 };
 
+export const ACTIVE_V3_JOB_STORAGE_KEY = "ita.active-v3-job";
+
+function isVersion3Response(response: TripPlanResponseDto): boolean {
+  return "response_version" in response && response.response_version === "3";
+}
+
+function savedV3JobId(): string | null {
+  try {
+    return window.localStorage.getItem(ACTIVE_V3_JOB_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberV3Job(response: TripPlanResponseDto): void {
+  if (!isVersion3Response(response)) return;
+  try {
+    window.localStorage.setItem(ACTIVE_V3_JOB_STORAGE_KEY, response.job_id);
+  } catch {
+    // Storage is a convenience pointer; the SQLite job remains authoritative.
+  }
+}
+
+function forgetV3Job(): void {
+  try {
+    window.localStorage.removeItem(ACTIVE_V3_JOB_STORAGE_KEY);
+  } catch {
+    // A blocked storage API must not prevent returning to the form.
+  }
+}
+
 const DIRECT_NEXT_STATUS: Record<
   TripPlanResponseDto["status"],
   ReadonlySet<TripPlanResponseDto["status"]>
@@ -184,6 +215,40 @@ export function useTripPlanningJob(
     [api, policy],
   );
 
+  useEffect(() => {
+    const jobId = savedV3JobId();
+    if (!jobId || busy.current) return;
+    busy.current = true;
+    const controller = new AbortController();
+    abortController.current = controller;
+    setState({ phase: "submitting" });
+    void (async () => {
+      try {
+        const response = await api.read(jobId, controller.signal);
+        if (!isVersion3Response(response)) {
+          throw new TripPlanningClientError(
+            "response_invalid",
+            "已保存任务不是可恢复的多城市计划。",
+          );
+        }
+        await track(response, controller);
+      } catch (error) {
+        if (!isAbort(error)) {
+          const safe = asSafeError(error);
+          setState({
+            phase: "error",
+            code: safe.code,
+            message: safe.message,
+            retryable: safe.retryable,
+          });
+        }
+      } finally {
+        busy.current = false;
+      }
+    })();
+    return () => controller.abort();
+  }, [api, track]);
+
   const start = useCallback(
     async (request: TripPlanRequestDto) => {
       if (busy.current) return;
@@ -195,6 +260,7 @@ export function useTripPlanningJob(
 
       try {
         const response = await api.create(request, controller.signal);
+        rememberV3Job(response);
         await track(response, controller);
       } catch (error) {
         if (!isAbort(error)) {
@@ -287,6 +353,7 @@ export function useTripPlanningJob(
   const reset = useCallback(() => {
     abortController.current?.abort();
     busy.current = false;
+    forgetV3Job();
     setState({ phase: "idle" });
   }, []);
 

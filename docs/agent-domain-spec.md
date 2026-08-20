@@ -221,6 +221,37 @@ source freshness、budget risk 或 change-set scope。
 
 Step 4 已按上述边界实现：V2 `PlanningContext` 显式携带完整日期，DeepSeek generation/repair 使用动态 N 日规则且仍各最多一次；应用按请求创建 governor，路线并发、调用预算和 deadline 由代码裁决；天气缺日、候选日期缺失和 unknown 均在本地确定性边界收口。测试只使用 fake/MockTransport，没有把离线证据描述为真实 Provider 质量。
 
+## F-004B1 多城市 Agent 边界（Step 4 已实现）
+
+- 继续使用一个编排 Agent；不按城市拆分 Agent，也不让 LLM 并行拥有独立状态、预算或写入权；
+- V3 进入 Agent 前，应用已冻结城市顺序、每城夜数、住宿要求、派生转移日和用户城际段。LLM 只能为给定日期和给定城市 POI 目录提出活动引用及 priority，不能新增/删除/重排城市或段；
+- 用户段的 mode、站点、出发/到达时间和 fare 是 immutable input fact；generation/repair Prompt 不允许模型改写、补全、估价、验证或推断 availability；
+- V3 proposal 每日必须标注由应用提供的 `departure_city_index/arrival_city_index/overnight_city_index`，只能引用该日允许城市的 namespaced POI ID；非转移日 1–2 项，转移日最多 1 项；
+- proposal 仍不含最终时间、RouteLeg、住宿 location ID、Provider、来源/freshness、费用 confidence、终态或城际 Provider 事实；
+- 应用按城市构造 POI/天气上下文，ID 必须带城市命名空间；跨城市引用、目录外引用、缺日、错城市和改写段字段都进入唯一一次 repair 的安全代码诊断，repair 不接收原始模型输出或用户值；
+- 确定性 scheduler 在 proposal 后注入用户段占用区间和方式缓冲，计算市内路线与活动时间；final validator 再检查城市/日期/住宿/段/地点/路线/预算/来源全集；Agent 无权覆盖 conflict、needs_input 或 failed；
+- user source 的 `unknown_validity` 只表示未核验外部班次/库存，不授权模型补写说明。UI/解释必须引用固定披露文案，不将其表述为 Provider freshness；
+- 若用户 fare 为空，预算保持 unknown；Agent 不估价。若 weather/route/费用不完整，Agent 只能解释确定性代码产生的 partial/uncertainty，不能把其改成 ready；
+- 所有 V3 replan 在进入 Agent 前以 `replan_scope_not_supported` 拒绝，generation、repair、Provider 和 Repository 写入调用计数均为 0。
+
+### 调用预算与并发
+
+- 令 `C=city_count`、`D=day_count`；resolve city ≤ C，POI search ≤ 3C，forecast ≤ C，current alert ≤ C；
+- DeepSeek generation 1、repair 1 是整个 job 的上限，不得按城市分别调用；
+- route 总调用 ≤ `min(28, 4D)`，route 并发 2；城市事实 fan-out 并发 2；整任务 deadline ≤ 180 秒；
+- adapter 内 retry 计入相同 HTTP 次数和 deadline；预算耗尽、deadline 或取消后不得启动新调用，active peer 必须清理；
+- intercity provider call 恒为 0；不得增加通用 HTTP/MCP、铁路/航空/客运 adapter 或读取本地 Provider 配置；
+- 默认 fake/MockTransport 必须能分别断言每城次数、全局模型次数、route 最大并发、deadline 后调用为 0 和取消后 active call 为 0。
+
+### 日志、来源与隐私
+
+- trace 只记录城市索引、工具类别、调用计数、状态、耗时和安全诊断，不记录完整城市/站点/自由文本、完整 Prompt 或城际段原文；
+- 允许持久化 allowlist 的用户城市、住宿、站点、时间和可选 fare；禁止票号、订单号、身份证件、乘客姓名、联系方式、Cookie、Authorization 和 Provider 原始响应；
+- user source 不带 reference URL/provider record ID；attribution 只使用固定“用户提供”，warning 只使用固定“未核验班次、票价、余票或库存”；
+- F-004B1 的 synthetic/fake 证据不得描述为真实城际 Provider、真实票价或 availability UAT。
+
+Step 4 实现保持单 Agent 和单 governor：城市事实 fan-out 与路线并发分别由两个上限为 2 的 semaphore 约束，模型 generation/repair 不按城市倍增。V3 parser 逐日核对三个城市索引和 POI 城市；repair 只接收安全诊断与清除自由文本、兴趣和硬约束后的结构上下文，不接收原始模型输出。deadline 耗尽后不启动首个调用，取消会 cancel/drain 在途 route peer 并使 active 计数归零。所有证据来自 fake/MockTransport 边界，不构成真实 Provider 或城际 availability 证明。
+
 ## 日志与追踪
 
 - `trace_id`：贯穿 API 请求、Agent 阶段、工具调用、计划版本和响应；
