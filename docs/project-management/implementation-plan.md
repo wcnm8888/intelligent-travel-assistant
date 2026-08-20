@@ -268,11 +268,12 @@
 
 - 统一入口最终通过：Ruff format/lint、strict mypy 134 files、backend `1166 passed`、frontend `10 files / 95 passed`、Prettier、ESLint、TypeScript、Vite build、文档检查器 `24 passed` 与 17 required/24 Markdown repository contracts；
 - 四层 Draft PR 已创建：#19 `main → domain-contracts`、#20 `domain-contracts → persistence-api`、#21 `persistence-api → planning`、#22 `planning → ui-delivery`；
-- 最终 head/CI 为 #19 `206bd9c` / `32379371761`、#20 `10f301d` / `32379662820`、#21 `de935c6` / `32379802803`、#22 `9239274` / `32379941695`，全部 `success`；
+- 状态文档收口前的代码交付 head/CI 为 #19 `206bd9c` / `32379371761`、#20 `10f301d` / `32379662820`、#21 `de935c6` / `32379802803`、#22 `9239274` / `32379941695`，全部 `success`；
 - 首轮 #19 `32377941830` 与 #20 `32378099288` 的独立门禁失败已保留：V3 union 和测试辅助模块过早跨层，及第二层执行器未对 V3 fail closed；通过普通追加提交与逐层 merge 修正，未 force-push 或隐藏失败；
 - 四层生产/测试净新增分别为 1679、1393、2120、2497 行，单层文件数不超过 30；累计生产/测试净新增 7689 行，未触发重新切片；
 - 范围、依赖方向、added-line 秘密模式、Schema/migration、依赖/lockfile 和城际 Provider 文件复核通过；独立 review 未发现阻塞 finding；
 - 未读取秘密、调用真实 Provider、修改数据库、标记 PR ready、merge、运行 main CI 或归档。
+- 前层尚未 squash merge，因此 clean-restack 条件未触发；Step 8 如执行 squash 合并，才按冻结规则处理后续层。
 
 ## Step 8：合并、main CI 与归档
 
