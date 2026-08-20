@@ -7,10 +7,11 @@
 - Stack 1：Draft PR #19，base/head `main` / `feat/f-004b1-multicity-domain-contracts`，head `206bd9c3f6176a0cbc1476e3f4f10cc312e2f361`，最终 CI run `32379371761`=`PASS`；生产/测试 9 文件、净新增 1679 行；
 - Stack 2：Draft PR #20，base/head 为 Stack 1 / `feat/f-004b1-multicity-persistence-api`，head `10f301d1a94b0ec7b87b043a9e11d0715d8570d4`，最终 CI run `32379662820`=`PASS`；生产/测试 21 文件、净新增 1393 行；
 - Stack 3：Draft PR #21，base/head 为 Stack 2 / `feat/f-004b1-multicity-planning`，head `de935c67f9e7d2daf993447758a56b622a492195`，最终 CI run `32379802803`=`PASS`；生产/测试 10 文件、净新增 2120 行；
-- Stack 4：Draft PR #22，base/head 为 Stack 3 / `feat/f-004b1-multicity-ui-delivery`，head `923927449da68517d8edf91c0d411949ff141fa2`，最终 CI run `32379941695`=`PASS`；生产/测试 14 文件、`+2644/-147`、净新增 2497 行，另含 13 份已批准当前文档；
+- Stack 4：Draft PR #22，base/head 为 Stack 3 / `feat/f-004b1-multicity-ui-delivery`；状态文档收口前的代码交付 head `923927449da68517d8edf91c0d411949ff141fa2`，CI run `32379941695`=`PASS`；生产/测试 14 文件、`+2644/-147`、净新增 2497 行，另含 13 份已批准当前文档；
 - 失败透明度：首轮 #19 run `32377941830` 与 #20 run `32378099288` 为 `FAIL`；根因是 V3 Planning unions 和 union 测试过早落入领域层、测试包化改变旧 helper import，以及持久化层尚未对 V3 planning fail closed。追加提交 `206bd9c`/`10f301d` 修正层级，随后以普通 merge 传播到 #21/#22；没有 amend、rebase、force-push 或隐藏失败；首轮 #21 `32378139822` 与 #22 `32378757080` 原本已成功；
 - 范围审计：四层均满足单层 ≤30 个生产/测试文件且净新增 ≤2500 行；累计生产/测试净新增 7689 行，小于 8000。未修改 Schema/migration、依赖/lockfile，未新增城际 Provider/adapter；added-line 秘密模式无命中，唯一新增外部 URL 是测试 fixture 的 `https://example.com/ticket`；独立 review 未发现阻塞 finding；
 - 安全边界：没有读取 `.env.local`、秘密或本地 Provider 配置，没有调用 DeepSeek、高德、和风、城际 Provider 或非批准服务；没有创建或修改业务数据库；四个 PR 保持 Draft 且未 merge；
+- clean-restack：前层未发生 squash merge，触发条件不存在；本 Step 只用普通追加提交和逐层 merge，后续层重建/移植保留给获批的 Step 8；
 - 保留边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持；
 - 下一动作：等待用户明确批准 Step 8；不得自动标记 PR ready、按序 merge、clean-restack、运行 main CI、创建 F-004B1 归档卡或关闭任务。
 
