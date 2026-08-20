@@ -185,6 +185,9 @@ class PlanningContext:
     activity_source_ids: tuple[UUID, ...] = ()
     request_version: str | None = None
     expected_dates: tuple[date, ...] = ()
+    city_adcodes: tuple[str, ...] = ()
+    day_city_indices: tuple[tuple[int, int, int], ...] = ()
+    accommodations: tuple[PlanningLocation, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,6 +219,9 @@ class ActivitySelection:
 class ProposalDay:
     local_date: date
     selections: tuple[ActivitySelection, ...]
+    departure_city_index: int | None = None
+    arrival_city_index: int | None = None
+    overnight_city_index: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

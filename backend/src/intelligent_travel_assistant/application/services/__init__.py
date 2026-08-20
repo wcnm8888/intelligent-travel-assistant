@@ -1,5 +1,8 @@
 """Application use cases composed from typed ports and deterministic rules."""
 
+from intelligent_travel_assistant.application.services.multicity_planning import (
+    MultiCityPlanningOrchestrator,
+)
 from intelligent_travel_assistant.application.services.offline_planning import (
     OfflinePlanningOrchestrator,
     OfflinePlanningOutcome,
@@ -16,6 +19,7 @@ __all__ = [
     "OfflinePlanningOrchestrator",
     "OfflinePlanningOutcome",
     "OfflinePlanningRequest",
+    "MultiCityPlanningOrchestrator",
     "ProviderPlanningJobExecutor",
     "ProviderNeutralReplanExecutor",
 ]

@@ -100,12 +100,57 @@ def multiday_tool_call_policies(
     return MappingProxyType(values)
 
 
+def multicity_task_timeout_seconds(*, city_count: int, day_count: int) -> float:
+    """Return the frozen upper deadline for one V3 multi-city request."""
+
+    _require_city_count(city_count)
+    _require_multicity_day_count(day_count, city_count=city_count)
+    return 180.0
+
+
+def multicity_tool_call_policies(
+    *,
+    city_count: int,
+    day_count: int,
+) -> Mapping[ToolCallCapability, ToolCallPolicy]:
+    """Scale city-scoped facts while keeping model calls global and bounded."""
+
+    _require_city_count(city_count)
+    _require_multicity_day_count(day_count, city_count=city_count)
+    values = dict(DEFAULT_TOOL_CALL_POLICIES)
+    for capability, maximum in (
+        (ToolCallCapability.RESOLVE_CITY, city_count),
+        (ToolCallCapability.SEARCH_POIS, 3 * city_count),
+        (ToolCallCapability.GET_WEATHER_FORECAST, city_count),
+        (ToolCallCapability.GET_CURRENT_WEATHER_ALERTS, city_count),
+        (ToolCallCapability.CALCULATE_ROUTES, min(28, 4 * day_count)),
+    ):
+        legacy = values[capability]
+        values[capability] = ToolCallPolicy(
+            maximum,
+            legacy.timeout_seconds,
+            legacy.allowed_statuses,
+        )
+    return MappingProxyType(values)
+
+
 def _require_day_count(day_count: object) -> None:
     if (
         not isinstance(day_count, int)
         or isinstance(day_count, bool)
         or not MIN_TRIP_DAYS <= day_count <= MAX_TRIP_DAYS
     ):
+        raise ValueError("day_count_invalid")
+
+
+def _require_city_count(city_count: object) -> None:
+    if type(city_count) is not int or not 2 <= city_count <= 3:
+        raise ValueError("city_count_invalid")
+
+
+def _require_multicity_day_count(day_count: object, *, city_count: int) -> None:
+    minimum = city_count + 1
+    if type(day_count) is not int or not minimum <= day_count <= MAX_TRIP_DAYS:
         raise ValueError("day_count_invalid")
 
 
