@@ -35,7 +35,7 @@ from intelligent_travel_assistant.application.state_machine import (
     PlanningTransitionError,
     PlanningTransitionTrigger,
 )
-from intelligent_travel_assistant.contracts import PlanningStatus, TripPlanRequest
+from intelligent_travel_assistant.contracts import PlanningRequest, PlanningStatus
 from intelligent_travel_assistant.domain.replanning import (
     AdjustActivityTime,
     DeleteActivity,
@@ -66,7 +66,7 @@ class InMemoryPlanningJobRepository:
         self._job_id_by_client_request_id: dict[UUID, UUID] = {}
         self._used_ids: set[UUID] = set()
 
-    async def get_or_create(self, request: TripPlanRequest) -> PlanningJobReservation:
+    async def get_or_create(self, request: PlanningRequest) -> PlanningJobReservation:
         fingerprint = request_fingerprint(request)
         async with self._lock:
             existing_job_id = self._job_id_by_client_request_id.get(request.client_request_id)

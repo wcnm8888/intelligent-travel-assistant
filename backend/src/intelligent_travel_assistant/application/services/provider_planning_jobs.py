@@ -49,6 +49,9 @@ from intelligent_travel_assistant.contracts import (
     LocationRef,
     Money,
     PlanDay,
+    PlanDayV2,
+    PlanningPlan,
+    PlanningRequest,
     PlanningStatus,
     ProviderName,
     ResolvedDestination,
@@ -57,7 +60,8 @@ from intelligent_travel_assistant.contracts import (
     SourceRecord,
     TransportMode,
     TripPlan,
-    TripPlanRequest,
+    TripPlanRequestV2,
+    TripPlanV2,
     Uncertainty,
     ViolationSeverity,
     WeatherAlert,
@@ -67,6 +71,7 @@ from intelligent_travel_assistant.domain import (
     BudgetCostItem,
     DailyAvailability,
     DomainInvariantError,
+    MultiDayTripRequestInput,
     ProviderResult,
     TripRequestInput,
     evaluate_freshness,
@@ -84,14 +89,12 @@ from intelligent_travel_assistant.domain import (
     RouteMode as DomainRouteMode,
 )
 
-_EVALUATION_GRACE = timedelta(seconds=91)
-
 _ISSUE_MESSAGES = {
     FinalValidationIssueCode.SCHEDULE_CONFLICT: "活动时间与可用时间窗口冲突。",
     FinalValidationIssueCode.ROUTE_INCOMPLETE: "部分路线缺失，交通时间尚未完整验证。",
     FinalValidationIssueCode.ROUTE_RESULT_INVALID: "部分路线结果未通过确定性引用校验。",
     FinalValidationIssueCode.ROUTE_CONFLICT: "路线时长与当天活动安排存在冲突。",
-    FinalValidationIssueCode.WEATHER_INCOMPLETE: "双日天气数据不完整。",
+    FinalValidationIssueCode.WEATHER_INCOMPLETE: "{trip_day_label}天气数据不完整。",
     FinalValidationIssueCode.BUDGET_INDETERMINATE: "存在未知费用，完整预算无法判定。",
     FinalValidationIssueCode.BUDGET_EXCEEDED: "已知费用超过用户总预算。",
     FinalValidationIssueCode.SOURCE_REFERENCE_INVALID: "计划中的来源引用未通过校验。",
@@ -231,21 +234,35 @@ class ProviderPlanningJobExecutor:
 
 
 def _offline_request(
-    request: TripPlanRequest,
+    request: PlanningRequest,
     *,
     job_id: UUID,
     evaluated_at: datetime,
 ) -> OfflinePlanningRequest:
-    end_date = request.start_date + timedelta(days=1)
-    trip = TripRequestInput(
-        city=request.city,
-        start_date=request.start_date,
-        end_date=end_date,
-        travelers=request.travelers,
-        interests=request.preferences.interests,
-        free_text=request.preferences.free_text,
-        evaluated_at=evaluated_at,
-    )
+    trip: TripRequestInput | MultiDayTripRequestInput
+    if isinstance(request, TripPlanRequestV2):
+        end_date = request.end_date
+        trip = MultiDayTripRequestInput(
+            city=request.city,
+            start_date=request.start_date,
+            end_date=end_date,
+            travelers=request.travelers,
+            interests=request.preferences.interests,
+            free_text=request.preferences.free_text,
+            evaluated_at=evaluated_at,
+        )
+    else:
+        end_date = request.start_date + timedelta(days=1)
+        trip = TripRequestInput(
+            city=request.city,
+            start_date=request.start_date,
+            end_date=end_date,
+            travelers=request.travelers,
+            interests=request.preferences.interests,
+            free_text=request.preferences.free_text,
+            evaluated_at=evaluated_at,
+        )
+    day_count = (end_date - request.start_date).days + 1
     user_source_id = _id(job_id, "source:user")
     system_source_id = _id(job_id, "source:system")
     costs = (
@@ -255,6 +272,7 @@ def _offline_request(
             DomainCostCategory.ACCOMMODATION,
             request.accommodation.one_night_cost,
             user_source_id,
+            multiplier=day_count - 1,
         ),
         _request_cost(
             job_id,
@@ -268,9 +286,9 @@ def _offline_request(
             DomainCostCategory.MEAL,
             DomainCostConfidence.ESTIMATED,
             DomainMoney(
-                (request.meal_budget_per_person_per_day.amount * request.travelers * 2).quantize(
-                    Decimal("0.01")
-                )
+                (
+                    request.meal_budget_per_person_per_day.amount * request.travelers * day_count
+                ).quantize(Decimal("0.01"))
             ),
             (system_source_id,),
         ),
@@ -300,7 +318,7 @@ def _offline_request(
         weather_location_id=None,
         poi_keywords=keywords,
         poi_categories=("scenic_area", "museum"),
-        poi_limit=6,
+        poi_limit=min(20, max(6, 2 * day_count + 2)),
         route_mode=route_mode,
         accommodation=None,
         day_windows=tuple(
@@ -308,7 +326,7 @@ def _offline_request(
             for item in request.day_windows
         ),
         cost_items=costs,
-        evaluated_at=evaluated_at + _EVALUATION_GRACE,
+        evaluated_at=evaluated_at + _evaluation_grace(day_count),
         accommodation_query=request.accommodation.area_or_poi,
         derive_local_transport_cost=True,
         fallback_route_modes=fallback_route_modes,
@@ -321,6 +339,8 @@ def _request_cost(
     category: DomainCostCategory,
     value: Money | None,
     user_source_id: UUID,
+    *,
+    multiplier: int = 1,
 ) -> BudgetCostItem:
     if value is None:
         return BudgetCostItem(
@@ -333,7 +353,7 @@ def _request_cost(
         _id(job_id, f"cost:{name}"),
         category,
         DomainCostConfidence.USER_PROVIDED,
-        DomainMoney(value.amount),
+        DomainMoney((value.amount * multiplier).quantize(Decimal("0.01"))),
         (user_source_id,),
     )
 
@@ -352,7 +372,7 @@ def _candidate_diagnostic_code(
 
 def _planning_result(
     outcome: OfflinePlanningOutcome,
-    request: TripPlanRequest,
+    request: PlanningRequest,
     *,
     job_id: UUID,
     evaluated_at: datetime,
@@ -474,9 +494,13 @@ def _planning_result(
         )
 
     validation = outcome.final_validation
-    violations, validation_uncertainties = _issues(validation.issues)
+    trip_day_label = _trip_day_label(request)
+    violations, validation_uncertainties = _issues(
+        validation.issues,
+        trip_day_label=trip_day_label,
+    )
     uncertainties = (*scheduling_uncertainties, *validation_uncertainties)
-    plan = _plan(outcome, request, job_id=job_id)
+    plan = _plan(outcome, request, job_id=job_id, trip_day_label=trip_day_label)
     model_warnings = (
         tuple(outcome.candidate_result.data.warnings)
         if (outcome.candidate_result is not None and outcome.candidate_result.data is not None)
@@ -513,10 +537,11 @@ def _destination(outcome: OfflinePlanningOutcome) -> ResolvedDestination | None:
 
 def _plan(
     outcome: OfflinePlanningOutcome,
-    request: TripPlanRequest,
+    request: PlanningRequest,
     *,
     job_id: UUID,
-) -> TripPlan:
+    trip_day_label: str,
+) -> PlanningPlan:
     assert outcome.city_result is not None and outcome.city_result.data is not None
     assert outcome.poi_result is not None and outcome.poi_result.data is not None
     assert outcome.candidate_result is not None and outcome.candidate_result.data is not None
@@ -526,6 +551,49 @@ def _plan(
     locations = _locations(outcome, candidate, job_id=job_id)
     weather_by_date = _weather(outcome)
     routes_by_day = _routes(outcome, job_id=job_id)
+    budget = outcome.final_validation.budget
+    budget_summary = BudgetSummary(
+        budget=Money(amount=budget.budget.amount),
+        known_total=Money(amount=budget.known_total.amount),
+        unknown_count=budget.unknown_count,
+        assessment=BudgetAssessment(budget.assessment.value),
+        cost_items=tuple(
+            _cost_item(item, job_id=job_id, trip_day_label=trip_day_label)
+            for item in budget.cost_items
+        ),
+    )
+    if isinstance(request, TripPlanRequestV2):
+        days_v2 = tuple(
+            PlanDayV2(
+                local_date=day.local_date,
+                accommodation_location_id=outcome.accommodation.location_id,
+                activities=tuple(
+                    ItineraryItem(
+                        item_id=_id(job_id, f"activity:{day_offset}:{index}:{item.location_id}"),
+                        location_id=item.location_id,
+                        title=item.title,
+                        start_time=item.start_time,
+                        end_time=item.end_time,
+                        source_ids=item.source_ids,
+                    )
+                    for index, item in enumerate(day.activities)
+                ),
+                routes=routes_by_day[day_offset],
+                weather=weather_by_date.get(day.local_date),
+            )
+            for day_offset, day in enumerate(candidate.days)
+        )
+        return TripPlanV2(
+            plan_format_version="2",
+            plan_id=_id(job_id, "plan"),
+            city_adcode=outcome.city_result.data.adcode,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            locations=locations,
+            days=days_v2,
+            budget_summary=budget_summary,
+        )
+
     days = tuple(
         PlanDay(
             local_date=day.local_date,
@@ -546,7 +614,6 @@ def _plan(
         )
         for day_offset, day in enumerate(candidate.days)
     )
-    budget = outcome.final_validation.budget
     return TripPlan(
         plan_id=_id(job_id, "plan"),
         city_adcode=outcome.city_result.data.adcode,
@@ -554,14 +621,12 @@ def _plan(
         end_date=request.start_date + timedelta(days=1),
         locations=locations,
         days=days,
-        budget_summary=BudgetSummary(
-            budget=Money(amount=budget.budget.amount),
-            known_total=Money(amount=budget.known_total.amount),
-            unknown_count=budget.unknown_count,
-            assessment=BudgetAssessment(budget.assessment.value),
-            cost_items=tuple(_cost_item(item, job_id=job_id) for item in budget.cost_items),
-        ),
+        budget_summary=budget_summary,
     )
+
+
+def _evaluation_grace(day_count: int) -> timedelta:
+    return timedelta(seconds=min(180, 90 + 18 * (day_count - 2)) + 1)
 
 
 def _locations(
@@ -633,8 +698,15 @@ def _routes(
     outcome: OfflinePlanningOutcome,
     *,
     job_id: UUID,
-) -> tuple[tuple[RouteLeg, ...], tuple[RouteLeg, ...]]:
-    grouped: list[list[RouteLeg]] = [[], []]
+) -> tuple[tuple[RouteLeg, ...], ...]:
+    day_count = (
+        max(
+            (item.day_offset for item in outcome.route_enrichments),
+            default=-1,
+        )
+        + 1
+    )
+    grouped: list[list[RouteLeg]] = [[] for _ in range(day_count)]
     for index, item in enumerate(outcome.route_enrichments):
         if item.request is None or item.result is None or item.result.data is None:
             continue
@@ -656,7 +728,7 @@ def _routes(
                 source_ids=route.source_ids,
             )
         )
-    return tuple(grouped[0]), tuple(grouped[1])
+    return tuple(tuple(items) for items in grouped)
 
 
 def _weather(outcome: OfflinePlanningOutcome) -> dict[object, WeatherSnapshot]:
@@ -692,7 +764,7 @@ def _weather(outcome: OfflinePlanningOutcome) -> dict[object, WeatherSnapshot]:
     }
 
 
-def _cost_item(item: BudgetCostItem, *, job_id: UUID) -> CostItem:
+def _cost_item(item: BudgetCostItem, *, job_id: UUID, trip_day_label: str) -> CostItem:
     descriptions = {
         DomainCostCategory.ACCOMMODATION: "用户提供的一晚住宿费用"
         if item.amount
@@ -704,7 +776,7 @@ def _cost_item(item: BudgetCostItem, *, job_id: UUID) -> CostItem:
         if item.amount and item.amount.amount
         else "步行路线按 0 元计算",
         DomainCostCategory.TICKET: "门票费用缺少可靠来源",
-        DomainCostCategory.MEAL: "按用户每日餐饮预算计算的两日估算",
+        DomainCostCategory.MEAL: f"按用户每日餐饮预算计算的{trip_day_label}估算",
         DomainCostCategory.OTHER: "其他费用",
     }
     source_ids = item.source_ids
@@ -828,12 +900,14 @@ def _provider_errors(
 
 def _issues(
     issues: tuple[FinalValidationIssue, ...],
+    *,
+    trip_day_label: str,
 ) -> tuple[tuple[ConstraintViolation, ...], tuple[Uncertainty, ...]]:
     violations = tuple(
         ConstraintViolation(
             code=item.code.value,
             severity=ViolationSeverity.ERROR,
-            message=_ISSUE_MESSAGES[item.code],
+            message=_ISSUE_MESSAGES[item.code].format(trip_day_label=trip_day_label),
         )
         for item in issues
         if item.severity is FinalValidationSeverity.CONFLICT
@@ -841,12 +915,18 @@ def _issues(
     uncertainties = tuple(
         Uncertainty(
             code=item.code.value,
-            message=_ISSUE_MESSAGES[item.code],
+            message=_ISSUE_MESSAGES[item.code].format(trip_day_label=trip_day_label),
         )
         for item in issues
         if item.severity is FinalValidationSeverity.PARTIAL
     )
     return violations, uncertainties
+
+
+def _trip_day_label(request: PlanningRequest) -> str:
+    if isinstance(request, TripPlanRequestV2):
+        return f"{request.day_count}日"
+    return "两日"
 
 
 def _coordinates(value: object) -> Coordinates | None:

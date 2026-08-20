@@ -12,6 +12,8 @@ from intelligent_travel_assistant.application.tooling.governance import (
     ToolCallPolicy,
     ToolCallRecord,
     ToolCallSnapshot,
+    multiday_task_timeout_seconds,
+    multiday_tool_call_policies,
 )
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "ToolCallPolicy",
     "ToolCallRecord",
     "ToolCallSnapshot",
+    "multiday_task_timeout_seconds",
+    "multiday_tool_call_policies",
 ]

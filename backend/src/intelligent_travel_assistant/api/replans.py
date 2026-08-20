@@ -50,6 +50,7 @@ from intelligent_travel_assistant.contracts import (
     ReplanRequest,
     ReplanResponse,
     ReplanSourceActionResponse,
+    TripPlanRequestV2,
 )
 from intelligent_travel_assistant.domain import (
     AdjustActivityTime,
@@ -82,9 +83,12 @@ def create_replan_router(
         response: Response,
         background_tasks: BackgroundTasks,
     ) -> ReplanResponse:
-        application = _require_service(service)
         identifier = _identifier(job_id, job=True)
         try:
+            job = await planning_jobs.get(identifier)
+            if isinstance(job.request, TripPlanRequestV2) and job.request.day_count > 2:
+                raise replan_scope_not_supported_error()
+            application = _require_service(service)
             result = await application.create(
                 ReplanApplicationRequest(
                     identifier,

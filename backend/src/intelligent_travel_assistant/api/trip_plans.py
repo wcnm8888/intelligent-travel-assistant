@@ -21,15 +21,51 @@ from intelligent_travel_assistant.application.repositories import (
 )
 from intelligent_travel_assistant.contracts import (
     ApiErrorResponse,
+    PlanningRequest,
+    PlanningResponse,
     TripPlanRequest,
+    TripPlanRequestV2,
     TripPlanResponse,
+    TripPlanResponseV2,
+    TripPlanV2,
     TripRequestSummary,
+    TripRequestSummaryV2,
 )
 
 
-def _job_response(job: PlanningJob) -> TripPlanResponse:
+def _job_response(job: PlanningJob) -> PlanningResponse:
     request = job.request
     result = job.result
+    if isinstance(request, TripPlanRequestV2):
+        plan = result.plan if result is not None else None
+        if plan is not None and not isinstance(plan, TripPlanV2):
+            raise ValueError("stored_plan_format_mismatch")
+        return TripPlanResponseV2(
+            response_version="2",
+            job_id=job.job_id,
+            trace_id=job.trace_id,
+            client_request_id=job.client_request_id,
+            status=job.status,
+            attempt=job.attempt,
+            request_summary=TripRequestSummaryV2(
+                request_version="2",
+                city=request.city,
+                start_date=request.start_date,
+                end_date=request.end_date,
+                travelers=request.travelers,
+                budget=request.total_budget,
+            ),
+            resolved_destination=(result.resolved_destination if result is not None else None),
+            plan=plan,
+            violations=result.violations if result is not None else (),
+            warnings=result.warnings if result is not None else (),
+            uncertainties=result.uncertainties if result is not None else (),
+            sources=result.sources if result is not None else (),
+            errors=result.errors if result is not None else (),
+            retryable=job.retryable,
+            created_at=job.created_at,
+            updated_at=job.updated_at,
+        )
     return TripPlanResponse(
         job_id=job.job_id,
         trace_id=job.trace_id,
@@ -74,7 +110,7 @@ def create_trip_plan_router(
     @router.post(
         "",
         status_code=status.HTTP_202_ACCEPTED,
-        response_model=TripPlanResponse,
+        response_model=PlanningResponse,
         responses={
             409: {"model": ApiErrorResponse},
             422: {"model": ApiErrorResponse},
@@ -83,10 +119,10 @@ def create_trip_plan_router(
         summary="Create or reuse a local planning job",
     )
     async def create_trip_plan(
-        request: TripPlanRequest,
+        request: PlanningRequest,
         response: Response,
         background_tasks: BackgroundTasks,
-    ) -> TripPlanResponse:
+    ) -> PlanningResponse:
         try:
             reservation = await repository.get_or_create(request)
             result = _job_response(reservation.job)
@@ -94,21 +130,21 @@ def create_trip_plan_router(
             raise repository_http_error(error, operation="create") from None
         except Exception:
             raise internal_error() from None
-        if reservation.created and executor is not None:
+        if reservation.created and executor is not None and isinstance(request, TripPlanRequest):
             background_tasks.add_task(executor.execute, reservation.job.job_id)
         response.headers["Location"] = f"/api/trip-plans/{result.job_id}"
         return result
 
     @router.get(
         "/{job_id}",
-        response_model=TripPlanResponse,
+        response_model=PlanningResponse,
         responses={
             404: {"model": ApiErrorResponse},
             500: {"model": ApiErrorResponse},
         },
         summary="Read a local planning job",
     )
-    async def get_trip_plan(job_id: str) -> TripPlanResponse:
+    async def get_trip_plan(job_id: str) -> PlanningResponse:
         identifier = _job_id(job_id)
         try:
             job = await repository.get(identifier)
@@ -144,7 +180,7 @@ def create_trip_plan_router(
     @router.post(
         "/{job_id}/retry",
         status_code=status.HTTP_202_ACCEPTED,
-        response_model=TripPlanResponse,
+        response_model=PlanningResponse,
         responses={
             404: {"model": ApiErrorResponse},
             409: {"model": ApiErrorResponse},
@@ -156,7 +192,7 @@ def create_trip_plan_router(
         job_id: str,
         response: Response,
         background_tasks: BackgroundTasks,
-    ) -> TripPlanResponse:
+    ) -> PlanningResponse:
         identifier = _job_id(job_id)
         try:
             current = await repository.get(identifier)
@@ -168,7 +204,7 @@ def create_trip_plan_router(
             raise
         except Exception:
             raise internal_error() from None
-        if executor is not None:
+        if executor is not None and isinstance(job.request, TripPlanRequest):
             background_tasks.add_task(executor.execute, job.job_id)
         response.headers["Location"] = f"/api/trip-plans/{result.job_id}"
         return result

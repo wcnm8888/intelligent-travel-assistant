@@ -216,6 +216,58 @@ async def test_forecast_uses_current_daily_endpoint_jwt_and_filters_requested_da
 
 
 @pytest.mark.anyio
+async def test_forecast_selects_one_continuous_seven_day_request_with_one_call() -> None:
+    observed: list[httpx2.Request] = []
+    start = date(2026, 8, 15)
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        observed.append(request)
+        return httpx2.Response(
+            200,
+            json=_forecast_response(*(_day(start + timedelta(days=offset)) for offset in range(7))),
+        )
+
+    result = await _adapter(httpx2.MockTransport(handler)).get_weather_forecast(
+        WeatherForecastRequest(LOCATION_ID, COORDINATES, start, start + timedelta(days=6))
+    )
+
+    assert result.status is ProviderResultStatus.OK
+    assert result.data is not None
+    assert tuple(item.forecast_date for item in result.data.days) == tuple(
+        start + timedelta(days=offset) for offset in range(7)
+    )
+    assert len(observed) == 1
+
+
+@pytest.mark.anyio
+async def test_seven_day_forecast_missing_middle_date_is_partial_without_refill() -> None:
+    observed: list[httpx2.Request] = []
+    start = date(2026, 8, 15)
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        observed.append(request)
+        return httpx2.Response(
+            200,
+            json=_forecast_response(
+                *(_day(start + timedelta(days=offset)) for offset in range(7) if offset != 3)
+            ),
+        )
+
+    result = await _adapter(httpx2.MockTransport(handler)).get_weather_forecast(
+        WeatherForecastRequest(LOCATION_ID, COORDINATES, start, start + timedelta(days=6))
+    )
+
+    assert result.status is ProviderResultStatus.PARTIAL
+    assert result.data is not None
+    assert tuple(item.forecast_date for item in result.data.days) == tuple(
+        start + timedelta(days=offset) for offset in range(7) if offset != 3
+    )
+    assert result.error is not None
+    assert result.error.category is ProviderErrorCategory.EMPTY_RESULT
+    assert len(observed) == 1
+
+
+@pytest.mark.anyio
 async def test_current_alert_request_uses_latitude_then_longitude_and_maps_alert() -> None:
     observed: list[httpx2.Request] = []
 
@@ -470,7 +522,7 @@ async def test_transport_json_and_size_failures_are_safe() -> None:
             _forecast_request(),
             coordinates=Coordinates(Decimal("120"), Decimal("30"), CoordinateSystem.WGS84),
         ),
-        replace(_forecast_request(), end_date=date(2026, 8, 17)),
+        replace(_forecast_request(), end_date=date(2026, 8, 22)),
         cast(WeatherForecastRequest, object()),
     ],
 )

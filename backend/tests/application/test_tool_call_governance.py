@@ -15,6 +15,8 @@ from intelligent_travel_assistant.application.tooling import (
     ToolCallGovernanceError,
     ToolCallGovernanceErrorCode,
     ToolCallGovernor,
+    multiday_task_timeout_seconds,
+    multiday_tool_call_policies,
 )
 from intelligent_travel_assistant.contracts import PlanningStatus
 
@@ -94,6 +96,52 @@ def test_approved_policy_values_are_frozen(
 def test_total_timeout_and_route_concurrency_are_frozen_approved_values() -> None:
     assert TASK_TIMEOUT_SECONDS == 90.0
     assert ROUTE_CONCURRENCY_LIMIT == 2
+
+
+@pytest.mark.parametrize(
+    ("day_count", "route_calls", "task_timeout"),
+    ((2, 8, 90.0), (3, 12, 108.0), (7, 28, 180.0)),
+)
+def test_multiday_policy_scales_only_route_budget_and_total_deadline(
+    day_count: int,
+    route_calls: int,
+    task_timeout: float,
+) -> None:
+    policies = multiday_tool_call_policies(day_count)
+
+    assert policies[ToolCallCapability.CALCULATE_ROUTES].max_calls == route_calls
+    assert multiday_task_timeout_seconds(day_count) == task_timeout
+    assert {
+        capability: policy
+        for capability, policy in policies.items()
+        if capability is not ToolCallCapability.CALCULATE_ROUTES
+    } == {
+        capability: policy
+        for capability, policy in DEFAULT_TOOL_CALL_POLICIES.items()
+        if capability is not ToolCallCapability.CALCULATE_ROUTES
+    }
+
+
+def test_configured_multiday_governor_enforces_its_own_limits() -> None:
+    governor = ToolCallGovernor(
+        clock=ManualClock(),
+        policies=multiday_tool_call_policies(3),
+        task_timeout_seconds=multiday_task_timeout_seconds(3),
+    )
+
+    for _ in range(12):
+        permit = governor.reserve(
+            ToolCallCapability.CALCULATE_ROUTES,
+            PlanningStatus.ENRICHING_ROUTES,
+        )
+        governor.complete(permit)
+
+    with pytest.raises(ToolCallGovernanceError) as raised:
+        governor.reserve(
+            ToolCallCapability.CALCULATE_ROUTES,
+            PlanningStatus.ENRICHING_ROUTES,
+        )
+    assert raised.value.code is ToolCallGovernanceErrorCode.CALL_BUDGET_EXHAUSTED
 
 
 def test_unknown_string_is_rejected_before_it_can_be_treated_as_a_tool() -> None:
