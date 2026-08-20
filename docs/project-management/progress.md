@@ -2,117 +2,119 @@
 
 ## 当前状态
 
-- 当前任务：无
-- 最近完成：`F-004A 单城市 2–7 日计划扩展`
-- 任务状态：`DELIVERED / ARCHIVED`
-- Step 状态：Step 0–7 全部 `DONE`
-- 交付 PR：#13、#16、#17；#14/#15 被 clean-restacked PR 替代并关闭
-- 完整功能 main：`583e9da34b0d45e84a65da620cbb5d5fa8330a3c`
-- main CI：run `32359762190`=`PASS`
-- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
-
-## Step 7 本地交付门禁
-
-- 用户已批准修复 Step 7 范围内缺陷、复跑门禁和 UAT，并继续三层 stacked PR、CI、依序合并及归档；只有真正越过冻结边界时暂停；
-- 修复并锁定 3–7 日 replan 在任何 reservation/decision/executor 写入前拒绝、proposal priority 顺序、V2 日数文案、SQLite retry/source 唯一性、五终态恢复、日期导航焦点和长文本窄屏换行；
-- 最终统一门禁通过：后端 `1101 passed`、前端 `88 passed`、文档检查器 `24 passed`，并通过 Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、依赖锁和文档契约；
-- loopback synthetic UAT 覆盖 3 日 ready、7 日 partial/unknown 和 2 日 V2 ready/replan；`390×844` 无水平溢出，日期跳转焦点和可访问名称正确，控制台 0 error/0 warning；
-- UAT 未调用真实 Provider、未读取秘密、未创建真实业务数据库；临时 SQLite 位于系统临时目录，进程和浏览器会话已按精确 PID/会话关闭；
-- 三层已依序合并；#14/#15 因层间测试依赖和 squash ancestry 由 #16/#17 clean restack 替代，无 force-push；完整功能 main CI run `32359762190` 通过，任务卡已归档。
+- 当前任务：`F-004B1 多城市领域、用户提供的城际段与离线约束`
+- 任务状态：`ACTIVE / APPROVED`
+- 当前 Step：`Step 8 - 合并、main CI 与归档`，状态 `TODO`
+- Step 0–7：`DONE`
+- 当前分支：`feat/f-004b1-multicity-ui-delivery`
+- 当前基线：`1a3e0a050721c72a6e83941f0cb5b2077decb1c7`
+- 下一批准动作：Step 8；不得自动进入
 
 ## Step 0 完成摘要
 
-- B-000、F-001、F-002、F-003 归档事实已核对；F-001 仍为 `PARTIAL`；
-- Step 45M 真实 `FAIL`、Step 45T 真实 `PASS`、unknown 不按 0 和混合交通 fallback 仅离线证据均未改变；
-- F-002/F-003 数据已位于 schema version 2；F-004A 默认不做 migration v3；
-- F-004 已拆为已激活的 F-004A 和仍为候选的 F-004B；多城市与城际 Provider 不在当前任务；
-- 当前双日硬编码和可复用领域/Repository/SQLite/Provider/UI 边界已完成只读审计；
-- 已修正 AGENTS 应用现状、F-003 design 状态、D-011 状态和过期 Git/CI 当前指针；
-- F-004A 完整任务卡、Step 0–7、停止条件、阶段化允许文件和三层 clean-restack 规则已建立；
-- Step 0 只修改获批治理/长期文档，没有源码、测试、数据库、依赖、环境或前端变化；
-- 未读取 `.env.local` 或秘密，未调用真实 Provider，未访问非 loopback 网络，未创建分支或远程写入。
+- 已复核 `main == origin/main == HEAD`，基线为 F-004A 归档提交 `1a3e0a0`，修改前工作区干净；
+- 已复核 PR #13/#16/#17/#18 合并、PR #14/#15 clean-restack 替代关闭，以及 main CI run `32360800884` 成功；
+- 已确认激活前 current-task 没有活动任务；
+- 已写入已批准 F-004B1 完整任务卡和 Step 0–8 计划；
+- roadmap 已按 F-004B1 → F-005 → F-004B2 拆分排序，且只有 F-004B1 为 ACTIVE；
+- product-brief 和 api-contract 的 F-004A 当前状态漂移已修正；
+- 已新增 D-013 决策入口，并建立“核心文件清单 + 受控相邻扩展”治理；
+- 已从干净 main 创建本地首层分支；
+- 未提交、push、创建 PR 或 merge；未修改源码、测试、Schema、migration、依赖、lockfile、fixture 或数据库；
+- 未读取 `.env.local`、秘密或本地 Provider 配置，未调用真实 Provider 或访问未批准外部服务。
 
 ## 当前产品与技术边界
 
-- 单城市、连续 2–7 日、每日最多 2 项、一个住宿锚点；
-- 旧双日 request/response/fingerprint/计划数据/replan 必须兼容；新请求使用严格 version 2；
-- schema v2 typed JSON；无关系型新需求证据时不增加 migration；
-- unknown 金额保持空，partial 不伪装 ready，天气缺日按可用性降级；
-- route 上限 `min(28, 4 × day_count)`、并发 2；DeepSeek generation/repair 各 1；
-- 3–7 日 replan 在 Provider/decision/version 写入前拒绝；
-- 无多城市、跨夜、城际 Provider、历史/恢复、登录/同步/公网或 live UAT。
+- F-004A 已交付单城市连续 2–7 日、单住宿锚点、V2 typed contracts、schema v2 typed JSON 和 V2 恰好两日 replan；
+- F-004B1 的纯领域/contracts、Repository/API/SQLite schema v2 往返、离线 V3 planning/调用治理及前端多城市交互/恢复已在 Step 2–5 实现；
+- 城际 Provider 调用为 0；铁路/航空/长途客运真实数据源属于 F-004B2；
+- 推荐顺序为 F-004B1 → F-005 → F-004B2；
+- F-001 产品状态保持 `PARTIAL`；
+- Step 45M 历史真实 UAT `FAIL`、Step 45T `PASS` 均保留；
+- unknown 保持 `null`，混合交通 fallback 只有离线证据；
+- F-004A 没有真实 Provider UAT。
 
 ## Step 1 完成摘要
 
-- 冻结 legacy/V2 独立类型、2–7 日日期/窗口/计划不变量、每日最多 2 项和同一住宿锚点；
-- 冻结同 URI callable discriminator/tagged union、V2 request/plan/response format 标识和未知版本 422；
-- 冻结 legacy synthetic fingerprint golden；Repository 方法与 schema v2 不变，按 request version typed 水合；
-- 冻结 legacy/V2 两日 replan 兼容和 3–7 日在 Provider/写入前 `replan_scope_not_supported`；
-- 冻结 route、POI、天气、DeepSeek 和动态总期限策略；单次 timeout 和外部服务集合不变；
-- 冻结结束日期、动态窗口/日卡、日导航、2/3/7 日和 390px UI；
-- 冻结领域、contracts、Repository/SQLite、API、Provider、五终态、前端、浏览器和隐私测试矩阵；
-- 未修改源码、测试、Schema、migration、依赖、环境或数据库，未读取秘密、调用 Provider或联网。
+- 已冻结独立 `request_version/plan_format_version/response_version="3"`，V3 不继承或污染 legacy/V2 字段集合；
+- 已冻结 2–3 城、3–7 日、每城至少一晚、累计夜数派生转移日、相邻用户段、三种 mode、同日时间和方式缓冲；
+- 已冻结 V3 每日出发/到达/住宿城市、转移日最多一项活动、市内 RouteLeg 不跨城、用户 fare/unknown 和安全来源披露；
+- 已冻结同 URI 严格三分支、V3 canonical fingerprint、Repository typed union、schema v2 typed JSON、旧应用 fail closed 和无 migration v3；
+- 已冻结全部 V3 replan 在 reserve/Provider/write 前 422 拒绝；
+- 已冻结按城市 Provider 调用上限、全局模型 1+1、route/城市并发、180 秒 deadline 和城际 Provider 调用 0；
+- 已冻结前端显式模式、城市/段卡、字段错误、结果/离线恢复、V3 无 replan 和 desktop/390px 门禁；
+- 已冻结 Step 2–7 分层 RED/GREEN 与兼容、SQLite、Provider、隐私和浏览器测试矩阵；
+- 未实现生产代码或测试，未修改 Schema/migration/依赖，未读取秘密或调用 Provider。
+
+## Step 2 完成摘要
+
+- TDD 首轮 RED 证明多城市领域类型与 V3 contracts 缺失；第二轮证明跨日城市连续性和 summary 夜数派生转移日绑定缺失；第三轮证明 ready 终态可错误携带 error；三轮均完成最小 GREEN；
+- 纯领域覆盖 2–3 城、3–7 日、每城至少一晚、累计夜数、相邻用户段、+08:00 同日时间、rail/air/coach 缓冲、普通/转移日活动、同城市内路线、逐城住宿、用户 fare/unknown 和五终态；
+- 独立 V3 contracts 覆盖 request/plan/response、城市/段/日 DTO、住宿/站点/活动/路线引用、跨日连续性、用户来源和终态 final validation；
+- V3 没有加入现有 Planning unions，Repository/API/SQLite 集成留给 Step 3；
+- 定向回归 `102 passed`，全仓 Ruff format/lint 与 strict mypy 通过，legacy/V2 fingerprint 保持；
+- 未修改 Repository/API、SQLite/schema/migration、Provider、前端、依赖或 lockfile；未创建数据库、读取秘密、调用外部服务或执行远程 Git 写入。
+
+## Step 3 完成摘要
+
+- TDD 首轮 RED 证明 V3 无 Repository result variant；补充 RED 证明无 plan 终态可绕过 request/result 版本匹配；均以最小 typed union 和 fail-closed 修复转绿；
+- 三组 planning unions 已严格扩为 legacy/V2/V3；新增 `PlanningJobResultV3`/`PlanningResult`，Repository port 方法集合不变；
+- 内存与 SQLite schema v2 覆盖 V3 fingerprint、幂等、record_result、重启水合、retry、DELETE、30 天有界清理、损坏 plan fail closed 和旧 models 读取 V3 失败；
+- 同 URI API 覆盖 POST/GET/retry/DELETE、三分支 OpenAPI、非法 tag 422、V3 draft/partial 投影和不调度 V3 executor；
+- V3 replan 的 API/service create、decide、execute 均在 reserve/lookup/decision/executor/write 前拒绝；SQLite replan/decision/lineage 为 0，job version/status 不变；
+- Step 3 新增集合 `31 passed`，相关 Repository/API/replan 回归 `170 passed`，Provider 相邻纯离线回归 `33 passed`，SQLite API 回归 `17 passed`；全仓 Ruff/strict mypy 通过；
+- schema/migration、依赖、lockfile、前端均未修改；临时 SQLite 仅位于系统临时目录；未读取秘密、调用真实 Provider 或执行远程 Git 写入。
+
+## Step 4 完成摘要
+
+- 两轮真实 RED 分别证明缺少多城市编排/governor，以及 proposal parser 仍只接受 V2 日期上下文；最小修复后转绿；
+- 独立 V3 编排器按城市复用既有 Provider ports，生成一个全局 proposal，并由确定性代码注入城市连续性、用户段、缓冲、市内路线、活动时间、预算、来源和终态；
+- 调用预算为 resolve ≤ C、POI ≤ 3C、forecast/alert ≤ C、generation/repair 各 1、route ≤ min(28,4D)，城市事实与 route 并发均为 2，总 deadline 180 秒；
+- 取消测试证明两条在途 route peer 均被 drain、active 归零且第三条未启动；deadline 测试证明首个 Provider call 前拒绝；
+- V3 repair 只接收安全诊断与脱敏结构上下文，不接收原始模型输出、自由文本、兴趣、硬约束或用户城际段原文；intercity Provider 调用恒为 0；
+- 新增集合 `9 passed`；application `505 passed`，API/contracts/持久化相关 `141 passed`，bootstrap `22 passed`，DeepSeek/parser `102 passed`；Ruff、strict mypy 和 diff 检查通过；
+- 未修改 schema/migration、Repository 方法集合、依赖、lockfile 或前端；未读取秘密、调用真实 Provider、创建业务数据库或执行远程 Git 写入。
+
+## Step 5 完成摘要
+
+- RED 先证明旧 parser 拒绝严格 V3 response 且表单没有多城市入口；当时既有前端 88 项保持通过；
+- 默认单城市和 legacy/V2 请求保持；显式多城市模式支持 2/3 城、夜数平衡、相邻段、+08:00 派生转移日、三种缓冲、用户排序/删除和字段首错；
+- 城市排序只由用户按钮触发，排序后相邻段全部清空并通过 live region 披露；第三城删除只移除相邻派生段并恢复焦点；
+- V3 parser/结果覆盖城市路线、逐日城市连续性、独立城际段、缓冲、用户来源、unknown/partial 和 V3 无 replan；unknown 费用明细不显示为 `¥0`；
+- V3 job UUID 仅作为本机恢复指针保存；重启通过同源 GET 读取权威快照，不保存请求、站点、票价或 Provider 数据；
+- 专项 `7 passed`、前端全量 `95 passed`，format/lint/typecheck/build 通过；依赖/lockfile、schema/migration 与后端无本 Step 修改；
+- 未读取 `.env.local`/秘密，未调用 Provider、创建数据库、访问外部服务或执行远程 Git 写入；Node 24.19.0 对项目声明 22.16.0 产生 engine warning，但命令均成功。
 
 ## Step 6 完成摘要
 
-- V2 2/3/7 日已通过真实 API、executor、临时 SQLite、schema v2、重启、幂等和删除纵向；V2 create/retry 调度遗漏已在用户批准的最小范围内修复；
-- 桌面两日、桌面三日和 `390×844` 七日 partial 浏览器闭环通过；末日可达并聚焦，3–7 日 replan 隐藏，unknown 门票显示“金额未知”且非 `¥0`，无横向溢出和 console warning/error；
-- 所有动态浏览器请求仅访问 `127.0.0.1`，无真实 Provider；临时库仅含 migration 1/2，三日为 ready、七日为 partial/unknown_count=1；
-- 独立审查的唯一 P1 已修复：browser SQLite 路径必须位于系统临时目录且启动前不存在；相关负向测试、48 项回归、Ruff、strict mypy 和 diff 检查通过。
+- 临时 SQLite 纵向覆盖 V3 create/read/restart/retry/delete、幂等、2/3 城、五终态和 V3 replan 拒绝；相关 legacy/V2/V3 回归 `45 passed`；
+- browser-only synthetic executor 在 retry attempt 2 生成 job 唯一 source/plan identity，保持 schema v2、migration 1/2 和 Repository 冲突语义不变；
+- 真实 loopback Vite → FastAPI → SQLite → synthetic 链在 desktop `1440×1000` 与 `390×844` 通过，刷新恢复成功，横向溢出 0、console error/warning 0，58 条请求全部指向 `127.0.0.1`；
+- 键盘/无障碍验证覆盖第三日、skip link、第三城删除/新增焦点；发现新增第三城焦点丢失后以 RED/GREEN 修复，新输入获得焦点；DOM 审计 duplicate id、无效 ARIA 引用和无名称交互项均为 0；
+- 前端全量 `95 passed`，ESLint 与 TypeScript 通过；触及后端文件 Ruff 与 strict mypy 通过；
+- 独立安全/隐私/兼容 diff scan `efd6640a-731a-47ce-b4e8-58bf3931d5dc` 完整覆盖 36 个生产文件 review item 和 6 个信任面，0 finding；TAC advisory 因 connector 未登录保持未验证；
+- 本轮创建的两份 synthetic 临时 SQLite 已在精确进程关闭后从系统临时目录删除；未读取秘密、调用真实 Provider/非 loopback 服务、修改 schema/migration/依赖/lockfile 或执行远程 Git 写入；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持。
 
-## 当前阻塞和停止条件
+## Step 7 完成摘要
 
-- 当前无技术阻塞；Step 0–7 已全部完成，F-004A 已交付归档；
-- 若同 URI 的严格兼容、schema v2 水合或冻结调用预算不能成立，必须停止并重新决策；
-- 已将“未列文件即停止”修正为受控相邻扩展：同层直接依赖、对应测试/fixture、机械门禁修复和五份状态文档由一次 Step 批准覆盖并留痕；
-- 若需改变冻结语义、新增依赖或 migration、扩大 Provider/外部调用、读取秘密、跨 Step/stack，或未预期生产/测试文件超过 5 个，必须停止并集中确认；
-- 任一 stack 超过 35 个生产/测试文件或净新增 3000 行，必须重新拆分。
+- 最终累计全量门禁通过：strict mypy 134 files、backend `1166 passed`、frontend `95 passed`、build 与 24 项文档检查器均成功；
+- Draft PR #19/#20/#21/#22 按 domain → persistence/API → planning → UI/docs 的直接 base 拓扑创建；最终 CI runs `32379371761`、`32379662820`、`32379802803`、`32379941695` 全部成功；
+- 首轮 #19/#20 CI 失败未隐藏；V3 union、测试辅助模块和 fail-closed 兼容被校正到所属层，并以普通追加提交逐层传播，无 force-push；
+- 四层生产/测试净新增 1679/1393/2120/2497，累计 7689；每层 ≤30 文件且净新增 ≤2500，累计未超过 8000；
+- diff/range/依赖/秘密复核通过，无 migration、Schema、依赖、lockfile 或城际 Provider 文件变更；review 无阻塞 finding；
+- 四个 PR 保持 Draft；未 merge、未运行 main CI、未归档、未读取秘密或调用真实 Provider。
 
-## 执行治理效率修正
+## 阻塞与停止条件
 
-- 原因：F-004A 原规则把核心文件清单当作绝对白名单，Step 1 的传递依赖遗漏导致正常 contract、测试和状态收口被拆成多次逐文件授权；
-- 修正：后续 Step 批准覆盖已冻结目标的直接相邻实现、对应测试/fixture、机械门禁修复和状态文档；执行时先披露路径和理由，完成时统一列证据；
-- 安全边界：产品/API 语义、Schema/migration、依赖、数据隐私、真实 Provider、秘密、数据库、远程 Git、跨 Step/stack 和规模阈值仍需新授权；
-- 治理修正已在 Step 4 生效：已披露的相邻组合根 `bootstrap.py` 随同一 Step 完成并在 evidence 留痕，没有产生逐文件重复授权。
+当前没有事实冲突或技术阻塞。Step 8 尚未授权。
 
-## Step 5 实现摘要
-
-- 表单支持显式结束日期、2–7 日动态日窗口、D+1 至 D+5 开始边界、1/8 日拒绝和首错焦点；用户已编辑的结束日期不会被开始日期静默覆盖；
-- 未显式编辑结束日期的双日提交继续生成原 legacy DTO；显式日期范围生成 tagged V2 DTO，既有 URI、轮询、retry 和终态流程不变；
-- parser 严格校验 V2 response/plan 标签、连续日期和 2–7 日结构；结果页动态展示摘要、可访问日期导航与所有日卡；
-- 3–7 日不显示可执行局部调整并明确范围，V2 恰好两日保留 replan；7 日 partial 继续显示天气缺失和 unknown 金额，不显示 `¥0`；
-- 统一离线门禁通过后端 1088 项、前端 87 项、文档检查器 24 项及全部 format、lint、typecheck、build；未修改后端、Schema、migration、Provider、依赖、环境或数据库，未访问真实 Provider 或非 loopback 网络。
-
-## Step 2 实现摘要
-
-- TDD RED：多日请求、时间计划和预算函数尚不存在，三个测试模块在收集阶段按预期失败；
-- 最小 GREEN：新增独立 2–7 日请求/时间模型，基础 offset 扩到 0–6，legacy 双日模型继续严格 `{0,1}`；
-- scheduler 校验并遍历 2–7 日 proposal、窗口和每日 1–2 项，住宿往返路线最多 3 段/日；
-- 餐饮按人数与天数、住宿按夜数计算，unknown 保持空；final validation 遍历全部日期、路线和天气覆盖；
-- 专项 136 项与后端全量 1065 项通过；format、Ruff、strict mypy、文档检查和 diff 检查通过；
-- 未修改 contracts、Repository、SQLite/schema/migration、API、Provider adapter、前端、依赖、环境或数据库；未读取秘密、调用真实 Provider、创建分支或远程写入。
-
-## Step 3 实现摘要
-
-- 以 callable discriminator 建立 legacy/V2 request、plan 和 response 联合；legacy JSON 与指纹 golden 不变，未知版本 422；
-- 内存和 SQLite Repository 在方法集合、事务与 schema v2 不变的前提下持久化并严格水合 V2 typed JSON；损坏版本或 request/plan 不匹配 fail closed；
-- 同一 trip-plan URI 支持 V2 创建、GET、幂等、删除和重启恢复；V2 草稿不调用 legacy executor；3–7 日 replan 在写入前拒绝；
-- 增补 V2 两日 completed replan contract，序列化保留 response/plan 两层 V2 标签；
-- 聚焦测试 26 项通过；统一门禁通过后端 1073 项、前端 76 项、文档检查器 24 项及全部 format、lint、strict mypy、TypeScript 和 build；
-- schema/migration、Provider adapter、前端、依赖、环境和真实数据库未变化；未读取秘密、调用真实 Provider、创建分支或远程写入。
-
-## Step 4 实现摘要
-
-- DeepSeek V2 proposal 使用请求版本、完整日期和动态 2–7 日规则；legacy 双日行为保持不变；
-- QWeather 一次 7 日预报映射完整请求日期，缺日返回 partial 且不补拉；
-- Provider executor 以 N 日窗口、POI 上限、餐饮按天和住宿按夜生成 typed `TripPlanV2`，unknown 仍为 `None`；
-- governor 按请求使用冻结 route cap、并发和 deadline；3/7 日 fake 纵向证明路线调用为 `2D` 且 active calls 归零；
-- 专项 403 项和统一门禁通过：后端 1088 项、前端 76 项、文档检查器 24 项，以及 format、lint、strict mypy、TypeScript 和 build；
-- `bootstrap.py` 是唯一预先披露的受控相邻生产文件；未修改 API、Repository、Schema、migration、前端、依赖、环境或数据库，未读取秘密或调用真实 Provider。
+如需改变已批准 merge/clean-restack 拓扑、migration v3、新依赖、新 Provider、隐私边界变化、真实外部调用，或出现无法解释的 CI/文档事实冲突，立即停止并请求确认。
 
 ## 权威入口
 
-- 当前任务：[current-task.md](./current-task.md)
-- 当前计划：[implementation-plan.md](./implementation-plan.md)
-- 路线图：[roadmap.md](./roadmap.md)
+- 完整任务卡：[current-task.md](./current-task.md)
+- Step 0–8 计划：[implementation-plan.md](./implementation-plan.md)
+- 路线与优先级：[roadmap.md](./roadmap.md)
 - 验收证据：[evidence.md](./evidence.md)
+- 长期决策：[D-013](../decisions.md)

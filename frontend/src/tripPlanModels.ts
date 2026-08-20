@@ -107,6 +107,31 @@ export interface PlanDayDto {
   weather: WeatherSnapshotDto | null;
 }
 
+export interface PlanIntercitySegmentV3Dto {
+  segment_id: string;
+  from_city_index: number;
+  to_city_index: number;
+  mode: "rail" | "air" | "coach";
+  departure_station_location_id: string;
+  arrival_station_location_id: string;
+  departure_at: string;
+  arrival_at: string;
+  fare: CostItemDto;
+  source_ids: string[];
+}
+
+export interface PlanDayV3Dto {
+  local_date: string;
+  departure_city_index: number;
+  arrival_city_index: number;
+  overnight_city_index: number;
+  intercity_segment_id: string | null;
+  accommodation_location_id: string;
+  activities: ItineraryItemDto[];
+  routes: RouteLegDto[];
+  weather: WeatherSnapshotDto | null;
+}
+
 export interface BudgetSummaryDto {
   budget: MoneyDto;
   known_total: MoneyDto;
@@ -131,7 +156,19 @@ export interface TripPlanV2Dto extends TripPlanBaseDto {
   plan_format_version: "2";
 }
 
-export type TripPlanDto = LegacyTripPlanDto | TripPlanV2Dto;
+export interface TripPlanV3Dto {
+  plan_id: string;
+  plan_format_version: "3";
+  city_adcodes: string[];
+  start_date: string;
+  end_date: string;
+  locations: LocationRefDto[];
+  intercity_segments: PlanIntercitySegmentV3Dto[];
+  days: PlanDayV3Dto[];
+  budget_summary: BudgetSummaryDto;
+}
+
+export type TripPlanDto = LegacyTripPlanDto | TripPlanV2Dto | TripPlanV3Dto;
 
 export interface ConstraintViolationDto {
   code: string;
@@ -441,6 +478,86 @@ function isPlanDay(value: unknown): value is PlanDayDto {
   );
 }
 
+function isPlanIntercitySegmentV3(
+  value: unknown,
+): value is PlanIntercitySegmentV3Dto {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, [
+      "segment_id",
+      "from_city_index",
+      "to_city_index",
+      "mode",
+      "departure_station_location_id",
+      "arrival_station_location_id",
+      "departure_at",
+      "arrival_at",
+      "fare",
+      "source_ids",
+    ]) &&
+    isUuid(value.segment_id) &&
+    Number.isInteger(value.from_city_index) &&
+    Number(value.from_city_index) >= 0 &&
+    Number(value.from_city_index) <= 2 &&
+    value.to_city_index === Number(value.from_city_index) + 1 &&
+    ["rail", "air", "coach"].includes(value.mode as string) &&
+    isUuid(value.departure_station_location_id) &&
+    isUuid(value.arrival_station_location_id) &&
+    value.departure_station_location_id !== value.arrival_station_location_id &&
+    isDateTime(value.departure_at) &&
+    isDateTime(value.arrival_at) &&
+    String(value.departure_at).endsWith("+08:00") &&
+    String(value.arrival_at).endsWith("+08:00") &&
+    String(value.departure_at).slice(0, 10) ===
+      String(value.arrival_at).slice(0, 10) &&
+    Date.parse(String(value.arrival_at)) >
+      Date.parse(String(value.departure_at)) &&
+    isCostItem(value.fare) &&
+    value.fare.category === "intercity_transport" &&
+    ["user_provided", "unknown"].includes(value.fare.confidence) &&
+    isUuidArray(value.source_ids, 20, true) &&
+    value.fare.source_ids.every((id) =>
+      (value.source_ids as string[]).includes(id),
+    )
+  );
+}
+
+function isPlanDayV3(value: unknown): value is PlanDayV3Dto {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, [
+      "local_date",
+      "departure_city_index",
+      "arrival_city_index",
+      "overnight_city_index",
+      "intercity_segment_id",
+      "accommodation_location_id",
+      "activities",
+      "routes",
+      "weather",
+    ]) &&
+    isDate(value.local_date) &&
+    [
+      value.departure_city_index,
+      value.arrival_city_index,
+      value.overnight_city_index,
+    ].every(
+      (index) =>
+        Number.isInteger(index) && Number(index) >= 0 && Number(index) <= 2,
+    ) &&
+    (value.intercity_segment_id === null ||
+      isUuid(value.intercity_segment_id)) &&
+    isUuid(value.accommodation_location_id) &&
+    Array.isArray(value.activities) &&
+    value.activities.length <= 2 &&
+    value.activities.every(isActivity) &&
+    Array.isArray(value.routes) &&
+    value.routes.length <= 3 &&
+    value.routes.every(isRoute) &&
+    (value.weather === null || isWeather(value.weather))
+  );
+}
+
 function isLocation(value: unknown): value is LocationRefDto {
   return (
     isRecord(value) &&
@@ -511,6 +628,9 @@ export function isResolvedDestination(
 }
 
 export function isTripPlan(value: unknown): value is TripPlanDto {
+  if (isRecord(value) && value.plan_format_version === "3") {
+    return isTripPlanV3(value);
+  }
   const isVersion2 = isRecord(value) && "plan_format_version" in value;
   if (
     !isRecord(value) ||
@@ -602,6 +722,138 @@ export function isTripPlan(value: unknown): value is TripPlanDto {
           locations.has(route.destination_location_id),
       ) &&
       (day.weather === null || locations.has(day.weather.location_id)),
+  );
+}
+
+export function isTripPlanV3(value: unknown): value is TripPlanV3Dto {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, [
+      "plan_id",
+      "plan_format_version",
+      "city_adcodes",
+      "start_date",
+      "end_date",
+      "locations",
+      "intercity_segments",
+      "days",
+      "budget_summary",
+    ]) ||
+    value.plan_format_version !== "3" ||
+    !isUuid(value.plan_id) ||
+    !Array.isArray(value.city_adcodes) ||
+    value.city_adcodes.length < 2 ||
+    value.city_adcodes.length > 3 ||
+    !value.city_adcodes.every(
+      (adcode) => typeof adcode === "string" && ADCODE_PATTERN.test(adcode),
+    ) ||
+    new Set(value.city_adcodes).size !== value.city_adcodes.length ||
+    !isDate(value.start_date) ||
+    !isDate(value.end_date) ||
+    !Array.isArray(value.locations) ||
+    value.locations.length < 1 ||
+    value.locations.length > 32 ||
+    !value.locations.every(isLocation) ||
+    !Array.isArray(value.intercity_segments) ||
+    value.intercity_segments.length !== value.city_adcodes.length - 1 ||
+    !value.intercity_segments.every(isPlanIntercitySegmentV3) ||
+    !Array.isArray(value.days) ||
+    value.days.length < 3 ||
+    value.days.length > 7 ||
+    !value.days.every(isPlanDayV3) ||
+    !isBudgetSummary(value.budget_summary)
+  ) {
+    return false;
+  }
+
+  const plan = value as unknown as TripPlanV3Dto;
+  const locations = new Map(
+    plan.locations.map((location) => [location.location_id, location]),
+  );
+  if (locations.size !== plan.locations.length) return false;
+  const segments = new Map(
+    plan.intercity_segments.map((segment) => [segment.segment_id, segment]),
+  );
+  if (segments.size !== plan.intercity_segments.length) return false;
+  const expectedDays =
+    Math.round(
+      (Date.parse(`${plan.end_date}T00:00:00Z`) -
+        Date.parse(`${plan.start_date}T00:00:00Z`)) /
+        86_400_000,
+    ) + 1;
+  if (expectedDays !== plan.days.length) return false;
+
+  let currentCity = 0;
+  const usedSegments: string[] = [];
+  for (const [index, day] of plan.days.entries()) {
+    const expectedDate = new Date(
+      Date.parse(`${plan.start_date}T00:00:00Z`) + index * 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    if (
+      day.local_date !== expectedDate ||
+      day.departure_city_index !== currentCity
+    )
+      return false;
+    const accommodation = locations.get(day.accommodation_location_id);
+    if (
+      !accommodation ||
+      accommodation.city_adcode !== plan.city_adcodes[day.overnight_city_index]
+    )
+      return false;
+    const segment = day.intercity_segment_id
+      ? segments.get(day.intercity_segment_id)
+      : undefined;
+    if (segment) {
+      if (
+        segment.from_city_index !== day.departure_city_index ||
+        segment.to_city_index !== day.arrival_city_index ||
+        day.overnight_city_index !== day.arrival_city_index ||
+        segment.departure_at.slice(0, 10) !== day.local_date ||
+        day.activities.length > 1
+      )
+        return false;
+      usedSegments.push(segment.segment_id);
+    } else if (
+      day.intercity_segment_id !== null ||
+      day.departure_city_index !== day.arrival_city_index ||
+      day.arrival_city_index !== day.overnight_city_index ||
+      day.activities.length < 1
+    )
+      return false;
+    if (
+      day.activities.some((activity) => !locations.has(activity.location_id)) ||
+      day.routes.some((route) => {
+        const origin = locations.get(route.origin_location_id);
+        const destination = locations.get(route.destination_location_id);
+        return (
+          !origin ||
+          !destination ||
+          origin.city_adcode !== destination.city_adcode
+        );
+      }) ||
+      (day.weather !== null &&
+        (!locations.has(day.weather.location_id) ||
+          day.weather.forecast_date !== day.local_date))
+    )
+      return false;
+    currentCity = day.overnight_city_index;
+  }
+  return (
+    currentCity === plan.city_adcodes.length - 1 &&
+    usedSegments.join(",") ===
+      plan.intercity_segments.map((segment) => segment.segment_id).join(",") &&
+    plan.intercity_segments.every((segment, index) => {
+      const departure = locations.get(segment.departure_station_location_id);
+      const arrival = locations.get(segment.arrival_station_location_id);
+      return (
+        segment.from_city_index === index &&
+        segment.to_city_index === index + 1 &&
+        departure?.city_adcode === plan.city_adcodes[index] &&
+        arrival?.city_adcode === plan.city_adcodes[index + 1]
+      );
+    })
   );
 }
 

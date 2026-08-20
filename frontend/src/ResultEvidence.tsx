@@ -257,8 +257,14 @@ export function TerminalOutcome({
       </header>
 
       <p className="tracking-summary">
-        <strong>{response.request_summary.city}</strong> ·{" "}
-        {response.request_summary.start_date}起 ·{" "}
+        <strong>
+          {"response_version" in response && response.response_version === "3"
+            ? response.request_summary.city_stays
+                .map((stay) => stay.city)
+                .join(" → ")
+            : response.request_summary.city}
+        </strong>{" "}
+        · {response.request_summary.start_date}起 ·{" "}
         {response.request_summary.travelers} 人 · 尝试 {response.attempt}/3
       </p>
 

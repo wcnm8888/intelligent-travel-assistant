@@ -4,18 +4,23 @@ import {
   addCalendarDays,
   createInitialTripRequest,
   currentShanghaiDate,
+  emptyCityStay,
+  emptyIntercitySegment,
+  INTERCITY_BUFFERS,
   INTEREST_OPTIONS,
   syncDayWindows,
   toTripPlanRequest,
   tripDayCount,
   validateTripRequest,
   type Interest,
+  type IntercityMode,
   type Pace,
   type TransportMode,
   type TripPlanRequestDto,
   type TripRequestErrors,
   type TripRequestField,
   type TripRequestFormValues,
+  type TripScope,
 } from "./tripRequest";
 
 interface TripRequestFormProps {
@@ -38,6 +43,15 @@ const TRANSPORT_OPTIONS: ReadonlyArray<{
 }> = [
   { value: "walking", label: "步行" },
   { value: "public_transit", label: "公共交通" },
+];
+
+const INTERCITY_OPTIONS: ReadonlyArray<{
+  value: IntercityMode;
+  label: string;
+}> = [
+  { value: "rail", label: "铁路" },
+  { value: "air", label: "航空" },
+  { value: "coach", label: "长途客运" },
 ];
 
 function FieldError({
@@ -68,6 +82,7 @@ export function TripRequestForm({
   );
   const [errors, setErrors] = useState<TripRequestErrors>({});
   const [endDateEdited, setEndDateEdited] = useState(false);
+  const [multicityNotice, setMulticityNotice] = useState("");
 
   const update = <Key extends keyof TripRequestFormValues>(
     key: Key,
@@ -149,27 +164,195 @@ export function TripRequestForm({
     );
   };
 
+  const changeScope = (scope: TripScope) => {
+    if (scope === values.scope) return;
+    const hasIncompatibleInput =
+      values.scope === "single_city"
+        ? Boolean(
+            values.city.trim() ||
+            values.accommodation.trim() ||
+            values.oneNightCost,
+          )
+        : values.cityStays.some(
+            (stay) =>
+              stay.city.trim() ||
+              stay.accommodation.trim() ||
+              stay.oneNightCost,
+          ) ||
+          values.intercitySegments.some(
+            (segment) =>
+              segment.departureStation.trim() ||
+              segment.arrivalStation.trim() ||
+              segment.fare,
+          );
+    if (
+      hasIncompatibleInput &&
+      !window.confirm("切换行程范围会清除城市、住宿和城际段输入，是否继续？")
+    )
+      return;
+    setValues((current) => ({
+      ...current,
+      scope,
+      city: "",
+      accommodation: "",
+      oneNightCost: "",
+      cityStays: [emptyCityStay(), emptyCityStay()],
+      intercitySegments: [emptyIntercitySegment()],
+    }));
+    setErrors({});
+    setMulticityNotice(
+      scope === "multi_city"
+        ? "已切换为多城市模式；请按顺序填写城市和相邻城际段。"
+        : "已切换为单城市模式。",
+    );
+  };
+
+  const updateCityStay = (
+    index: number,
+    key: "city" | "accommodation" | "oneNightCost" | "nights",
+    value: string,
+  ) => {
+    setValues((current) => ({
+      ...current,
+      cityStays: current.cityStays.map((stay, stayIndex) =>
+        stayIndex === index ? { ...stay, [key]: value } : stay,
+      ),
+    }));
+    setErrors((current) => ({
+      ...current,
+      [`cityStays.${index}.${key}`]: undefined,
+    }));
+  };
+
+  const updateIntercitySegment = (
+    index: number,
+    key:
+      | "mode"
+      | "departureStation"
+      | "arrivalStation"
+      | "departureTime"
+      | "arrivalTime"
+      | "fare",
+    value: string,
+  ) => {
+    setValues((current) => ({
+      ...current,
+      intercitySegments: current.intercitySegments.map(
+        (segment, segmentIndex) =>
+          segmentIndex === index ? { ...segment, [key]: value } : segment,
+      ),
+    }));
+    setErrors((current) => ({
+      ...current,
+      [`intercitySegments.${index}.${key}`]: undefined,
+    }));
+  };
+
+  const moveCity = (index: number, delta: number) => {
+    const destination = index + delta;
+    if (destination < 0 || destination >= values.cityStays.length) return;
+    setValues((current) => {
+      const cityStays = [...current.cityStays];
+      [cityStays[index], cityStays[destination]] = [
+        cityStays[destination],
+        cityStays[index],
+      ];
+      return {
+        ...current,
+        cityStays,
+        intercitySegments: cityStays.slice(1).map(emptyIntercitySegment),
+      };
+    });
+    setErrors({});
+    setMulticityNotice(
+      "城市顺序已更新；为防止站点和时间绑定错误，全部城际段已清空。",
+    );
+    window.setTimeout(
+      () =>
+        document
+          .querySelector<HTMLElement>(`[data-city-heading="${destination}"]`)
+          ?.focus(),
+      0,
+    );
+  };
+
+  const addCity = () => {
+    if (values.cityStays.length >= 3) return;
+    setValues((current) => ({
+      ...current,
+      cityStays: [...current.cityStays, emptyCityStay()],
+      intercitySegments: [
+        ...current.intercitySegments,
+        emptyIntercitySegment(),
+      ],
+    }));
+    setMulticityNotice("已添加第 3 城；请调整结束日期和住宿夜数。");
+    window.setTimeout(
+      () =>
+        document
+          .querySelector<HTMLElement>('[data-field="cityStays.2.city"]')
+          ?.focus(),
+      0,
+    );
+  };
+
+  const removeThirdCity = () => {
+    if (values.cityStays.length !== 3) return;
+    setValues((current) => ({
+      ...current,
+      cityStays: current.cityStays.slice(0, 2),
+      intercitySegments: current.intercitySegments.slice(0, 1),
+    }));
+    setErrors({});
+    setMulticityNotice("已删除第 3 城及其相邻城际段。");
+    window.setTimeout(
+      () =>
+        document.querySelector<HTMLElement>('[data-city-heading="1"]')?.focus(),
+      0,
+    );
+  };
+
+  const fieldOrder: TripRequestField[] = [
+    ...(values.scope === "single_city" ? (["city"] as TripRequestField[]) : []),
+    "startDate",
+    "endDate",
+    "travelers",
+    ...values.dayWindows.flatMap((_, index) => [
+      `dayWindows.${index}.startTime` as TripRequestField,
+      `dayWindows.${index}.endTime` as TripRequestField,
+    ]),
+    ...(values.scope === "multi_city"
+      ? values.cityStays.flatMap((_, index) => [
+          `cityStays.${index}.city` as TripRequestField,
+          `cityStays.${index}.nights` as TripRequestField,
+          `cityStays.${index}.accommodation` as TripRequestField,
+          `cityStays.${index}.oneNightCost` as TripRequestField,
+        ])
+      : []),
+    ...(values.scope === "multi_city"
+      ? values.intercitySegments.flatMap((_, index) => [
+          `intercitySegments.${index}.mode` as TripRequestField,
+          `intercitySegments.${index}.departureStation` as TripRequestField,
+          `intercitySegments.${index}.arrivalStation` as TripRequestField,
+          `intercitySegments.${index}.departureTime` as TripRequestField,
+          `intercitySegments.${index}.arrivalTime` as TripRequestField,
+          `intercitySegments.${index}.fare` as TripRequestField,
+        ])
+      : []),
+    "totalBudget",
+    "transportModes",
+    ...(values.scope === "single_city"
+      ? (["accommodation", "oneNightCost"] as TripRequestField[])
+      : []),
+    "mealBudgetPerPersonPerDay",
+    "freeText",
+  ];
+
   const focusFirstError = (
     form: HTMLFormElement,
     nextErrors: TripRequestErrors,
   ) => {
-    const order: TripRequestField[] = [
-      "city",
-      "startDate",
-      "endDate",
-      ...values.dayWindows.flatMap((_, index) => [
-        `dayWindows.${index}.startTime` as TripRequestField,
-        `dayWindows.${index}.endTime` as TripRequestField,
-      ]),
-      "travelers",
-      "totalBudget",
-      "transportModes",
-      "accommodation",
-      "oneNightCost",
-      "mealBudgetPerPersonPerDay",
-      "freeText",
-    ];
-    const first = order.find((field) => nextErrors[field]);
+    const first = fieldOrder.find((field) => nextErrors[field]);
     if (!first) return;
     form.querySelector<HTMLElement>(`[data-field="${first}"]`)?.focus();
   };
@@ -191,6 +374,14 @@ export function TripRequestForm({
   const errorId = (field: TripRequestField) =>
     `${formId}-${field.replaceAll(".", "-")}-error`;
   const dayCount = tripDayCount(values.startDate, values.endDate);
+  const expectedNights = dayCount === null ? null : dayCount - 1;
+  const actualNights = values.cityStays.reduce(
+    (total, stay) => total + Number(stay.nights || 0),
+    0,
+  );
+  const orderedErrors = fieldOrder.flatMap((field) =>
+    errors[field] ? [{ field, message: errors[field] }] : [],
+  );
 
   return (
     <form
@@ -204,27 +395,87 @@ export function TripRequestForm({
           <p className="section-kicker">YOUR TRIP / 01</p>
           <h2 id={`${formId}-title`}>行前设定</h2>
         </div>
-        <span>2—7 日 · 单城市</span>
+        <span>
+          {values.scope === "multi_city"
+            ? "3—7 日 · 2—3 城"
+            : "2—7 日 · 单城市"}
+        </span>
       </div>
 
-      <div className="field-grid">
-        <div className="field field--wide">
-          <label htmlFor={`${formId}-city`}>目的地城市 *</label>
+      <fieldset
+        className="scope-selector"
+        aria-describedby={`${formId}-scope-hint`}
+      >
+        <legend>行程范围</legend>
+        <label>
           <input
-            id={`${formId}-city`}
-            name="city"
-            data-field="city"
-            value={values.city}
-            aria-invalid={Boolean(errors.city)}
-            aria-describedby={errors.city ? errorId("city") : undefined}
-            autoComplete="address-level1"
-            maxLength={30}
-            placeholder="例如：杭州"
-            onChange={(event) => update("city", event.target.value)}
+            type="radio"
+            name={`${formId}-scope`}
+            checked={values.scope === "single_city"}
+            onChange={() => changeScope("single_city")}
           />
-          <p className="field-hint">第一版仅支持中国大陆单城市自由行。</p>
-          <FieldError id={errorId("city")} message={errors.city} />
-        </div>
+          <span>单城市</span>
+        </label>
+        <label>
+          <input
+            type="radio"
+            name={`${formId}-scope`}
+            checked={values.scope === "multi_city"}
+            onChange={() => changeScope("multi_city")}
+          />
+          <span>多城市</span>
+        </label>
+      </fieldset>
+      <p className="field-hint scope-hint" id={`${formId}-scope-hint`}>
+        只有明确选择“多城市”才会提交 V3；不会按输入内容猜测版本。
+      </p>
+      <p className="sr-only" aria-live="polite">
+        {multicityNotice}
+      </p>
+      {orderedErrors.length > 0 && (
+        <section className="form-error-summary" role="alert">
+          <h3>请检查 {orderedErrors.length} 个字段</h3>
+          <ul>
+            {orderedErrors.map(({ field }, index) => (
+              <li key={field}>
+                <a
+                  href={`#${errorId(field)}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.currentTarget
+                      .closest("form")
+                      ?.querySelector<HTMLElement>(`[data-field="${field}"]`)
+                      ?.focus();
+                  }}
+                >
+                  错误 {index + 1} · {field}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <div className="field-grid">
+        {values.scope === "single_city" && (
+          <div className="field field--wide">
+            <label htmlFor={`${formId}-city`}>目的地城市 *</label>
+            <input
+              id={`${formId}-city`}
+              name="city"
+              data-field="city"
+              value={values.city}
+              aria-invalid={Boolean(errors.city)}
+              aria-describedby={errors.city ? errorId("city") : undefined}
+              autoComplete="address-level1"
+              maxLength={30}
+              placeholder="例如：杭州"
+              onChange={(event) => update("city", event.target.value)}
+            />
+            <p className="field-hint">第一版仅支持中国大陆单城市自由行。</p>
+            <FieldError id={errorId("city")} message={errors.city} />
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor={`${formId}-start-date`}>开始日期 *</label>
@@ -355,6 +606,363 @@ export function TripRequestForm({
           </fieldset>
         )}
 
+        {values.scope === "multi_city" && (
+          <section
+            className="multicity-editor field--wide"
+            aria-labelledby={`${formId}-cities-title`}
+          >
+            <div className="multicity-editor__heading">
+              <div>
+                <p className="section-kicker">ORDERED STAYS / 路线顺序</p>
+                <h3 id={`${formId}-cities-title`}>城市停留</h3>
+              </div>
+              <button
+                type="button"
+                onClick={addCity}
+                disabled={values.cityStays.length >= 3}
+                aria-label="添加第 3 城"
+                title={
+                  values.cityStays.length >= 3 ? "最多支持 3 城" : undefined
+                }
+              >
+                + 添加城市
+              </button>
+            </div>
+            <p className="night-balance" role="status">
+              行程需住宿 {expectedNights ?? "?"} 晚 · 当前分配 {actualNights} 晚
+              {expectedNights === actualNights ? " · 已平衡" : " · 请调整夜数"}
+            </p>
+
+            <div className="city-stay-list">
+              {values.cityStays.map((stay, index) => {
+                const cityField = `cityStays.${index}.city` as TripRequestField;
+                const accommodationField =
+                  `cityStays.${index}.accommodation` as TripRequestField;
+                const costField =
+                  `cityStays.${index}.oneNightCost` as TripRequestField;
+                const nightsField =
+                  `cityStays.${index}.nights` as TripRequestField;
+                return (
+                  <fieldset className="city-stay-card" key={index}>
+                    <legend>
+                      <span data-city-heading={index} tabIndex={-1}>
+                        第 {index + 1} 城
+                        {stay.city.trim() ? ` · ${stay.city.trim()}` : ""}
+                      </span>
+                    </legend>
+                    <div
+                      className="card-order-actions"
+                      aria-label={`城市顺序操作 ${index + 1}`}
+                    >
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => moveCity(index, -1)}
+                        aria-label={`第 ${index + 1} 城上移`}
+                      >
+                        ↑ 上移
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === values.cityStays.length - 1}
+                        onClick={() => moveCity(index, 1)}
+                        aria-label={`第 ${index + 1} 城下移`}
+                      >
+                        ↓ 下移
+                      </button>
+                      {index === 2 && (
+                        <button type="button" onClick={removeThirdCity}>
+                          删除第 3 城
+                        </button>
+                      )}
+                    </div>
+                    <div className="city-stay-card__fields">
+                      <div className="field">
+                        <label htmlFor={`${formId}-city-stay-${index}`}>
+                          城市 *
+                        </label>
+                        <input
+                          id={`${formId}-city-stay-${index}`}
+                          data-field={cityField}
+                          value={stay.city}
+                          maxLength={30}
+                          aria-invalid={Boolean(errors[cityField])}
+                          aria-describedby={
+                            errors[cityField] ? errorId(cityField) : undefined
+                          }
+                          onChange={(event) =>
+                            updateCityStay(index, "city", event.target.value)
+                          }
+                        />
+                        <FieldError
+                          id={errorId(cityField)}
+                          message={errors[cityField]}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`${formId}-city-nights-${index}`}>
+                          住宿夜数 *
+                        </label>
+                        <input
+                          id={`${formId}-city-nights-${index}`}
+                          data-field={nightsField}
+                          type="number"
+                          min="1"
+                          max="6"
+                          step="1"
+                          value={stay.nights}
+                          aria-invalid={Boolean(errors[nightsField])}
+                          aria-describedby={
+                            errors[nightsField]
+                              ? errorId(nightsField)
+                              : undefined
+                          }
+                          onChange={(event) =>
+                            updateCityStay(index, "nights", event.target.value)
+                          }
+                        />
+                        <p className="field-hint">
+                          全程当前 {actualNights} / {expectedNights ?? "?"}{" "}
+                          晚；不会自动改写。
+                        </p>
+                        <FieldError
+                          id={errorId(nightsField)}
+                          message={errors[nightsField]}
+                        />
+                      </div>
+                      <div className="field field--wide">
+                        <label
+                          htmlFor={`${formId}-city-accommodation-${index}`}
+                        >
+                          住宿区域或 POI *
+                        </label>
+                        <input
+                          id={`${formId}-city-accommodation-${index}`}
+                          data-field={accommodationField}
+                          value={stay.accommodation}
+                          maxLength={120}
+                          aria-invalid={Boolean(errors[accommodationField])}
+                          aria-describedby={
+                            errors[accommodationField]
+                              ? errorId(accommodationField)
+                              : undefined
+                          }
+                          onChange={(event) =>
+                            updateCityStay(
+                              index,
+                              "accommodation",
+                              event.target.value,
+                            )
+                          }
+                        />
+                        <FieldError
+                          id={errorId(accommodationField)}
+                          message={errors[accommodationField]}
+                        />
+                      </div>
+                      <div className="field field--wide">
+                        <label htmlFor={`${formId}-city-cost-${index}`}>
+                          一晚住宿费用
+                        </label>
+                        <input
+                          id={`${formId}-city-cost-${index}`}
+                          data-field={costField}
+                          inputMode="decimal"
+                          value={stay.oneNightCost}
+                          placeholder="未知可留空"
+                          aria-invalid={Boolean(errors[costField])}
+                          aria-describedby={
+                            errors[costField] ? errorId(costField) : undefined
+                          }
+                          onChange={(event) =>
+                            updateCityStay(
+                              index,
+                              "oneNightCost",
+                              event.target.value,
+                            )
+                          }
+                        />
+                        <FieldError
+                          id={errorId(costField)}
+                          message={errors[costField]}
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
+                );
+              })}
+            </div>
+
+            <div className="intercity-card-list">
+              {values.intercitySegments.map((segment, index) => {
+                const fields = {
+                  mode: `intercitySegments.${index}.mode` as TripRequestField,
+                  departureStation:
+                    `intercitySegments.${index}.departureStation` as TripRequestField,
+                  arrivalStation:
+                    `intercitySegments.${index}.arrivalStation` as TripRequestField,
+                  departureTime:
+                    `intercitySegments.${index}.departureTime` as TripRequestField,
+                  arrivalTime:
+                    `intercitySegments.${index}.arrivalTime` as TripRequestField,
+                  fare: `intercitySegments.${index}.fare` as TripRequestField,
+                };
+                const transferOffset = values.cityStays
+                  .slice(0, index + 1)
+                  .reduce((total, item) => total + Number(item.nights || 0), 0);
+                const transferDate = addCalendarDays(
+                  values.startDate,
+                  transferOffset,
+                );
+                return (
+                  <fieldset className="intercity-card" key={index}>
+                    <legend>
+                      城际段 {index + 1} · 第 {index + 1} 城 → 第 {index + 2} 城
+                    </legend>
+                    <p className="transfer-date">
+                      转移日 {transferDate || "待日期/夜数有效后派生"} ·
+                      上海时区 UTC+08:00
+                    </p>
+                    <div className="intercity-card__fields">
+                      <div className="field field--wide">
+                        <label htmlFor={`${formId}-segment-mode-${index}`}>
+                          方式 *
+                        </label>
+                        <select
+                          id={`${formId}-segment-mode-${index}`}
+                          data-field={fields.mode}
+                          value={segment.mode}
+                          onChange={(event) =>
+                            updateIntercitySegment(
+                              index,
+                              "mode",
+                              event.target.value,
+                            )
+                          }
+                        >
+                          {INTERCITY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="buffer-badge">
+                          缓冲 · {INTERCITY_BUFFERS[segment.mode].label}
+                        </p>
+                      </div>
+                      {(["departureStation", "arrivalStation"] as const).map(
+                        (key) => (
+                          <div className="field" key={key}>
+                            <label htmlFor={`${formId}-${key}-${index}`}>
+                              {key === "departureStation" ? "出发站" : "到达站"}{" "}
+                              *
+                            </label>
+                            <input
+                              id={`${formId}-${key}-${index}`}
+                              data-field={fields[key]}
+                              value={segment[key]}
+                              maxLength={120}
+                              aria-invalid={Boolean(errors[fields[key]])}
+                              aria-describedby={
+                                errors[fields[key]]
+                                  ? errorId(fields[key])
+                                  : undefined
+                              }
+                              onChange={(event) =>
+                                updateIntercitySegment(
+                                  index,
+                                  key,
+                                  event.target.value,
+                                )
+                              }
+                            />
+                            <FieldError
+                              id={errorId(fields[key])}
+                              message={errors[fields[key]]}
+                            />
+                          </div>
+                        ),
+                      )}
+                      {(["departureTime", "arrivalTime"] as const).map(
+                        (key) => (
+                          <div className="field" key={key}>
+                            <label htmlFor={`${formId}-${key}-${index}`}>
+                              {key === "departureTime"
+                                ? "出发时间"
+                                : "到达时间"}{" "}
+                              *
+                            </label>
+                            <input
+                              id={`${formId}-${key}-${index}`}
+                              data-field={fields[key]}
+                              type="time"
+                              value={segment[key]}
+                              aria-invalid={Boolean(errors[fields[key]])}
+                              aria-describedby={
+                                errors[fields[key]]
+                                  ? errorId(fields[key])
+                                  : undefined
+                              }
+                              onChange={(event) =>
+                                updateIntercitySegment(
+                                  index,
+                                  key,
+                                  event.target.value,
+                                )
+                              }
+                            />
+                            <FieldError
+                              id={errorId(fields[key])}
+                              message={errors[fields[key]]}
+                            />
+                          </div>
+                        ),
+                      )}
+                      <div className="field field--wide">
+                        <label htmlFor={`${formId}-segment-fare-${index}`}>
+                          票价
+                        </label>
+                        <input
+                          id={`${formId}-segment-fare-${index}`}
+                          data-field={fields.fare}
+                          inputMode="decimal"
+                          value={segment.fare}
+                          placeholder="未知，将影响预算完整性"
+                          aria-invalid={Boolean(errors[fields.fare])}
+                          aria-describedby={
+                            errors[fields.fare]
+                              ? errorId(fields.fare)
+                              : undefined
+                          }
+                          onChange={(event) =>
+                            updateIntercitySegment(
+                              index,
+                              "fare",
+                              event.target.value,
+                            )
+                          }
+                        />
+                        <p className="field-hint">
+                          {segment.fare
+                            ? "用户提供，未核验"
+                            : "未知，将影响预算完整性"}
+                        </p>
+                        <FieldError
+                          id={errorId(fields.fare)}
+                          message={errors[fields.fare]}
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
+                );
+              })}
+            </div>
+            <p className="intercity-disclosure" role="note">
+              系统不会查询或确认班次、票价、余票、库存或可预订性，请核对用户提供的信息。
+            </p>
+          </section>
+        )}
+
         <div className="field field--wide">
           <label htmlFor={`${formId}-total-budget`}>总预算 *</label>
           <div className="money-input">
@@ -438,51 +1046,61 @@ export function TripRequestForm({
           />
         </fieldset>
 
-        <div className="field field--wide">
-          <label htmlFor={`${formId}-accommodation`}>住宿区域或 POI *</label>
-          <input
-            id={`${formId}-accommodation`}
-            name="accommodation"
-            data-field="accommodation"
-            value={values.accommodation}
-            aria-invalid={Boolean(errors.accommodation)}
-            aria-describedby={`${formId}-accommodation-hint${errors.accommodation ? ` ${errorId("accommodation")}` : ""}`}
-            maxLength={120}
-            placeholder="例如：湖滨银泰附近"
-            onChange={(event) => update("accommodation", event.target.value)}
-          />
-          <p className="field-hint" id={`${formId}-accommodation-hint`}>
-            不是实时酒店库存，也不代表可预订。
-          </p>
-          <FieldError
-            id={errorId("accommodation")}
-            message={errors.accommodation}
-          />
-        </div>
+        {values.scope === "single_city" && (
+          <>
+            <div className="field field--wide">
+              <label htmlFor={`${formId}-accommodation`}>
+                住宿区域或 POI *
+              </label>
+              <input
+                id={`${formId}-accommodation`}
+                name="accommodation"
+                data-field="accommodation"
+                value={values.accommodation}
+                aria-invalid={Boolean(errors.accommodation)}
+                aria-describedby={`${formId}-accommodation-hint${errors.accommodation ? ` ${errorId("accommodation")}` : ""}`}
+                maxLength={120}
+                placeholder="例如：湖滨银泰附近"
+                onChange={(event) =>
+                  update("accommodation", event.target.value)
+                }
+              />
+              <p className="field-hint" id={`${formId}-accommodation-hint`}>
+                不是实时酒店库存，也不代表可预订。
+              </p>
+              <FieldError
+                id={errorId("accommodation")}
+                message={errors.accommodation}
+              />
+            </div>
 
-        <div className="field">
-          <label htmlFor={`${formId}-night-cost`}>一晚住宿费用</label>
-          <div className="money-input money-input--compact">
-            <span aria-hidden="true">¥</span>
-            <input
-              id={`${formId}-night-cost`}
-              name="oneNightCost"
-              data-field="oneNightCost"
-              inputMode="decimal"
-              value={values.oneNightCost}
-              aria-invalid={Boolean(errors.oneNightCost)}
-              aria-describedby={
-                errors.oneNightCost ? errorId("oneNightCost") : undefined
-              }
-              placeholder="不清楚可留空"
-              onChange={(event) => update("oneNightCost", event.target.value)}
-            />
-          </div>
-          <FieldError
-            id={errorId("oneNightCost")}
-            message={errors.oneNightCost}
-          />
-        </div>
+            <div className="field">
+              <label htmlFor={`${formId}-night-cost`}>一晚住宿费用</label>
+              <div className="money-input money-input--compact">
+                <span aria-hidden="true">¥</span>
+                <input
+                  id={`${formId}-night-cost`}
+                  name="oneNightCost"
+                  data-field="oneNightCost"
+                  inputMode="decimal"
+                  value={values.oneNightCost}
+                  aria-invalid={Boolean(errors.oneNightCost)}
+                  aria-describedby={
+                    errors.oneNightCost ? errorId("oneNightCost") : undefined
+                  }
+                  placeholder="不清楚可留空"
+                  onChange={(event) =>
+                    update("oneNightCost", event.target.value)
+                  }
+                />
+              </div>
+              <FieldError
+                id={errorId("oneNightCost")}
+                message={errors.oneNightCost}
+              />
+            </div>
+          </>
+        )}
 
         <div className="field">
           <label htmlFor={`${formId}-meal-budget`}>餐饮 / 人 / 天</label>
@@ -539,7 +1157,9 @@ export function TripRequestForm({
           <span>
             {submitting
               ? "正在提交"
-              : `生成${dayCount && dayCount >= 2 && dayCount <= 7 ? dayCount : 2}日计划`}
+              : values.scope === "multi_city"
+                ? `生成${dayCount && dayCount >= 3 && dayCount <= 7 ? dayCount : "多城市"}日计划`
+                : `生成${dayCount && dayCount >= 2 && dayCount <= 7 ? dayCount : 2}日计划`}
           </span>
           <span aria-hidden="true">→</span>
         </button>

@@ -353,9 +353,9 @@ result, change_set, errors, created_at, updated_at
 - 已启动的后台规划不是持久化任务队列，应用退出时不会自动续跑进行中的外部调用；重启只恢复最后一次已提交的任务、attempt、结果和版本快照；
 - 真实规划执行器只有在 DeepSeek、高德和和风三组配置全部就绪时启用；
 - Step 38 只取得一次 live 契约证据；Step 39 和补充 Step 45A、45C、45E 均未取得 ready/partial 真实计划 UAT；Step 45H 已实现确定性调度器但只具备离线证据，不构成新的 live UAT 通过；
-- SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。F-003 Step 5 已实现三个可注入的 replan 端点、严格 DTO 和安全错误映射；默认组合不自行启用 Provider 或后台恢复。批量清空、历史列表、版本比较/恢复、多城市和交易能力仍不在范围内。
+- SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。F-003 Step 5 已实现三个可注入的 replan 端点、严格 DTO 和安全错误映射；默认组合不自行启用 Provider 或后台恢复。F-004B1 已实现独立 V3 contracts、Repository/SQLite/API typed 集成、离线 planning/调用治理和前端严格 V3 交互/本机 job 指针恢复；真实浏览器与临时 SQLite 纵向仍待 Step 6。批量清空、历史列表、版本比较/恢复、真实城际 Provider 和交易能力仍不在范围内。
 
-## F-004A version 2 多日契约（Step 1 冻结，尚未实现）
+## F-004A version 2 多日契约（已实现并交付）
 
 ### 请求判别与 URI
 
@@ -408,3 +408,92 @@ GET/retry 的 response union 由持久化请求版本决定，不能由 Accept h
 ### 稳定错误和兼容门禁
 
 F-004A 不新增稳定错误码。日期跨度、窗口集合和版本字段错误使用 422 `input_invalid`；幂等冲突、Repository version 冲突、retry/delete/not-found 和安全 500 保持现有映射。legacy golden 必须逐字段、逐 JSON 形状保持不变；synthetic legacy 请求的 SHA-256 fingerprint 固定为 `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd`。
+
+## F-004B1 version 3 多城市契约（Step 5 前端严格解析与恢复已实现）
+
+### 版本判别与 URI
+
+现有 POST/GET/retry/DELETE 和三个 replan URI 全部保留。`POST /api/trip-plans` 的严格联合扩为：
+
+- 缺少 `request_version`：只校验 legacy；
+- `request_version` 精确为字符串 `"2"`：只校验 V2；
+- `request_version` 精确为字符串 `"3"`：只校验 V3；
+- 其他值、数字/null、版本 tag 与字段集合冲突、额外字段或模糊形状：422 `input_invalid`，不得回退另一 model。
+
+FastAPI/OpenAPI 继续使用 callable discriminator + tagged union，不接受无约束 `dict`，不新增 `/api/v3`、header 或 query version。legacy/V2 的 OpenAPI 分支、请求和响应键集合不变。
+
+### `TripPlanRequestV3`
+
+V3 是独立严格模型，不继承单城市字段集合：
+
+| 字段 | 类型 | 冻结规则 |
+| --- | --- | --- |
+| `request_version` | literal string | 必须为 `"3"` |
+| `client_request_id` | UUID | 现有幂等键 |
+| `start_date/end_date` | date | 含首尾 3–7 日；开始日沿用 D+1 至 D+5 |
+| `day_windows` | 3–7 个 V2 window | offset 精确为 `0..day_count-1`，唯一、正时长、不跨夜 |
+| `travelers/total_budget` | 现有类型 | 1–8 人，CNY Decimal 规则不变 |
+| `preferences/pace/transport_modes` | 现有类型 | 只允许现有步行/公交与 allowlist 文本 |
+| `city_stays` | 2–3 个 `CityStayV3` | 有序、城市文本唯一；每项至少 1 夜 |
+| `intercity_segments` | 1–2 个 `UserProvidedIntercitySegmentV3` | 精确为城市数减 1，按相邻索引排序 |
+| `meal_budget_per_person_per_day` | Money | 规则和默认值不变 |
+
+V3 不接受顶层 `city`、`accommodation` 或 `intercity_transport_cost`。`sum(city_stays[*].nights) == day_count - 1`；2 城最少 3 日，3 城最少 4 日。
+
+`CityStayV3`：
+
+| 字段 | 类型 | 冻结规则 |
+| --- | --- | --- |
+| `city` | CityText | 中国大陆城市；文本和解析后 adcode 均须唯一 |
+| `nights` | strict int | 1–6；参与总夜数校验 |
+| `accommodation` | AccommodationRequirement | 每城独立区域/POI与可空一晚金额 |
+
+`UserProvidedIntercitySegmentV3`：
+
+| 字段 | 类型 | 冻结规则 |
+| --- | --- | --- |
+| `from_city_index/to_city_index` | strict int | 第 i 段必须为 i → i+1 |
+| `mode` | enum | `rail`、`air`、`coach` |
+| `departure_station/arrival_station` | ShortText | 必填站点名称；不接受票号、证件或乘客信息 |
+| `departure_at/arrival_at` | timezone-aware datetime | 必须为 `+08:00`、同一派生转移日且 arrival > departure |
+| `fare` | Money/null | 非空即 `user_provided`；空值为 unknown，不代表 0 |
+
+派生转移日为 `start_date + sum(city_stays[0..i].nights)`；跨夜、日期不符、同日第二次转移、第三城市、非相邻索引和重复首城闭环均在 422 前置校验中拒绝。
+
+### V3 plan 与响应
+
+`TripPlanV3` 为独立 plan shape：
+
+- `plan_format_version="3"`、plan ID、start/end date；
+- 按用户顺序排列的 2–3 个 `city_adcodes`；
+- 最多 32 个 `locations`，覆盖每城住宿、活动和用户站点；
+- 1–2 个 `PlanIntercitySegmentV3`；
+- 3–7 个 `PlanDayV3` 和现有 `BudgetSummary`。
+
+`PlanIntercitySegmentV3` 固定包含 segment ID、相邻城市索引、mode、出发/到达 station location ID、带时区时间、一个城际 `CostItem` 和非空 user source IDs。票价缺失仍创建 `confidence=unknown/amount=null` 的费用项；用户票价为 `confidence=user_provided`，不能标记 verified/estimated。
+
+`PlanDayV3` 复用 local date、住宿 location、activities、local routes 和 weather，并新增 `departure_city_index/arrival_city_index/overnight_city_index/intercity_segment_id`：
+
+- 非转移日三索引相同、segment ID 为空、1–2 项活动；
+- 转移日索引必须为 i/i+1/i+1、segment ID 非空、最多 1 项活动；
+- 活动只能位于当天出发/到达城市；local route 两端必须同城，每日最多 3 段；
+- 站点与住宿/活动衔接只使用现有步行/公交 route，不把城际段投影为 `RouteLeg`。
+
+POST、GET、retry 对 V3 job 返回独立 `TripPlanResponseV3`：顶层 `response_version="3"`，保留现有 job/status/attempt/warning/uncertainty/source/error 字段；使用 2–3 个 `resolved_destinations` 代替单数 `resolved_destination`；`request_summary` 为 `TripRequestSummaryV3`，字段精确为 `request_version="3"`、有序 `city_stays[{city,nights}]`、start/end date、travelers 和 budget；`plan` 只允许 `TripPlanV3|null`。legacy/V2 响应不新增复数字段。
+
+### 缓冲、来源、状态和错误
+
+- 铁路出发前/到达后 60/30 分钟，航空 120/60，长途客运 45/30；窗口或路线不能容纳时返回 terminal conflict，而不是改写用户时间；
+- user source 使用 `provider=user`、`source_type=user_provided_intercity_segment`、本地记录时间、`valid_until=null`、`freshness=unknown_validity` 和安全 warning；不含外部 URL/record ID，不声称班次、票价、余票或库存已验证；
+- 未核验 availability 本身不阻止 ready，因为它是明确排除的外部能力；但票价/天气/路线等参与预算或执行判断的 unknown 继续产生 partial；
+- shape、城市数、夜数、段数、索引、时区和跨夜错误使用 422 `input_invalid`；城市解析歧义进入 `needs_input`；确定性连续性/缓冲冲突进入 `conflict`；必要编排失败进入 `failed`；
+- F-004B1 不新增顶层 HTTP error code。稳定 violation/uncertainty code 冻结为 `multicity_city_order_invalid`、`multicity_nights_invalid`、`multicity_day_continuity_invalid`、`multicity_accommodation_invalid`、`intercity_segment_order_invalid`、`intercity_time_invalid`、`intercity_buffer_conflict`、`intercity_fare_unknown` 和 `intercity_user_provided_unverified`；不得包含原始字段值。
+
+### Fingerprint、Repository、SQLite 与 replan
+
+- V3 fingerprint 对原始 typed V3 dump 排除 `client_request_id` 后使用现有 sort-keys/compact UTF-8 canonical JSON + SHA-256；城市、夜数、数组顺序、时间、站点和 fare 均参与；
+- 同 client ID/同 V3 body 复用；任何字段、顺序或版本不同返回既有 409 `idempotency_conflict`；legacy 固定 digest 和 V2 golden 不变；
+- `PlanningJobRepository` 方法集合不变；legacy/V2 `PlanningJobResult` 保持原 shape，新增 `PlanningJobResultV3` 与内部 `PlanningResult` union，typed request/plan/result union 一致增加 V3；format mismatch、损坏 JSON、未知 tag 和跨 request plan/result 均 fail closed；
+- SQLite schema 仍为 version 2，migration 表只能有 1/2；V3 只进入既有 request_json/plan_json/source/version 事务，不新增列、表、索引或 migration；
+- 旧应用读取 V3 fail closed，不 down migration、不删除记录；
+- 对任何 V3 job 创建 replan 都返回既有 422 `replan_scope_not_supported`。检查在 service 获取、reserve、decision、executor、Provider 和任何写入前；数据库新增 replan/decision/lineage/plan version 数均为 0，job/current plan/version 不变。

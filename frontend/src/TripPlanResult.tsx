@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ReplanPanel } from "./ReplanPanel";
+import { MulticityTripPlanResult } from "./MulticityTripPlanResult";
 import { TripDayNavigation } from "./TripDayNavigation";
-import type { TripPlanResponseDto } from "./tripPlanningApi";
+import type {
+  LegacyTripPlanResponseDto,
+  TripPlanResponseDto,
+  TripPlanResponseV2Dto,
+} from "./tripPlanningApi";
 import type { ReplanCommand, ReplanningApi } from "./replanningApi";
 import type { MoneyDto } from "./tripRequest";
 import { ResultDiagnostics, SourceEvidence } from "./ResultEvidence";
@@ -11,16 +16,49 @@ import type {
   CostCategory,
   CostConfidence,
   LocationRefDto,
+  LegacyTripPlanDto,
   PlanDayDto,
-  TripPlanDto,
+  TripPlanV2Dto,
+  TripPlanV3Dto,
+  ResolvedDestinationDto,
 } from "./tripPlanModels";
+import type { TripPlanResponseV3Dto } from "./tripPlanningApi";
+
+type TripPlanResponseViewDto = Pick<
+  TripPlanResponseDto,
+  | "job_id"
+  | "trace_id"
+  | "client_request_id"
+  | "status"
+  | "attempt"
+  | "request_summary"
+  | "plan"
+  | "violations"
+  | "warnings"
+  | "uncertainties"
+  | "sources"
+  | "errors"
+  | "retryable"
+  | "created_at"
+  | "updated_at"
+> & {
+  response_version?: "2" | "3";
+  resolved_destination?: ResolvedDestinationDto | null;
+  resolved_destinations?: ResolvedDestinationDto[];
+};
 
 interface TripPlanResultProps {
-  response: TripPlanResponseDto & { plan: TripPlanDto };
+  response: TripPlanResponseViewDto;
   onRetry?: () => void;
   onReset?: (field?: string | null) => void;
   replanApi?: ReplanningApi;
 }
+
+type SingleCityTripPlanResultProps = Omit<TripPlanResultProps, "response"> & {
+  response: (LegacyTripPlanResponseDto | TripPlanResponseV2Dto) & {
+    plan: LegacyTripPlanDto | TripPlanV2Dto;
+  };
+};
 
 type EditTarget =
   | {
@@ -452,12 +490,12 @@ function ReplanComposer({
   );
 }
 
-export function TripPlanResult({
+function SingleCityTripPlanResult({
   response,
   onRetry,
   onReset,
   replanApi,
-}: TripPlanResultProps) {
+}: SingleCityTripPlanResultProps) {
   const [completedOverride, setCompletedOverride] = useState<{
     baselinePlanId: string;
     response: typeof response;
@@ -672,10 +710,18 @@ export function TripPlanResult({
           commandLabel={prepared.label}
           onClose={closeReplan}
           onCompleted={(result) => {
-            if (result.plan) {
+            if (
+              result.plan &&
+              (!("plan_format_version" in result.plan) ||
+                result.plan.plan_format_version === "2")
+            ) {
               setCompletedOverride({
                 baselinePlanId: baseline.plan.plan_id,
-                response: { ...result, plan: result.plan },
+                response: {
+                  ...(result as
+                    LegacyTripPlanResponseDto | TripPlanResponseV2Dto),
+                  plan: result.plan,
+                } as SingleCityTripPlanResultProps["response"],
               });
             }
           }}
@@ -702,5 +748,28 @@ export function TripPlanResult({
         </p>
       )}
     </div>
+  );
+}
+
+export function TripPlanResult(props: TripPlanResultProps) {
+  if (props.response.plan === null) return null;
+  if (
+    "response_version" in props.response &&
+    props.response.response_version === "3" &&
+    "plan_format_version" in props.response.plan &&
+    props.response.plan.plan_format_version === "3"
+  ) {
+    return (
+      <MulticityTripPlanResult
+        response={
+          props.response as TripPlanResponseV3Dto & { plan: TripPlanV3Dto }
+        }
+        onRetry={props.onRetry}
+        onReset={props.onReset}
+      />
+    );
+  }
+  return (
+    <SingleCityTripPlanResult {...(props as SingleCityTripPlanResultProps)} />
   );
 }
