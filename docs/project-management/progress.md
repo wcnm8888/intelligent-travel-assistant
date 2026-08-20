@@ -2,13 +2,13 @@
 
 ## 当前状态
 
-- 当前任务：`F-004B1 多城市领域、用户提供的城际段与离线约束`
-- 任务状态：`ACTIVE / APPROVED`
-- 当前 Step：`Step 8 - 合并、main CI 与归档`，状态 `TODO`
-- Step 0–7：`DONE`
-- 当前分支：`feat/f-004b1-multicity-ui-delivery`
-- 当前基线：`1a3e0a050721c72a6e83941f0cb5b2077decb1c7`
-- 下一批准动作：Step 8；不得自动进入
+- 当前任务：无
+- 最近完成：`F-004B1 多城市领域、用户提供的城际段与离线约束`
+- 任务状态：`DELIVERED / ARCHIVED`
+- Step 0–8：`DONE`
+- 完整功能 main：`c1fecb0e5545a25330aa179e7f25decd58c07139`
+- main CI：run `32384768085`=`PASS`
+- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
 
 ## Step 0 完成摘要
 
@@ -105,11 +105,20 @@
 - diff/range/依赖/秘密复核通过，无 migration、Schema、依赖、lockfile 或城际 Provider 文件变更；review 无阻塞 finding；
 - 四个 PR 保持 Draft；未 merge、未运行 main CI、未归档、未读取秘密或调用真实 Provider。
 
+## Step 8 完成摘要
+
+- PR #19/#23/#24/#25 已依序 squash merge；功能 main 提交依次为 `9f37e4f`、`712fd51`、`ec499fb`、`c1fecb0`；
+- 原 #20/#21/#22 在父层 squash 后由 clean-restacked #23/#24/#25 替代并关闭；每个替代分支从最新 main 创建且只移植所属层净提交，没有 force-push；
+- 替代 PR CI `32382212012`、`32383225699`、`32384318796` 均成功；四层 main CI `32381619737`、`32382625338`、`32383721748`、`32384768085` 均成功；
+- 完整功能 main 全量门禁保持 backend `1166 passed`、frontend `95 passed`、文档检查器 `24 passed`，并通过全部静态、类型和 build 检查；
+- F-004B1 任务卡已归档，roadmap 无 ACTIVE 任务，当前任务关闭；
+- 未读取秘密、调用真实 Provider、修改 Schema/migration/依赖或改写历史 evidence。
+
 ## 阻塞与停止条件
 
-当前没有事实冲突或技术阻塞。Step 8 尚未授权。
+当前没有事实冲突或技术阻塞，也没有活动任务。
 
-如需改变已批准 merge/clean-restack 拓扑、migration v3、新依赖、新 Provider、隐私边界变化、真实外部调用，或出现无法解释的 CI/文档事实冲突，立即停止并请求确认。
+下一任务必须由用户从 roadmap 明确选择并批准；不得因 F-004B1 完成而自动启动 F-005、F-004B2 或 F-006。
 
 ## 权威入口
 
