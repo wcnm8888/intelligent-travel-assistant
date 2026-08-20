@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import cast
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -58,7 +58,6 @@ from intelligent_travel_assistant.application.state_machine import (
     PlanningTransitionCommand,
 )
 from intelligent_travel_assistant.application.tooling import (
-    DEFAULT_TOOL_CALL_POLICIES,
     ROUTE_CONCURRENCY_LIMIT,
     ToolCallCapability,
     ToolCallGovernanceError,
@@ -78,6 +77,7 @@ from intelligent_travel_assistant.domain import (
     DailyRoutePlan,
     DomainInvariantError,
     Money,
+    MultiDayTripRequestInput,
     Provider,
     ProviderErrorCategory,
     ProviderResult,
@@ -90,7 +90,7 @@ from intelligent_travel_assistant.domain import (
 
 @dataclass(frozen=True, slots=True)
 class OfflinePlanningRequest:
-    trip: TripRequestInput
+    trip: TripRequestInput | MultiDayTripRequestInput
     budget: Money
     hard_constraints: tuple[str, ...]
     weather_location_id: UUID | None
@@ -125,6 +125,10 @@ class OfflinePlanningRequest:
     @property
     def route_modes(self) -> tuple[RouteMode, ...]:
         return (self.route_mode, *self.fallback_route_modes)
+
+    @property
+    def day_count(self) -> int:
+        return (self.trip.end_date - self.trip.start_date).days + 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,7 +184,13 @@ class _RouteLookupBatch:
 class OfflinePlanningOrchestrator:
     """Compose, enrich, and deterministically arbitrate one offline candidate."""
 
-    __slots__ = ("_amap", "_deepseek", "_governor_factory", "_qweather")
+    __slots__ = (
+        "_amap",
+        "_deepseek",
+        "_governor_factory",
+        "_qweather",
+        "_request_governor_factory",
+    )
 
     def __init__(
         self,
@@ -188,11 +198,15 @@ class OfflinePlanningOrchestrator:
         qweather: QWeatherPort,
         deepseek: DeepSeekPort,
         governor_factory: Callable[[], ToolCallGovernor],
+        *,
+        request_governor_factory: Callable[[OfflinePlanningRequest], ToolCallGovernor]
+        | None = None,
     ) -> None:
         self._amap = amap
         self._qweather = qweather
         self._deepseek = deepseek
         self._governor_factory = governor_factory
+        self._request_governor_factory = request_governor_factory
 
     async def plan(
         self,
@@ -200,7 +214,11 @@ class OfflinePlanningOrchestrator:
         *,
         state_observer: Callable[[PlanningStatus], Awaitable[None]] | None = None,
     ) -> OfflinePlanningOutcome:
-        governor = self._governor_factory()
+        governor = (
+            self._request_governor_factory(request)
+            if self._request_governor_factory is not None
+            else self._governor_factory()
+        )
         history = [PlanningStatus.DRAFT]
         await _advance(history, PlanningStatus.NORMALIZING, state_observer)
         await _advance(history, PlanningStatus.COLLECTING, state_observer)
@@ -626,6 +644,9 @@ def _planning_context(
                 _source_ids(alert_result),
             )
         )
+    expected_dates = tuple(
+        request.trip.start_date + timedelta(days=offset) for offset in range(request.day_count)
+    )
     return PlanningContext(
         city_name=city.city_name,
         city_adcode=city.adcode,
@@ -654,6 +675,10 @@ def _planning_context(
             accommodation.city_adcode,
         ),
         activity_source_ids=_source_ids(poi_result),
+        request_version=("2" if isinstance(request.trip, MultiDayTripRequestInput) else None),
+        expected_dates=(
+            expected_dates if isinstance(request.trip, MultiDayTripRequestInput) else ()
+        ),
     )
 
 
@@ -797,14 +822,6 @@ async def _lookup_route(
             None,
             None,
             RouteDataDiagnosticCode.COORDINATES_MISSING,
-        )
-    route_policy = DEFAULT_TOOL_CALL_POLICIES[ToolCallCapability.CALCULATE_ROUTES]
-    if governor.snapshot().count_for(ToolCallCapability.CALCULATE_ROUTES) >= route_policy.max_calls:
-        return _RouteLookup(
-            requirement,
-            None,
-            None,
-            RouteDataDiagnosticCode.CALL_BUDGET_EXHAUSTED,
         )
     route_request = RouteCalculationRequest(
         requirement.origin_location_id,
@@ -1014,7 +1031,7 @@ def _route_enrichments_from_lookups(
     by_requirement = _selected_route_lookups(lookups, request.route_modes)
     windows = {item.day_offset: item for item in request.day_windows}
     enrichments: list[RouteEnrichmentResult] = []
-    for day_offset in (0, 1):
+    for day_offset in range(len(candidate.days)):
         expected_legs = DailyRoutePlan(
             accommodation.location_id,
             windows[day_offset],

@@ -17,7 +17,7 @@ from intelligent_travel_assistant.application.repositories.models import (
     ReplanRecord,
     ReplanReservation,
 )
-from intelligent_travel_assistant.contracts import PlanningStatus, TripPlanRequest
+from intelligent_travel_assistant.contracts import PlanningRequest, PlanningStatus
 from intelligent_travel_assistant.domain.replanning import (
     ImpactAnalysis,
     ReplanChoice,
@@ -29,7 +29,7 @@ from intelligent_travel_assistant.domain.replanning import (
 class PlanningJobRepository(Protocol):
     """Atomic persistence boundary used by future HTTP handlers and orchestration."""
 
-    async def get_or_create(self, request: TripPlanRequest) -> PlanningJobReservation: ...
+    async def get_or_create(self, request: PlanningRequest) -> PlanningJobReservation: ...
 
     async def get(self, job_id: UUID) -> PlanningJob: ...
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import cast
@@ -159,6 +160,74 @@ def test_parser_accepts_exact_two_day_proposal_without_times() -> None:
     assert not hasattr(first, "end_time")
 
 
+@pytest.mark.parametrize("day_count", (3, 7))
+def test_parser_accepts_exact_multiday_proposal_dates(day_count: int) -> None:
+    context = _context()
+    expected_dates = tuple(
+        context.start_date + timedelta(days=offset) for offset in range(day_count)
+    )
+    context = replace(
+        context,
+        request_version="2",
+        end_date=expected_dates[-1],
+        expected_dates=expected_dates,
+        day_windows=tuple(
+            PlanningDayWindow(offset, time(8), time(18)) for offset in range(day_count)
+        ),
+    )
+    document = _proposal_document()
+    original = _proposal_days(document)
+    document["days"] = [
+        {
+            **original[min(offset, 1)],
+            "local_date": local_date.isoformat(),
+            "selections": [
+                {
+                    **cast(
+                        list[dict[str, object]],
+                        original[min(offset, 1)]["selections"],
+                    )[0],
+                    "local_date": local_date.isoformat(),
+                }
+            ],
+        }
+        for offset, local_date in enumerate(expected_dates)
+    ]
+
+    proposal = parse_plan_proposal(json.dumps(document), context)
+
+    assert tuple(day.local_date for day in proposal.days) == expected_dates
+
+
+def test_parser_rejects_multiday_proposal_with_a_missing_expected_date() -> None:
+    context = _context()
+    expected_dates = tuple(context.start_date + timedelta(days=offset) for offset in range(3))
+    context = replace(
+        context,
+        request_version="2",
+        end_date=expected_dates[-1],
+        expected_dates=expected_dates,
+        day_windows=tuple(PlanningDayWindow(offset, time(8), time(18)) for offset in range(3)),
+    )
+    document = _proposal_document()
+    days = _proposal_days(document)
+    final_selection = {
+        **cast(list[dict[str, object]], days[1]["selections"])[0],
+        "local_date": expected_dates[-1].isoformat(),
+    }
+    final_day = {
+        **days[1],
+        "local_date": expected_dates[-1].isoformat(),
+        "selections": [final_selection],
+    }
+    document["days"] = [days[0], final_day, final_day]
+
+    with pytest.raises(CandidateValidationError) as error:
+        parse_plan_proposal(json.dumps(document), context)
+
+    assert error.value.code is CandidateValidationCode.DATE_INVALID
+
+
 @pytest.mark.parametrize(
     "forbidden",
     (
@@ -223,6 +292,22 @@ def test_parser_requires_unique_contiguous_priority_ranks() -> None:
         parse_plan_proposal(json.dumps(document), _context())
 
     assert error.value.code is CandidateValidationCode.SCHEMA_INVALID
+
+
+def test_parser_rejects_contiguous_priorities_in_reverse_order_for_repair() -> None:
+    document = _proposal_document()
+    first = _first_selection(document)
+    first["priority_rank"] = 2
+    second = dict(first)
+    second["location_id"] = str(POI_TWO_ID)
+    second["priority_rank"] = 1
+    _proposal_days(document)[0]["selections"] = [first, second]
+
+    with pytest.raises(CandidateValidationError) as error:
+        parse_plan_proposal(json.dumps(document), _context())
+
+    assert error.value.code is CandidateValidationCode.SCHEMA_INVALID
+    assert error.value.repairable is True
 
 
 @pytest.mark.parametrize(

@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import NoReturn, cast
 from uuid import UUID, uuid4
 
-from pydantic import Field
+from pydantic import Field, TypeAdapter
 
 from intelligent_travel_assistant.adapters.persistence.connection import (
     SqliteDatabase,
@@ -46,11 +46,14 @@ from intelligent_travel_assistant.application.state_machine import (
 from intelligent_travel_assistant.contracts import (
     ApiError,
     ConstraintViolation,
+    PlanningPlan,
+    PlanningRequest,
     PlanningStatus,
     ResolvedDestination,
     SourceRecord,
     TripPlan,
-    TripPlanRequest,
+    TripPlanRequestV2,
+    TripPlanV2,
     Uncertainty,
 )
 from intelligent_travel_assistant.contracts.base import ContractModel
@@ -89,6 +92,8 @@ _PRIVATE_MATERIAL = re.compile(
     r"private[_-]?key|secret|password)\s*[=:]|-----BEGIN [A-Z ]*PRIVATE KEY-----",
     re.IGNORECASE,
 )
+_PLANNING_REQUEST_ADAPTER: TypeAdapter[PlanningRequest] = TypeAdapter(PlanningRequest)
+_PLANNING_PLAN_ADAPTER: TypeAdapter[PlanningPlan] = TypeAdapter(PlanningPlan)
 
 
 class _StoredResultMetadata(ContractModel):
@@ -119,7 +124,7 @@ class SqlitePlanningJobRepository:
         self._id_factory = id_factory or uuid4
         self._lock = asyncio.Lock()
 
-    async def get_or_create(self, request: TripPlanRequest) -> PlanningJobReservation:
+    async def get_or_create(self, request: PlanningRequest) -> PlanningJobReservation:
         fingerprint = request_fingerprint(request)
         try:
             request_json = self._dump_json(request.model_dump(mode="json"))
@@ -649,7 +654,9 @@ class SqlitePlanningJobRepository:
         job_id = self._uuid(self._text(row, "job_id"))
         trace_id = self._uuid(self._text(row, "trace_id"))
         client_request_id = self._uuid(self._text(row, "client_request_id"))
-        request = TripPlanRequest.model_validate(self._load_json(self._text(row, "request_json")))
+        request = _PLANNING_REQUEST_ADAPTER.validate_python(
+            self._load_json(self._text(row, "request_json"))
+        )
         fingerprint = RequestFingerprint(digest=self._text(row, "request_fingerprint"))
         if request.client_request_id != client_request_id:
             raise ValueError("stored_client_request_id_mismatch")
@@ -687,6 +694,7 @@ class SqlitePlanningJobRepository:
             attempt=attempt,
             status=status,
             retryable=retryable,
+            request=request,
             metadata_json=metadata_json,
             plan_version=plan_version,
         )
@@ -713,6 +721,7 @@ class SqlitePlanningJobRepository:
         attempt: int,
         status: PlanningStatus,
         retryable: bool,
+        request: PlanningRequest,
         metadata_json: str | None,
         plan_version: int | None,
     ) -> PlanningJobResult | None:
@@ -731,6 +740,7 @@ class SqlitePlanningJobRepository:
             trace_id=trace_id,
             attempt=attempt,
             status=status,
+            request=request,
             plan_version=plan_version,
             expected_source_ids=metadata.source_ids,
         )
@@ -792,9 +802,10 @@ class SqlitePlanningJobRepository:
         trace_id: UUID,
         attempt: int,
         status: PlanningStatus,
+        request: PlanningRequest,
         plan_version: int | None,
         expected_source_ids: tuple[UUID, ...],
-    ) -> TripPlan | None:
+    ) -> PlanningPlan | None:
         if plan_version is None:
             return None
         row = self._database.connection.execute(
@@ -809,7 +820,12 @@ class SqlitePlanningJobRepository:
             or PlanningStatus(self._text(row, "status")) is not status
         ):
             raise ValueError("stored_plan_version_mismatch")
-        plan = TripPlan.model_validate(self._load_json(self._text(row, "plan_json")))
+        plan = _PLANNING_PLAN_ADAPTER.validate_python(self._load_json(self._text(row, "plan_json")))
+        if isinstance(request, TripPlanRequestV2):
+            if not isinstance(plan, TripPlanV2):
+                raise ValueError("stored_plan_format_mismatch")
+        elif type(plan) is not TripPlan:
+            raise ValueError("stored_plan_format_mismatch")
         if self._uuid(self._text(row, "plan_id")) != plan.plan_id:
             raise ValueError("stored_plan_id_mismatch")
         linked_ids = {
@@ -1748,6 +1764,7 @@ class SqliteReplanRepository:
                     trace_id=UUID(plan_row["trace_id"]),
                     attempt=int(plan_row["attempt"]),
                     status=plan_status,
+                    request=current.request,
                     plan_version=plan_version,
                     expected_source_ids=source_ids,
                 ),

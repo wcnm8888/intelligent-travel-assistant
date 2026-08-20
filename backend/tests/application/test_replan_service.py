@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import cast
 from uuid import UUID
@@ -30,7 +31,12 @@ from intelligent_travel_assistant.application.repositories import (
     ReplanRepositoryErrorCode,
     request_fingerprint,
 )
-from intelligent_travel_assistant.contracts import PlanningStatus, TripPlanRequest, TripPlanResponse
+from intelligent_travel_assistant.contracts import (
+    PlanningStatus,
+    TripPlanRequest,
+    TripPlanRequestV2,
+    TripPlanResponse,
+)
 from intelligent_travel_assistant.domain import (
     DeleteActivity,
     ImpactAnalysis,
@@ -98,6 +104,27 @@ def _job() -> PlanningJob:
         created_at=response_time(),
         updated_at=response_time(),
         result=result,
+    )
+
+
+def _multiday_job(day_count: int = 3) -> PlanningJob:
+    payload = copy.deepcopy(_request().model_dump(mode="json"))
+    start = date.fromisoformat(str(payload["start_date"]))
+    payload["request_version"] = "2"
+    payload["end_date"] = (start + timedelta(days=day_count - 1)).isoformat()
+    payload["day_windows"] = [
+        {"day_offset": offset, "start_time": "09:00:00", "end_time": "18:00:00"}
+        for offset in range(day_count)
+    ]
+    request = TripPlanRequestV2.model_validate(payload)
+    return replace(
+        _job(),
+        client_request_id=request.client_request_id,
+        request_fingerprint=request_fingerprint(request),
+        request=request,
+        status=PlanningStatus.DRAFT,
+        retryable=False,
+        result=None,
     )
 
 
@@ -251,6 +278,58 @@ def test_auto_replan_analyzes_executes_and_commits_once() -> None:
     assert repeated.replan == result.replan
     assert executor.analysis_calls == 1
     assert executor.execution_calls == 1
+
+
+def test_multiday_create_is_rejected_before_reservation_or_analysis() -> None:
+    identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
+    replans = InMemoryReplanRepository(id_factory=identifiers.__next__)
+    executor = StubExecutor(
+        _impact(ImpactDisposition.AUTO), ReplanExecutionResult(commit=_commit())
+    )
+    service = ReplanApplicationService(
+        cast(PlanningJobRepository, StubPlanningJobs(_multiday_job())),
+        replans,
+        executor,
+    )
+
+    with pytest.raises(ReplanApplicationError, match="replan_scope_not_supported"):
+        asyncio.run(service.create(_application_request()))
+
+    with pytest.raises(ReplanRepositoryError) as missing:
+        asyncio.run(replans.get(JOB_ID, REPLAN_ID))
+    assert missing.value.code is ReplanRepositoryErrorCode.REPLAN_NOT_FOUND
+    assert executor.analysis_calls == 0
+    assert executor.execution_calls == 0
+
+
+def test_multiday_decide_and_execute_are_rejected_without_state_change() -> None:
+    planning_jobs = StubPlanningJobs(_job())
+    identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
+    replans = InMemoryReplanRepository(id_factory=identifiers.__next__)
+    executor = StubExecutor(
+        _impact(ImpactDisposition.CONFIRM), ReplanExecutionResult(commit=_commit())
+    )
+    service = ReplanApplicationService(
+        cast(PlanningJobRepository, planning_jobs), replans, executor
+    )
+    pending = asyncio.run(service.create(_application_request()))
+    planning_jobs.job = _multiday_job()
+
+    with pytest.raises(ReplanApplicationError, match="replan_scope_not_supported"):
+        asyncio.run(
+            service.decide(
+                JOB_ID,
+                pending.replan.replan_id,
+                ReplanChoice.APPROVE,
+                expected_replan_version=pending.replan.aggregate_version,
+            )
+        )
+    with pytest.raises(ReplanApplicationError, match="replan_scope_not_supported"):
+        asyncio.run(service.execute(JOB_ID, pending.replan.replan_id))
+
+    restored = asyncio.run(replans.get(JOB_ID, pending.replan.replan_id))
+    assert restored == pending.replan
+    assert executor.execution_calls == 0
 
 
 def test_concurrent_execute_calls_invoke_executor_once() -> None:

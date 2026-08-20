@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Final
@@ -19,7 +19,12 @@ from intelligent_travel_assistant.application.ports import (
     PlanProposal,
     ProposalDay,
 )
-from intelligent_travel_assistant.domain import DailyAvailability, RouteLeg, RouteMode
+from intelligent_travel_assistant.domain import (
+    DailyAvailability,
+    DomainInvariantError,
+    RouteLeg,
+    RouteMode,
+)
 
 _DURATION_MINUTES: Final = MappingProxyType(
     {
@@ -114,6 +119,7 @@ def derive_route_requirements(
 ) -> tuple[RouteRequirement, ...]:
     """Derive the exact endpoint chain without inventing route duration or order."""
 
+    _require_multiday_proposal(proposal)
     requirements: list[RouteRequirement] = []
     for day_offset, day in enumerate(proposal.days):
         previous = accommodation_location_id
@@ -141,6 +147,8 @@ def schedule_plan_proposal(
 ) -> SchedulingResult:
     """Create exact local times or return one stable deterministic decision."""
 
+    _require_multiday_proposal(proposal)
+    _require_day_windows(day_windows, len(proposal.days))
     location_categories = {item.location_id: item.category for item in locations}
     resolved = _resolve_durations(proposal, location_categories)
     if resolved is None:
@@ -242,6 +250,41 @@ def schedule_plan_proposal(
         warnings=warnings,
         uncertainties=_with_buffer_uncertainty(duration_uncertainties, requirements),
     )
+
+
+def _require_multiday_proposal(proposal: PlanProposal) -> None:
+    if not isinstance(proposal, PlanProposal) or not isinstance(proposal.days, tuple):
+        raise DomainInvariantError("plan_proposal_invalid", field="proposal")
+    day_count = len(proposal.days)
+    if not 2 <= day_count <= 7:
+        raise DomainInvariantError("trip_day_count_invalid", field="days")
+    start_date = proposal.days[0].local_date
+    if not isinstance(start_date, date) or isinstance(start_date, datetime):
+        raise DomainInvariantError("local_date_invalid", field="days")
+    for day_offset, day in enumerate(proposal.days):
+        expected_date = start_date + timedelta(days=day_offset)
+        if day.local_date != expected_date:
+            raise DomainInvariantError("proposal_day_dates_invalid", field="days")
+        if not isinstance(day.selections, tuple) or not 1 <= len(day.selections) <= 2:
+            raise DomainInvariantError("day_activity_count_invalid", field="selections")
+        expected_priorities = tuple(range(1, len(day.selections) + 1))
+        if tuple(item.priority_rank for item in day.selections) != expected_priorities:
+            raise DomainInvariantError("activity_priorities_invalid", field="selections")
+        if any(item.local_date != day.local_date for item in day.selections):
+            raise DomainInvariantError("selection_date_mismatch", field="selections")
+
+
+def _require_day_windows(
+    day_windows: tuple[DailyAvailability, ...],
+    day_count: int,
+) -> None:
+    if not isinstance(day_windows, tuple) or not all(
+        isinstance(item, DailyAvailability) for item in day_windows
+    ):
+        raise DomainInvariantError("day_windows_invalid", field="day_windows")
+    by_offset = {item.day_offset: item for item in day_windows}
+    if len(day_windows) != day_count or set(by_offset) != set(range(day_count)):
+        raise DomainInvariantError("day_window_offsets_invalid", field="day_windows")
 
 
 def _resolve_durations(
