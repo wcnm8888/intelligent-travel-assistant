@@ -28,6 +28,7 @@ from intelligent_travel_assistant.domain import (
     DomainInvariantError,
     ExpectedRouteLeg,
     Money,
+    MultiDayTimePlan,
     ProviderResult,
     ProviderResultStatus,
     RouteActivity,
@@ -35,7 +36,6 @@ from intelligent_travel_assistant.domain import (
     RouteValidationResult,
     RouteValidationStatus,
     SourceCatalog,
-    TwoDayTimePlan,
     evaluate_freshness,
     summarize_budget,
 )
@@ -86,7 +86,11 @@ class RouteEnrichmentResult:
     result: ProviderResult[RouteLeg] | None
 
     def __post_init__(self) -> None:
-        if self.day_offset not in (0, 1):
+        if (
+            not isinstance(self.day_offset, int)
+            or isinstance(self.day_offset, bool)
+            or not 0 <= self.day_offset < 7
+        ):
             raise DomainInvariantError("day_offset_invalid", field="day_offset")
         if not isinstance(self.expected, ExpectedRouteLeg):
             raise DomainInvariantError("expected_route_leg_invalid", field="expected")
@@ -109,7 +113,11 @@ class FinalValidationIssue:
             raise DomainInvariantError("validation_issue_code_invalid", field="code")
         if not isinstance(self.severity, FinalValidationSeverity):
             raise DomainInvariantError("validation_issue_severity_invalid", field="severity")
-        if self.day_offset is not None and self.day_offset not in (0, 1):
+        if self.day_offset is not None and (
+            not isinstance(self.day_offset, int)
+            or isinstance(self.day_offset, bool)
+            or not 0 <= self.day_offset < 7
+        ):
             raise DomainInvariantError("day_offset_invalid", field="day_offset")
 
 
@@ -253,8 +261,13 @@ def _validate_schedule(
         for index, activity in enumerate(day.activities)
     )
     try:
-        TwoDayTimePlan(candidate.days[0].local_date, day_windows, activities)
-    except DomainInvariantError:
+        MultiDayTimePlan(
+            candidate.days[0].local_date,
+            candidate.days[-1].local_date,
+            day_windows,
+            activities,
+        )
+    except (DomainInvariantError, IndexError):
         _add_issue(
             issues,
             FinalValidationIssueCode.SCHEDULE_CONFLICT,
@@ -271,7 +284,7 @@ def _validate_routes(
 ) -> tuple[RouteValidationResult, ...]:
     windows = {item.day_offset: item for item in day_windows}
     validations: list[RouteValidationResult] = []
-    for day_offset in (0, 1):
+    for day_offset in range(len(candidate.days)):
         accepted: list[RouteLeg] = []
         day_enrichments = tuple(item for item in enrichments if item.day_offset == day_offset)
         for item in day_enrichments:

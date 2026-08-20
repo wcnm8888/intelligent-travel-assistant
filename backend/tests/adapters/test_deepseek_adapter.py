@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import ast
 import json
-from datetime import UTC, date, datetime
+from dataclasses import replace
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -23,6 +24,7 @@ from intelligent_travel_assistant.application.ports import (
     CandidateValidationCode,
     PlanCandidateRepairRequest,
     PlanningContext,
+    PlanningDayWindow,
     PlanningLocation,
     PlanningObservation,
     PlanningToolName,
@@ -169,6 +171,34 @@ async def test_generation_uses_the_frozen_nonthinking_json_request() -> None:
     assert user_data["observations"][0]["summary"].startswith("synthetic observation")
     assert "tools" not in payload
     assert "temperature" not in payload
+
+
+@pytest.mark.anyio
+async def test_multiday_generation_carries_explicit_version_dates_and_dynamic_rules() -> None:
+    observed_payloads: list[dict[str, object]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        observed_payloads.append(json.loads(request.content))
+        return httpx2.Response(200, json=_completion())
+
+    base = _context()
+    expected_dates = tuple(base.start_date + timedelta(days=offset) for offset in range(3))
+    context = replace(
+        base,
+        request_version="2",
+        end_date=expected_dates[-1],
+        expected_dates=expected_dates,
+        day_windows=tuple(PlanningDayWindow(offset, time(8), time(18)) for offset in range(3)),
+    )
+    await _adapter(httpx2.MockTransport(handler)).generate_plan_candidate(context)
+
+    messages = observed_payloads[0]["messages"]
+    assert isinstance(messages, list)
+    assert isinstance(messages[0], dict) and isinstance(messages[1], dict)
+    assert "exactly 3 day objects" in messages[0]["content"]
+    user_data = json.loads(messages[1]["content"])
+    assert user_data["request_version"] == "2"
+    assert user_data["expected_dates"] == [item.isoformat() for item in expected_dates]
 
 
 @pytest.mark.anyio

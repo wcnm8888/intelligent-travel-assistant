@@ -19,7 +19,7 @@ from intelligent_travel_assistant.application.repositories import (
     ReplanRepositoryError,
     ReplanRepositoryErrorCode,
 )
-from intelligent_travel_assistant.contracts import PlanningStatus
+from intelligent_travel_assistant.contracts import PlanningStatus, TripPlanRequestV2
 from intelligent_travel_assistant.domain import ReplanChoice, ReplanStatus
 
 
@@ -48,6 +48,7 @@ class ReplanApplicationService:
         if not isinstance(request, ReplanApplicationRequest):
             raise ReplanApplicationError("replan_request_invalid")
         job = await self._planning_jobs.get(request.job_id)
+        self._require_supported_scope(job)
         reservation = await self._replans.reserve(
             request.job_id,
             request.replan_request_id,
@@ -114,6 +115,7 @@ class ReplanApplicationService:
         if not isinstance(job_id, UUID) or not isinstance(replan_id, UUID):
             raise ReplanApplicationError("replan_identifier_invalid")
         job = await self._planning_jobs.get(job_id)
+        self._require_supported_scope(job)
         decided = await self._replans.decide(
             job_id,
             replan_id,
@@ -131,8 +133,14 @@ class ReplanApplicationService:
         if not isinstance(job_id, UUID) or not isinstance(replan_id, UUID):
             raise ReplanApplicationError("replan_identifier_invalid")
         job = await self._planning_jobs.get(job_id)
+        self._require_supported_scope(job)
         replan = await self._replans.get(job_id, replan_id)
         return await self._execute(job, replan)
+
+    @staticmethod
+    def _require_supported_scope(job: PlanningJob) -> None:
+        if isinstance(job.request, TripPlanRequestV2) and job.request.day_count > 2:
+            raise ReplanApplicationError("replan_scope_not_supported")
 
     async def _execute(self, job: PlanningJob, replan: ReplanRecord) -> ReplanApplicationResult:
         if not isinstance(replan, ReplanRecord):

@@ -661,6 +661,10 @@ def test_executor_publishes_real_orchestration_shape_using_only_offline_ports() 
     assert job.result.plan.days[0].weather is not None
     assert job.result.plan.budget_summary.known_total.amount == Decimal("2180.00")
     assert job.result.plan.budget_summary.unknown_count == 1
+    meal = next(
+        item for item in job.result.plan.budget_summary.cost_items if item.category.value == "meal"
+    )
+    assert meal.description == "按用户每日餐饮预算计算的两日估算"
     assert any(source.provider.value == "qweather" for source in job.result.sources)
     qweather_sources = tuple(
         source for source in job.result.sources if source.provider.value == "qweather"

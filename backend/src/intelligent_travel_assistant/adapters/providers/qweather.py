@@ -342,7 +342,7 @@ def _forecast_request_coordinates(request: object) -> tuple[str, str] | None:
         or not _provider_coordinates(request.coordinates)
         or not _plain_date(request.start_date)
         or not _plain_date(request.end_date)
-        or (request.end_date - request.start_date).days != 1
+        or not 1 <= (request.end_date - request.start_date).days <= 6
     ):
         return None
     return _coordinate_path(request.coordinates)
@@ -403,9 +403,9 @@ def _parse_forecast(
             continue
         parsed_by_date[parsed.forecast_date] = parsed
 
-    expected_dates = (
-        request.start_date,
-        request.end_date,
+    expected_dates = tuple(
+        request.start_date + timedelta(days=offset)
+        for offset in range((request.end_date - request.start_date).days + 1)
     )
     selected = tuple(parsed_by_date[item] for item in expected_dates if item in parsed_by_date)
     if not selected:

@@ -14,11 +14,15 @@ from uuid import UUID
 from intelligent_travel_assistant.contracts import (
     ApiError,
     ConstraintViolation,
+    PlanningPlan,
+    PlanningRequest,
     PlanningStatus,
     ResolvedDestination,
     SourceRecord,
     TripPlan,
     TripPlanRequest,
+    TripPlanRequestV2,
+    TripPlanV2,
     Uncertainty,
 )
 from intelligent_travel_assistant.domain.replanning import (
@@ -390,7 +394,7 @@ class AcceptanceRecord:
             raise ValueError("acceptance_evidence_invalid")
 
 
-def request_fingerprint(request: TripPlanRequest) -> RequestFingerprint:
+def request_fingerprint(request: PlanningRequest) -> RequestFingerprint:
     """Hash normalized typed input, excluding the idempotency key itself."""
 
     if not isinstance(request, TripPlanRequest):
@@ -412,7 +416,7 @@ class PlanningJobResult:
 
     status: PlanningStatus
     resolved_destination: ResolvedDestination | None
-    plan: TripPlan | None
+    plan: PlanningPlan | None
     violations: tuple[ConstraintViolation, ...]
     warnings: tuple[str, ...]
     uncertainties: tuple[Uncertainty, ...]
@@ -437,7 +441,7 @@ class PlanningJob:
     trace_id: UUID
     client_request_id: UUID
     request_fingerprint: RequestFingerprint
-    request: TripPlanRequest = field(repr=False)
+    request: PlanningRequest = field(repr=False)
     status: PlanningStatus
     attempt: int
     version: int
@@ -490,15 +494,23 @@ class PlanningJobReservation:
             raise ValueError("reservation_invalid")
 
 
-def result_matches_request(result: PlanningJobResult, request: TripPlanRequest) -> bool:
+def result_matches_request(result: PlanningJobResult, request: PlanningRequest) -> bool:
     """Prevent a valid payload from being attached to a different request."""
 
     if result.plan is None:
         return True
     plan = result.plan
+    if isinstance(request, TripPlanRequestV2):
+        if not isinstance(plan, TripPlanV2):
+            return False
+        expected_end_date = request.end_date
+    else:
+        if type(plan) is not TripPlan:
+            return False
+        expected_end_date = request.start_date + timedelta(days=1)
     return (
         plan.start_date == request.start_date
-        and plan.end_date == request.start_date + timedelta(days=1)
+        and plan.end_date == expected_end_date
         and plan.budget_summary.budget == request.total_budget
         and (
             result.resolved_destination is None

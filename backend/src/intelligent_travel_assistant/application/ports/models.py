@@ -183,6 +183,8 @@ class PlanningContext:
     day_windows: tuple[PlanningDayWindow, ...] = ()
     accommodation: PlanningLocation | None = None
     activity_source_ids: tuple[UUID, ...] = ()
+    request_version: str | None = None
+    expected_dates: tuple[date, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,7 +6,7 @@ import json
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import date, time, timedelta
 from enum import StrEnum
 from typing import Final
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -342,7 +342,8 @@ def parse_plan_proposal(raw_output: str, context: PlanningContext) -> PlanPropos
             repairable=True,
         ) from None
     root = _exact_object(value, _ROOT_FIELDS)
-    days_value = _list(root["days"], exact_length=2)
+    expected_dates = _expected_dates(context)
+    days_value = _list(root["days"], exact_length=len(expected_dates))
     allowed_locations = {item.location_id for item in context.locations}
     allowed_sources = set(context.activity_source_ids)
     days = tuple(
@@ -353,7 +354,7 @@ def parse_plan_proposal(raw_output: str, context: PlanningContext) -> PlanPropos
         )
         for item in days_value
     )
-    if tuple(item.local_date for item in days) != (context.start_date, context.end_date):
+    if tuple(item.local_date for item in days) != expected_dates:
         raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
     return PlanProposal(
         _safe_text(root["intent_summary"], max_length=120),
@@ -380,7 +381,9 @@ def _parse_proposal_day(
         )
         for selection in _list(item["selections"], min_length=1, max_length=2)
     )
-    if {selection.priority_rank for selection in selections} != set(range(1, len(selections) + 1)):
+    if tuple(selection.priority_rank for selection in selections) != tuple(
+        range(1, len(selections) + 1)
+    ):
         raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
     return ProposalDay(local_date, selections)
 
@@ -467,11 +470,11 @@ def parse_plan_candidate(raw_output: str, context: PlanningContext) -> PlanCandi
     intent_summary = _safe_text(root["intent_summary"], max_length=120)
     explanation = _safe_text(root["explanation"], max_length=500)
     warnings = _string_tuple(root["warnings"], max_items=10, max_length=500)
-    days_value = _list(root["days"], exact_length=2)
+    expected_dates = _expected_dates(context)
+    days_value = _list(root["days"], exact_length=len(expected_dates))
 
     allowed_locations = {item.location_id for item in context.locations}
     allowed_sources = set(context.activity_source_ids)
-    expected_dates = (context.start_date, context.end_date)
     days = tuple(
         _parse_day(item, allowed_locations=allowed_locations, allowed_sources=allowed_sources)
         for item in days_value
@@ -487,10 +490,11 @@ def parse_plan_candidate(raw_output: str, context: PlanningContext) -> PlanCandi
 
 
 def _validate_route_windows(candidate: PlanCandidate, context: PlanningContext) -> None:
-    if context.accommodation is None or len(context.day_windows) != 2:
+    expected_dates = _expected_dates(context)
+    if context.accommodation is None or len(context.day_windows) != len(expected_dates):
         return
     windows = {item.day_offset: item for item in context.day_windows}
-    if set(windows) != {0, 1}:
+    if set(windows) != set(range(len(expected_dates))):
         return
     try:
         for day_offset, day in enumerate(candidate.days):
@@ -523,6 +527,20 @@ def _validate_route_windows(candidate: PlanCandidate, context: PlanningContext) 
                 accommodation_location_id=context.accommodation.location_id,
             ),
         ) from None
+
+
+def _expected_dates(context: PlanningContext) -> tuple[date, ...]:
+    day_count = (context.end_date - context.start_date).days + 1
+    if not 2 <= day_count <= 7:
+        raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
+    derived = tuple(context.start_date + timedelta(days=offset) for offset in range(day_count))
+    if context.request_version is None:
+        if day_count != 2 or (context.expected_dates and context.expected_dates != derived):
+            raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
+        return derived
+    if context.request_version != "2" or context.expected_dates != derived:
+        raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
+    return derived
 
 
 def _classify_route_time_failure(

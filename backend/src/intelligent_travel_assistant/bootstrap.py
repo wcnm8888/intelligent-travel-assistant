@@ -34,7 +34,11 @@ from intelligent_travel_assistant.application.services import (
     OfflinePlanningOrchestrator,
     ProviderPlanningJobExecutor,
 )
-from intelligent_travel_assistant.application.tooling import ToolCallGovernor
+from intelligent_travel_assistant.application.tooling import (
+    ToolCallGovernor,
+    multiday_task_timeout_seconds,
+    multiday_tool_call_policies,
+)
 from intelligent_travel_assistant.settings import Settings, default_local_sqlite_database_path
 
 MAX_PRIVATE_KEY_BYTES: Final = 16_384
@@ -161,6 +165,11 @@ def build_planning_job_executor(
         adapters.qweather,
         adapters.deepseek,
         lambda: ToolCallGovernor(clock=monotonic),
+        request_governor_factory=lambda request: ToolCallGovernor(
+            clock=monotonic,
+            policies=multiday_tool_call_policies(request.day_count),
+            task_timeout_seconds=multiday_task_timeout_seconds(request.day_count),
+        ),
     )
     return ProviderPlanningJobExecutor(repository, orchestrator)
 
