@@ -313,6 +313,62 @@ Step 6 已完成临时 SQLite 与真实本机 synthetic 浏览器闭环。首轮
 
 TDD/交付顺序冻结为：Step 2 领域日期/窗口/排程/预算/final validation；Step 3 contracts/Repository/API/SQLite；Step 4 Provider/编排/治理；Step 5 前端；Step 6 临时 SQLite 纵向、浏览器与独立审查；Step 7 全量门禁和三层 stacked 交付。任一实现 Step 必须先取得该层 RED，再最小 GREEN 和相关回归；mock/synthetic 不得表述为 live Provider 通过。
 
+## F-004B1 冻结测试矩阵（Step 1）
+
+F-004B1 默认使用纯领域 fixture、fake/MockTransport、独立临时 SQLite 和 loopback synthetic 浏览器；测试不得读取 `.env.local`，必须拒绝非 loopback socket。legacy/V2 golden 必须原样保留，V3 fixture 独立新增；不得批量改写旧 fixture 或 Schema 获得绿色。
+
+| 层级 | 正向行为 | 必须失败或降级的行为 |
+| --- | --- | --- |
+| V3 判别 | `request_version="3"` 只进 V3；legacy/V2 原分支 | 数字/null/未知版本、tag/字段冲突、模糊回退 |
+| 城市/日期 | 2 城 3/7 日、3 城 4/7 日；有序唯一城市 | 1/4 城、2 城 2 日、3 城 3 日、8 日、重复城市/adcode |
+| 夜数 | 每城 ≥1，sum nights = D-1 | 0/bool/string、总和少/多、静默自动修正 |
+| 窗口 | offset `0..D-1` 唯一全集 | 缺失/重复/越界、反向、零时长、跨夜 |
+| 用户段 | C-1 段，i→i+1，rail/air/coach，站点/时间完整 | 段缺失/多余/乱序、第三城市、联程、自驾、空站点 |
+| 转移日期 | 累计夜数派生日、+08:00、同日 arrival>departure | 错日、无时区/非 +08:00、跨夜、到达不晚于出发 |
+| 缓冲 | rail 60/30、air 120/60、coach 45/30 | 活动/route 侵入缓冲、窗口不足仍排程成功 |
+| 日城市连续性 | 非转移日 i/i/i；转移日 i/i+1/i+1 | 住宿断层、倒序、跳城、segment ref 错日 |
+| 活动/地点 | 普通日 1–2、转移日 ≤1；地点属于允许城市 | 转移日 2 项、异城 POI、RouteLeg 跨城市 |
+| plan contracts | V3 city adcodes/segments/days/locations/budget 完整 | request/plan/response tag 不一致、悬空站点/段/source |
+| 费用 | 住宿按各城 nights；餐饮 × travelers × D；fare user/unknown | unknown→0、user fare→verified/estimated、漏算城市/段 |
+| 来源 | provider=user、固定 attribution/warning、无 URL/record ID | 伪造 Provider/freshness/availability、原始输入泄漏 |
+| 五终态 | 完整用户事实可 ready；费用/天气/路线 unknown 可 partial | unknown partial→ready、warning 覆盖 conflict/failed |
+| needs/conflict/failed | 城市歧义 needs_input；连续性/缓冲 conflict；必要编排失败 failed | 结构非法创建 job、终态无安全 code、failed 暴露原文 |
+| fingerprint | V3 同 body 跨 client ID 相同；顺序/夜数/段字段变化 digest 变化 | legacy/V2 digest 变化、数组排序后错误复用 |
+| Repository contract | 三种 request/plan typed union，共享原方法集合 | SQLite 类型泄漏、新 port 方法、format mismatch 水合成功 |
+| SQLite v2 | V3 request/plan/source/version round-trip、重启、retry、DELETE | migration 3、Schema SQL 变化、旧记录改写、损坏 JSON 成功 |
+| API | 同 POST/GET/retry/DELETE URI，V3 oneOf/response | `/api/v3`、header 猜版本、legacy/V2 新增 V3 键 |
+| replan | 所有 V3 create 422 scope error | reserve/decision/executor/provider/write 任一调用非 0 |
+| 城市 Provider | resolve ≤ C、POI ≤ 3C、forecast/alert ≤ C | C+1/3C+1 调用、city ID 串用、单城失败伪造数据 |
+| LLM | 全局 generation 1/repair 1，城市命名空间目录 | 每城单独生成、第二次 repair、模型改城市/段/时间/fare |
+| 路线治理 | route ≤ min(28,4D)、并发 2、稳定顺序 | 超预算/并发 3、deadline/取消后新调用或 active peer |
+| 城际 Provider | 调用计数恒为 0 | 新 adapter、HTTP/MCP、班次/票价/availability 查询 |
+| 前端表单 | scope selector、2/3 城卡、段卡、字段首错 | 默认改成 V3、1/4 城、错段保留、fare 空显示 0 |
+| 前端结果 | 城市路线、日城市、段/缓冲、user/unknown、V3 restart | 市内/城际混合、V3 replan 入口、partial 显示 ready |
+| 浏览器 | desktop/390px、键盘/焦点、0 overflow、loopback only | console error、非 loopback、拖拽唯一、颜色唯一表达 |
+| 隐私 | allowlist typed JSON、安全日志/错误、临时 SQLite | 票号/证件/乘客/联系方式/秘密/Prompt/provider body 保存 |
+
+关键兼容门禁：legacy synthetic digest 固定为 `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd`；现有 V2 2/3/7 日 request/response/replan 用例逐键不变。SQLite 每例使用新 `tmp_path`，断言 migration 表只有 version 1/2，关闭连接后可重启水合；另用高版本数据库证明启动 fail closed。
+
+### 分 Step 红绿与回归
+
+- Step 2：先新增失败的 V3 contract/domain 测试，再最小实现城市/夜数/段/缓冲/PlanDay/预算/终态；只运行 domain/contracts 相关回归和后端静态门禁，不接 Repository/API；
+- Step 3：先证明 Repository/API 不能保存/投影 V3 且 replan 会进入 reserve，再实现 typed union、schema v2 水合、同 URI API 和前置拒绝；必须证明 migration 文件/Schema SQL 字节无变化；
+- Step 4：先证明旧 executor 不能按城市编排或遵守新预算，再实现 V3 planning/governor；fake/MockTransport 断言全部上限、取消、deadline、来源和城际调用 0；
+- Step 5：先证明旧前端 parser/form 拒绝 V3，再实现 scope selector、城市/段卡、严格 parser、结果与恢复；运行前端全量 test/typecheck/build；
+- Step 6：使用临时 SQLite + loopback synthetic executor 完成 create/read/restart/retry/delete、五终态、V3 replan 拒绝、desktop/390px 和独立隐私/兼容 review；
+- Step 7：运行 backend lock/format/lint/strict mypy/full tests，frontend peers/format/lint/typecheck/test/build，文档检查器、diff/秘密/范围审计，再按四层 stack 交付；
+- 任一 RED 必须对应当前层缺失行为；GREEN 后运行相关旧回归。mock/synthetic 只能证明本地契约，不证明真实高德/和风/DeepSeek质量或任何城际 Provider 能力。
+
+Step 2 已完成三轮 RED/GREEN：首轮证明多城市纯领域类型与独立 V3 contracts 缺失；第二轮证明跨日城市连续性及 response 对 summary 夜数派生转移日的绑定缺失；第三轮证明 ready 终态可错误携带 error。最终 domain/contracts、相邻 legacy/V2 与 fingerprint 定向回归 `102 passed`，全仓 Ruff format/lint 和 strict mypy 对 126 个文件通过。未运行 Repository/API/SQLite 用例，未创建数据库或调用 Provider；这些验证仍属于 Step 3 及以后。
+
+Step 3 已完成 RED/GREEN：首轮 collection 证明缺少 `PlanningJobResultV3`；补充负向测试证明无 plan 的跨版本 terminal result 可绕过匹配。最终新增集合 `31 passed`，Repository/API/replan 相关 legacy/V2/V3 回归 `170 passed`，Provider 入口相邻纯离线回归 `33 passed`，SQLite API 回归 `17 passed`；全仓 Ruff format/lint 和 strict mypy 对 130 个文件通过。schema/migration 文件未修改，临时 SQLite 只位于 pytest 临时目录；未调用真实 Provider，V3 planning 仍属于 Step 4。
+
+Step 4 已完成 RED/GREEN：首轮 collection 证明多城市编排器/governor 缺失，第二轮纵向证明 proposal 日期解析仍只承认 V2；严格加入 V3 后转绿。新增集合 `9 passed` 覆盖两城 typed plan、城市事实 fan-out 2、route 并发 2、全局 generation/repair、deadline 首调前停止、取消 drain、repair 脱敏和城际 Provider 0；application 全目录 `505 passed`，API/contracts/持久化相关 `141 passed`，bootstrap `22 passed`，DeepSeek/parser 相邻 `102 passed`。Ruff format/lint、strict mypy 和 diff 检查通过；未调用真实 Provider，前端仍属于 Step 5。
+
+Step 5 已完成 RED/GREEN：旧 parser 精确拒绝 V3，旧表单没有多城市入口，同时 legacy/V2 既有 `88 passed`；GREEN 后专项 `7 passed`、前端全量 `95 passed`。覆盖显式 scope、2/3 城、夜数、相邻段、排序清段、删除/焦点、字段首错、严格 tag/user source/ready unknown 拒绝、城际/市内分组、unknown/partial、无 replan 和本机 job UUID 重启 GET；Prettier、ESLint、TypeScript、Vite build 通过。desktop/390px 真浏览器、临时 SQLite 纵向、console/network 与独立隐私/兼容审查保留给 Step 6；没有读取秘密或调用 Provider。
+
+Step 6 已完成临时 SQLite 与真实 loopback synthetic 浏览器闭环。TDD 首轮证明 synthetic executor 不能发布 V3 result，随后临时 SQLite 纵向暴露 retry 时 source/plan id 必须保持 job 唯一；最小实现只让 browser synthetic executor 按 attempt 生成新标识，不改 schema v2、migration 1/2 或 Repository 冲突语义。纵向模块 `10 passed`，legacy/V2/V3 联合回归 `45 passed`，覆盖 2/3 城、五终态、create/read/restart/retry/delete、幂等和 V3 replan 拒绝。真实 Vite → FastAPI → SQLite → synthetic executor 在 `1440×1000` 与 `390×844` 通过，58 条请求全为 loopback、横向 overflow 0、console error/warning 0；键盘、skip link、焦点恢复和 DOM/ARIA audit 通过。新增第三城焦点丢失以 RED/GREEN 修复后，前端全量仍为 `95 passed`。独立 diff scan 覆盖 36 个生产文件和 6 个信任面，0 finding；TAC advisory 未登录状态不作为通过证据。所有临时数据库已按精确路径清理；未读取秘密或调用真实 Provider，Step 7 全量门禁和交付仍待单独批准。
+
 ## 外部适配器和失败注入
 
 适配器合约测试覆盖统一 envelope 的 `ok`、`partial` 和 `unavailable`，并注入：

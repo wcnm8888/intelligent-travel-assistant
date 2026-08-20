@@ -67,10 +67,16 @@ function RequestSummary({ response }: { response: TripPlanResponseDto }) {
   );
   return (
     <p className="tracking-summary">
-      <strong>{response.request_summary.city}</strong> ·{" "}
-      {response.request_summary.start_date}—{response.request_summary.end_date}{" "}
-      · {dayCount ?? "?"} 日 · {response.request_summary.travelers} 人 ·
-      任务尝试 {response.attempt}/3
+      <strong>
+        {"response_version" in response && response.response_version === "3"
+          ? response.request_summary.city_stays
+              .map((stay) => stay.city)
+              .join(" → ")
+          : response.request_summary.city}
+      </strong>{" "}
+      · {response.request_summary.start_date}—
+      {response.request_summary.end_date} · {dayCount ?? "?"} 日 ·{" "}
+      {response.request_summary.travelers} 人 · 任务尝试 {response.attempt}/3
     </p>
   );
 }

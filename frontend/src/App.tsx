@@ -47,9 +47,41 @@ export function App({
       const windowField = /^day_windows\.(\d+)\.(start_time|end_time)$/.exec(
         field ?? "",
       );
-      if (!windowField) return field;
-      const [, index, timeField] = windowField;
-      return `dayWindows.${index}.${timeField === "start_time" ? "startTime" : "endTime"}`;
+      if (windowField) {
+        const [, index, timeField] = windowField;
+        return `dayWindows.${index}.${timeField === "start_time" ? "startTime" : "endTime"}`;
+      }
+      const cityStayField =
+        /^city_stays\.(\d+)\.(city|nights|accommodation\.area_or_poi|accommodation\.one_night_cost)$/.exec(
+          field ?? "",
+        );
+      if (cityStayField) {
+        const [, index, nested] = cityStayField;
+        const key =
+          nested === "accommodation.area_or_poi"
+            ? "accommodation"
+            : nested === "accommodation.one_night_cost"
+              ? "oneNightCost"
+              : nested;
+        return `cityStays.${index}.${key}`;
+      }
+      const segmentField =
+        /^intercity_segments\.(\d+)\.(mode|departure_station|arrival_station|departure_at|arrival_at|fare)$/.exec(
+          field ?? "",
+        );
+      if (segmentField) {
+        const [, index, nested] = segmentField;
+        const key = {
+          mode: "mode",
+          departure_station: "departureStation",
+          arrival_station: "arrivalStation",
+          departure_at: "departureTime",
+          arrival_at: "arrivalTime",
+          fare: "fare",
+        }[nested];
+        return `intercitySegments.${index}.${key}`;
+      }
+      return field;
     })();
     window.setTimeout(() => {
       const permitted = new Set([
@@ -64,12 +96,17 @@ export function App({
         "mealBudgetPerPersonPerDay",
         "freeText",
       ]);
-      const safeTarget =
+      const isPermittedTarget =
         target &&
         (permitted.has(target) ||
-          /^dayWindows\.\d+\.(startTime|endTime)$/.test(target))
-          ? target
-          : "city";
+          /^dayWindows\.\d+\.(startTime|endTime)$/.test(target) ||
+          /^cityStays\.\d+\.(city|nights|accommodation|oneNightCost)$/.test(
+            target ?? "",
+          ) ||
+          /^intercitySegments\.\d+\.(mode|departureStation|arrivalStation|departureTime|arrivalTime|fare)$/.test(
+            target ?? "",
+          ));
+      const safeTarget = isPermittedTarget ? target : "city";
       requestPanel.current
         ?.querySelector<HTMLElement>(`[data-field="${safeTarget}"]`)
         ?.focus();
@@ -100,7 +137,7 @@ export function App({
           </div>
           <div>
             <dt>当前范围</dt>
-            <dd>单城市 · 2—7 日</dd>
+            <dd>单城 / 2—3 城 · 2—7 日</dd>
           </div>
           <div>
             <dt>币种</dt>
@@ -157,7 +194,7 @@ export function App({
       </main>
 
       <footer className="product-footer">
-        <span>F-004A · 单城市 2—7 日计划</span>
+        <span>F-004B1 · 单城市与离线多城市计划</span>
         <span>计划、来源、时效与冲突均来自服务端终态 · 不推测缺失事实</span>
       </footer>
     </div>

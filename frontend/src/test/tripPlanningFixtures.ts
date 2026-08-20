@@ -1,5 +1,13 @@
-import type { PlanningStatus, TripPlanResponseDto } from "../tripPlanningApi";
-import type { CostItemDto, TripPlanDto } from "../tripPlanModels";
+import type {
+  LegacyTripPlanResponseDto,
+  PlanningStatus,
+  TripPlanResponseV2Dto,
+} from "../tripPlanningApi";
+import type {
+  CostItemDto,
+  LegacyTripPlanDto,
+  TripPlanV2Dto,
+} from "../tripPlanModels";
 
 export const FIXED_CLIENT_ID = "11111111-1111-4111-8111-111111111111";
 export const FIXED_JOB_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -12,8 +20,8 @@ const MUSEUM_ID = "90000000-0000-4000-8000-000000000003";
 
 export function planningResponse(
   status: PlanningStatus = "draft",
-  overrides: Partial<TripPlanResponseDto> = {},
-): TripPlanResponseDto {
+  overrides: Partial<LegacyTripPlanResponseDto> = {},
+): LegacyTripPlanResponseDto {
   return {
     job_id: FIXED_JOB_ID,
     trace_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -58,7 +66,7 @@ function costItem(
   };
 }
 
-function readyPlan(): TripPlanDto {
+function readyPlan(): LegacyTripPlanDto {
   return {
     plan_id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
     city_adcode: "330100",
@@ -249,7 +257,7 @@ function readyPlan(): TripPlanDto {
   };
 }
 
-export function readyPlanningResponse(): TripPlanResponseDto {
+export function readyPlanningResponse(): LegacyTripPlanResponseDto {
   return planningResponse("ready", {
     resolved_destination: {
       city_name: "杭州市",
@@ -303,7 +311,7 @@ export function readyPlanningResponse(): TripPlanResponseDto {
   });
 }
 
-export function partialPlanningResponse(): TripPlanResponseDto {
+export function partialPlanningResponse(): LegacyTripPlanResponseDto {
   const plan = readyPlan();
   const unknownTicket = costItem(
     "93000000-0000-4000-8000-000000000014",
@@ -373,7 +381,7 @@ export function partialPlanningResponse(): TripPlanResponseDto {
   });
 }
 
-export function multidayPlanningPayload(dayCount = 3): TripPlanResponseDto {
+export function multidayPlanningPayload(dayCount = 3): TripPlanResponseV2Dto {
   const response = readyPlanningResponse();
   if (!response.plan) throw new Error("ready fixture must include a plan");
   const template = response.plan.days[0];
@@ -413,13 +421,13 @@ export function multidayPlanningPayload(dayCount = 3): TripPlanResponseDto {
       plan_format_version: "2",
       end_date: endDate,
       days,
-    },
+    } as TripPlanV2Dto,
   };
 }
 
 export function multidayPartialPlanningPayload(
   dayCount = 7,
-): TripPlanResponseDto {
+): TripPlanResponseV2Dto {
   const response = multidayPlanningPayload(dayCount);
   const partial = partialPlanningResponse();
   if (!response.plan || !partial.plan) {
@@ -437,7 +445,7 @@ export function multidayPartialPlanningPayload(
           : day,
       ),
       budget_summary: partial.plan.budget_summary,
-    },
+    } as TripPlanV2Dto,
     warnings: partial.warnings,
     uncertainties: partial.uncertainties,
     errors: partial.errors,

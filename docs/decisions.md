@@ -412,3 +412,44 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 - 旧应用遇到 version 2 数据只允许 fail closed，不得损坏、删除或误投影；回滚不需要数据库 down migration；
 - 版本比较/恢复、历史列表、多城市、城际 Provider、登录/同步/公网和 3–7 日局部重规划继续需要独立任务；
 - 任一 stack 超过 35 个生产/测试文件或净新增 3000 行，或需要 migration v3/新依赖时必须停止并重新拆分。
+
+## D-013：F-004B1 使用独立 V3 表达多城市与用户提供城际段
+
+- 状态：`APPROVED_AND_FROZEN`；F-004B1 Step 0–4 已完成，Step 5 等待单独批准
+- 日期：2026-08-20
+- 适用范围：F-004B1 中国大陆 2–3 城、用户提供的相邻城际段和完全离线约束
+- 替代关系：把 D-012 中尚未拆分的 F-004B 候选细分为 F-004B1 → F-005 → F-004B2；不改变 D-012 已交付的 F-004A 事实
+
+### 决策
+
+- F-004B1 只支持 2–3 个由用户排序且不重复的中国大陆城市；每城至少住宿一晚，每城有独立住宿锚点，总住宿夜数等于总天数减 1；2 城最少 3 日，3 城最少 4 日，总行程最多 7 日；
+- 首版只支持单向/开放式路线，不用重复首城表达闭合往返；不做系统全局路线优化；
+- 每自然日最多一次到下一城市的城际转移，转移日最多一项活动；不支持跨夜、第三城市、联程换乘或自驾；
+- 城际方式只允许铁路、航空和长途客运。班次、站点、出发/到达时间和可选费用由用户提供；铁路/航空/客运 Provider 调用为 0，不承诺班次、票价、余票、库存、预订、支付或出票；
+- 出发前/到达后缓冲分别为铁路 60/30 分钟、航空 120/60 分钟、长途客运 45/30 分钟，并由确定性代码影响逐日窗口和活动排程；
+- 城际费用只有用户提供时才以 `user_provided` 进入已知预算，未提供时保持 `unknown`、`amount=null`；不得混合伪造的估算、实时价格或 availability；
+- 新能力使用独立严格 `request_version="3"` request/plan/response typed 变体；不向 V2 添加大量 optional 字段，legacy/V2 JSON 形状、canonical fingerprint、已保存数据和行为保持兼容；
+- 复用现有 POST/GET/retry/DELETE URI，通过严格 tagged union 判别版本；Repository 方法集合不变，typed union 只显式增加 V3；
+- schema version 2 typed JSON 足以承载 V3 时不增加 migration v3、不改写旧记录；需要新列、索引、关系实体或查询能力时停止。旧应用读取 V3 只允许 fail closed；
+- 全部 V3 replan 都在分析、Provider、decision、lineage 和 plan version 写入前以稳定 scope 错误拒绝；不扩大 F-003；
+- 后续实现可按城市复用现有高德/和风/DeepSeek 适配器，但默认测试和 UAT 完全离线、不新增 Provider。调用治理方向为城市解析 ≤ C、POI ≤ 3C、forecast ≤ C、alert ≤ C、generation 1、repair 1、route 并发 2、route ≤ min(28, 4D)、城市 fan-out 并发 2、总 deadline ≤ 180 秒；
+- 只保存 allowlist 转换字段和用户提供的必要城际字段；不保存秘密、完整 Prompt、Provider 原始响应、原始错误 body、完整日志或个人票务/证件信息；
+- 提供最小多城市编辑器、每城住宿/夜数、相邻城际段、逐日结果和离线读取/SQLite 重启恢复；不新增登录、同步、多用户、云数据库、公网部署、历史列表、版本比较/恢复或交易能力；
+- 交付使用四层 stacked PR：domain/contracts → persistence/API → planning → UI/delivery；前层 squash 后从最新 main clean restack，不 force-push；单层最多 30 个生产/测试文件或净新增 2500 行，任务累计超过 90 个生产/测试文件或净新增 8000 行时重新切片。
+
+### Step 1 冻结细化
+
+- V3 request 独立使用 `city_stays` 和 `intercity_segments`，不含单城市 `city/accommodation/intercity_transport_cost`；每段以相邻城市索引、三种 mode、站点、`+08:00` 同日 datetime 和可空 fare 表达；
+- 转移日由累计住宿夜数唯一派生；plan day 显式记录出发、到达、当晚住宿城市索引和可空 segment ID，转移日最多一项活动，市内 RouteLeg 不得跨城市；
+- V3 plan/response 独立使用 `city_adcodes`、`intercity_segments`、`resolved_destinations` 和三个 `"3"` format tag；内部新增 `PlanningJobResultV3` 并由 `PlanningResult` typed union 承载，legacy/V2 结果和公开键集合保持不变；
+- 用户段来源标记 `provider=user`、`unknown_validity` 和固定未核验 warning；未核验 availability 本身不阻止 ready，但参与预算或执行判断的 fare/weather/route unknown 继续产生 partial；
+- F-004B1 不新增顶层 HTTP error code；shape 错误为 422 `input_invalid`，所有 V3 replan 为既有 422 `replan_scope_not_supported`；多城市连续性、段、缓冲、fare 和未核验披露使用已冻结的安全 violation/uncertainty codes；
+- 前端显式选择单/多城市，默认保持单城市；多城市卡顺序由键盘可达按钮控制，顺序变化后清空相邻段以防错绑；V3 永不展示 replan 入口；
+- 分层 RED/GREEN、legacy/V2 golden、schema 1/2 不变、intercity provider call=0、临时 SQLite 和 loopback desktop/390px 门禁已写入测试策略。
+
+### 后果
+
+- Step 1 已冻结精确领域、API、Repository、Provider、测试和 UI 契约；这不构成 Step 2 实现授权；
+- F-005 在 F-004B1 后优先处理既有外部服务韧性、时效和 Agent 评估；真实城际 Provider 进入后续 F-004B2，并重新批准数据源、条款、费用、留存和 live UAT；
+- 任一 migration v3、新依赖、新 Provider、隐私变化、真实调用或未批准外部服务都必须停止；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线以及 F-004A 无真实 Provider UAT 不受本决定改变。
