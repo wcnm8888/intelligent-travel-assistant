@@ -16,6 +16,8 @@ from intelligent_travel_assistant.domain import (
     CostConfidence,
     DomainInvariantError,
     Money,
+    calculate_multiday_lodging_cost,
+    calculate_multiday_meal_cost,
     summarize_budget,
 )
 
@@ -115,6 +117,22 @@ def test_empty_cost_collection_is_a_known_zero_total() -> None:
     result = summarize("100.00", ())
     assert result.known_total == Money(Decimal("0.00"))
     assert result.assessment is BudgetAssessment.WITHIN_BUDGET
+
+
+def test_multiday_meal_and_lodging_formulas_use_every_day_and_night() -> None:
+    assert calculate_multiday_meal_cost(Money(Decimal("80.00")), 2, 7) == Money(Decimal("1120.00"))
+    assert calculate_multiday_lodging_cost(Money(Decimal("500.00")), 7) == Money(Decimal("3000.00"))
+
+
+def test_multiday_unknown_costs_remain_none_instead_of_zero() -> None:
+    assert calculate_multiday_meal_cost(None, 2, 3) is None
+    assert calculate_multiday_lodging_cost(None, 3) is None
+
+
+@pytest.mark.parametrize(("travelers", "day_count"), [(0, 2), (9, 2), (2, 1), (2, 8)])
+def test_multiday_budget_factors_reject_out_of_scope_values(travelers: int, day_count: int) -> None:
+    with pytest.raises(DomainInvariantError):
+        calculate_multiday_meal_cost(Money(Decimal("1.00")), travelers, day_count)
 
 
 def test_all_approved_categories_and_confidences_aggregate_as_decimal() -> None:

@@ -85,13 +85,21 @@ def test_two_daily_windows_must_cover_offsets_zero_and_one_once() -> None:
         TwoDayTimePlan(start_date=START_DATE, windows=(window(),), activities=())
 
 
-@pytest.mark.parametrize("day_offset", [-1, 2, True, "0"])
-def test_day_offset_is_a_strict_zero_or_one(day_offset: object) -> None:
+@pytest.mark.parametrize("day_offset", [-1, 7, True, "0"])
+def test_base_day_offset_is_a_strict_integer_from_zero_to_six(day_offset: object) -> None:
     with pytest.raises(DomainInvariantError) as error:
         window(day_offset=day_offset)  # type: ignore[arg-type]
 
     assert error.value.code == "day_offset_invalid"
     assert error.value.field == "day_offset"
+
+
+def test_legacy_two_day_plan_still_rejects_an_offset_after_one() -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        plan(windows=(window(0), window(2)))
+
+    assert error.value.code == "day_window_offsets_invalid"
+    assert error.value.field == "windows"
 
 
 @pytest.mark.parametrize(

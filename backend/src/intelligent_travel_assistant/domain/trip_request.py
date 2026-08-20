@@ -18,6 +18,8 @@ MAX_TRAVELERS = 8
 MAX_INTERESTS = 5
 MAX_SHORT_TEXT_LENGTH = 120
 MAX_FREE_TEXT_LENGTH = 200
+MIN_TRIP_DAYS = 2
+MAX_TRIP_DAYS = 7
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +67,50 @@ class TripRequestInput:
         object.__setattr__(self, "evaluated_at", local_evaluated_at)
 
 
+@dataclass(frozen=True, slots=True)
+class MultiDayTripRequestInput:
+    """Normalized version 2 request data for a continuous 2-7 day trip."""
+
+    city: str
+    start_date: date
+    end_date: date
+    travelers: int
+    interests: tuple[str, ...]
+    free_text: str
+    evaluated_at: datetime
+
+    def __post_init__(self) -> None:
+        local_evaluated_at = _normalize_evaluation_time(self.evaluated_at)
+        city = _normalize_required_text(
+            self.city,
+            field="city",
+            min_length=2,
+            max_length=30,
+        )
+        interests = _normalize_interests(self.interests)
+        free_text = _normalize_optional_text(
+            self.free_text,
+            field="free_text",
+            max_length=MAX_FREE_TEXT_LENGTH,
+        )
+
+        _validate_multiday_trip_dates(
+            start_date=self.start_date,
+            end_date=self.end_date,
+            local_today=local_evaluated_at.date(),
+        )
+        _validate_travelers(self.travelers)
+
+        object.__setattr__(self, "city", city)
+        object.__setattr__(self, "interests", interests)
+        object.__setattr__(self, "free_text", free_text)
+        object.__setattr__(self, "evaluated_at", local_evaluated_at)
+
+    @property
+    def day_count(self) -> int:
+        return (self.end_date - self.start_date).days + 1
+
+
 def _normalize_evaluation_time(value: object) -> datetime:
     if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
         raise DomainInvariantError("timezone_required", field="evaluated_at")
@@ -78,6 +124,23 @@ def _validate_trip_dates(*, start_date: object, end_date: object, local_today: d
         raise DomainInvariantError("trip_date_order_invalid", field="end_date")
     if checked_end_date != checked_start_date + timedelta(days=1):
         raise DomainInvariantError("trip_dates_not_consecutive", field="end_date")
+
+    earliest_start = local_today + timedelta(days=MIN_START_OFFSET_DAYS)
+    latest_start = local_today + timedelta(days=MAX_START_OFFSET_DAYS)
+    if not earliest_start <= checked_start_date <= latest_start:
+        raise DomainInvariantError("trip_start_date_out_of_window", field="start_date")
+
+
+def _validate_multiday_trip_dates(
+    *, start_date: object, end_date: object, local_today: date
+) -> None:
+    checked_start_date = _require_strict_date(start_date, field="start_date")
+    checked_end_date = _require_strict_date(end_date, field="end_date")
+    if checked_end_date <= checked_start_date:
+        raise DomainInvariantError("trip_date_order_invalid", field="end_date")
+    day_count = (checked_end_date - checked_start_date).days + 1
+    if not MIN_TRIP_DAYS <= day_count <= MAX_TRIP_DAYS:
+        raise DomainInvariantError("trip_day_count_invalid", field="end_date")
 
     earliest_start = local_today + timedelta(days=MIN_START_OFFSET_DAYS)
     latest_start = local_today + timedelta(days=MAX_START_OFFSET_DAYS)

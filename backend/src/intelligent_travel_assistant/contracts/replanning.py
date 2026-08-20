@@ -14,7 +14,7 @@ from intelligent_travel_assistant.contracts.base import ContractModel
 from intelligent_travel_assistant.contracts.errors import ApiError
 from intelligent_travel_assistant.contracts.trip_planning import (
     DataFreshness,
-    TripPlanResponse,
+    PlanningResponse,
 )
 
 ReasonCode = Annotated[
@@ -201,7 +201,7 @@ class ReplanResponse(ContractModel):
     impact: ReplanImpactResponse | None
     confirmation_expires_at: datetime
     decision: ReplanDecisionResponse | None
-    result: TripPlanResponse | None
+    result: PlanningResponse | None
     change_set: ReplanChangeSetResponse | None
     errors: tuple[ApiError, ...]
     created_at: datetime

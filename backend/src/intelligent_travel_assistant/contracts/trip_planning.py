@@ -7,7 +7,7 @@ implement planning, provider access, persistence, or deterministic validators.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from types import MappingProxyType
@@ -16,8 +16,10 @@ from uuid import UUID
 
 from pydantic import (
     AnyHttpUrl,
+    Discriminator,
     Field,
     StringConstraints,
+    Tag,
     WithJsonSchema,
     field_serializer,
     field_validator,
@@ -446,3 +448,135 @@ class TripPlanResponse(ContractModel):
         if value.tzinfo is None:
             raise ValueError("timestamps must include a timezone")
         return value
+
+
+class MultiDayTimeWindow(DailyTimeWindow):
+    """Version 2 local-day window with a strict offset from zero through six."""
+
+    day_offset: Annotated[int, Field(strict=True, ge=0, le=6)]  # type: ignore[assignment]
+
+
+class TripPlanRequestV2(TripPlanRequest):
+    """Strictly tagged request for one continuous 2-7 day single-city trip."""
+
+    request_version: Literal["2"]
+    end_date: date
+    day_windows: Annotated[tuple[MultiDayTimeWindow, ...], Field(min_length=2, max_length=7)]
+
+    @model_validator(mode="after")
+    def require_both_unique_day_windows(self) -> TripPlanRequestV2:
+        if self.end_date <= self.start_date:
+            raise ValueError("trip end date must be after start date")
+        day_count = self.day_count
+        if not 2 <= day_count <= 7:
+            raise ValueError("trip must contain between two and seven days")
+        if len(self.day_windows) != day_count or {
+            item.day_offset for item in self.day_windows
+        } != set(range(day_count)):
+            raise ValueError("day windows must exactly cover the trip offsets")
+        return self
+
+    @property
+    def day_count(self) -> int:
+        return (self.end_date - self.start_date).days + 1
+
+
+class PlanDayV2(PlanDay):
+    """Version 2 day with one or two activities and at most three route legs."""
+
+    activities: Annotated[tuple[ItineraryItem, ...], Field(min_length=1, max_length=2)]
+    routes: Annotated[tuple[RouteLeg, ...], Field(max_length=3)]
+
+
+class TripPlanV2(TripPlan):
+    """Strictly tagged 2-7 day plan without changing the legacy plan shape."""
+
+    plan_format_version: Literal["2"]
+    days: Annotated[tuple[PlanDayV2, ...], Field(min_length=2, max_length=7)]
+
+    @model_validator(mode="after")
+    def require_exact_trip_dates_and_accommodation(self) -> TripPlanV2:
+        if self.end_date <= self.start_date:
+            raise ValueError("trip end date must be after start date")
+        day_count = (self.end_date - self.start_date).days + 1
+        if not 2 <= day_count <= 7 or len(self.days) != day_count:
+            raise ValueError("plan days must match a two-to-seven-day trip")
+        expected_dates = tuple(
+            self.start_date + timedelta(days=offset) for offset in range(day_count)
+        )
+        if tuple(day.local_date for day in self.days) != expected_dates:
+            raise ValueError("plan days must exactly cover the trip dates")
+        accommodation_ids = {day.accommodation_location_id for day in self.days}
+        if len(accommodation_ids) != 1:
+            raise ValueError("all plan days must use one accommodation anchor")
+        if any(
+            day.weather is not None and day.weather.forecast_date != day.local_date
+            for day in self.days
+        ):
+            raise ValueError("weather dates must match their plan days")
+        return self
+
+
+class TripRequestSummaryV2(TripRequestSummary):
+    request_version: Literal["2"]
+
+
+class TripPlanResponseV2(TripPlanResponse):
+    """Version 2 job resource selected from the persisted request version."""
+
+    response_version: Literal["2"]
+    request_summary: TripRequestSummaryV2
+    plan: TripPlanV2 | None = None
+
+
+def _request_version_discriminator(value: object) -> str | None:
+    if isinstance(value, TripPlanRequestV2):
+        return "v2"
+    if isinstance(value, TripPlanRequest):
+        return "legacy"
+    if isinstance(value, Mapping):
+        if "request_version" not in value:
+            return "legacy"
+        if value.get("request_version") == "2":
+            return "v2"
+    return None
+
+
+def _plan_version_discriminator(value: object) -> str | None:
+    if isinstance(value, TripPlanV2):
+        return "v2"
+    if isinstance(value, TripPlan):
+        return "legacy"
+    if isinstance(value, Mapping):
+        if "plan_format_version" not in value:
+            return "legacy"
+        if value.get("plan_format_version") == "2":
+            return "v2"
+    return None
+
+
+def _response_version_discriminator(value: object) -> str | None:
+    if isinstance(value, TripPlanResponseV2):
+        return "v2"
+    if isinstance(value, TripPlanResponse):
+        return "legacy"
+    if isinstance(value, Mapping):
+        if "response_version" not in value:
+            return "legacy"
+        if value.get("response_version") == "2":
+            return "v2"
+    return None
+
+
+PlanningRequest = Annotated[
+    Annotated[TripPlanRequest, Tag("legacy")] | Annotated[TripPlanRequestV2, Tag("v2")],
+    Discriminator(_request_version_discriminator),
+]
+PlanningPlan = Annotated[
+    Annotated[TripPlan, Tag("legacy")] | Annotated[TripPlanV2, Tag("v2")],
+    Discriminator(_plan_version_discriminator),
+]
+PlanningResponse = Annotated[
+    Annotated[TripPlanResponse, Tag("legacy")] | Annotated[TripPlanResponseV2, Tag("v2")],
+    Discriminator(_response_version_discriminator),
+]
