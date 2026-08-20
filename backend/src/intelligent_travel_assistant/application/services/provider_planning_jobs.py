@@ -27,6 +27,10 @@ from intelligent_travel_assistant.application.ports import (
 from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepository,
     PlanningJobResult,
+    PlanningJobResultV3,
+)
+from intelligent_travel_assistant.application.services.multicity_planning import (
+    MultiCityPlanningOrchestrator,
 )
 from intelligent_travel_assistant.application.services.offline_planning import (
     OfflinePlanningOrchestrator,
@@ -61,6 +65,7 @@ from intelligent_travel_assistant.contracts import (
     TransportMode,
     TripPlan,
     TripPlanRequestV2,
+    TripPlanRequestV3,
     TripPlanV2,
     Uncertainty,
     ViolationSeverity,
@@ -136,7 +141,7 @@ _SCHEDULING_UNCERTAINTY_MESSAGES = {
 class ProviderPlanningJobExecutor:
     """Bridge the HTTP job resource to the provider-neutral orchestrator."""
 
-    __slots__ = ("_clock", "_orchestrator", "_repository")
+    __slots__ = ("_clock", "_multicity_orchestrator", "_orchestrator", "_repository")
 
     def __init__(
         self,
@@ -144,9 +149,11 @@ class ProviderPlanningJobExecutor:
         orchestrator: OfflinePlanningOrchestrator,
         *,
         clock: Callable[[], datetime] | None = None,
+        multicity_orchestrator: MultiCityPlanningOrchestrator | None = None,
     ) -> None:
         self._repository = repository
         self._orchestrator = orchestrator
+        self._multicity_orchestrator = multicity_orchestrator
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def execute(self, job_id: UUID) -> None:
@@ -163,26 +170,6 @@ class ProviderPlanningJobExecutor:
             attempt=job.attempt,
         )
         started_at = self._now()
-        try:
-            request = _offline_request(
-                job.request,
-                job_id=identity_namespace,
-                evaluated_at=started_at,
-            )
-        except DomainInvariantError as error:
-            await self._repository.record_result(
-                job_id,
-                _needs_input_result(field=error.field),
-                expected_version=job.version,
-            )
-            return
-        except (TypeError, ValueError):
-            await self._repository.record_result(
-                job_id,
-                _needs_input_result(),
-                expected_version=job.version,
-            )
-            return
 
         async def observe(target: PlanningStatus) -> None:
             nonlocal job
@@ -203,6 +190,56 @@ class ProviderPlanningJobExecutor:
                 target,
                 expected_version=current.version,
             )
+
+        if isinstance(job.request, TripPlanRequestV3):
+            if self._multicity_orchestrator is None:
+                await self._repository.record_result(
+                    job_id,
+                    _multicity_internal_failure_result("multicity_planner_unavailable"),
+                    expected_version=job.version,
+                )
+                return
+            try:
+                multicity_result = await self._multicity_orchestrator.plan(
+                    job.request,
+                    job_id=identity_namespace,
+                    evaluated_at=started_at,
+                    state_observer=observe,
+                )
+                current = await self._repository.get(job_id)
+                await self._repository.record_result(
+                    job_id,
+                    multicity_result,
+                    expected_version=current.version,
+                )
+            except Exception:
+                current = await self._repository.get(job_id)
+                await self._repository.record_result(
+                    job_id,
+                    _multicity_internal_failure_result("multicity_internal_failure"),
+                    expected_version=current.version,
+                )
+            return
+        try:
+            request = _offline_request(
+                job.request,
+                job_id=identity_namespace,
+                evaluated_at=started_at,
+            )
+        except DomainInvariantError as error:
+            await self._repository.record_result(
+                job_id,
+                _needs_input_result(field=error.field),
+                expected_version=job.version,
+            )
+            return
+        except (TypeError, ValueError):
+            await self._repository.record_result(
+                job_id,
+                _needs_input_result(),
+                expected_version=job.version,
+            )
+            return
 
         try:
             outcome = await self._orchestrator.plan(request, state_observer=observe)
@@ -239,6 +276,8 @@ def _offline_request(
     job_id: UUID,
     evaluated_at: datetime,
 ) -> OfflinePlanningRequest:
+    if isinstance(request, TripPlanRequestV3):
+        raise ValueError("multicity_planning_not_implemented")
     trip: TripRequestInput | MultiDayTripRequestInput
     if isinstance(request, TripPlanRequestV2):
         end_date = request.end_date
@@ -981,6 +1020,27 @@ def _internal_failure_result() -> PlanningJobResult:
             ApiError(
                 code=ApiErrorCode.INTERNAL_ERROR,
                 message="规划任务未能安全完成。",
+                retryable=False,
+            ),
+        ),
+        retryable=False,
+    )
+
+
+def _multicity_internal_failure_result(code: str) -> PlanningJobResultV3:
+    return PlanningJobResultV3(
+        status=PlanningStatus.FAILED,
+        resolved_destinations=(),
+        plan=None,
+        violations=(),
+        warnings=(),
+        uncertainties=(),
+        sources=(),
+        errors=(
+            ApiError(
+                code=ApiErrorCode.INTERNAL_ERROR,
+                message="多城市规划任务未能安全完成。",
+                diagnostic_code=code,
                 retryable=False,
             ),
         ),
