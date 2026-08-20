@@ -8,6 +8,9 @@ from uuid import UUID
 
 from intelligent_travel_assistant.domain.foundation import DomainInvariantError
 
+MIN_TRIP_DAYS = 2
+MAX_TRIP_DAYS = 7
+
 
 @dataclass(frozen=True, slots=True)
 class DailyAvailability:
@@ -19,7 +22,7 @@ class DailyAvailability:
         if (
             not isinstance(self.day_offset, int)
             or isinstance(self.day_offset, bool)
-            or self.day_offset not in (0, 1)
+            or not 0 <= self.day_offset < MAX_TRIP_DAYS
         ):
             raise DomainInvariantError("day_offset_invalid", field="day_offset")
         _require_local_time(self.start_time, field="start_time")
@@ -59,30 +62,81 @@ class TwoDayTimePlan:
         activities = _require_activities(self.activities)
         dates = (self.start_date, self.start_date + timedelta(days=1))
 
-        activities_by_date: dict[date, list[ActivityTimeSlot]] = {
-            dates[0]: [],
-            dates[1]: [],
-        }
-        for activity in activities:
-            if activity.local_date not in activities_by_date:
-                raise DomainInvariantError("activity_date_outside_trip", field="activities")
-            day_offset = (activity.local_date - self.start_date).days
-            availability = windows[day_offset]
-            if (
-                activity.start_time < availability.start_time
-                or activity.end_time > availability.end_time
-            ):
-                raise DomainInvariantError("activity_outside_day_window", field="activities")
-            activities_by_date[activity.local_date].append(activity)
+        _validate_activities(
+            start_date=self.start_date,
+            dates=dates,
+            windows=windows,
+            activities=activities,
+            require_daily_activity=False,
+        )
 
-        for day_activities in activities_by_date.values():
-            ordered = sorted(
-                day_activities,
-                key=lambda item: (item.start_time, item.end_time, item.activity_id.int),
-            )
-            for previous, current in zip(ordered, ordered[1:], strict=False):
-                if current.start_time < previous.end_time:
-                    raise DomainInvariantError("activities_overlap", field="activities")
+
+@dataclass(frozen=True, slots=True)
+class MultiDayTimePlan:
+    """Validate exact daily windows and 1-2 activities across a 2-7 day trip."""
+
+    start_date: date
+    end_date: date
+    windows: tuple[DailyAvailability, ...]
+    activities: tuple[ActivityTimeSlot, ...]
+
+    def __post_init__(self) -> None:
+        _require_local_date(self.start_date, field="start_date")
+        _require_local_date(self.end_date, field="end_date")
+        if self.end_date <= self.start_date:
+            raise DomainInvariantError("trip_date_order_invalid", field="end_date")
+        day_count = self.day_count
+        if not MIN_TRIP_DAYS <= day_count <= MAX_TRIP_DAYS:
+            raise DomainInvariantError("trip_day_count_invalid", field="end_date")
+        windows = _require_multiday_windows(self.windows, day_count)
+        activities = _require_activities(self.activities)
+        dates = tuple(self.start_date + timedelta(days=offset) for offset in range(day_count))
+
+        _validate_activities(
+            start_date=self.start_date,
+            dates=dates,
+            windows=windows,
+            activities=activities,
+            require_daily_activity=True,
+        )
+
+    @property
+    def day_count(self) -> int:
+        return (self.end_date - self.start_date).days + 1
+
+
+def _validate_activities(
+    *,
+    start_date: date,
+    dates: tuple[date, ...],
+    windows: dict[int, DailyAvailability],
+    activities: tuple[ActivityTimeSlot, ...],
+    require_daily_activity: bool,
+) -> None:
+    activities_by_date: dict[date, list[ActivityTimeSlot]] = {item: [] for item in dates}
+
+    for activity in activities:
+        if activity.local_date not in activities_by_date:
+            raise DomainInvariantError("activity_date_outside_trip", field="activities")
+        day_offset = (activity.local_date - start_date).days
+        availability = windows[day_offset]
+        if (
+            activity.start_time < availability.start_time
+            or activity.end_time > availability.end_time
+        ):
+            raise DomainInvariantError("activity_outside_day_window", field="activities")
+        activities_by_date[activity.local_date].append(activity)
+
+    for day_activities in activities_by_date.values():
+        if require_daily_activity and not 1 <= len(day_activities) <= 2:
+            raise DomainInvariantError("day_activity_count_invalid", field="activities")
+        ordered = sorted(
+            day_activities,
+            key=lambda item: (item.start_time, item.end_time, item.activity_id.int),
+        )
+        for previous, current in zip(ordered, ordered[1:], strict=False):
+            if current.start_time < previous.end_time:
+                raise DomainInvariantError("activities_overlap", field="activities")
 
 
 def _require_windows(
@@ -94,6 +148,20 @@ def _require_windows(
         raise DomainInvariantError("day_windows_invalid", field="windows")
     by_offset = {item.day_offset: item for item in value}
     if len(value) != 2 or set(by_offset) != {0, 1}:
+        raise DomainInvariantError("day_window_offsets_invalid", field="windows")
+    return by_offset
+
+
+def _require_multiday_windows(
+    value: object,
+    day_count: int,
+) -> dict[int, DailyAvailability]:
+    if not isinstance(value, tuple) or not all(
+        isinstance(item, DailyAvailability) for item in value
+    ):
+        raise DomainInvariantError("day_windows_invalid", field="windows")
+    by_offset = {item.day_offset: item for item in value}
+    if len(value) != day_count or set(by_offset) != set(range(day_count)):
         raise DomainInvariantError("day_window_offsets_invalid", field="windows")
     return by_offset
 

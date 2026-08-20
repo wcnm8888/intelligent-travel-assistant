@@ -2,16 +2,46 @@
 
 from __future__ import annotations
 
+import copy
+import json
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
 
-from intelligent_travel_assistant.contracts import ReplanDecisionRequest, ReplanRequest
+from intelligent_travel_assistant.contracts import (
+    ReplanChangeSetResponse,
+    ReplanDecisionRequest,
+    ReplanPublicOperation,
+    ReplanPublicStatus,
+    ReplanRequest,
+    ReplanResponse,
+    TripPlanResponseV2,
+)
 
 REQUEST_ID = "10000000-0000-4000-8000-000000000001"
 PLAN_ID = "10000000-0000-4000-8000-000000000002"
 ACTIVITY_ID = "10000000-0000-4000-8000-000000000003"
+FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+def _v2_response() -> TripPlanResponseV2:
+    payload = copy.deepcopy(
+        json.loads((FIXTURE_ROOT / "synthetic_hangzhou_ready.json").read_text(encoding="utf-8"))[
+            "response"
+        ]
+    )
+    summary = payload["request_summary"]
+    plan = payload["plan"]
+    start = date.fromisoformat(str(summary["start_date"]))
+    end = start + timedelta(days=1)
+    payload["response_version"] = "2"
+    summary["request_version"] = "2"
+    summary["end_date"] = end.isoformat()
+    plan["plan_format_version"] = "2"
+    return TripPlanResponseV2.model_validate(payload)
 
 
 @pytest.mark.parametrize(
@@ -85,3 +115,37 @@ def test_decision_request_is_strict_and_choice_is_closed() -> None:
         ReplanDecisionRequest.model_validate({"choice": "restore"})
     with pytest.raises(ValidationError):
         ReplanDecisionRequest.model_validate({"choice": "approve", "prompt": "secret"})
+
+
+def test_completed_replan_preserves_version_2_response_and_plan_tags() -> None:
+    result = _v2_response()
+    assert result.plan is not None
+    now = datetime(2026, 8, 20, 3, tzinfo=UTC)
+    response = ReplanResponse(
+        job_id=result.job_id,
+        replan_id=UUID("10000000-0000-4000-8000-000000000004"),
+        replan_request_id=UUID(REQUEST_ID),
+        trace_id=result.trace_id,
+        baseline_plan_id=result.plan.plan_id,
+        operation=ReplanPublicOperation.ADJUST_ACTIVITY_TIME,
+        status=ReplanPublicStatus.COMPLETED,
+        impact=None,
+        confirmation_expires_at=now + timedelta(minutes=15),
+        decision=None,
+        result=result,
+        change_set=ReplanChangeSetResponse(
+            baseline_plan_id=result.plan.plan_id,
+            result_plan_id=result.plan.plan_id,
+            added_refs=(),
+            removed_refs=(),
+            changed_refs=(),
+            change_codes=(),
+        ),
+        errors=(),
+        created_at=now,
+        updated_at=now,
+    )
+
+    serialized = response.model_dump(mode="json")
+    assert serialized["result"]["response_version"] == "2"
+    assert serialized["result"]["plan"]["plan_format_version"] == "2"

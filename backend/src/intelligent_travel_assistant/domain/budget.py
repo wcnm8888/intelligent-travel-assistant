@@ -107,6 +107,46 @@ def summarize_budget(
     )
 
 
+def calculate_multiday_meal_cost(
+    per_person_per_day: Money | None,
+    travelers: int,
+    day_count: int,
+) -> Money | None:
+    """Scale an allowlisted known meal amount while preserving unknown as ``None``."""
+
+    _require_travelers(travelers)
+    _require_day_count(day_count)
+    if per_person_per_day is None:
+        return None
+    if not isinstance(per_person_per_day, Money):
+        raise DomainInvariantError("meal_cost_invalid", field="per_person_per_day")
+    return _from_minor_units(_to_minor_units(per_person_per_day) * travelers * day_count)
+
+
+def calculate_multiday_lodging_cost(
+    per_night: Money | None,
+    day_count: int,
+) -> Money | None:
+    """Scale one-night lodging across D-1 nights without manufacturing unknown data."""
+
+    _require_day_count(day_count)
+    if per_night is None:
+        return None
+    if not isinstance(per_night, Money):
+        raise DomainInvariantError("lodging_cost_invalid", field="per_night")
+    return _from_minor_units(_to_minor_units(per_night) * (day_count - 1))
+
+
+def _require_travelers(value: object) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 8:
+        raise DomainInvariantError("travelers_invalid", field="travelers")
+
+
+def _require_day_count(value: object) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or not 2 <= value <= 7:
+        raise DomainInvariantError("trip_day_count_invalid", field="day_count")
+
+
 def _to_minor_units(value: Money) -> int:
     exponent = value.amount.as_tuple().exponent
     if not isinstance(exponent, int):

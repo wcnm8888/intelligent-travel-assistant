@@ -5,6 +5,8 @@ from intelligent_travel_assistant.domain.budget import (
     BudgetCostItem,
     BudgetSummaryResult,
     CostCategory,
+    calculate_multiday_lodging_cost,
+    calculate_multiday_meal_cost,
     summarize_budget,
 )
 from intelligent_travel_assistant.domain.foundation import (
@@ -76,9 +78,13 @@ from intelligent_travel_assistant.domain.route_validation import (
 from intelligent_travel_assistant.domain.schedule import (
     ActivityTimeSlot,
     DailyAvailability,
+    MultiDayTimePlan,
     TwoDayTimePlan,
 )
-from intelligent_travel_assistant.domain.trip_request import TripRequestInput
+from intelligent_travel_assistant.domain.trip_request import (
+    MultiDayTripRequestInput,
+    TripRequestInput,
+)
 
 __all__ = [
     "ActivityTimeSlot",
@@ -107,6 +113,8 @@ __all__ = [
     "MAX_ROUTE_DISTANCE_METERS",
     "MAX_ROUTE_DURATION_MINUTES",
     "Money",
+    "MultiDayTimePlan",
+    "MultiDayTripRequestInput",
     "PlanDayStructure",
     "PlanChangeSet",
     "PlanEntitySnapshot",
@@ -142,6 +150,8 @@ __all__ = [
     "TwoDayTimePlan",
     "WeatherForecast",
     "build_plan_change_set",
+    "calculate_multiday_lodging_cost",
+    "calculate_multiday_meal_cost",
     "classify_replan_impact",
     "evaluate_freshness",
     "plan_source_actions",
