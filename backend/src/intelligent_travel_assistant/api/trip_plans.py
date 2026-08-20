@@ -18,27 +18,72 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJob,
     PlanningJobRepository,
     PlanningJobRepositoryError,
+    PlanningJobResult,
+    PlanningJobResultV3,
 )
 from intelligent_travel_assistant.contracts import (
     ApiErrorResponse,
+    CityStaySummaryV3,
     PlanningRequest,
     PlanningResponse,
+    TripPlan,
     TripPlanRequest,
     TripPlanRequestV2,
+    TripPlanRequestV3,
     TripPlanResponse,
     TripPlanResponseV2,
+    TripPlanResponseV3,
     TripPlanV2,
+    TripPlanV3,
     TripRequestSummary,
     TripRequestSummaryV2,
+    TripRequestSummaryV3,
 )
 
 
 def _job_response(job: PlanningJob) -> PlanningResponse:
     request = job.request
     result = job.result
+    if isinstance(request, TripPlanRequestV3):
+        if result is not None and not isinstance(result, PlanningJobResultV3):
+            raise ValueError("stored_result_format_mismatch")
+        v3_plan = result.plan if result is not None else None
+        if v3_plan is not None and not isinstance(v3_plan, TripPlanV3):
+            raise ValueError("stored_plan_format_mismatch")
+        return TripPlanResponseV3(
+            response_version="3",
+            job_id=job.job_id,
+            trace_id=job.trace_id,
+            client_request_id=job.client_request_id,
+            status=job.status,
+            attempt=job.attempt,
+            request_summary=TripRequestSummaryV3(
+                request_version="3",
+                city_stays=tuple(
+                    CityStaySummaryV3(city=stay.city, nights=stay.nights)
+                    for stay in request.city_stays
+                ),
+                start_date=request.start_date,
+                end_date=request.end_date,
+                travelers=request.travelers,
+                budget=request.total_budget,
+            ),
+            resolved_destinations=(result.resolved_destinations if result is not None else ()),
+            plan=v3_plan,
+            violations=result.violations if result is not None else (),
+            warnings=result.warnings if result is not None else (),
+            uncertainties=result.uncertainties if result is not None else (),
+            sources=result.sources if result is not None else (),
+            errors=result.errors if result is not None else (),
+            retryable=job.retryable,
+            created_at=job.created_at,
+            updated_at=job.updated_at,
+        )
+    if result is not None and not isinstance(result, PlanningJobResult):
+        raise ValueError("stored_result_format_mismatch")
     if isinstance(request, TripPlanRequestV2):
-        plan = result.plan if result is not None else None
-        if plan is not None and not isinstance(plan, TripPlanV2):
+        v2_plan = result.plan if result is not None else None
+        if v2_plan is not None and not isinstance(v2_plan, TripPlanV2):
             raise ValueError("stored_plan_format_mismatch")
         return TripPlanResponseV2(
             response_version="2",
@@ -56,7 +101,7 @@ def _job_response(job: PlanningJob) -> PlanningResponse:
                 budget=request.total_budget,
             ),
             resolved_destination=(result.resolved_destination if result is not None else None),
-            plan=plan,
+            plan=v2_plan,
             violations=result.violations if result is not None else (),
             warnings=result.warnings if result is not None else (),
             uncertainties=result.uncertainties if result is not None else (),
@@ -66,6 +111,10 @@ def _job_response(job: PlanningJob) -> PlanningResponse:
             created_at=job.created_at,
             updated_at=job.updated_at,
         )
+    legacy_plan_value = result.plan if result is not None else None
+    if legacy_plan_value is not None and type(legacy_plan_value) is not TripPlan:
+        raise ValueError("stored_plan_format_mismatch")
+    legacy_plan = legacy_plan_value
     return TripPlanResponse(
         job_id=job.job_id,
         trace_id=job.trace_id,
@@ -80,7 +129,7 @@ def _job_response(job: PlanningJob) -> PlanningResponse:
             budget=request.total_budget,
         ),
         resolved_destination=(result.resolved_destination if result is not None else None),
-        plan=result.plan if result is not None else None,
+        plan=legacy_plan,
         violations=result.violations if result is not None else (),
         warnings=result.warnings if result is not None else (),
         uncertainties=result.uncertainties if result is not None else (),
@@ -130,7 +179,11 @@ def create_trip_plan_router(
             raise repository_http_error(error, operation="create") from None
         except Exception:
             raise internal_error() from None
-        if reservation.created and executor is not None and isinstance(request, TripPlanRequest):
+        if (
+            reservation.created
+            and executor is not None
+            and isinstance(request, (TripPlanRequest, TripPlanRequestV3))
+        ):
             background_tasks.add_task(executor.execute, reservation.job.job_id)
         response.headers["Location"] = f"/api/trip-plans/{result.job_id}"
         return result
@@ -204,7 +257,7 @@ def create_trip_plan_router(
             raise
         except Exception:
             raise internal_error() from None
-        if executor is not None and isinstance(job.request, TripPlanRequest):
+        if executor is not None and isinstance(job.request, (TripPlanRequest, TripPlanRequestV3)):
             background_tasks.add_task(executor.execute, job.job_id)
         response.headers["Location"] = f"/api/trip-plans/{result.job_id}"
         return result

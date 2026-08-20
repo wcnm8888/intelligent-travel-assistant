@@ -17,6 +17,8 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepositoryErrorCode,
     PlanningJobReservation,
     PlanningJobResult,
+    PlanningJobResultV3,
+    PlanningResult,
     ReplanCommit,
     ReplanCommitResult,
     ReplanDecisionRecord,
@@ -144,14 +146,14 @@ class InMemoryPlanningJobRepository:
     async def record_result(
         self,
         job_id: UUID,
-        result: PlanningJobResult,
+        result: PlanningResult,
         *,
         expected_version: int,
     ) -> PlanningJob:
         async with self._lock:
             current = self._get(job_id)
             self._require_version(current, expected_version)
-            if not isinstance(result, PlanningJobResult):
+            if not isinstance(result, (PlanningJobResult, PlanningJobResultV3)):
                 self._raise(PlanningJobRepositoryErrorCode.RESULT_INVALID)
             if not result_matches_request(result, current.request):
                 self._raise(PlanningJobRepositoryErrorCode.RESULT_REQUEST_MISMATCH)
