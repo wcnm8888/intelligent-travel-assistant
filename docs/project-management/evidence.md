@@ -1,5 +1,17 @@
 # 验收证据索引
 
+## F-004C Step 6：三层交付、最终 main CI 与任务归档
+
+- 日期：2026-08-21；结论：`PASS / DELIVERED / ARCHIVED`。F-004C Step 0–6 全部完成，当前没有活动任务；完整任务卡已归档为 [F-004C archive](../archive/task-cards/F-004C-booked-rail-user-provided.md)；
+- 本地全量门禁：最终完整工作树 `scripts/verify.ps1` 通过，包含后端 `1360 passed`、前端 `107 passed`、Ruff format/lint、strict mypy、Prettier、ESLint、TypeScript、Vite build、24 项文档检查器测试和仓库文档契约；
+- 独立 review：首次逐层 review 发现 Stack 1 过早把 V4 接入全局 discriminator/Planning unions，会使独立 CI 暴露未接线 API；修复将全局 wiring 移入 Stack 2，并 clean-restack 三层。最终 `abc1297^!`、`e9dec42^!`、`95e3d12^!` 逐层复审均为 `NO FINDINGS`；隐私安全复审也无未关闭 finding；
+- 范围：Stack 1/2/3 分别为 6/15/15 个生产/测试/fixture 文件，净新增 1174/814/1194 行；任务累计 35 个文件、净新增 3182 行，均低于 18/1400 单 stack 与 50/4000 任务阈值；Schema、migration、依赖、lockfile、CI workflow 差异均为 0；
+- PR/CI：PR #34/#35/#36 初始三层 CI 均成功；#34/#35 squash 后，后续分支通过普通 merge restack 吸收最新 main，没有 force-push。最终逐层 CI runs 为 `32482782649`、`32483888878`、`32484329856`，全部 `success`；
+- 合并：PR #34/#35/#36 依序 squash merge，main 提交依次为 `b9c9ebb827fb38936eb93092e1d946621479b750`、`e59cd262a96bb451e87626563d5f8676bc9f7679`、`14c4deaf5acfc4b8e3ccfb18db172dfe910eb26e`；
+- 最终 main：`main == origin/main == 14c4deaf5acfc4b8e3ccfb18db172dfe910eb26e`，CI run `32484789531` 为 `success`，实现合并后开放 PR 为 0；
+- 安全与历史：没有读取 `.env.local`、秘密或 Provider 配置，没有调用高德、12306、和风、DeepSeek 或其他真实 Provider；F-004C 城际 logical call/HTTP attempt 为 0。F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005/F-004C 无真实 Provider UAT、F-004B2 `BLOCKED`、SQLite schema v2/migration 1/2 均保持；
+- 下一入口：F-006 只是 roadmap 候选，必须先起草并批准任务卡，不得因 F-004C 归档而自动开始。
+
 ## F-004C Step 5A：V4 preferences 隐私修正与 Step 5 收口
 
 - 日期：2026-08-21；结论：`PASS`。V4 已改用只含 `interests` 的专用 strict preferences；`free_text` / `hard_constraints` 在 FastAPI contract 解析阶段返回 422，早于 planning job reserve、SQLite 和 executor。Step 5 原 `BLOCKED` finding 保留在下方历史条目，本修正不改写首次审查事实；

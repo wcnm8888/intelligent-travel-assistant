@@ -2,13 +2,13 @@
 
 ## 当前状态
 
-- 当前任务：`F-004C 用户已购铁路段与车次信息`，唯一 `ACTIVE`
-- 当前 Step：`Step 6 - 三层交付与归档（执行中）`
-- 当前 Step 状态：`ACTIVE`
-- 基线：`main == origin/main == 577bdcbadf2e024022e59e52527d13edb0cbd659`
-- 当前分支：`feat/f-004c-booked-rail-domain-contracts`
+- 当前任务：无
+- 最近关闭：`F-004C 用户已购铁路段与车次信息`，状态 `DELIVERED / ARCHIVED`
+- Step 0–6：全部 `DONE`
+- 完整功能 main：`14c4deaf5acfc4b8e3ccfb18db172dfe910eb26e`
+- 完整功能 main CI：run `32484789531`，`success`
 - 最近关闭：F-004B2 `BLOCKED / ARCHIVED`；不得恢复其 Provider 查询或 Step 2
-- 下一候选：F-006；不得自动启动
+- 下一候选：F-006；候选不构成激活授权
 
 ## F-004C Step 0
 
@@ -25,7 +25,7 @@
 
 F-004C V4 只支持中国大陆 2–3 城相邻、单向、同日、直达 rail 的用户提供段。`service_number` 必填并规范化，来源固定为 `user_provided / unknown_validity / 用户提供，未核验`；城际 Provider logical call 和 HTTP attempt 均为 0。legacy/V2/V3、SQLite schema v2 与 migration 1/2 保持不变。
 
-Step 0–5 已完成。Step 5A 已将 V4 preferences 收窄为 interests-only strict allowlist，补齐 API 422、零 job/SQLite 写入、generation/repair context 和前端 synthetic sentinel，并经 Codex Security 与独立只读复审确认无 finding。Step 6 已获单独批准，当前正在执行全量门禁与三层交付；尚未宣称任务归档完成。
+Step 0–6 已完成。Step 5A 已将 V4 preferences 收窄为 interests-only strict allowlist，补齐 API 422、零 job/SQLite 写入、generation/repair context 和前端 synthetic sentinel，并经 Codex Security 与独立只读复审确认无 finding。三层交付、最终 main CI 与归档均已完成；当前没有活动任务。
 
 ## F-004C Step 1
 
@@ -74,7 +74,18 @@ Step 0–5 已完成。Step 5A 已将 V4 preferences 收窄为 interests-only st
 - 回归：contracts/application/API/SQLite/Agent/frontend synthetic sentinel 全部通过；legacy/V2/V3 继续使用既有 preferences shape；后端全量 `1360 passed`、前端全量 `107 passed`，Ruff、mypy、Prettier、ESLint、TypeScript 与 Vite build 通过；
 - 审查：Codex Security working-tree scan 为 0 findings，独立只读复审为 `NO FINDINGS`；原 privacy finding 已关闭；
 - 规模：Step 5A 为 5 个批准生产文件和 4 个对应测试文件；按 Git numstat 复算，任务累计 35 个生产/测试/fixture 文件、净新增 3182 行，未触发 50 文件/4000 行停止阈值；Schema/migration、依赖/lockfile diff 为 0；
-- 当前入口：Step 6 已获单独批准并执行中；只允许三层 commit/push/stacked PR、独立 review/CI、顺序合并、必要 clean-restack、最终 main CI 和归档。
+- Step 6 已完成；完整任务卡已归档，当前入口为等待用户起草并批准 F-006，不能自动开始。
+
+## F-004C Step 6
+
+- 状态：`DONE / PASS`；本地全量门禁为后端 `1360 passed`、前端 `107 passed`，Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build、文档测试与仓库契约全部通过；
+- Review：逐层独立 review 均为 `NO FINDINGS`；Stack 1 过早暴露全局 V4 union 的 finding 在 push 前修正并由复审关闭；Step 5A 隐私 finding 保持关闭；
+- 交付：PR #34/#35/#36 依序 squash merge；最终 PR CI runs `32482782649`、`32483888878`、`32484329856` 均为 `success`；
+- Restack：#34/#35 squash 后以普通 merge restack 更新后续分支并重跑 CI，没有 force-push；最终各 PR diff 只含本层；
+- main：完整功能 main 为 `14c4deaf5acfc4b8e3ccfb18db172dfe910eb26e`，最终 main CI run `32484789531` 为 `success`；
+- 规模：任务累计 35 个生产/测试/fixture 文件、净新增 3182 行；Stack 1/2/3 为 6/15/15 文件、净新增 1174/814/1194 行，全部低于阈值；
+- 范围：Schema、migration、依赖、lockfile、CI workflow 差异为 0；没有读取秘密或调用真实 Provider；城际 logical call/HTTP attempt 保持 0；
+- 归档：[F-004C archive](../archive/task-cards/F-004C-booked-rail-user-provided.md)。当前无活动任务，F-006 仍只是候选。
 
 ## 保留历史事实
 

@@ -583,7 +583,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-016：F-004C 用户已购铁路段与车次信息
 
-- 状态：`APPROVED / F-004C ACTIVE / STEP_6_ACTIVE`
+- 状态：`APPROVED / IMPLEMENTED / TASK_ARCHIVED`
 - 日期：2026-08-21
 - 适用范围：中国大陆境内 2–3 城、相邻城市、单向、同日、直达 rail 的用户已购铁路段；独立 V4 contracts、既有 application/API/Repository/SQLite schema v2 和本地 UI
 - 不适用：任何 Provider 查询或核验、12306 自动读取/抓取、air、coach、跨夜、换乘、跨境、复杂优化、余票/可售/库存、交易、乘客/证件、账号/同步/云数据库、公网部署或真实 Provider UAT
