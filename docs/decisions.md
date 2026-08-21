@@ -456,7 +456,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-014：F-005 统一外部服务韧性、数据时效与离线 Agent 评估
 
-- 状态：`APPROVED_AND_FROZEN`；F-005 Step 0–8 已完成，Step 7 与 Codex CLI 已披露过程偏差均由用户接受，当前等待 Step 9 单独批准
+- 状态：`IMPLEMENTED_DELIVERED_AND_ARCHIVED`；F-005 Step 0–9 已完成，PR #27–#31 依序 squash merge，归档 PR #32 已合并；最终归档 main `96f73d9`、CI run `32453988289` success
 - 日期：2026-08-21
 - 适用范围：既有 DeepSeek、高德、和风天气适配器及 legacy/V2/V3 planning、F-003 replan 兼容、API/UI 失败体验和完全离线 Agent 评估
 - 不适用：新 Provider、F-004B2、真实 Provider UAT、Schema/migration、依赖升级、生产高可用、遥测或公网服务
@@ -518,6 +518,65 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 ### 后果
 
 - Step 0 只完成任务激活、治理、状态漂移修正和首层本地分支创建，不构成 Step 1 或任何实现授权；
-- Step 1 已冻结精确能力矩阵、DTO/执行政策、eval case 格式、测试地图和 stack 归属；Step 2–7 已按批准边界完成领域政策、attempt runtime、application 接线、Agent 输入安全、同 shape UI 与离线纵向审查；当前只执行 Step 8 五层交付，merge、最终 main CI、归档和任务关闭仍须 Step 9 单独批准；
+- Step 1 已冻结精确能力矩阵、DTO/执行政策、eval case 格式、测试地图和 stack 归属；Step 2–8 已按批准边界完成实现、离线纵向审查和五层交付，Step 9 已完成依序合并、最终 main CI、归档和任务关闭；
 - 任一新 Provider、真实调用、Schema/migration、依赖、公开 API shape、数据留存或隐私变化都必须停止并取得新批准；
 - F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1 无真实 Provider UAT 和 F-004B1 城际 Provider 调用 0 均保持。
+
+## D-015：F-004B2 真实城际 Provider 与可信城际事实条件式边界
+
+- 状态：`PROVIDER_LEGAL_GATE_BLOCKED / TASK_ARCHIVED`
+- 日期：2026-08-21
+- 适用范围：中国大陆 2–3 城相邻段、单向同日直达 rail、独立 V4 contracts、获授权 Provider observation、F-005 runtime、同 URI API/Repository/UI 和独立真实 UAT Gate
+- 不适用：air、coach、跨夜、换乘、跨境、复杂优化、网页抓取/逆向、余票/库存承诺、交易、账号/同步/云数据库、公网部署或生产高可用
+
+### 产品、来源与兼容决策
+
+- V4 每个相邻段只能是 `user_provided` 或 `provider_query`，同段不得双来源或静默覆盖；不同段可以混合两个 variant；
+- Provider 事实只包括 Provider 记录 ID、车次、发到站和时间、历时、来源、`fetched_at`、可证明时的 `valid_until` 与 freshness；结果仅作信息参考；
+- `user_provided`、`provider_verified`、`estimated` 和 `unknown` 严格区分；`provider_verified` 不证明余票、可售或库存；
+- 费用只有在字段语义及展示/保存许可明确时才使用，否则 `amount=null`、`confidence=unknown`；unknown 不按 0；
+- legacy/V2/V3、既有 POST/GET/retry/DELETE URI 和公开顶层 job/error shape 不变；V4 只增加批准的 version-specific nested keys；
+- V3/V4 多城市 replan 都在 reserve、Provider、decision、lineage 和 plan write 前拒绝。
+
+### Provider 与法律 Gate
+
+- 当前没有选定 Provider。高德 Web 服务跨城公交路径规划只是优先待验证候选；12306 网页内部接口、Cookie、抓取和逆向禁止；TravelSky、VariFlight、Bus365 在正式合同、API、价格、配额和数据许可前阻塞；
+- Step 1 只能审核用户提供的正式书面授权、合同、工单回复或官方控制台事实，并必须得出一个 `PASS` 或 `BLOCKED`；
+- Gate 必须确认固定 Provider/endpoint/version、产品场景、字段语义、展示/attribution/派生/第三方应用许可、保存字段与最长 30 天留存、删除、价格、配额、QPS、资质和真实 UAT 边界；
+- 只保存最终选中的规范化 observation，不缓存候选；Provider 原始响应、错误 body、候选列表、HTML、自由文本和完整 URL 不得进入模型、SQLite、fixture、日志或 CI artifact；
+- Gate 未 PASS 前不得进入 Step 2–10 实现，不得注册账号、申请 Key、创建应用、提交商务合作、付费或调用真实 Provider；许可不允许批准的展示/保存边界时停止。
+
+### 时效、选择与失败决策
+
+- 班次由确定性 application policy 从 strict typed 候选中选择，不由 Agent 读取原始候选文本；
+- stale 关键班次进入 `failed`；unknown-validity 最多 `partial`；缺失、过期、未验证或推断事实不得提升 ready；
+- Provider 失败不自动改成用户提供段，不做 rail→air/coach fallback；只能由用户显式切换到手工段后重新提交；
+- 鉴权、Schema、空数据和 unknown error 不做传输 retry；timeout、5xx 和带合法 Retry-After 的受控 429 最多额外尝试一次。
+
+### 调用、数据、隐私与测试决策
+
+- 复用 F-005 task-scoped attempt runtime：每个 `provider_query` 段最多 1 个 logical call、每任务最多 2 个、并发 1；每 logical call 最多 2 个 HTTP attempt，单 attempt timeout 6 秒；
+- 如果最终选择 Amap，继续共享 Amap 额外 attempt 上限 3 和任务额外上限 4，不提高 V3 多城市 180 秒总 deadline；
+- terminal、取消、deadline 或逻辑/attempt 预算耗尽后不启动新调用，active call 必须 cancel/drain；
+- SQLite schema 必须保持 version 2，migration 只有 1/2；若 Provider 需要新枚举、表、索引或 migration v3，立即停止并重新批准；
+- 不保存 Key、Token、Cookie、Authorization、完整 Prompt、个人票务信息或 Provider 原始内容；proposal/repair 只接收 bounded typed allowlist；
+- 保留 F-005 固定 48 case，新增至少 16 个完全离线 F-004B2 synthetic case；默认测试和 CI 阻断非 loopback 网络；
+- 必须执行临时 SQLite、loopback desktop/390px、network/console/accessibility 和独立隐私安全审查；
+- 真实 Provider UAT 是独立、默认关闭且再次批准的 Step；没有 UAT PASS 时不得把 F-004B2 标记完整完成。
+
+### 交付与停止决策
+
+- 五层 stack：`feat/f-004b2-intercity-domain-contracts` → `feat/f-004b2-intercity-provider-adapter` → `feat/f-004b2-intercity-application-runtime` → `feat/f-004b2-intercity-persistence-api` → `feat/f-004b2-intercity-ui-delivery`；
+- 受控相邻扩展仅限直接 export、factory/wiring、同层 typed model、对应测试/synthetic fixture/golden，以及当前状态/evidence 文档；
+- 单 Step 超过 5 个未预期生产/测试文件、任一 stack 超过 20 个文件或净新增 1800 行、任务累计超过 75 个文件或净新增 6500 行时停止并重新拆分；
+- Provider/许可/价格/配额/留存/UAT 边界不明，或需要抓取、逆向、Schema/migration、依赖、公开顶层 shape、未批准隐私边界或范围扩张时立即停止。
+
+### 后果
+
+- Step 0 只激活治理、同步当前事实和创建首层本地分支，不构成 Step 1 或实现授权；
+- Step 1 只审核用户提供的高德官方书面回复并正式得出 `BLOCKED`：回复明确禁止 SQLite 持久化，没有明确授权车次、铁路站点、发到时间和历时等 rail 字段；任一项都不满足本决定 Gate；
+- 回复只建立了非商用个人 Web API 场景、建议 attribution 和运行期内存临时保存许可；没有建立数值配额/QPS/价格、固定 endpoint/version 或真实 UAT 准入与销毁边界，回复中的价格链接未访问；
+- 当前没有已选 Provider，Step 2–10 全部阻塞。不得把内存许可推定为持久化许可，也不得未经变更批准删除 30 天 observation 边界；
+- 恢复 Gate 需要补充正式书面授权同时覆盖所需 rail 字段和批准的 SQLite 保存边界，或由用户另行批准产品/持久化架构变更；
+- F-004B2 已以 documentation-only closure 归档；归档不把候选 Provider、未执行 V4 Provider union 或未执行 Step 2–10 表述为交付能力，未来恢复必须使用新的明确决策入口；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0，以及 F-005 离线证据不等于真实 UAT 均保持。

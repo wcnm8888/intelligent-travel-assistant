@@ -1,5 +1,38 @@
 # 验收证据索引
 
+## F-004B2 documentation-only blocked closure
+
+- 日期：2026-08-21；结论：`BLOCKED / ARCHIVED`。F-004B2 Step 0 已完成、Step 1 Provider/法律 Gate 已正式 `BLOCKED`，Step 2–10 均未执行；本次关闭不把候选 Provider、V4 Provider union 或真实 UAT 表述为已交付能力；
+- 基线：closure 开始时 `HEAD == main == origin/main == 96f73d99c04a72e1e697172306d8f33d006419ec`，当前分支为 `docs/f-004b2-blocked-closure`；原 7 个未提交文档已原位保留，没有 stash、reset、丢弃或覆盖；
+- 归档：完整任务卡保存为 [F-004B2 BLOCKED archive](../archive/task-cards/F-004B2-real-intercity-provider-blocked.md)，current-task 已恢复为无活动任务；roadmap 保持 F-004B2 `BLOCKED`，候选顺序为 F-004C → F-006；D-015 状态为 `PROVIDER_LEGAL_GATE_BLOCKED / TASK_ARCHIVED`；
+- 文档门禁：`uv run --project backend --frozen python -m unittest scripts.tests.test_check_docs` 为 `24 passed`；`uv run --project backend --frozen python scripts/check_docs.py --root .` 通过 17 份必需文档、27 份 Markdown、CI、状态和安全契约；`git diff --check` 通过；
+- 范围：只涉及 README、decisions、current-task、implementation-plan、progress、roadmap、evidence 和新增归档任务卡共 8 份 Markdown；没有源码、测试、fixture、Schema、migration、依赖、lockfile、CI、环境文件或数据库变化；
+- 安全：没有读取秘密或本地 Provider 配置，没有创建数据库，没有调用高德、12306、和风、DeepSeek 或其他 Provider；历史 evidence 仅追加本次 Step 0/1/closure 事实，既有条目未改写；
+- 保留事实：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0、F-005 离线证据不等于真实 UAT，以及 SQLite schema v2/migration 1/2 均保持。
+
+## F-004B2 Step 1：高德 Provider 与法律 Gate
+
+- 日期：2026-08-21；结论：`BLOCKED`。用户明确批准只审核其提供的高德官方书面回复，并要求 SQLite 持久化禁止或 rail 字段授权不足时正式阻塞；本审核没有访问回复中的价格链接或任何其他外部资料；
+- 已建立事实：回复确认所述非商用个人开发 Web 服务 API 场景原则上符合许可；建议 UI 声明“数据来源于高德地图，仅供参考”；路径规划 App/H5 跳转不强制；仅程序运行期间的内存临时保存允许；私人测试截图原则上允许但建议模糊 POI ID 和具体地址；
+- 持久化硬阻塞：回复明确禁止将 API 数据长期存储或持久化到本地 SQLite；D-015 则要求只保存最终选中的规范化 observation、最长随 planning job 保留 30 天。两者直接冲突，且本 Step 不获准改变架构；
+- rail 字段硬阻塞：回复只涉及 POI 名称、经纬度、路线距离和预计时间，没有明确授权 Provider 记录 ID、车次、铁路发到站和时间、历时等首版 rail 事实；不得从一般 Web API 许可推定这些字段获准；
+- 未建立边界：回复只指向免费配额说明，没有在提交证据中给出产品计费项、数值配额、QPS 或超额价格；也没有固定 endpoint/version、凭证、允许域名、UAT 次数/费用、脱敏、留存或销毁规则；
+- Gate 判定：持久化与 rail 字段两项分别都足以阻塞，故当前 Provider 未选定，Step 2–10 全部 `BLOCKED_BY_STEP_1`；允许内存临时保存不能替代获批的 schema v2 planning job 持久化；
+- 范围：只更新当前治理与 evidence 文档；未修改源码、测试、fixture、Schema/migration、依赖/lockfile或归档任务卡，未读取秘密/Provider 配置、注册账号、申请 Key、付费、调用 Provider、commit、push、PR 或 CI；
+- 恢复入口：补充正式书面授权必须同时覆盖所需 rail 字段和最终 observation 最长 30 天的本地 SQLite 保存边界；替代路径必须另行起草并批准产品/持久化架构变更。不得自动进入 Step 2 或 F-006。
+
+## F-004B2 Step 0：条件式激活、D-015 与交付治理
+
+- 日期：2026-08-21；结论：`PASS`。Step 0 开始前 `main == origin/main == 96f73d99c04a72e1e697172306d8f33d006419ec`，工作区干净、没有活动任务或开放 PR；
+- Git/PR/CI：PR #27/#28/#29/#30/#31 已依序 squash merge，归档 PR #32 已合并；最终归档 main CI run `32453988289` 为 `success` 且 head SHA 为 `96f73d99c04a72e1e697172306d8f33d006419ec`。首次只读查询 PR #32 时出现一次 TLS 握手超时，立即重试后取得一致事实；未发生远程写入；
+- 治理：F-004B2 已成为 roadmap 唯一 ACTIVE，F-006 保持候选；完整条件式任务卡、Step 0–10、D-015、五层 stacked PR、核心文件、受控相邻扩展和规模阈值已写入当前权威文档；
+- Gate：当前没有选定 Provider。高德跨城公交路径规划仅为优先待验证候选；Step 1 只能审核用户提供的正式书面授权、合同、工单回复或官方控制台事实，并必须得出 `PASS` 或 `BLOCKED`。Step 1 未 PASS 前所有实现阻塞；
+- 分支：已从上述干净 main 基线创建本地 `feat/f-004b2-intercity-domain-contracts`，HEAD 仍为 `96f73d99c04a72e1e697172306d8f33d006419ec`；未 commit、push、创建 PR 或触发远程 CI；
+- 文档门禁：文档检查器单元测试 `24 passed`；`check_docs.py --root .` 通过 17 份必需文档、26 份 Markdown、CI、状态和安全契约检查；`git diff --check` 通过；
+- 范围：只修改当前治理与权威文档；未修改源码、测试、fixture、Schema/migration、依赖/lockfile、历史 evidence 或归档任务卡，未创建数据库、读取秘密/Provider 配置、注册账号、申请 Key、付费、抓取/逆向或调用任何 Provider；
+- 保留事实：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0、F-005 离线证据不等于真实 UAT，以及 SQLite schema v2/migration 1/2 均保持；
+- 下一动作：等待用户另行批准 F-004B2 Step 1 并提供可审计的正式书面证据；不得自动进入。
+
 ## F-005 Step 9：顺序合并、main CI 与归档关闭
 
 - 日期：2026-08-21；结论：`PASS`。PR #27 → #28 → #29 → #30 → #31 已按批准顺序 squash merge；对应 main commits 为 `1534cad13d567bce515f96af75c08f568e484619`、`66445c10b6529d118ccf9346fb92bdc83b94e0b1`、`afc8a45abbe191d266a288406dba72fb8b4466b1`、`472a519ca061e29c8d3b6e395fb0acc2bbe28f0a`、`fddd4e5add5919f1751279de9b833a3192ea6338`；
