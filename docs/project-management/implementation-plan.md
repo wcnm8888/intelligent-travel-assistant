@@ -1,13 +1,16 @@
 # 当前实施计划
 
+当前无活动任务，因此没有正在执行的 Step。
+
 ## 当前状态
 
-- 当前任务：`F-005 外部服务韧性、数据时效与 Agent 评估`
-- 任务状态：`ACTIVE`
-- 最近完成：`Step 8 - 全量门禁与 stacked PR`
-- 当前 Step：`Step 9 - 依序合并与归档`，状态 `TODO`；尚未批准、尚未进入
-- 下一动作：停止交付写入并等待用户批准依序合并、必要 clean-restack、最终 main CI 与归档；不得自动进入 Step 9
-- 当前分支：`feat/f-005-ui-delivery`
+- 当前任务：无
+- 最近完成：`F-005 外部服务韧性、数据时效与 Agent 评估`
+- 任务状态：`DELIVERED / ARCHIVED`
+- Step 0–9：`DONE`
+- 完整功能 main：`fddd4e5add5919f1751279de9b833a3192ea6338`
+- 完整功能 main CI：run `32452988076`，`PASS`
+- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
 
 ## Step 0：事实复核、任务激活与治理基线
 
@@ -164,7 +167,15 @@ Step 8 批准修订：用户已接受 Codex CLI 全局插件外连失败偏差�
 
 唯一目标：依序合并、必要 clean-restack、完整 main CI、归档和任务关闭。
 
-状态：`TODO`
+状态：`DONE`
+
+完成结果：
+
+- PR #27/#28/#29/#30/#31 按批准顺序 squash merge，对应 main commits 为 `1534cad`、`66445c1`、`afc8a45`、`472a519`、`fddd4e5`；
+- 每个后续 PR 在前层合并后将 base 改为最新 main，GitHub 均为 CLEAN/MERGEABLE，tree diff 只含本层净变更；因此无需替代式 clean-restack，也没有 rebase 或 force-push；
+- 逐层 main CI runs `32451655141`、`32451996154`、`32452323662`、`32452640620`、`32452988076` 全部成功；
+- 完整功能 main 为 `fddd4e5add5919f1751279de9b833a3192ea6338`，F-005 完整任务卡已归档，current-task、roadmap、progress、evidence 和文档地图已切换为无活动任务；
+- 未修改 Schema/migration、依赖或 lockfile，未读取秘密或调用真实 Provider。
 
 ## 全局禁止与停止条件
 

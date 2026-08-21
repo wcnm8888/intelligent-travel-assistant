@@ -1,5 +1,13 @@
 # 验收证据索引
 
+## F-005 Step 9：顺序合并、main CI 与归档关闭
+
+- 日期：2026-08-21；结论：`PASS`。PR #27 → #28 → #29 → #30 → #31 已按批准顺序 squash merge；对应 main commits 为 `1534cad13d567bce515f96af75c08f568e484619`、`66445c10b6529d118ccf9346fb92bdc83b94e0b1`、`afc8a45abbe191d266a288406dba72fb8b4466b1`、`472a519ca061e29c8d3b6e395fb0acc2bbe28f0a`、`fddd4e5add5919f1751279de9b833a3192ea6338`；
+- stack 处置：#28–#31 在直接前层进入 main 后把 base 改为最新 main；每次均复核 GitHub `CLEAN/MERGEABLE` 与本地 tree diff，依次只含 Stack 2 的 8、Stack 3 的 17、Stack 4 的 7、Stack 5 的 8 个生产/测试/eval 文件及批准状态文档，因此无需创建替代式 clean-restack PR，没有 rebase、amend 或 force-push；
+- 逐层 main CI：runs `32451655141`、`32451996154`、`32452323662`、`32452640620`、`32452988076` 全部 `success`；完整功能 main 为 `fddd4e5add5919f1751279de9b833a3192ea6338`；
+- 归档：F-005 完整任务卡已移入 `docs/archive/task-cards/F-005-external-service-resilience-freshness-agent-eval.md`，当前任务、计划、roadmap、progress 和文档地图已切换为无活动任务；
+- 边界：未修改 Schema/migration、依赖或 lockfile；未读取 `.env.local`、秘密或 Provider 配置，未调用 DeepSeek、高德、和风或城际 Provider。F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown/null、混合交通 fallback 仅离线、F-004A/F-004B1 无真实 Provider UAT 和 F-004B1 城际 Provider 调用 0 均保持。
+
 ## F-005 Step 8：五层全量门禁、独立 review 与 stacked PR 交付
 
 - 日期：2026-08-21；结论：`PASS`。用户已接受 Step 7 的 `npx` 偏差及 Step 8 已披露的 Codex CLI 全局插件外连失败偏差；后者没有访问真实 Provider、没有形成 Provider UAT，也没有修改项目数据或扩大交付权限；
