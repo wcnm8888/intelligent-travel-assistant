@@ -1,14 +1,17 @@
-# F-004C 实施计划：用户已购铁路段与车次信息
+# 最近关闭计划：F-004C 用户已购铁路段与车次信息
 
 ## 当前状态
 
-- 当前任务：F-004C ACTIVE
-- 当前 Step：`Step 6 - 三层交付与归档（执行中）`
-- 当前 Step 状态：ACTIVE
-- 基线：main == origin/main == 577bdcbadf2e024022e59e52527d13edb0cbd659
+当前无活动任务，因此没有正在执行的 Step。
+
+- 当前任务：无
+- 最近关闭：`F-004C DELIVERED / ARCHIVED`
+- Step 0–6：全部 `DONE`
+- 完整功能 main：`14c4deaf5acfc4b8e3ccfb18db172dfe910eb26e`
+- 完整功能 main CI：run `32484789531`，`PASS`
 - F-004B2：BLOCKED / ARCHIVED；不得恢复 Provider 查询
-- 当前分支：feat/f-004c-booked-rail-domain-contracts
-- Step 0–5 已完成；Step 6 已获单独批准，当前仅执行全量门禁、三层 stacked PR、独立 review/CI、顺序合并、最终 main CI 和归档
+- 归档任务卡：[F-004C archive](../archive/task-cards/F-004C-booked-rail-user-provided.md)
+- 下一候选：F-006；不得自动启动
 
 ## Step 0：激活与治理
 
@@ -137,6 +140,14 @@
 唯一目标：运行全量门禁，按三层拓扑完成 commit、push、stacked PR、独立 review、远程 CI、依序合并、必要 clean-restack、最终 main CI、归档和任务关闭。
 
 任何 merge、远程写入或归档动作都必须在 Step 6 获得单独批准；Step 0–5 不产生交付授权。
+
+状态：`DONE / PASS`。
+
+- 本地全量门禁：后端 `1360 passed`、前端 `107 passed`，全部静态、构建和文档门禁通过；
+- PR #34/#35/#36 依序 squash merge；最终各层 CI run `32482782649`、`32483888878`、`32484329856` 均为 `success`；
+- squash 后采用普通 merge restack 更新后续分支，没有 force-push；每次重定向到 main 后 diff 仍只包含当前层；
+- 完整功能 main 为 `14c4deaf5acfc4b8e3ccfb18db172dfe910eb26e`，最终 main CI run `32484789531` 为 `success`；
+- 独立逐层 review、隐私安全 review 均无未关闭 finding；任务已归档，当前无活动任务。
 
 ## 三层拓扑与核心文件
 

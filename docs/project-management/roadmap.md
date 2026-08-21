@@ -15,7 +15,7 @@
 
 ## 当前阶段
 
-目标：B-000、F-001、F-002、F-003、F-004A、F-004B1 和 F-005 已完成归档；F-004B2 已以 `BLOCKED` 状态归档。F-004C 是当前唯一 `ACTIVE` 任务，后续候选为 F-006。
+目标：B-000、F-001、F-002、F-003、F-004A、F-004B1、F-005 和 F-004C 已完成归档；F-004B2 已以 `BLOCKED` 状态归档。当前没有活动任务，下一候选为 F-006。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
@@ -27,10 +27,10 @@
 | 5 | F-004B1 多城市领域、用户提供的城际段与离线约束 | DONE | 用户可表达 2–3 城顺序、住宿切换和用户提供的相邻城际段 | F-004A、D-013、归档任务卡 |
 | 6 | F-005 外部服务韧性、时效与 Agent 评估 | DONE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004B1、D-014、归档任务卡 |
 | 7 | F-004B2 真实城际 Provider 与可信城际事实 | BLOCKED | 经正式书面授权 Gate 后，为相邻城市段提供来源和时效可信的同日直达 rail 参考事实 | D-015 Step 1：SQLite 持久化禁止且 rail 字段授权不足 |
-| 8 | F-004C 用户已购铁路段与车次信息 | ACTIVE | 用户可录入已购票的相邻铁路段和车次事实，并继续按用户提供、未核验语义规划 | F-004B1、F-004B2 BLOCKED closure、D-016 |
+| 8 | F-004C 用户已购铁路段与车次信息 | DONE | 用户可录入已购票的相邻铁路段和车次事实，并继续按用户提供、未核验语义规划 | F-004B1、F-004B2 BLOCKED closure、D-016、归档任务卡 |
 | 9 | F-006 MVP 体验收口与本地验收 | CANDIDATE | 用户可稳定完成完整本地旅行决策流程 | F-001 至 F-005；F-004C 完成后进入 |
 
-B-000 至 F-005 的已选任务均已完成归档。F-004B2 已阻塞归档；F-004C Step 0–5 已完成，是当前唯一活动任务。Step 6 已获单独批准并执行三层交付与归档；F-006 不得自动启动。
+B-000 至 F-005 以及 F-004C 的已选任务均已完成归档。F-004B2 已阻塞归档；当前没有活动任务。F-006 仍为候选，不得自动启动。
 
 ## B-000：项目与工程基线
 
@@ -136,7 +136,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-004C：用户已购铁路段与车次信息
 
-- 状态：`ACTIVE`；Step 0–5 已完成，Step 6 三层交付与归档执行中；
+- 状态：`DONE / ARCHIVED`；Step 0–6 全部完成；
 - 目标：在不接入 Provider 的前提下，让用户为中国大陆 2–3 城相邻段录入已购铁路车次、发到站、发到时间和可选票价；
 - 来源：固定为 `user_provided`、`unknown_validity` 和“用户提供，未核验”，不得表述为 Provider 核验、余票或库存保证；
 - 兼容：独立 `request_version="4"`、`response_version="4"` 和 `plan_format_version="4"`；legacy/V2/V3 exact shape、fingerprint、旧记录和行为保持不变；继续使用 SQLite schema v2 typed JSON，不新增 migration；
@@ -146,7 +146,8 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - Provider：不接入任何城际 Provider，城际 logical call 和 HTTP attempt 均为 0；
 - 非目标：Provider 查询、12306 抓取/自动读取、真实 UAT、预订/支付/出票、余票/可售、账号/同步/公网；
 - 隐私收口：Step 5A 已将 V4 preferences 收窄为 interests-only strict allowlist；非法自由文本/硬约束 422 且零 job/SQLite 写入，Agent context 与前端 sentinel 回归通过，两层独立复审无 finding；
-- 交付：三层 stacked PR；Step 6 已批准，必须逐层独立 review/CI、顺序合并并以最终 main CI 和归档收口。
+- 交付：三层 PR #34/#35/#36 已依序 squash merge；完整功能 main `14c4dea`，最终 main CI run `32484789531` success；
+- 归档：[F-004C archive](../archive/task-cards/F-004C-booked-rail-user-provided.md)。
 
 ### F-006：MVP 体验收口与本地验收
 
@@ -218,7 +219,7 @@ F-005 韧性与评估（DONE）
   ↓
 F-004B2 真实城际 Provider 与可信事实（BLOCKED / ARCHIVED）
   ↓
-F-004C 用户已购铁路段与车次信息（ACTIVE；Step 0–5 DONE，Step 6 ACTIVE）
+F-004C 用户已购铁路段与车次信息（DONE / ARCHIVED）
   ↓
 F-006 MVP 收口
 ```
