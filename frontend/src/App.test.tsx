@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import failedCase from "../../backend/tests/fixtures/synthetic_hangzhou_failed.json";
 import needsInputCase from "../../backend/tests/fixtures/synthetic_hangzhou_needs_input.json";
@@ -57,11 +57,14 @@ async function submitValidRequest(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("App trip planning flow", () => {
+  beforeEach(() => window.localStorage.clear());
+
   it("renders an idle product form without calling the network", () => {
     const api: TripPlanningApi = {
       create: vi.fn(),
       read: vi.fn(),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -84,6 +87,7 @@ describe("App trip planning flow", () => {
         .mockResolvedValue(parseTripPlanResponse(multidayPlanningPayload(3))),
       read: vi.fn(),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -136,6 +140,7 @@ describe("App trip planning flow", () => {
         .mockResolvedValueOnce(planningResponse("validating"))
         .mockResolvedValueOnce(readyPlanningResponse()),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -163,7 +168,12 @@ describe("App trip planning flow", () => {
           resolveCreate = resolve;
         }),
     );
-    const api: TripPlanningApi = { create, read: vi.fn(), retry: vi.fn() };
+    const api: TripPlanningApi = {
+      create,
+      read: vi.fn(),
+      retry: vi.fn(),
+      remove: vi.fn(),
+    };
     render(
       <App
         createClientRequestId={() => FIXED_CLIENT_ID}
@@ -189,6 +199,7 @@ describe("App trip planning flow", () => {
         .mockResolvedValueOnce(planningResponse("normalizing"))
         .mockResolvedValueOnce(planningResponse("collecting")),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -221,6 +232,7 @@ describe("App trip planning flow", () => {
         ),
       read: vi.fn(),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -249,6 +261,7 @@ describe("App trip planning flow", () => {
         .mockResolvedValueOnce(planningResponse("planning"))
         .mockResolvedValueOnce(readyPlanningResponse()),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -277,6 +290,7 @@ describe("App trip planning flow", () => {
         }),
       ),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -299,6 +313,7 @@ describe("App trip planning flow", () => {
       create: vi.fn().mockResolvedValue(planningResponse("planning")),
       read: vi.fn().mockResolvedValue(planningResponse("collecting")),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -327,6 +342,7 @@ describe("App trip planning flow", () => {
       }),
       read: vi.fn(),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     const view = render(
       <App
@@ -376,6 +392,7 @@ describe("App trip planning flow", () => {
           }),
         )
         .mockResolvedValueOnce(attemptTwoReadyResponse()),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -419,6 +436,7 @@ describe("App trip planning flow", () => {
             true,
           ),
         ),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -450,6 +468,7 @@ describe("App trip planning flow", () => {
           trace_id: partialPlanningResponse().trace_id,
         }),
       ),
+      remove: vi.fn(),
     };
     render(
       <App
@@ -478,6 +497,7 @@ describe("App trip planning flow", () => {
         .mockResolvedValue(parseTripPlanResponse(needsInputCase.response)),
       read: vi.fn(),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     const { container } = render(
       <App

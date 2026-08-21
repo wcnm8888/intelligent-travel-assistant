@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   TERMINAL_STATUSES,
   TripPlanningClientError,
+  isPlanningJobId,
   tripPlanningApi,
   type TripPlanningApi,
   type TripPlanResponseDto,
@@ -10,13 +11,19 @@ import {
 import type { TripPlanRequestDto } from "./tripRequest";
 
 export type TripPlanningViewState =
-  | { phase: "idle" }
-  | { phase: "submitting" }
+  | { phase: "idle"; notice?: string }
+  | { phase: "submitting"; action?: "create" | "restore" }
   | { phase: "retrying"; jobId: string; nextAttempt: number }
-  | { phase: "tracking"; response: TripPlanResponseDto }
-  | { phase: "paused"; response: TripPlanResponseDto }
-  | { phase: "terminal"; response: TripPlanResponseDto }
-  | { phase: "error"; code: string; message: string; retryable: boolean };
+  | { phase: "tracking"; response: TripPlanResponseDto; restored?: boolean }
+  | { phase: "paused"; response: TripPlanResponseDto; restored?: boolean }
+  | { phase: "terminal"; response: TripPlanResponseDto; restored?: boolean }
+  | {
+      phase: "error";
+      code: string;
+      message: string;
+      retryable: boolean;
+      recoveryAvailable?: boolean;
+    };
 
 export interface PollingPolicy {
   maxPolls: number;
@@ -48,6 +55,7 @@ export const DEFAULT_POLLING_POLICY: PollingPolicy = {
   wait: waitForNextPoll,
 };
 
+export const ACTIVE_JOB_STORAGE_KEY = "ita.last-local-job";
 export const ACTIVE_V3_JOB_STORAGE_KEY = "ita.active-v3-job";
 export const ACTIVE_V4_JOB_STORAGE_KEY = "ita.active-v4-job";
 
@@ -60,34 +68,62 @@ function multicityResponseVersion(
     : null;
 }
 
-function savedMulticityJob(): { jobId: string; version: "3" | "4" } | null {
-  try {
-    const version4 = window.localStorage.getItem(ACTIVE_V4_JOB_STORAGE_KEY);
-    if (version4) return { jobId: version4, version: "4" };
-    const version3 = window.localStorage.getItem(ACTIVE_V3_JOB_STORAGE_KEY);
-    return version3 ? { jobId: version3, version: "3" } : null;
-  } catch {
-    return null;
-  }
+interface SavedJob {
+  jobId: string;
+  version: "3" | "4" | null;
 }
 
-function rememberMulticityJob(response: TripPlanResponseDto): void {
-  const version = multicityResponseVersion(response);
-  if (!version) return;
+interface SavedJobLookup {
+  saved: SavedJob | null;
+  invalidDiscarded: boolean;
+}
+
+function savedJob(): SavedJobLookup {
+  let invalidDiscarded = false;
+  const candidates = [
+    { key: ACTIVE_JOB_STORAGE_KEY, version: null },
+    { key: ACTIVE_V4_JOB_STORAGE_KEY, version: "4" },
+    { key: ACTIVE_V3_JOB_STORAGE_KEY, version: "3" },
+  ] as const;
+
+  for (const candidate of candidates) {
+    let jobId: string | null;
+    try {
+      jobId = window.localStorage.getItem(candidate.key);
+    } catch {
+      return { saved: null, invalidDiscarded };
+    }
+    if (!jobId) continue;
+    if (isPlanningJobId(jobId)) {
+      return {
+        saved: { jobId, version: candidate.version },
+        invalidDiscarded,
+      };
+    }
+    try {
+      window.localStorage.removeItem(candidate.key);
+    } catch {
+      // A blocked storage API must not prevent checking the next legacy key.
+    }
+    invalidDiscarded = true;
+  }
+
+  return { saved: null, invalidDiscarded };
+}
+
+function rememberJob(response: TripPlanResponseDto): void {
   try {
-    const key =
-      version === "4" ? ACTIVE_V4_JOB_STORAGE_KEY : ACTIVE_V3_JOB_STORAGE_KEY;
-    const obsoleteKey =
-      version === "4" ? ACTIVE_V3_JOB_STORAGE_KEY : ACTIVE_V4_JOB_STORAGE_KEY;
-    window.localStorage.removeItem(obsoleteKey);
-    window.localStorage.setItem(key, response.job_id);
+    window.localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, response.job_id);
+    window.localStorage.removeItem(ACTIVE_V4_JOB_STORAGE_KEY);
+    window.localStorage.removeItem(ACTIVE_V3_JOB_STORAGE_KEY);
   } catch {
     // Storage is a convenience pointer; the SQLite job remains authoritative.
   }
 }
 
-function forgetMulticityJob(): void {
+function forgetJob(): void {
   try {
+    window.localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
     window.localStorage.removeItem(ACTIVE_V3_JOB_STORAGE_KEY);
     window.localStorage.removeItem(ACTIVE_V4_JOB_STORAGE_KEY);
   } catch {
@@ -203,6 +239,7 @@ export function useTripPlanningJob(
 ) {
   const [state, setState] = useState<TripPlanningViewState>({ phase: "idle" });
   const abortController = useRef<AbortController | null>(null);
+  const recoverableJob = useRef<SavedJob | null>(null);
   const busy = useRef(false);
 
   useEffect(
@@ -213,57 +250,99 @@ export function useTripPlanningJob(
   );
 
   const track = useCallback(
-    async (initial: TripPlanResponseDto, controller: AbortController) => {
-      setState({ phase: "tracking", response: initial });
+    async (
+      initial: TripPlanResponseDto,
+      controller: AbortController,
+      restored = false,
+    ) => {
+      setState({ phase: "tracking", response: initial, restored });
       const result = await poll(
         initial,
         api,
         policy,
         controller.signal,
-        (response) => setState({ phase: "tracking", response }),
+        (response) => setState({ phase: "tracking", response, restored }),
       );
       setState(
         result.terminal
-          ? { phase: "terminal", response: result.response }
-          : { phase: "paused", response: result.response },
+          ? { phase: "terminal", response: result.response, restored }
+          : { phase: "paused", response: result.response, restored },
       );
     },
     [api, policy],
   );
 
-  useEffect(() => {
-    const saved = savedMulticityJob();
-    if (!saved || busy.current) return;
+  const showKnownJobError = useCallback((error: unknown) => {
+    const safe = asSafeError(error);
+    if (safe.code === "job_not_found") {
+      recoverableJob.current = null;
+      forgetJob();
+      setState({
+        phase: "idle",
+        notice: "上次本机任务无法恢复，已返回新建。",
+      });
+      return;
+    }
+    setState({
+      phase: "error",
+      code: safe.code,
+      message: safe.message,
+      retryable: safe.retryable,
+      recoveryAvailable: true,
+    });
+  }, []);
+
+  const restore = useCallback(async () => {
+    if (busy.current) return;
+    const lookup = recoverableJob.current
+      ? { saved: recoverableJob.current, invalidDiscarded: false }
+      : savedJob();
+    const saved = lookup.saved;
+    if (!saved) {
+      if (!lookup.invalidDiscarded) return;
+      setState({
+        phase: "idle",
+        notice: "上次本机任务无法恢复，已返回新建。",
+      });
+      return;
+    }
+
     busy.current = true;
+    abortController.current?.abort();
     const controller = new AbortController();
     abortController.current = controller;
-    setState({ phase: "submitting" });
-    void (async () => {
-      try {
-        const response = await api.read(saved.jobId, controller.signal);
-        if (multicityResponseVersion(response) !== saved.version) {
-          throw new TripPlanningClientError(
-            "response_invalid",
-            "已保存任务不是可恢复的多城市计划。",
-          );
-        }
-        await track(response, controller);
-      } catch (error) {
-        if (!isAbort(error)) {
-          const safe = asSafeError(error);
-          setState({
-            phase: "error",
-            code: safe.code,
-            message: safe.message,
-            retryable: safe.retryable,
-          });
-        }
-      } finally {
-        busy.current = false;
+    setState({ phase: "submitting", action: "restore" });
+    try {
+      const response = await api.read(saved.jobId, controller.signal);
+      if (
+        response.job_id !== saved.jobId ||
+        (saved.version !== null &&
+          multicityResponseVersion(response) !== saved.version)
+      ) {
+        throw new TripPlanningClientError(
+          "response_invalid",
+          "已保存任务与本机计划服务返回的任务不一致。",
+        );
       }
-    })();
-    return () => controller.abort();
-  }, [api, track]);
+      recoverableJob.current = {
+        jobId: response.job_id,
+        version: multicityResponseVersion(response),
+      };
+      rememberJob(response);
+      await track(response, controller, true);
+    } catch (error) {
+      if (!isAbort(error)) {
+        showKnownJobError(error);
+      }
+    } finally {
+      busy.current = false;
+    }
+  }, [api, showKnownJobError, track]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => void restore(), 0);
+    return () => window.clearTimeout(handle);
+  }, [restore]);
 
   const start = useCallback(
     async (request: TripPlanRequestDto) => {
@@ -272,14 +351,24 @@ export function useTripPlanningJob(
       abortController.current?.abort();
       const controller = new AbortController();
       abortController.current = controller;
-      setState({ phase: "submitting" });
+      setState({ phase: "submitting", action: "create" });
+      let jobKnown = false;
 
       try {
         const response = await api.create(request, controller.signal);
-        rememberMulticityJob(response);
+        recoverableJob.current = {
+          jobId: response.job_id,
+          version: multicityResponseVersion(response),
+        };
+        rememberJob(response);
+        jobKnown = true;
         await track(response, controller);
       } catch (error) {
         if (!isAbort(error)) {
+          if (jobKnown) {
+            showKnownJobError(error);
+            return;
+          }
           const safe = asSafeError(error);
           setState({
             phase: "error",
@@ -292,7 +381,7 @@ export function useTripPlanningJob(
         busy.current = false;
       }
     },
-    [api, track],
+    [api, showKnownJobError, track],
   );
 
   const resume = useCallback(async () => {
@@ -301,21 +390,15 @@ export function useTripPlanningJob(
     const controller = new AbortController();
     abortController.current = controller;
     try {
-      await track(state.response, controller);
+      await track(state.response, controller, state.restored);
     } catch (error) {
       if (!isAbort(error)) {
-        const safe = asSafeError(error);
-        setState({
-          phase: "error",
-          code: safe.code,
-          message: safe.message,
-          retryable: safe.retryable,
-        });
+        showKnownJobError(error);
       }
     } finally {
       busy.current = false;
     }
-  }, [state, track]);
+  }, [showKnownJobError, state, track]);
 
   const retry = useCallback(async () => {
     if (busy.current || state.phase !== "terminal") return;
@@ -350,28 +433,46 @@ export function useTripPlanningJob(
           "本机计划服务返回了不一致的重试标识，已停止刷新。",
         );
       }
+      recoverableJob.current = {
+        jobId: response.job_id,
+        version: multicityResponseVersion(response),
+      };
       await track(response, controller);
     } catch (error) {
       if (!isAbort(error)) {
-        const safe = asSafeError(error);
-        setState({
-          phase: "error",
-          code: safe.code,
-          message: safe.message,
-          retryable: safe.retryable,
-        });
+        showKnownJobError(error);
       }
     } finally {
       busy.current = false;
     }
-  }, [api, state, track]);
+  }, [api, showKnownJobError, state, track]);
+
+  const remove = useCallback(async () => {
+    if (busy.current || state.phase !== "terminal") return;
+    busy.current = true;
+    abortController.current?.abort();
+    const controller = new AbortController();
+    abortController.current = controller;
+    try {
+      await api.remove(state.response.job_id, controller.signal);
+      recoverableJob.current = null;
+      forgetJob();
+      setState({ phase: "idle", notice: "本机任务已删除。" });
+    } catch (error) {
+      if (isAbort(error)) return;
+      throw asSafeError(error);
+    } finally {
+      busy.current = false;
+    }
+  }, [api, state]);
 
   const reset = useCallback(() => {
     abortController.current?.abort();
     busy.current = false;
-    forgetMulticityJob();
+    recoverableJob.current = null;
+    forgetJob();
     setState({ phase: "idle" });
   }, []);
 
-  return { state, start, resume, retry, reset };
+  return { state, start, resume, retry, restore, remove, reset };
 }

@@ -153,6 +153,7 @@ it("restores a saved V3 job through one same-origin read", async () => {
     create: vi.fn(),
     read: vi.fn().mockResolvedValue(response),
     retry: vi.fn(),
+    remove: vi.fn(),
   };
   window.localStorage.setItem(ACTIVE_V3_JOB_STORAGE_KEY, response.job_id);
   render(

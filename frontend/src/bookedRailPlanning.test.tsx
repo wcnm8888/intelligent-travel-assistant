@@ -182,6 +182,7 @@ describe("F-004C booked rail frontend", () => {
       create: vi.fn(),
       read: vi.fn().mockResolvedValue(response),
       retry: vi.fn(),
+      remove: vi.fn(),
     };
     window.localStorage.setItem(ACTIVE_V4_JOB_STORAGE_KEY, response.job_id);
     render(

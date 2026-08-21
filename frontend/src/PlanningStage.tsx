@@ -3,12 +3,15 @@ import type { ReplanningApi } from "./replanningApi";
 import { TerminalOutcome } from "./ResultEvidence";
 import { TripPlanResult } from "./TripPlanResult";
 import { tripDayCount } from "./tripRequest";
+import { TerminalTaskActions } from "./TerminalTaskActions";
 import type { TripPlanningViewState } from "./useTripPlanningJob";
 
 interface PlanningStageProps {
   state: TripPlanningViewState;
   onResume: () => void;
   onRetry: () => void;
+  onRestore?: () => void;
+  onDelete?: () => Promise<void>;
   onReset: (field?: string | null) => void;
   replanApi?: ReplanningApi;
 }
@@ -125,6 +128,8 @@ export function PlanningStage({
   state,
   onResume,
   onRetry,
+  onRestore,
+  onDelete,
   onReset,
   replanApi,
 }: PlanningStageProps) {
@@ -162,7 +167,14 @@ export function PlanningStage({
 
       {state.phase === "idle" && (
         <>
-          <h2 id="plan-stage-title">计划将在这里展开</h2>
+          <h2 id="plan-stage-title" tabIndex={-1}>
+            计划将在这里展开
+          </h2>
+          {state.notice && (
+            <p className="tracking-notice" role="status">
+              {state.notice}
+            </p>
+          )}
           <div className="empty-stage">
             <span aria-hidden="true">旅</span>
             <p>
@@ -175,8 +187,16 @@ export function PlanningStage({
 
       {state.phase === "submitting" && (
         <div className="tracking-view" role="status" aria-live="polite">
-          <p className="tracking-kicker">正在连接本机计划服务</p>
-          <h2 id="plan-stage-title">登记旅行任务</h2>
+          <p className="tracking-kicker">
+            {state.action === "restore"
+              ? "正在读取本机任务"
+              : "正在连接本机计划服务"}
+          </p>
+          <h2 id="plan-stage-title" tabIndex={-1}>
+            {state.action === "restore"
+              ? "正在恢复上次本机任务"
+              : "登记旅行任务"}
+          </h2>
           <p className="stage-note">
             请求仅发送到同源 `/api`，提交期间不会重复创建任务。
           </p>
@@ -186,7 +206,9 @@ export function PlanningStage({
       {state.phase === "retrying" && (
         <div className="tracking-view" role="status" aria-live="polite">
           <p className="tracking-kicker">正在启动安全重试</p>
-          <h2 id="plan-stage-title">重新核验缺失数据</h2>
+          <h2 id="plan-stage-title" tabIndex={-1}>
+            重新核验缺失数据
+          </h2>
           <p className="stage-note">
             正在复用原任务并创建第 {state.nextAttempt}/3
             次尝试。旧结果已从页面移除，避免与新快照混淆。
@@ -199,7 +221,7 @@ export function PlanningStage({
           <p className="tracking-kicker">
             服务端状态 · {response.status.replaceAll("_", " ")}
           </p>
-          <h2 id="plan-stage-title">
+          <h2 id="plan-stage-title" tabIndex={-1}>
             {state.phase === "paused"
               ? "任务仍在等待"
               : `正在形成${tripDayCount(response.request_summary.start_date, response.request_summary.end_date) ?? "多"}日计划`}
@@ -243,7 +265,7 @@ export function PlanningStage({
           aria-live="polite"
         >
           <p className="tracking-kicker">任务已停止轮询 · {response.status}</p>
-          <h2 id="plan-stage-title">
+          <h2 id="plan-stage-title" tabIndex={-1}>
             {TERMINAL_LABELS[response.status as keyof typeof TERMINAL_LABELS] ??
               "计划任务已结束"}
           </h2>
@@ -261,11 +283,22 @@ export function PlanningStage({
         </div>
       )}
 
+      {state.phase === "terminal" && onDelete && (
+        <TerminalTaskActions onDelete={onDelete} />
+      )}
+
       {state.phase === "error" && (
         <div className="tracking-view error-view" role="alert">
           <p className="tracking-kicker">任务连接失败 · {state.code}</p>
-          <h2 id="plan-stage-title">暂时无法继续</h2>
+          <h2 id="plan-stage-title" tabIndex={-1}>
+            暂时无法继续
+          </h2>
           <p className="stage-note">{state.message}</p>
+          {state.recoveryAvailable && onRestore && (
+            <button className="stage-action" type="button" onClick={onRestore}>
+              稍后重试恢复
+            </button>
+          )}
           <button
             className="stage-action"
             type="button"
