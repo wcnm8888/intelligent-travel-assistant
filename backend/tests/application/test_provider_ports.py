@@ -17,9 +17,9 @@ from intelligent_travel_assistant.application.ports import (
     DeepSeekPort,
     ModelTextOutput,
     PlanCandidate,
-    PlanCandidateRepairRequest,
     PlanningContext,
     PlanningToolName,
+    PlanRepairBrief,
     PoiSearchRequest,
     PoiSearchResult,
     QWeatherPort,
@@ -128,7 +128,7 @@ def test_all_provider_operations_are_async(port: type[object], methods: tuple[st
         (DeepSeekPort.generate_plan_candidate, PlanningContext, ModelTextOutput),
         (
             DeepSeekPort.repair_plan_candidate,
-            PlanCandidateRepairRequest,
+            PlanRepairBrief,
             ModelTextOutput,
         ),
     ],
@@ -159,7 +159,7 @@ def test_port_boundary_values_are_frozen_slotted_dataclasses() -> None:
         WeatherAlertsResult,
         PlanningContext,
         ModelTextOutput,
-        PlanCandidateRepairRequest,
+        PlanRepairBrief,
         PlanCandidate,
     )
     for value in values:

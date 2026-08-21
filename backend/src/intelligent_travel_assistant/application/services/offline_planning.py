@@ -59,11 +59,13 @@ from intelligent_travel_assistant.application.state_machine import (
 )
 from intelligent_travel_assistant.application.tooling import (
     ROUTE_CONCURRENCY_LIMIT,
+    ProviderAttemptRuntime,
     ToolCallCapability,
     ToolCallGovernanceError,
     ToolCallGovernanceErrorCode,
     ToolCallGovernor,
     ToolCallSnapshot,
+    provider_result_from_attempt_outcome,
 )
 from intelligent_travel_assistant.contracts import PlanningStatus
 from intelligent_travel_assistant.domain import (
@@ -76,15 +78,25 @@ from intelligent_travel_assistant.domain import (
     DailyAvailability,
     DailyRoutePlan,
     DomainInvariantError,
+    FactCriticality,
+    FactUse,
     Money,
     MultiDayTripRequestInput,
     Provider,
+    ProviderError,
     ProviderErrorCategory,
+    ProviderErrorReason,
+    ProviderOperation,
     ProviderResult,
     ProviderResultStatus,
     RouteLeg,
     RouteMode,
     TripRequestInput,
+    decide_freshness,
+    evaluate_freshness,
+)
+from intelligent_travel_assistant.domain import (
+    DataFreshness as DomainDataFreshness,
 )
 
 
@@ -213,6 +225,7 @@ class OfflinePlanningOrchestrator:
         request: OfflinePlanningRequest,
         *,
         state_observer: Callable[[PlanningStatus], Awaitable[None]] | None = None,
+        attempt_runtime: ProviderAttemptRuntime | None = None,
     ) -> OfflinePlanningOutcome:
         governor = (
             self._request_governor_factory(request)
@@ -228,6 +241,9 @@ class OfflinePlanningOrchestrator:
             ToolCallCapability.RESOLVE_CITY,
             history[-1],
             lambda: self._amap.resolve_city(CityResolutionRequest(request.trip.city)),
+            attempt_runtime=attempt_runtime,
+            provider=Provider.AMAP,
+            provider_operation=ProviderOperation.RESOLVE_CITY,
         )
         if city_result.status is ProviderResultStatus.UNAVAILABLE:
             await _advance(history, PlanningStatus.FAILED, state_observer)
@@ -251,6 +267,9 @@ class OfflinePlanningOrchestrator:
                         limit=3,
                     )
                 ),
+                attempt_runtime=attempt_runtime,
+                provider=Provider.AMAP,
+                provider_operation=ProviderOperation.SEARCH_POIS,
             )
             if accommodation_result.status is ProviderResultStatus.UNAVAILABLE:
                 await _advance(history, PlanningStatus.FAILED, state_observer)
@@ -293,6 +312,9 @@ class OfflinePlanningOrchestrator:
             ToolCallCapability.SEARCH_POIS,
             history[-1],
             lambda: self._amap.search_pois(poi_request),
+            attempt_runtime=attempt_runtime,
+            provider=Provider.AMAP,
+            provider_operation=ProviderOperation.SEARCH_POIS,
         )
         if poi_result.status is ProviderResultStatus.UNAVAILABLE:
             await _advance(history, PlanningStatus.FAILED, state_observer)
@@ -324,6 +346,9 @@ class OfflinePlanningOrchestrator:
                 ToolCallCapability.GET_WEATHER_FORECAST,
                 history[-1],
                 lambda: self._qweather.get_weather_forecast(forecast_request),
+                attempt_runtime=attempt_runtime,
+                provider=Provider.QWEATHER,
+                provider_operation=ProviderOperation.GET_WEATHER_FORECAST,
             )
             alerts_request = CurrentWeatherAlertsRequest(
                 location_id=weather_location_id,
@@ -334,7 +359,23 @@ class OfflinePlanningOrchestrator:
                 ToolCallCapability.GET_CURRENT_WEATHER_ALERTS,
                 history[-1],
                 lambda: self._qweather.get_current_weather_alerts(alerts_request),
+                attempt_runtime=attempt_runtime,
+                provider=Provider.QWEATHER,
+                provider_operation=ProviderOperation.GET_CURRENT_WEATHER_ALERTS,
             )
+
+        weather_for_use = _provider_result_for_use(
+            weather_result,
+            operation=ProviderOperation.GET_WEATHER_FORECAST,
+            criticality=FactCriticality.OPTIONAL,
+            evaluated_at=request.evaluated_at,
+        )
+        alerts_for_use = _provider_result_for_use(
+            alert_result,
+            operation=ProviderOperation.GET_CURRENT_WEATHER_ALERTS,
+            criticality=FactCriticality.OPTIONAL,
+            evaluated_at=request.evaluated_at,
+        )
 
         await _advance(history, PlanningStatus.PLANNING, state_observer)
         planning_context = _planning_context(
@@ -344,12 +385,13 @@ class OfflinePlanningOrchestrator:
             pois,
             city_result,
             poi_result,
-            weather_result,
-            alert_result,
+            weather_for_use,
+            alerts_for_use,
         )
         proposal_resolution = await DeepSeekProposalResolver(self._deepseek).resolve(
             planning_context,
             governor,
+            attempt_runtime,
         )
         proposal_result = proposal_resolution.result
         if proposal_result.status is ProviderResultStatus.UNAVAILABLE:
@@ -409,6 +451,7 @@ class OfflinePlanningOrchestrator:
             governor=governor,
             status=history[-1],
             locations=planning_context.locations,
+            attempt_runtime=attempt_runtime,
         )
         if scheduling.issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE:
             route_diagnostic_code = _route_data_diagnostic(
@@ -494,10 +537,17 @@ class OfflinePlanningOrchestrator:
                 route_enrichments,
             ),
             route_enrichments=route_enrichments,
-            weather_result=weather_result,
+            weather_result=weather_for_use,
             expected_weather_location_id=(request.weather_location_id or accommodation.location_id),
             provider_results=provider_results,
-            evaluated_at=request.evaluated_at,
+            evaluated_at=max(
+                request.evaluated_at,
+                *(
+                    record.fetched_at
+                    for result in provider_results
+                    for record in result.source_records
+                ),
+            ),
             hard_constraints=request.hard_constraints,
         )
         await _advance(history, final_validation.status, state_observer)
@@ -594,11 +644,51 @@ async def _governed_call[T](
     capability: ToolCallCapability,
     status: PlanningStatus,
     operation: Callable[[], Awaitable[ProviderResult[T]]],
+    *,
+    attempt_runtime: ProviderAttemptRuntime | None = None,
+    provider: Provider | None = None,
+    provider_operation: ProviderOperation | None = None,
 ) -> ProviderResult[T]:
-    permit = governor.reserve(capability, status)
+    try:
+        permit = governor.reserve(capability, status)
+    except ToolCallGovernanceError as error:
+        if (
+            attempt_runtime is None
+            or provider is None
+            or error.code
+            not in {
+                ToolCallGovernanceErrorCode.INSUFFICIENT_TIME_REMAINING,
+                ToolCallGovernanceErrorCode.CALL_TIMEOUT,
+                ToolCallGovernanceErrorCode.TASK_TIMEOUT,
+            }
+        ):
+            raise
+        return ProviderResult(
+            ProviderResultStatus.UNAVAILABLE,
+            provider,
+            None,
+            None,
+            None,
+            (),
+            ProviderError(
+                ProviderErrorCategory.TIMEOUT,
+                reason=ProviderErrorReason.RETRY_DEADLINE_EXHAUSTED,
+            ),
+            (),
+        )
     result: ProviderResult[T] | None = None
     try:
-        result = await operation()
+        if attempt_runtime is None:
+            result = await operation()
+        else:
+            if provider is None or provider_operation is None:
+                raise ValueError("provider_attempt_metadata_required")
+            outcome = await attempt_runtime.execute(
+                provider=provider,
+                operation=provider_operation,
+                call=operation,
+            )
+            result = provider_result_from_attempt_outcome(outcome)
     finally:
         try:
             governor.complete(permit)
@@ -612,6 +702,34 @@ async def _governed_call[T](
                 raise
     assert result is not None
     return result
+
+
+def _provider_result_for_use[T](
+    result: ProviderResult[T] | None,
+    *,
+    operation: ProviderOperation,
+    criticality: FactCriticality,
+    evaluated_at: datetime,
+) -> ProviderResult[T] | None:
+    if result is None or result.data is None:
+        return None
+    freshness_values = tuple(
+        evaluate_freshness(
+            record.fetched_at,
+            record.valid_until,
+            max(evaluated_at, record.fetched_at),
+        )
+        for record in result.source_records
+    )
+    freshness = (
+        DomainDataFreshness.STALE
+        if DomainDataFreshness.STALE in freshness_values
+        else DomainDataFreshness.UNKNOWN_VALIDITY
+        if DomainDataFreshness.UNKNOWN_VALIDITY in freshness_values
+        else DomainDataFreshness.FRESH
+    )
+    decision = decide_freshness(operation, freshness, criticality)
+    return result if decision.fact_use is FactUse.USE else None
 
 
 def _planning_context(
@@ -693,6 +811,7 @@ async def _schedule_with_routes(
     governor: ToolCallGovernor,
     status: PlanningStatus,
     locations: tuple[PlanningLocation, ...],
+    attempt_runtime: ProviderAttemptRuntime | None,
 ) -> tuple[tuple[_RouteLookup, ...], SchedulingResult]:
     coordinates = {item.location_id: item.coordinates for item in pois}
     coordinates[accommodation.location_id] = accommodation.coordinates
@@ -713,6 +832,8 @@ async def _schedule_with_routes(
             amap=amap,
             governor=governor,
             status=status,
+            attempt_runtime=attempt_runtime,
+            evaluated_at=request.evaluated_at,
         )
         primary_lookups = primary_batch.lookups
         lookups.extend(primary_lookups)
@@ -732,6 +853,8 @@ async def _schedule_with_routes(
                 amap=amap,
                 governor=governor,
                 status=status,
+                attempt_runtime=attempt_runtime,
+                evaluated_at=request.evaluated_at,
             )
             fallback_lookups = fallback_batch.lookups
             lookups.extend(fallback_lookups)
@@ -770,6 +893,8 @@ async def _lookup_route_batch(
     amap: AmapPort,
     governor: ToolCallGovernor,
     status: PlanningStatus,
+    attempt_runtime: ProviderAttemptRuntime | None,
+    evaluated_at: datetime,
 ) -> _RouteLookupBatch:
     values: list[_RouteLookup] = []
     stopped = False
@@ -785,6 +910,8 @@ async def _lookup_route_batch(
                     amap=amap,
                     governor=governor,
                     status=status,
+                    attempt_runtime=attempt_runtime,
+                    evaluated_at=evaluated_at,
                 )
             )
             for requirement in batch
@@ -813,6 +940,8 @@ async def _lookup_route(
     amap: AmapPort,
     governor: ToolCallGovernor,
     status: PlanningStatus,
+    attempt_runtime: ProviderAttemptRuntime | None,
+    evaluated_at: datetime,
 ) -> _RouteLookup:
     origin = coordinates.get(requirement.origin_location_id)
     destination = coordinates.get(requirement.destination_location_id)
@@ -838,6 +967,9 @@ async def _lookup_route(
             ToolCallCapability.CALCULATE_ROUTES,
             status,
             _route_operation(amap, route_request),
+            attempt_runtime=attempt_runtime,
+            provider=Provider.AMAP,
+            provider_operation=ProviderOperation.CALCULATE_ROUTES,
         )
     except ToolCallGovernanceError as error:
         if error.code is ToolCallGovernanceErrorCode.CALL_BUDGET_EXHAUSTED:
@@ -857,6 +989,17 @@ async def _lookup_route(
         and not _route_result_is_usable(requirement, route_request, route_result)
     ):
         diagnostic_code = RouteDataDiagnosticCode.RESULT_INVALID
+    elif (
+        route_result.data is not None
+        and _provider_result_for_use(
+            route_result,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            criticality=FactCriticality.REQUIRED,
+            evaluated_at=evaluated_at,
+        )
+        is None
+    ):
+        diagnostic_code = RouteDataDiagnosticCode.SOURCE_STALE
     return _RouteLookup(requirement, route_request, route_result, diagnostic_code)
 
 
@@ -881,6 +1024,7 @@ def _lookup_has_usable_route(lookup: _RouteLookup) -> bool:
     return (
         lookup.request is not None
         and lookup.result is not None
+        and lookup.diagnostic_code is None
         and _route_result_is_usable(lookup.requirement, lookup.request, lookup.result)
     )
 
@@ -988,6 +1132,7 @@ def _route_data_diagnostic(
     if any(_lookup_has_provider_wide_failure(item) for item in related):
         return RouteDataDiagnosticCode.PRIMARY_UNAVAILABLE
     for code in (
+        RouteDataDiagnosticCode.SOURCE_STALE,
         RouteDataDiagnosticCode.DEADLINE_EXHAUSTED,
         RouteDataDiagnosticCode.COORDINATES_MISSING,
         RouteDataDiagnosticCode.RESULT_INVALID,

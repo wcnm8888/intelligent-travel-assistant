@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date, time, timedelta
 from enum import StrEnum
 from typing import Final
@@ -22,17 +22,22 @@ from intelligent_travel_assistant.application.ports import (
     DeepSeekPort,
     ModelTextOutput,
     PlanCandidate,
-    PlanCandidateRepairRequest,
     PlanningContext,
     PlanningDayWindow,
     PlanProposal,
+    PlanRepairBrief,
+    PlanRepairLocation,
     ProposalDay,
+    bounded_display_label,
+    bounded_project_token,
 )
 from intelligent_travel_assistant.application.tooling import (
+    ProviderAttemptRuntime,
     ToolCallCapability,
     ToolCallGovernanceError,
     ToolCallGovernanceErrorCode,
     ToolCallGovernor,
+    provider_result_from_attempt_outcome,
 )
 from intelligent_travel_assistant.contracts import PlanningStatus
 from intelligent_travel_assistant.domain import (
@@ -42,6 +47,8 @@ from intelligent_travel_assistant.domain import (
     Provider,
     ProviderError,
     ProviderErrorCategory,
+    ProviderErrorReason,
+    ProviderOperation,
     ProviderResult,
     ProviderResultStatus,
     RouteActivity,
@@ -210,11 +217,14 @@ class DeepSeekCandidateResolver:
         self,
         context: PlanningContext,
         governor: ToolCallGovernor,
+        attempt_runtime: ProviderAttemptRuntime | None = None,
     ) -> CandidateResolution:
         generated = await _governed_model_call(
             governor,
             ToolCallCapability.GENERATE_PLAN_CANDIDATE,
             lambda: self._deepseek.generate_plan_candidate(context),
+            attempt_runtime=attempt_runtime,
+            provider_operation=ProviderOperation.GENERATE_PLAN_CANDIDATE,
         )
         if generated.status is ProviderResultStatus.UNAVAILABLE:
             return CandidateResolution(_copy_unavailable(generated), False, None)
@@ -241,13 +251,10 @@ class DeepSeekCandidateResolver:
                 governor,
                 ToolCallCapability.REPAIR_PLAN_CANDIDATE,
                 lambda: self._deepseek.repair_plan_candidate(
-                    PlanCandidateRepairRequest(
-                        context,
-                        raw_output,
-                        validation_code,
-                        time_failure,
-                    )
+                    _repair_brief(context, validation_code, time_failure)
                 ),
+                attempt_runtime=attempt_runtime,
+                provider_operation=ProviderOperation.REPAIR_PLAN_CANDIDATE,
             )
             if repaired.status is ProviderResultStatus.UNAVAILABLE:
                 return CandidateResolution(_copy_unavailable(repaired), True, None)
@@ -282,11 +289,14 @@ class DeepSeekProposalResolver:
         self,
         context: PlanningContext,
         governor: ToolCallGovernor,
+        attempt_runtime: ProviderAttemptRuntime | None = None,
     ) -> ProposalResolution:
         generated = await _governed_model_call(
             governor,
             ToolCallCapability.GENERATE_PLAN_CANDIDATE,
             lambda: self._deepseek.generate_plan_candidate(context),
+            attempt_runtime=attempt_runtime,
+            provider_operation=ProviderOperation.GENERATE_PLAN_CANDIDATE,
         )
         if generated.status is ProviderResultStatus.UNAVAILABLE:
             return ProposalResolution(_copy_proposal_unavailable(generated), False, None)
@@ -311,8 +321,10 @@ class DeepSeekProposalResolver:
                 governor,
                 ToolCallCapability.REPAIR_PLAN_CANDIDATE,
                 lambda: self._deepseek.repair_plan_candidate(
-                    _proposal_repair_request(context, raw_output, validation_code)
+                    _repair_brief(context, validation_code)
                 ),
+                attempt_runtime=attempt_runtime,
+                provider_operation=ProviderOperation.REPAIR_PLAN_CANDIDATE,
             )
             if repaired.status is ProviderResultStatus.UNAVAILABLE:
                 return ProposalResolution(_copy_proposal_unavailable(repaired), True, None)
@@ -334,20 +346,30 @@ class DeepSeekProposalResolver:
         return ProposalResolution(_with_proposal(generated, proposal), False, None)
 
 
-def _proposal_repair_request(
+def _repair_brief(
     context: PlanningContext,
-    raw_output: str,
     validation_code: CandidateValidationCode,
-) -> PlanCandidateRepairRequest:
-    if context.request_version != "3":
-        return PlanCandidateRepairRequest(context, raw_output, validation_code)
-    safe_context = replace(
-        context,
-        interests=(),
-        hard_constraints=(),
-        free_text="",
+    time_failure: CandidateTimeFailureCode | None = None,
+) -> PlanRepairBrief:
+    return PlanRepairBrief(
+        request_version=context.request_version,
+        expected_dates=_expected_dates(context),
+        day_windows=context.day_windows,
+        day_city_indices=context.day_city_indices,
+        city_adcodes=context.city_adcodes,
+        locations=tuple(
+            PlanRepairLocation(
+                location.location_id,
+                bounded_display_label(f"location:{location.location_id}"),
+                bounded_project_token(location.category),
+                location.city_adcode,
+            )
+            for location in context.locations
+        ),
+        activity_source_ids=context.activity_source_ids,
+        validation_code=validation_code,
+        validation_time_failure=time_failure,
     )
-    return PlanCandidateRepairRequest(safe_context, "", validation_code)
 
 
 def parse_plan_proposal(raw_output: str, context: PlanningContext) -> PlanProposal:
@@ -843,11 +865,43 @@ async def _governed_model_call(
     governor: ToolCallGovernor,
     capability: ToolCallCapability,
     operation: Callable[[], Awaitable[ProviderResult[ModelTextOutput]]],
+    *,
+    attempt_runtime: ProviderAttemptRuntime | None = None,
+    provider_operation: ProviderOperation,
 ) -> ProviderResult[ModelTextOutput]:
-    permit = governor.reserve(capability, PlanningStatus.PLANNING)
+    try:
+        permit = governor.reserve(capability, PlanningStatus.PLANNING)
+    except ToolCallGovernanceError as error:
+        if attempt_runtime is None or error.code not in {
+            ToolCallGovernanceErrorCode.INSUFFICIENT_TIME_REMAINING,
+            ToolCallGovernanceErrorCode.CALL_TIMEOUT,
+            ToolCallGovernanceErrorCode.TASK_TIMEOUT,
+        }:
+            raise
+        return ProviderResult(
+            ProviderResultStatus.UNAVAILABLE,
+            Provider.DEEPSEEK,
+            None,
+            None,
+            None,
+            (),
+            ProviderError(
+                ProviderErrorCategory.TIMEOUT,
+                reason=ProviderErrorReason.RETRY_DEADLINE_EXHAUSTED,
+            ),
+            (),
+        )
     result: ProviderResult[ModelTextOutput] | None = None
     try:
-        result = await operation()
+        if attempt_runtime is None:
+            result = await operation()
+        else:
+            outcome = await attempt_runtime.execute(
+                provider=Provider.DEEPSEEK,
+                operation=provider_operation,
+                call=operation,
+            )
+            result = provider_result_from_attempt_outcome(outcome)
     finally:
         try:
             governor.complete(permit)

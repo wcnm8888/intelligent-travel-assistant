@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import StrEnum
+from typing import Final
 from uuid import UUID
 
 from intelligent_travel_assistant.domain import Coordinates, Money, RouteMode
+
+_UNSAFE_DISPLAY_LABEL: Final = re.compile(
+    r"ignore\s+(?:all\s+)?previous\s+instructions|<\|(?:system|assistant|tool)\|>|"
+    r"assistant\s+to=|system\s+prompt|tool[_ -]?(?:call|result)|arbitrary_http|"
+    r"(?:system|assistant|developer)\s*:",
+    re.IGNORECASE,
+)
+_SAFE_DISPLAY_LABEL: Final = re.compile(
+    r"(?:city:[0-9]{6}|location:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+    r"[0-9a-f]{4}-[0-9a-f]{12}|observation:[a-z0-9_:-]{1,64})"
+)
+_SAFE_TOKEN: Final = re.compile(r"[a-z0-9_:-]{1,64}")
 
 
 class PlanningToolName(StrEnum):
@@ -197,11 +211,46 @@ class ModelTextOutput:
 
 
 @dataclass(frozen=True, slots=True)
-class PlanCandidateRepairRequest:
-    context: PlanningContext
-    invalid_output: str
+class PlanRepairLocation:
+    location_id: UUID
+    display_label: str | None
+    category: str | None
+    city_adcode: str
+
+
+@dataclass(frozen=True, slots=True)
+class PlanRepairBrief:
+    request_version: str | None
+    expected_dates: tuple[date, ...]
+    day_windows: tuple[PlanningDayWindow, ...]
+    day_city_indices: tuple[tuple[int, int, int], ...]
+    city_adcodes: tuple[str, ...]
+    locations: tuple[PlanRepairLocation, ...]
+    activity_source_ids: tuple[UUID, ...]
     validation_code: CandidateValidationCode
-    time_failure: CandidateTimeFailureCode | None = None
+    validation_time_failure: CandidateTimeFailureCode | None = None
+    affected_refs: tuple[UUID, ...] = ()
+    command_category: str | None = None
+
+
+def bounded_display_label(value: object) -> str | None:
+    """Admit only project-generated opaque aliases, never external free text."""
+
+    if not isinstance(value, str) or _SAFE_DISPLAY_LABEL.fullmatch(value) is None:
+        return None
+    return value
+
+
+def bounded_project_token(value: object) -> str | None:
+    """Admit project-owned enum-like tokens, never free Provider text."""
+
+    if (
+        not isinstance(value, str)
+        or _SAFE_TOKEN.fullmatch(value) is None
+        or _UNSAFE_DISPLAY_LABEL.search(value) is not None
+    ):
+        return None
+    return value
 
 
 @dataclass(frozen=True, slots=True)

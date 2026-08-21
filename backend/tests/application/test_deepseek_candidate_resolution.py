@@ -28,8 +28,10 @@ from intelligent_travel_assistant.application.ports import (
     PlanningLocation,
     PlanningObservation,
     PlanningToolName,
+    PlanRepairBrief,
 )
 from intelligent_travel_assistant.application.tooling import (
+    ProviderAttemptRuntime,
     ToolCallCapability,
     ToolCallGovernanceError,
     ToolCallGovernanceErrorCode,
@@ -40,6 +42,7 @@ from intelligent_travel_assistant.domain import (
     Provider,
     ProviderError,
     ProviderErrorCategory,
+    ProviderErrorReason,
     ProviderResult,
     ProviderResultStatus,
     SourceRecord,
@@ -294,7 +297,7 @@ def test_zero_route_window_repair_failure_reports_repair_time_diagnostic() -> No
         "candidate_repair_last_to_accommodation_gap_not_positive"
     )
     repair_request = fake.calls[1].request
-    assert repair_request.time_failure.value == (  # type: ignore[union-attr]
+    assert repair_request.validation_time_failure.value == (  # type: ignore[union-attr]
         "accommodation_to_first_gap_not_positive"
     )
     assert [item.operation for item in fake.calls] == [
@@ -687,9 +690,12 @@ def test_invalid_then_valid_output_repairs_exactly_once() -> None:
         FakeOperation.REPAIR_PLAN_CANDIDATE,
     ]
     repair_request = fake.calls[1].request
-    assert repair_request.validation_code is CandidateValidationCode.JSON_INVALID  # type: ignore[union-attr]
-    assert repair_request.invalid_output == invalid  # type: ignore[union-attr]
-    assert repair_request.context.allowed_tools == tuple(PlanningToolName)  # type: ignore[union-attr]
+    assert isinstance(repair_request, PlanRepairBrief)
+    assert repair_request.validation_code is CandidateValidationCode.JSON_INVALID
+    assert not hasattr(repair_request, "invalid_output")
+    assert not hasattr(repair_request, "context")
+    assert repair_request.expected_dates == (date(2026, 8, 15), date(2026, 8, 16))
+    assert invalid not in repr(repair_request)
 
 
 def test_truncated_generation_uses_the_single_repair_budget() -> None:
@@ -950,6 +956,37 @@ def test_repair_still_requires_full_remaining_35_second_window() -> None:
 
     assert raised.value.code is ToolCallGovernanceErrorCode.INSUFFICIENT_TIME_REMAINING
     assert [item.operation for item in fake.calls] == [FakeOperation.GENERATE_PLAN_CANDIDATE]
+
+
+def test_runtime_maps_pre_call_model_deadline_to_safe_timeout_result() -> None:
+    clock = ManualClock()
+    governor = ToolCallGovernor(clock=clock)
+    clock.advance(60.0)
+
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    runtime = ProviderAttemptRuntime(
+        clock=lambda: 0.0,
+        sleeper=no_delay,
+        jitter=lambda: 0.0,
+        task_timeout_seconds=90.0,
+    )
+    fake = FakeDeepSeekAdapter(generation_results=(_deepseek_result(_candidate_json()),))
+
+    resolution = asyncio.run(
+        DeepSeekCandidateResolver(fake).resolve(
+            _context(),
+            governor,
+            runtime,
+        )
+    )
+
+    assert resolution.result.status is ProviderResultStatus.UNAVAILABLE
+    assert resolution.result.error is not None
+    assert resolution.result.error.category is ProviderErrorCategory.TIMEOUT
+    assert resolution.result.error.reason is ProviderErrorReason.RETRY_DEADLINE_EXHAUSTED
+    assert fake.calls == ()
 
 
 def test_candidate_resolution_has_no_sdk_network_environment_or_sleep_dependency() -> None:

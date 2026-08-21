@@ -45,6 +45,7 @@ from intelligent_travel_assistant.application.services import (
     OfflinePlanningRequest,
 )
 from intelligent_travel_assistant.application.tooling import (
+    ProviderAttemptRuntime,
     ToolCallCapability,
     ToolCallGovernanceError,
     ToolCallGovernanceErrorCode,
@@ -62,6 +63,7 @@ from intelligent_travel_assistant.domain import (
     Provider,
     ProviderError,
     ProviderErrorCategory,
+    ProviderOperation,
     ProviderResult,
     ProviderResultStatus,
     RouteLeg,
@@ -398,6 +400,7 @@ def _build_orchestrator(
     copies: int = 1,
     amap_type: type[FakeAmapAdapter] = FakeAmapAdapter,
     governor_capture: list[ToolCallGovernor] | None = None,
+    city_results: tuple[ProviderResult[CityResolution], ...] | None = None,
 ) -> tuple[
     OfflinePlanningOrchestrator,
     FakeAmapAdapter,
@@ -421,7 +424,7 @@ def _build_orchestrator(
         _available(Provider.AMAP, item, source_type="route") for item in _routes()
     )
     amap = amap_type(
-        resolve_city_results=(city_result,) * copies,
+        resolve_city_results=city_results or (city_result,) * copies,
         search_pois_results=(poi_result,) * copies,
         calculate_routes_results=route_results * copies,
     )
@@ -451,6 +454,46 @@ def _build_orchestrator(
         qweather,
         deepseek,
     )
+
+
+def _attempt_runtime() -> ProviderAttemptRuntime:
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    return ProviderAttemptRuntime(
+        clock=lambda: 0.0,
+        sleeper=no_delay,
+        jitter=lambda: 0.0,
+        task_timeout_seconds=90.0,
+    )
+
+
+def test_attempt_runtime_retries_http_without_incrementing_logical_tool_count() -> None:
+    governors: list[ToolCallGovernor] = []
+    timeout: ProviderResult[CityResolution] = _unavailable(
+        Provider.AMAP,
+        ProviderErrorCategory.TIMEOUT,
+    )
+    city = _available(Provider.AMAP, _city(), source_type="geocode")
+    orchestrator, amap, _, _ = _build_orchestrator(
+        copies=10,
+        governor_capture=governors,
+        city_results=(timeout, city),
+    )
+    attempt_runtime = _attempt_runtime()
+
+    outcome = asyncio.run(orchestrator.plan(_request(), attempt_runtime=attempt_runtime))
+
+    assert outcome.status is PlanningStatus.READY
+    assert [call.operation for call in amap.calls[:2]] == [
+        FakeOperation.RESOLVE_CITY,
+        FakeOperation.RESOLVE_CITY,
+    ]
+    assert governors[0].snapshot().count_for(ToolCallCapability.RESOLVE_CITY) == 1
+    snapshot = attempt_runtime.snapshot()
+    assert snapshot.task_extra_attempts == 1
+    assert snapshot.active_executions == 0
+    assert snapshot.records[0].operation is ProviderOperation.RESOLVE_CITY
 
 
 def test_happy_path_completes_four_route_legs_and_finishes_ready() -> None:
@@ -520,6 +563,15 @@ def test_happy_path_completes_four_route_legs_and_finishes_ready() -> None:
         POI_ONE_ID,
         POI_TWO_ID,
     )
+
+
+def test_provider_observation_after_task_start_uses_its_own_fetch_time() -> None:
+    orchestrator, _, _, _ = _build_orchestrator()
+    request = replace(_request(), evaluated_at=NOW)
+
+    outcome = asyncio.run(orchestrator.plan(request))
+
+    assert outcome.status is PlanningStatus.READY
 
 
 def test_optional_omission_queries_one_bridge_and_emits_stable_warning() -> None:
@@ -797,7 +849,10 @@ def test_external_planning_cancellation_drains_both_inflight_route_peers() -> No
             governor_capture=governors,
         )
         assert isinstance(amap, _BlockingRoutePeersFakeAmap)
-        planning_task = asyncio.create_task(orchestrator.plan(_request()))
+        attempt_runtime = _attempt_runtime()
+        planning_task = asyncio.create_task(
+            orchestrator.plan(_request(), attempt_runtime=attempt_runtime)
+        )
 
         await amap.both_route_peers_waiting.wait()
         planning_task.cancel()
@@ -809,6 +864,8 @@ def test_external_planning_cancellation_drains_both_inflight_route_peers() -> No
         assert amap.completed_route_calls == 0
         assert len(governors) == 1
         assert governors[0].snapshot().active_route_calls == 0
+        assert attempt_runtime.snapshot().active_executions == 0
+        assert attempt_runtime.snapshot().closed is True
         route_calls = [
             call for call in amap.calls if call.operation is FakeOperation.CALCULATE_ROUTES
         ]
@@ -1005,7 +1062,7 @@ def test_forbidden_exact_times_are_repaired_before_route_enrichment() -> None:
     ]
     repair_request = deepseek.calls[1].request
     assert repair_request.validation_code is CandidateValidationCode.SCHEMA_INVALID  # type: ignore[union-attr]
-    assert repair_request.time_failure is None  # type: ignore[union-attr]
+    assert repair_request.validation_time_failure is None  # type: ignore[union-attr]
     assert [call.operation for call in amap.calls].count(FakeOperation.CALCULATE_ROUTES) == 4
 
 
@@ -1462,7 +1519,7 @@ def test_route_longer_than_available_gap_is_a_hard_conflict() -> None:
     assert outcome.final_validation is None
 
 
-def test_stale_source_blocks_ready_without_becoming_conflict() -> None:
+def test_stale_required_route_source_fails_without_becoming_conflict() -> None:
     request = _request()
     request = OfflinePlanningRequest(
         request.trip,
@@ -1482,11 +1539,10 @@ def test_stale_source_blocks_ready_without_becoming_conflict() -> None:
 
     outcome = asyncio.run(orchestrator.plan(request))
 
-    assert outcome.status is PlanningStatus.PARTIAL
-    assert outcome.final_validation is not None
-    assert FinalValidationIssueCode.SOURCE_STALE in {
-        item.code for item in outcome.final_validation.issues
-    }
+    assert outcome.status is PlanningStatus.FAILED
+    assert outcome.scheduling_issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE
+    assert outcome.route_diagnostic_code is RouteDataDiagnosticCode.SOURCE_STALE
+    assert outcome.final_validation is None
 
 
 def test_required_activity_capacity_conflict_does_not_call_model_repair() -> None:

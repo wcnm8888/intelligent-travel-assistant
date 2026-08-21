@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import sqlite3
+from asyncio import sleep
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from random import uniform
 from time import monotonic
 from typing import Final
 
@@ -36,6 +38,7 @@ from intelligent_travel_assistant.application.services import (
     ProviderPlanningJobExecutor,
 )
 from intelligent_travel_assistant.application.tooling import (
+    ProviderAttemptRuntime,
     ToolCallGovernor,
     multicity_task_timeout_seconds,
     multicity_tool_call_policies,
@@ -194,6 +197,12 @@ def build_planning_job_executor(
         repository,
         orchestrator,
         multicity_orchestrator=multicity_orchestrator,
+        attempt_runtime_factory=lambda timeout: ProviderAttemptRuntime(
+            clock=monotonic,
+            sleeper=sleep,
+            jitter=lambda: uniform(0.0, 0.2),
+            task_timeout_seconds=timeout,
+        ),
     )
 
 
