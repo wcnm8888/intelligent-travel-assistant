@@ -252,7 +252,7 @@ Step 4 已按上述边界实现：V2 `PlanningContext` 显式携带完整日期�
 
 Step 4 实现保持单 Agent 和单 governor：城市事实 fan-out 与路线并发分别由两个上限为 2 的 semaphore 约束，模型 generation/repair 不按城市倍增。V3 parser 逐日核对三个城市索引和 POI 城市；repair 只接收安全诊断与清除自由文本、兴趣和硬约束后的结构上下文，不接收原始模型输出。deadline 耗尽后不启动首个调用，取消会 cancel/drain 在途 route peer 并使 active 计数归零。所有证据来自 fake/MockTransport 边界，不构成真实 Provider 或城际 availability 证明。
 
-后续 Step 5–8 已完成 V3 前端、临时 SQLite/loopback 验收、独立隐私兼容审查、四层交付和归档；没有新增 Agent、Provider、Schema、依赖或真实调用。F-005 Step 0–9 已完成并归档：统一 resilience/freshness/attempt 契约已接入 legacy/V2/V3，bounded proposal/repair、固定离线 eval 和同 shape 前端恢复语义已交付；F-004B2 Provider/法律 Gate 已阻塞并归档，没有实现真实城际 Provider 或 UAT。当前无活动任务。
+后续 Step 5–8 已完成 V3 前端、临时 SQLite/loopback 验收、独立隐私兼容审查、四层交付和归档；没有新增 Agent、Provider、Schema、依赖或真实调用。F-005 Step 0–9 已完成并归档：统一 resilience/freshness/attempt 契约已接入 legacy/V2/V3，bounded proposal/repair、固定离线 eval 和同 shape 前端恢复语义已交付；F-004B2 Provider/法律 Gate 已阻塞并归档，没有实现真实城际 Provider 或 UAT。F-004C Step 0–5 已完成：V4 application 复用既有多城市规划，但在 Agent 边界前剥离 `service_number` 和完整 segment，并从 typed request 在结果侧确定性重建；V4 preferences 只允许 interests，`free_text` / `hard_constraints` 在 strict contract/API 边界拒绝，内部 projection 也只复制 interests；前端只消费 strict typed V4 结果并保留未核验语义。城际 Provider logical call/HTTP attempt 均保持 0，Step 5A 的 Agent context sentinel 与两层隐私安全复审均通过；Step 6 三层交付与归档正在执行。
 
 ## 日志与追踪
 
@@ -356,3 +356,42 @@ eval 数据保存在一个版本化、严格解析的 synthetic case 文档中�
 CI 只输出 suite version、case 总数、各 slice/维度通过数、加权总分和失败 case ID；不输出/上传 case payload、模型文本或 Provider script，不使用 LLM-as-judge，不调用真实模型或网络。该分数只能证明固定离线回归，不能表述为真实 Provider UAT、模型在线质量或长期可用性。
 
 Step 5 已按该契约实现：repair 不再接收原始无效输出或完整 `PlanningContext`，只接收 typed `PlanRepairBrief`；generation builder 与 DeepSeek adapter 双层剔除不安全 display label/category token。版本化 48-case eval 在 legacy/V2/V3/F-003 四个 slice 间等量分布，两次执行一致，加权分 `100.0`，提示注入、来源伪造、工具越权、预算超限和假 ready 五类硬门禁失败均为 0；全部证据为 synthetic/offline。
+
+## F-004C V4 Agent 与纯领域边界（Step 1 冻结）
+
+F-004C 不新增 Agent、工具或 Provider。V4 继续由单一编排 Agent 生成城市内活动建议，但用户已购铁路段完全属于 deterministic domain/application 输入，模型没有增删改查权限。
+
+### 纯领域对象与错误闭集
+
+- 新 `BookedRailIntercitySegment` 使用独立 frozen/slotted 类型：相邻 city index、固定 rail、规范化 service number、trim 后站点、`+08:00` 同日发到时间和可空 Money；
+- service number 规范化顺序固定为 type check → `strip()` → `upper()` → ASCII regex `^[A-Z0-9]{1,12}$`；不得用模型、前缀表或 Provider 判断真实性；
+- 已知 fare 必须为正数 Money，并生成 `CostConfidence.USER_PROVIDED`；`None` 生成 `CostConfidence.UNKNOWN` 和 `amount=None`；unknown 不进入 known total；
+- duration 只由 aware datetimes 相减，铁路缓冲固定 60/30 分钟；转移日、相邻索引、城市连续性、活动/路线边界与 V3 一致；
+- 稳定 domain error 沿用 `intercity_segment_order_invalid`、`intercity_time_invalid`、`intercity_fare_invalid`、`intercity_buffer_conflict`，service number 新增唯一安全 code `intercity_service_number_invalid`，field 指向结构化路径且不包含输入值；
+- terminal 分类沿用 V3/D-013：用户来源 unknown-validity 本身不冒充验证，也不单独产生 partial；unknown fare 及其他既有缺口继续产生 partial，硬约束冲突为 conflict，可修正输入为 needs_input，关键执行失败为 failed。
+
+### Proposal/repair allowlist
+
+V4 generation/repair 输入只允许：
+
+- request version、日期/城市/窗口骨架、travelers/pace/市内交通和 V4 strict preferences 中的 interests；
+- allowlisted city/location/source IDs 与安全 display label；
+- application 派生的 transfer date、departure/arrival wall-clock 和固定 rail buffer 数值；
+- 既有稳定、无原值 validation code。
+
+明确禁止：
+
+- `service_number`、完整 V4 intercity segment、用户城际段原始文本；
+- V4 `preferences.free_text` / `hard_constraints`；这些键必须在 strict contract/API 边界 422，内部 projection 不得补回；
+- 订单/乘客/证件/联系方式/座位/二维码/截图/Cookie/自由备注；
+- Provider/12306 内容、URL、原始响应、错误 body、HTML 或未经 allowlist 的文本；
+- 让 proposal/repair 输出 service number、站点、城际时间、fare、source、freshness、availability、余票、库存或 Provider attribution。
+
+application 在模型边界外从原 request 重建 V4 段，绑定确定性 station location IDs/source IDs/cost item，并在发布前再次校验 segment、日期、缓冲、来源和预算引用。模型输出出现上述越权字段时必须 fail closed，不能静默忽略后继续标 ready。
+
+### 调用与评估不变量
+
+- 城际 Provider capability 不加入 governor allowlist；V4 每个 job 的城际 logical call 和 HTTP attempt 均为 0；
+- F-005 固定 48-case eval 保持字节/行为兼容，不把 F-004C case 混入或改变阈值；F-004C 的新增测试使用独立 synthetic fixtures；
+- 测试必须证明 generation/repair payload 和安全诊断中不存在 synthetic service number、完整 segment 或禁止字段，同时城市内 Provider/Agent 既有预算不因 V4 增加；
+- 离线 fake、MockTransport、临时 SQLite 和 loopback QA 不等于车次核验或真实 Provider UAT。

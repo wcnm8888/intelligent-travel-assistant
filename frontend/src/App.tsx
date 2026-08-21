@@ -66,13 +66,14 @@ export function App({
         return `cityStays.${index}.${key}`;
       }
       const segmentField =
-        /^intercity_segments\.(\d+)\.(mode|departure_station|arrival_station|departure_at|arrival_at|fare)$/.exec(
+        /^intercity_segments\.(\d+)\.(mode|service_number|departure_station|arrival_station|departure_at|arrival_at|fare)$/.exec(
           field ?? "",
         );
       if (segmentField) {
         const [, index, nested] = segmentField;
         const key = {
           mode: "mode",
+          service_number: "serviceNumber",
           departure_station: "departureStation",
           arrival_station: "arrivalStation",
           departure_at: "departureTime",
@@ -103,7 +104,7 @@ export function App({
           /^cityStays\.\d+\.(city|nights|accommodation|oneNightCost)$/.test(
             target ?? "",
           ) ||
-          /^intercitySegments\.\d+\.(mode|departureStation|arrivalStation|departureTime|arrivalTime|fare)$/.test(
+          /^intercitySegments\.\d+\.(mode|serviceNumber|departureStation|arrivalStation|departureTime|arrivalTime|fare)$/.test(
             target ?? "",
           ));
       const safeTarget = isPermittedTarget ? target : "city";
@@ -194,7 +195,7 @@ export function App({
       </main>
 
       <footer className="product-footer">
-        <span>F-004B1 · 单城市与离线多城市计划</span>
+        <span>F-004C · 单城市、多城市与用户已购铁路段</span>
         <span>计划、来源、时效与冲突均来自服务端终态 · 不推测缺失事实</span>
       </footer>
     </div>

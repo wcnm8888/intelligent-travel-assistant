@@ -7,6 +7,7 @@ import type {
   LegacyTripPlanResponseDto,
   TripPlanResponseDto,
   TripPlanResponseV2Dto,
+  TripPlanResponseV4Dto,
 } from "./tripPlanningApi";
 import type { ReplanCommand, ReplanningApi } from "./replanningApi";
 import type { MoneyDto } from "./tripRequest";
@@ -20,6 +21,7 @@ import type {
   PlanDayDto,
   TripPlanV2Dto,
   TripPlanV3Dto,
+  TripPlanV4Dto,
   ResolvedDestinationDto,
 } from "./tripPlanModels";
 import type { TripPlanResponseV3Dto } from "./tripPlanningApi";
@@ -42,7 +44,7 @@ type TripPlanResponseViewDto = Pick<
   | "created_at"
   | "updated_at"
 > & {
-  response_version?: "2" | "3";
+  response_version?: "2" | "3" | "4";
   resolved_destination?: ResolvedDestinationDto | null;
   resolved_destinations?: ResolvedDestinationDto[];
 };
@@ -757,10 +759,23 @@ export function TripPlanResult(props: TripPlanResultProps) {
   if (props.response.plan === null) return null;
   if (
     "response_version" in props.response &&
-    props.response.response_version === "3" &&
+    (props.response.response_version === "3" ||
+      props.response.response_version === "4") &&
     "plan_format_version" in props.response.plan &&
-    props.response.plan.plan_format_version === "3"
+    (props.response.plan.plan_format_version === "3" ||
+      props.response.plan.plan_format_version === "4")
   ) {
+    if (props.response.response_version === "4") {
+      return (
+        <MulticityTripPlanResult
+          response={
+            props.response as TripPlanResponseV4Dto & { plan: TripPlanV4Dto }
+          }
+          onRetry={props.onRetry}
+          onReset={props.onReset}
+        />
+      );
+    }
     return (
       <MulticityTripPlanResult
         response={

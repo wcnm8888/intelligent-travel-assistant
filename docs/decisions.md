@@ -580,3 +580,58 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 - 恢复 Gate 需要补充正式书面授权同时覆盖所需 rail 字段和批准的 SQLite 保存边界，或由用户另行批准产品/持久化架构变更；
 - F-004B2 已以 documentation-only closure 归档；归档不把候选 Provider、未执行 V4 Provider union 或未执行 Step 2–10 表述为交付能力，未来恢复必须使用新的明确决策入口；
 - F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0，以及 F-005 离线证据不等于真实 UAT 均保持。
+
+## D-016：F-004C 用户已购铁路段与车次信息
+
+- 状态：`APPROVED / F-004C ACTIVE / STEP_6_ACTIVE`
+- 日期：2026-08-21
+- 适用范围：中国大陆境内 2–3 城、相邻城市、单向、同日、直达 rail 的用户已购铁路段；独立 V4 contracts、既有 application/API/Repository/SQLite schema v2 和本地 UI
+- 不适用：任何 Provider 查询或核验、12306 自动读取/抓取、air、coach、跨夜、换乘、跨境、复杂优化、余票/可售/库存、交易、乘客/证件、账号/同步/云数据库、公网部署或真实 Provider UAT
+
+### 版本、产品与领域决策
+
+- F-004C 在 F-006 前执行，使用独立 `request_version="4"`、`response_version="4"` 和 `plan_format_version="4"`；
+- D-016 只替代 D-015 中从未实现的 V4 Provider union 预留，不改变 F-004B2 的 `BLOCKED` 结论、归档或历史证据；未来真实城际 Provider 必须使用新的版本和新决策；
+- V4 只支持中国大陆 2–3 城、相邻城市、单向、同日、直达 rail；每个相邻段都是用户提供的已购铁路段；
+- 每段 `service_number` 必填，trim 后转换为 uppercase，并按 `^[A-Z0-9]{1,12}$` 校验；不维护车次前缀 allowlist，也不验证车次真实存在；
+- 每段保留出发站、到达站、出发时间、到达时间和可选票价；历时由发到时间确定性计算，不作为请求字段或新增 JSON 字段；unknown 金额保持 `null`，不得按 0；
+- 来源固定为 `user_provided`、`unknown_validity` 和“用户提供，未核验”；不得标记为 `provider_verified`，不得声称余票、可售或库存保证。
+
+### API、Repository、兼容与 replan 决策
+
+- 现有 POST/GET/retry/DELETE URI 和公开顶层 job/error shape 保持不变；V4 只增加批准的 version-specific nested keys；
+- legacy/V2/V3 exact shape、canonical fingerprint、旧记录读取和既有行为保持不变；V4 fingerprint 包含规范化 `service_number`，排除 `client_request_id`；
+- 继续使用现有 SQLite schema version 2 typed JSON 和 planning job 生命周期，不新增表、列、索引或 migration；migration 仍只有 1/2；
+- 所有 V4 replan 必须在 reserve、decision、executor、Provider、lineage 和 plan write 前拒绝；不扩大 F-003；
+- 任一需要 schema v3、migration、新依赖、新 URI、公开顶层 shape 或旧版本行为变化的实现均须停止并重新批准。
+
+### Agent、隐私、Provider 与测试决策
+
+- `service_number` 和用户城际段原文不得进入 proposal/repair；只允许 deterministic application/domain 校验和规划消费批准的 typed 字段；
+- V4 使用只含 `interests` 的专用 strict preferences；`free_text` / `hard_constraints` 必须在 contract/API 边界 422，前端不得展示、提交或静默携带；legacy/V2/V3 preferences shape 和行为不变；
+- 不保存姓名、证件、手机号、邮箱、订单号、座位、二维码、Cookie、截图、自由备注或用户城际段原文；
+- F-004C 新增城际 Provider logical call 和 HTTP attempt 均为 0；不注册账号、申请 Key、调用高德/12306/和风/DeepSeek 或其他 Provider，也不复用 F-005 attempt runtime 发起城际调用；
+- 默认测试和 CI 必须阻断非 loopback 网络；必须覆盖 legacy/V2/V3 exact-shape/fingerprint、V4 strict contracts、schema v2 typed JSON 往返、旧记录、API/retry/DELETE、V4 replan 前置拒绝、Provider 零调用、unknown/null 与隐私拒绝；
+- 必须执行临时 SQLite、loopback desktop/390px 浏览器 QA、network/console/accessibility 检查和独立隐私安全审查；这些仍是本地离线证据，不等于真实 Provider UAT。
+
+### 交付与停止决策
+
+- 三层 stack：`feat/f-004c-booked-rail-domain-contracts` → `feat/f-004c-booked-rail-persistence-api` → `feat/f-004c-booked-rail-ui-delivery`；
+- 核心文件按 contracts/domain、persistence/API/application、UI/delivery 分层；受控相邻扩展只允许直接 export、typed union/factory/wiring、对应测试/golden/synthetic fixture 及当前状态/evidence 文档；
+- 单 Step 超过 5 个未预期生产/测试文件、任一 stack 超过 18 个文件或净新增 1400 行、任务累计超过 50 个文件或净新增 4000 行时停止并重新拆分；
+- 任一需要 Provider、真实调用、Schema/migration、依赖/lockfile、秘密、敏感票务信息、未批准 API shape、隐私边界变化或范围扩张时立即停止。
+
+### Step 1 冻结细化
+
+- V4 使用独立 strict request/plan/response/result types；request 段为固定 rail 的 `BookedRailIntercitySegmentV4`，plan 段为 `PlanBookedRailSegmentV4`，只新增规范化 `service_number`，不新增 duration；
+- service number 按 strict string → strip → uppercase → ASCII 字母数字 1–12 校验；known fare 为正数 user-provided，unknown 为 `null`；
+- V4 response 复用 V3 plural 顶层键集合，source 复用既有 user intercity shape；用户来源 unknown-validity 不冒充 Provider 验证，其他 unknown/stale 仍按 D-014 裁决；
+- fingerprint 对规范化 V4 typed dump 排除 client ID 后使用现有 canonical SHA-256；Repository/SQLite/API 只扩 strict typed union，schema v2/migration 1/2 和旧版本 exact behavior 不变；
+- V3/V4 replan 在 reserve/decision/executor/Provider/runtime/lineage/plan write 前零写入拒绝；城际 Provider logical call/HTTP attempt 为 0；
+- Agent 不接收 service number、完整 segment 或原始城际文本；前端保留 V3 默认，显式选择已购铁路才产生 V4；精确契约和测试矩阵由对应权威文档冻结。
+
+### 后果
+
+- Step 0 只激活任务卡、roadmap、实施计划、D-016、治理边界和首层本地分支，不构成 Step 1 或实现授权；
+- F-004B2 保持 `BLOCKED / ARCHIVED`，其 Provider/法律 Gate、未实现事实和历史 evidence 均不改写；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0，以及 F-005 离线 evidence 不等于真实 UAT 均保持。

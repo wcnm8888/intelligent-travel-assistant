@@ -120,6 +120,14 @@ export interface PlanIntercitySegmentV3Dto {
   source_ids: string[];
 }
 
+export interface PlanBookedRailSegmentV4Dto extends Omit<
+  PlanIntercitySegmentV3Dto,
+  "mode"
+> {
+  mode: "rail";
+  service_number: string;
+}
+
 export interface PlanDayV3Dto {
   local_date: string;
   departure_city_index: number;
@@ -168,7 +176,16 @@ export interface TripPlanV3Dto {
   budget_summary: BudgetSummaryDto;
 }
 
-export type TripPlanDto = LegacyTripPlanDto | TripPlanV2Dto | TripPlanV3Dto;
+export interface TripPlanV4Dto extends Omit<
+  TripPlanV3Dto,
+  "plan_format_version" | "intercity_segments"
+> {
+  plan_format_version: "4";
+  intercity_segments: PlanBookedRailSegmentV4Dto[];
+}
+
+export type TripPlanDto =
+  LegacyTripPlanDto | TripPlanV2Dto | TripPlanV3Dto | TripPlanV4Dto;
 
 export interface ConstraintViolationDto {
   code: string;
@@ -206,6 +223,7 @@ const DATETIME_PATTERN =
 const MONEY_PATTERN = /^(0|[1-9]\d*)(\.\d{1,2})?$/;
 const DECIMAL_PATTERN = /^-?(0|[1-9]\d*)(\.\d+)?$/;
 const ADCODE_PATTERN = /^\d{6}$/;
+const SERVICE_NUMBER_PATTERN = /^[A-Z0-9]{1,12}$/;
 const UNSAFE_RESULT_TEXT =
   /authorization\s*:|(?:api[_-]?key|token|secret|password)\s*[=:]/i;
 
@@ -522,6 +540,35 @@ function isPlanIntercitySegmentV3(
   );
 }
 
+function isPlanBookedRailSegmentV4(
+  value: unknown,
+): value is PlanBookedRailSegmentV4Dto {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, [
+      "segment_id",
+      "from_city_index",
+      "to_city_index",
+      "mode",
+      "service_number",
+      "departure_station_location_id",
+      "arrival_station_location_id",
+      "departure_at",
+      "arrival_at",
+      "fare",
+      "source_ids",
+    ]) ||
+    value.mode !== "rail" ||
+    typeof value.service_number !== "string" ||
+    !SERVICE_NUMBER_PATTERN.test(value.service_number)
+  ) {
+    return false;
+  }
+  const v3Shape = { ...value };
+  delete v3Shape.service_number;
+  return isPlanIntercitySegmentV3(v3Shape);
+}
+
 function isPlanDayV3(value: unknown): value is PlanDayV3Dto {
   return (
     isRecord(value) &&
@@ -628,6 +675,9 @@ export function isResolvedDestination(
 }
 
 export function isTripPlan(value: unknown): value is TripPlanDto {
+  if (isRecord(value) && value.plan_format_version === "4") {
+    return isTripPlanV4(value);
+  }
   if (isRecord(value) && value.plan_format_version === "3") {
     return isTripPlanV3(value);
   }
@@ -723,6 +773,37 @@ export function isTripPlan(value: unknown): value is TripPlanDto {
       ) &&
       (day.weather === null || locations.has(day.weather.location_id)),
   );
+}
+
+export function isTripPlanV4(value: unknown): value is TripPlanV4Dto {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, [
+      "plan_id",
+      "plan_format_version",
+      "city_adcodes",
+      "start_date",
+      "end_date",
+      "locations",
+      "intercity_segments",
+      "days",
+      "budget_summary",
+    ]) ||
+    value.plan_format_version !== "4" ||
+    !Array.isArray(value.intercity_segments) ||
+    !value.intercity_segments.every(isPlanBookedRailSegmentV4)
+  ) {
+    return false;
+  }
+  return isTripPlanV3({
+    ...value,
+    plan_format_version: "3",
+    intercity_segments: value.intercity_segments.map((segment) => {
+      const v3Segment = { ...segment };
+      delete (v3Segment as Partial<PlanBookedRailSegmentV4Dto>).service_number;
+      return v3Segment;
+    }),
+  });
 }
 
 export function isTripPlanV3(value: unknown): value is TripPlanV3Dto {

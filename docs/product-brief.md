@@ -67,7 +67,7 @@ MVP 计划提供：
 8. 用轻量 Web UI 展示输入、处理中状态、计划、预算、来源、冲突和重规划结果；
 9. 在外部 API 超时、限流、鉴权失败、数据缺失或响应不合法时提供明确降级。
 
-F-004A 已实现并交付：计划生成支持单城市连续 2–7 日、每日最多 2 项活动和一个住宿锚点；该交付没有执行真实 Provider UAT。F-004B1 Step 0–8 也已实现并归档：用户可以表达 2–3 个中国大陆城市、每城住宿和用户提供的相邻城际段，使用独立 V3 contracts、SQLite schema v2 typed JSON、离线多城市 planning、严格前端交互和本机恢复；城际 Provider 调用为 0，且没有真实 Provider UAT。F-005 已实现并归档既有外部服务韧性、时效和完全离线 Agent 评估；F-004B2 的真实城际 Provider Gate 已因 SQLite 持久化禁止和 rail 字段授权不足以 `BLOCKED` 状态归档，未实现 Provider 查询或真实 UAT。当前无活动任务，roadmap 下一候选为 F-004C 用户已购铁路段与车次信息。跨夜交通、局部重规划扩域、出票、预订、支付和库存承诺仍不在范围内。
+F-004A 已实现并交付：计划生成支持单城市连续 2–7 日、每日最多 2 项活动和一个住宿锚点；该交付没有执行真实 Provider UAT。F-004B1 Step 0–8 也已实现并归档：用户可以表达 2–3 个中国大陆城市、每城住宿和用户提供的相邻城际段，使用独立 V3 contracts、SQLite schema v2 typed JSON、离线多城市 planning、严格前端交互和本机恢复；城际 Provider 调用为 0，且没有真实 Provider UAT。F-005 已实现并归档既有外部服务韧性、时效和完全离线 Agent 评估；F-004B2 的真实城际 Provider Gate 已因 SQLite 持久化禁止和 rail 字段授权不足以 `BLOCKED` 状态归档，未实现 Provider 查询或真实 UAT。F-004C 当前是唯一活动任务；Step 0–5 已完成治理、设计、V4 纯领域/contracts、application、schema v2 Repository、同 URI API、严格前端交互/恢复及离线纵向验收。Step 5A 已将 V4 preferences 收窄为 interests-only strict allowlist，并以 API/SQLite/Agent/frontend synthetic sentinel 和独立复审关闭原隐私 finding；Step 6 三层交付与归档正在执行。F-006 排在其后。跨夜交通、局部重规划扩域、Provider 车次核验、出票、预订、支付和库存承诺仍不在范围内。
 
 ## 费用范围与可信状态
 

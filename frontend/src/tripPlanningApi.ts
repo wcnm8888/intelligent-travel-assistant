@@ -5,12 +5,14 @@ import {
   isSourceRecord,
   isTripPlan,
   isTripPlanV3,
+  isTripPlanV4,
   isUncertainty,
   type ConstraintViolationDto,
   type ResolvedDestinationDto,
   type SourceRecordDto,
   type TripPlanDto,
   type TripPlanV3Dto,
+  type TripPlanV4Dto,
   type UncertaintyDto,
 } from "./tripPlanModels";
 
@@ -87,6 +89,13 @@ export interface TripRequestSummaryV3Dto {
   budget: MoneyDto;
 }
 
+export interface TripRequestSummaryV4Dto extends Omit<
+  TripRequestSummaryV3Dto,
+  "request_version"
+> {
+  request_version: "4";
+}
+
 interface TripPlanResponseBaseDto {
   job_id: string;
   trace_id: string;
@@ -133,8 +142,29 @@ export interface TripPlanResponseV3Dto {
   updated_at: string;
 }
 
+export interface TripPlanResponseV4Dto extends Omit<
+  TripPlanResponseV3Dto,
+  "response_version" | "request_summary" | "plan"
+> {
+  response_version: "4";
+  request_summary: TripRequestSummaryV4Dto;
+  plan: TripPlanV4Dto | null;
+}
+
 export type TripPlanResponseDto =
-  LegacyTripPlanResponseDto | TripPlanResponseV2Dto | TripPlanResponseV3Dto;
+  | LegacyTripPlanResponseDto
+  | TripPlanResponseV2Dto
+  | TripPlanResponseV3Dto
+  | TripPlanResponseV4Dto;
+
+function isMulticityResponse(
+  response: TripPlanResponseDto,
+): response is TripPlanResponseV3Dto | TripPlanResponseV4Dto {
+  return (
+    "response_version" in response &&
+    (response.response_version === "3" || response.response_version === "4")
+  );
+}
 
 export interface TripPlanningApi {
   create(
@@ -208,6 +238,7 @@ const RESPONSE_V3_KEYS = [
   "created_at",
   "updated_at",
 ] as const;
+const RESPONSE_V4_KEYS = RESPONSE_V3_KEYS;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -333,13 +364,16 @@ function terminalShapeIsValid(response: TripPlanResponseDto): boolean {
   }
 }
 
-function v3UserIntercitySemanticsAreValid(
+function userIntercitySemanticsAreValid(
   response: TripPlanResponseDto,
 ): boolean {
-  if (!("response_version" in response) || response.response_version !== "3")
-    return true;
+  if (!isMulticityResponse(response)) return true;
   if (response.plan === null) return true;
-  if (!isTripPlanV3(response.plan)) return false;
+  if (!(
+    (response.response_version === "3" && isTripPlanV3(response.plan)) ||
+    (response.response_version === "4" && isTripPlanV4(response.plan))
+  ))
+    return false;
 
   let elapsedNights = 0;
   const transferDates = response.request_summary.city_stays
@@ -391,7 +425,7 @@ function sourceReferencesAreValid(response: TripPlanResponseDto): boolean {
   const add = (sourceIds: readonly string[]) =>
     referencedSourceIds.push(...sourceIds);
 
-  if ("response_version" in response && response.response_version === "3") {
+  if (isMulticityResponse(response)) {
     for (const destination of response.resolved_destinations)
       add(destination.source_ids);
   } else if (response.resolved_destination) {
@@ -403,7 +437,7 @@ function sourceReferencesAreValid(response: TripPlanResponseDto): boolean {
     for (const location of response.plan.locations) add(location.source_ids);
     for (const cost of response.plan.budget_summary.cost_items)
       add(cost.source_ids);
-    if (isTripPlanV3(response.plan)) {
+    if (isTripPlanV3(response.plan) || isTripPlanV4(response.plan)) {
       for (const segment of response.plan.intercity_segments) {
         add(segment.source_ids);
         add(segment.fare.source_ids);
@@ -430,9 +464,9 @@ function sourceReferencesAreValid(response: TripPlanResponseDto): boolean {
 
 function isRequestSummary(
   value: unknown,
-  version: "legacy" | "2" | "3",
+  version: "legacy" | "2" | "3" | "4",
 ): boolean {
-  if (version === "3") {
+  if (version === "3" || version === "4") {
     if (
       !isRecord(value) ||
       !hasExactKeys(value, [
@@ -443,7 +477,7 @@ function isRequestSummary(
         "travelers",
         "budget",
       ]) ||
-      value.request_version !== "3" ||
+      value.request_version !== version ||
       !Array.isArray(value.city_stays) ||
       value.city_stays.length < 2 ||
       value.city_stays.length > 3 ||
@@ -513,24 +547,29 @@ function isRequestSummary(
 
 export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
   const version =
-    isRecord(value) && value.response_version === "3"
-      ? "3"
-      : isRecord(value) && value.response_version === "2"
-        ? "2"
-        : "legacy";
+    isRecord(value) && value.response_version === "4"
+      ? "4"
+      : isRecord(value) && value.response_version === "3"
+        ? "3"
+        : isRecord(value) && value.response_version === "2"
+          ? "2"
+          : "legacy";
   if (
     !isRecord(value) ||
     !hasExactKeys(
       value,
-      version === "3"
-        ? RESPONSE_V3_KEYS
-        : version === "2"
-          ? RESPONSE_V2_KEYS
-          : RESPONSE_KEYS,
+      version === "4"
+        ? RESPONSE_V4_KEYS
+        : version === "3"
+          ? RESPONSE_V3_KEYS
+          : version === "2"
+            ? RESPONSE_V2_KEYS
+            : RESPONSE_KEYS,
     ) ||
     ("response_version" in value &&
       value.response_version !== "2" &&
-      value.response_version !== "3") ||
+      value.response_version !== "3" &&
+      value.response_version !== "4") ||
     !isUuid(value.job_id) ||
     !isUuid(value.trace_id) ||
     !isUuid(value.client_request_id) ||
@@ -539,7 +578,7 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
     Number(value.attempt) < 1 ||
     Number(value.attempt) > 3 ||
     !isRequestSummary(value.request_summary, version) ||
-    (version === "3"
+    (version === "3" || version === "4"
       ? !(
           Array.isArray(value.resolved_destinations) &&
           value.resolved_destinations.length <= 3 &&
@@ -594,18 +633,19 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
   const response = value as unknown as TripPlanResponseDto;
   const planVersionMatches =
     response.plan === null ||
-    (version === "3"
-      ? isTripPlanV3(response.plan)
-      : version === "2"
-        ? "plan_format_version" in response.plan &&
-          response.plan.plan_format_version === "2"
-        : !("plan_format_version" in response.plan));
+    (version === "4"
+      ? isTripPlanV4(response.plan)
+      : version === "3"
+        ? isTripPlanV3(response.plan)
+        : version === "2"
+          ? "plan_format_version" in response.plan &&
+            response.plan.plan_format_version === "2"
+          : !("plan_format_version" in response.plan));
   const requestAndPlanMatch = (() => {
     if (response.plan === null) return true;
     if (
-      "response_version" in response &&
-      response.response_version === "3" &&
-      isTripPlanV3(response.plan)
+      isMulticityResponse(response) &&
+      (isTripPlanV3(response.plan) || isTripPlanV4(response.plan))
     ) {
       return (
         response.plan.start_date === response.request_summary.start_date &&
@@ -623,7 +663,12 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
     const singleCityResponse = response as
       LegacyTripPlanResponseDto | TripPlanResponseV2Dto;
     const singleCityPlan = singleCityResponse.plan;
-    if (singleCityPlan === null || isTripPlanV3(singleCityPlan)) return false;
+    if (
+      singleCityPlan === null ||
+      isTripPlanV3(singleCityPlan) ||
+      isTripPlanV4(singleCityPlan)
+    )
+      return false;
     return (
       singleCityPlan.start_date ===
         singleCityResponse.request_summary.start_date &&
@@ -640,7 +685,7 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
   if (
     !terminalShapeIsValid(response) ||
     !sourceReferencesAreValid(response) ||
-    !v3UserIntercitySemanticsAreValid(response) ||
+    !userIntercitySemanticsAreValid(response) ||
     !planVersionMatches ||
     !requestAndPlanMatch
   ) {
@@ -726,7 +771,7 @@ function retrySnapshotIsCleared(response: TripPlanResponseDto): boolean {
   return (
     response.status === "normalizing" &&
     response.attempt >= 2 &&
-    ("response_version" in response && response.response_version === "3"
+    (isMulticityResponse(response)
       ? response.resolved_destinations.length === 0
       : response.resolved_destination === null) &&
     response.plan === null &&

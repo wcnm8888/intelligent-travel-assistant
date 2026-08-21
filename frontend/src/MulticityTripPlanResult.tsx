@@ -1,6 +1,9 @@
 import { TripDayNavigation } from "./TripDayNavigation";
 import { ResultDiagnostics, SourceEvidence } from "./ResultEvidence";
-import type { TripPlanResponseV3Dto } from "./tripPlanningApi";
+import type {
+  TripPlanResponseV3Dto,
+  TripPlanResponseV4Dto,
+} from "./tripPlanningApi";
 import type { MoneyDto } from "./tripRequest";
 import type {
   CostCategory,
@@ -8,10 +11,13 @@ import type {
   LocationRefDto,
   PlanDayV3Dto,
   TripPlanV3Dto,
+  TripPlanV4Dto,
 } from "./tripPlanModels";
 import { useState } from "react";
 interface Props {
-  response: TripPlanResponseV3Dto & { plan: TripPlanV3Dto };
+  response:
+    | (TripPlanResponseV3Dto & { plan: TripPlanV3Dto })
+    | (TripPlanResponseV4Dto & { plan: TripPlanV4Dto });
   onRetry?: () => void;
   onReset?: (field?: string | null) => void;
 }
@@ -52,6 +58,16 @@ function cityName(response: Props["response"], index: number): string {
     `第 ${index + 1} 城`
   );
 }
+function formatDuration(departureAt: string, arrivalAt: string): string {
+  const minutes = Math.round(
+    (Date.parse(arrivalAt) - Date.parse(departureAt)) / 60_000,
+  );
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `历时 ${remainder} 分钟`;
+  if (remainder === 0) return `历时 ${hours} 小时`;
+  return `历时 ${hours} 小时 ${remainder} 分钟`;
+}
 function MulticityDayCard({
   day,
   index,
@@ -70,6 +86,8 @@ function MulticityDayCard({
         (item) => item.segment_id === day.intercity_segment_id,
       )
     : undefined;
+  const serviceNumber =
+    segment && "service_number" in segment ? segment.service_number : null;
   return (
     <article
       className={`itinerary-day multicity-day${current ? " itinerary-day--current" : ""}`}
@@ -95,7 +113,9 @@ function MulticityDayCard({
         >
           <div className="subsection-heading">
             <strong>
-              {MODE_LABELS[segment.mode]} · <span>用户提供，未核验</span>
+              {MODE_LABELS[segment.mode]}
+              {serviceNumber ? ` ${serviceNumber}` : ""} ·{" "}
+              <span>用户提供，未核验</span>
             </strong>
             <span>
               {segment.departure_at.slice(11, 16)}—
@@ -106,7 +126,10 @@ function MulticityDayCard({
             {locationName(locations, segment.departure_station_location_id)} →{" "}
             {locationName(locations, segment.arrival_station_location_id)}
           </p>
-          <small>{BUFFERS[segment.mode]} · 上海时区 UTC+08:00</small>
+          <small>
+            {formatDuration(segment.departure_at, segment.arrival_at)} ·{" "}
+            {BUFFERS[segment.mode]} · 上海时区 UTC+08:00
+          </small>
           <strong className="intercity-fare">
             {segment.fare.amount === null
               ? "金额未知"
@@ -172,6 +195,7 @@ export function MulticityTripPlanResult({ response, onRetry, onReset }: Props) {
     plan.locations.map((item) => [item.location_id, item]),
   );
   const isPartial = response.status === "partial";
+  const bookedRail = response.response_version === "4";
   const route = response.request_summary.city_stays
     .map((stay) => stay.city)
     .join(" → ");
@@ -217,7 +241,9 @@ export function MulticityTripPlanResult({ response, onRetry, onReset }: Props) {
       >
         <h3 id="multicity-summary-title">路线与停留</h3>
         <p className="intercity-disclosure">
-          城际段由用户提供、未核验；系统没有查询班次、票价、余票或库存。
+          {bookedRail
+            ? "已购铁路段由用户提供、未核验；代码校验不代表车次当前有效、可售或已出票。"
+            : "城际段由用户提供、未核验；系统没有查询班次、票价、余票或库存。"}
         </p>
         <ol className="stay-summary-list">
           {response.request_summary.city_stays.map((stay, index) => {

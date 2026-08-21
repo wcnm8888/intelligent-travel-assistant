@@ -343,7 +343,9 @@ export function TerminalOutcome({
 
       <p className="tracking-summary">
         <strong>
-          {"response_version" in response && response.response_version === "3"
+          {"response_version" in response &&
+          (response.response_version === "3" ||
+            response.response_version === "4")
             ? response.request_summary.city_stays
                 .map((stay) => stay.city)
                 .join(" → ")

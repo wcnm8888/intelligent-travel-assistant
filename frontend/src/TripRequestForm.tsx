@@ -8,11 +8,13 @@ import {
   emptyIntercitySegment,
   INTERCITY_BUFFERS,
   INTEREST_OPTIONS,
+  normalizeServiceNumber,
   syncDayWindows,
   toTripPlanRequest,
   tripDayCount,
   validateTripRequest,
   type Interest,
+  type IntercityInformationType,
   type IntercityMode,
   type Pace,
   type TransportMode,
@@ -83,6 +85,9 @@ export function TripRequestForm({
   const [errors, setErrors] = useState<TripRequestErrors>({});
   const [endDateEdited, setEndDateEdited] = useState(false);
   const [multicityNotice, setMulticityNotice] = useState("");
+  const isBookedRail =
+    values.scope === "multi_city" &&
+    values.intercityInformationType === "booked_rail";
 
   const update = <Key extends keyof TripRequestFormValues>(
     key: Key,
@@ -181,6 +186,7 @@ export function TripRequestForm({
           ) ||
           values.intercitySegments.some(
             (segment) =>
+              segment.serviceNumber.trim() ||
               segment.departureStation.trim() ||
               segment.arrivalStation.trim() ||
               segment.fare,
@@ -193,6 +199,7 @@ export function TripRequestForm({
     setValues((current) => ({
       ...current,
       scope,
+      intercityInformationType: "manual",
       city: "",
       accommodation: "",
       oneNightCost: "",
@@ -204,6 +211,25 @@ export function TripRequestForm({
       scope === "multi_city"
         ? "已切换为多城市模式；请按顺序填写城市和相邻城际段。"
         : "已切换为单城市模式。",
+    );
+  };
+
+  const changeIntercityInformationType = (
+    intercityInformationType: IntercityInformationType,
+  ) => {
+    if (intercityInformationType === values.intercityInformationType) return;
+    setValues((current) => ({
+      ...current,
+      intercityInformationType,
+      intercitySegments: current.cityStays.slice(1).map(emptyIntercitySegment),
+      freeText:
+        intercityInformationType === "booked_rail" ? "" : current.freeText,
+    }));
+    setErrors({});
+    setMulticityNotice(
+      intercityInformationType === "booked_rail"
+        ? "已切换为已购铁路车次；为避免来源混淆，全部城际段已清空。"
+        : "已切换为自行填写交通段；为避免来源混淆，全部城际段已清空。",
     );
   };
 
@@ -228,6 +254,7 @@ export function TripRequestForm({
     index: number,
     key:
       | "mode"
+      | "serviceNumber"
       | "departureStation"
       | "arrivalStation"
       | "departureTime"
@@ -331,7 +358,11 @@ export function TripRequestForm({
       : []),
     ...(values.scope === "multi_city"
       ? values.intercitySegments.flatMap((_, index) => [
-          `intercitySegments.${index}.mode` as TripRequestField,
+          ...(values.intercityInformationType === "booked_rail"
+            ? ([
+                `intercitySegments.${index}.serviceNumber`,
+              ] as TripRequestField[])
+            : ([`intercitySegments.${index}.mode`] as TripRequestField[])),
           `intercitySegments.${index}.departureStation` as TripRequestField,
           `intercitySegments.${index}.arrivalStation` as TripRequestField,
           `intercitySegments.${index}.departureTime` as TripRequestField,
@@ -345,7 +376,7 @@ export function TripRequestForm({
       ? (["accommodation", "oneNightCost"] as TripRequestField[])
       : []),
     "mealBudgetPerPersonPerDay",
-    "freeText",
+    ...(!isBookedRail ? (["freeText"] as TripRequestField[]) : []),
   ];
 
   const focusFirstError = (
@@ -427,7 +458,8 @@ export function TripRequestForm({
         </label>
       </fieldset>
       <p className="field-hint scope-hint" id={`${formId}-scope-hint`}>
-        只有明确选择“多城市”才会提交 V3；不会按输入内容猜测版本。
+        只有明确选择“多城市”才会提交版本化多城市请求；城际信息类型决定
+        V3/V4，不会按输入内容猜测。
       </p>
       <p className="sr-only" aria-live="polite">
         {multicityNotice}
@@ -793,10 +825,43 @@ export function TripRequestForm({
               })}
             </div>
 
+            <fieldset
+              className="intercity-source-selector"
+              aria-describedby={`${formId}-intercity-information-hint`}
+            >
+              <legend>城际信息类型</legend>
+              <label>
+                <input
+                  type="radio"
+                  name={`${formId}-intercity-information-type`}
+                  checked={values.intercityInformationType === "manual"}
+                  onChange={() => changeIntercityInformationType("manual")}
+                />
+                <span>自行填写交通段</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`${formId}-intercity-information-type`}
+                  checked={values.intercityInformationType === "booked_rail"}
+                  onChange={() => changeIntercityInformationType("booked_rail")}
+                />
+                <span>填写已购铁路车次</span>
+              </label>
+            </fieldset>
+            <p
+              className="field-hint"
+              id={`${formId}-intercity-information-hint`}
+            >
+              默认沿用 V3 自填交通段；只有显式选择已购铁路车次才提交 V4。
+            </p>
+
             <div className="intercity-card-list">
               {values.intercitySegments.map((segment, index) => {
                 const fields = {
                   mode: `intercitySegments.${index}.mode` as TripRequestField,
+                  serviceNumber:
+                    `intercitySegments.${index}.serviceNumber` as TripRequestField,
                   departureStation:
                     `intercitySegments.${index}.departureStation` as TripRequestField,
                   arrivalStation:
@@ -824,32 +889,85 @@ export function TripRequestForm({
                       上海时区 UTC+08:00
                     </p>
                     <div className="intercity-card__fields">
-                      <div className="field field--wide">
-                        <label htmlFor={`${formId}-segment-mode-${index}`}>
-                          方式 *
-                        </label>
-                        <select
-                          id={`${formId}-segment-mode-${index}`}
-                          data-field={fields.mode}
-                          value={segment.mode}
-                          onChange={(event) =>
-                            updateIntercitySegment(
-                              index,
-                              "mode",
-                              event.target.value,
-                            )
-                          }
-                        >
-                          {INTERCITY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="buffer-badge">
-                          缓冲 · {INTERCITY_BUFFERS[segment.mode].label}
-                        </p>
-                      </div>
+                      {values.intercityInformationType === "booked_rail" ? (
+                        <>
+                          <div className="booked-rail-identity field--wide">
+                            <strong>铁路 · 用户提供，未核验</strong>
+                            <span>固定 60/30 分钟缓冲</span>
+                          </div>
+                          <div className="field field--wide">
+                            <label
+                              htmlFor={`${formId}-service-number-${index}`}
+                            >
+                              车次 *
+                            </label>
+                            <input
+                              id={`${formId}-service-number-${index}`}
+                              data-field={fields.serviceNumber}
+                              value={segment.serviceNumber}
+                              maxLength={14}
+                              autoCapitalize="characters"
+                              autoComplete="off"
+                              aria-invalid={Boolean(
+                                errors[fields.serviceNumber],
+                              )}
+                              aria-describedby={`${formId}-service-number-hint-${index}${errors[fields.serviceNumber] ? ` ${errorId(fields.serviceNumber)}` : ""}`}
+                              placeholder="例如 G1234"
+                              onChange={(event) =>
+                                updateIntercitySegment(
+                                  index,
+                                  "serviceNumber",
+                                  event.target.value,
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateIntercitySegment(
+                                  index,
+                                  "serviceNumber",
+                                  normalizeServiceNumber(event.target.value),
+                                )
+                              }
+                            />
+                            <p
+                              className="field-hint"
+                              id={`${formId}-service-number-hint-${index}`}
+                            >
+                              仅校验 1—12 位字母或数字，不验证车次真实存在。
+                            </p>
+                            <FieldError
+                              id={errorId(fields.serviceNumber)}
+                              message={errors[fields.serviceNumber]}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="field field--wide">
+                          <label htmlFor={`${formId}-segment-mode-${index}`}>
+                            方式 *
+                          </label>
+                          <select
+                            id={`${formId}-segment-mode-${index}`}
+                            data-field={fields.mode}
+                            value={segment.mode}
+                            onChange={(event) =>
+                              updateIntercitySegment(
+                                index,
+                                "mode",
+                                event.target.value,
+                              )
+                            }
+                          >
+                            {INTERCITY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="buffer-badge">
+                            缓冲 · {INTERCITY_BUFFERS[segment.mode].label}
+                          </p>
+                        </div>
+                      )}
                       {(["departureStation", "arrivalStation"] as const).map(
                         (key) => (
                           <div className="field" key={key}>
@@ -958,7 +1076,9 @@ export function TripRequestForm({
               })}
             </div>
             <p className="intercity-disclosure" role="note">
-              系统不会查询或确认班次、票价、余票、库存或可预订性，请核对用户提供的信息。
+              {values.intercityInformationType === "booked_rail"
+                ? "只记录你手工填写的已购铁路段；不保存订单号、乘客、证件、座位、二维码或截图，也不核验班次、余票或库存。"
+                : "系统不会查询或确认班次、票价、余票、库存或可预订性，请核对用户提供的信息。"}
             </p>
           </section>
         )}
@@ -1128,28 +1248,30 @@ export function TripRequestForm({
           />
         </div>
 
-        <div className="field field--wide">
-          <label htmlFor={`${formId}-free-text`}>补充要求</label>
-          <textarea
-            id={`${formId}-free-text`}
-            name="freeText"
-            data-field="freeText"
-            rows={4}
-            maxLength={201}
-            value={values.freeText}
-            aria-invalid={Boolean(errors.freeText)}
-            aria-describedby={`${formId}-free-text-count${errors.freeText ? ` ${errorId("freeText")}` : ""}`}
-            placeholder="例如：节奏不要太赶；博物馆优先安排在白天。"
-            onChange={(event) => update("freeText", event.target.value)}
-          />
-          <p
-            className="field-hint field-count"
-            id={`${formId}-free-text-count`}
-          >
-            {values.freeText.length} / 200
-          </p>
-          <FieldError id={errorId("freeText")} message={errors.freeText} />
-        </div>
+        {!isBookedRail && (
+          <div className="field field--wide">
+            <label htmlFor={`${formId}-free-text`}>补充要求</label>
+            <textarea
+              id={`${formId}-free-text`}
+              name="freeText"
+              data-field="freeText"
+              rows={4}
+              maxLength={201}
+              value={values.freeText}
+              aria-invalid={Boolean(errors.freeText)}
+              aria-describedby={`${formId}-free-text-count${errors.freeText ? ` ${errorId("freeText")}` : ""}`}
+              placeholder="例如：节奏不要太赶；博物馆优先安排在白天。"
+              onChange={(event) => update("freeText", event.target.value)}
+            />
+            <p
+              className="field-hint field-count"
+              id={`${formId}-free-text-count`}
+            >
+              {values.freeText.length} / 200
+            </p>
+            <FieldError id={errorId("freeText")} message={errors.freeText} />
+          </div>
+        )}
       </div>
 
       <div className="form-actions">
