@@ -130,6 +130,7 @@ def test_post_and_get_survive_application_restart_without_contract_changes(
         created = first_client.post("/api/trip-plans", json=payload)
         assert created.status_code == 202
         created_body = created.json()
+        terminal_body = first_client.get(f"/api/trip-plans/{created_body['job_id']}").json()
 
     second_application = create_app(settings=_settings(path))
     with TestClient(second_application) as second_client:
@@ -137,9 +138,11 @@ def test_post_and_get_survive_application_restart_without_contract_changes(
         repeated = second_client.post("/api/trip-plans", json=payload)
 
     assert restored.status_code == 200
-    assert restored.json() == created_body
+    assert terminal_body["status"] == "failed"
+    assert terminal_body["errors"][0]["code"] == "configuration_missing"
+    assert restored.json() == terminal_body
     assert repeated.status_code == 202
-    assert repeated.json() == created_body
+    assert repeated.json() == terminal_body
     assert "version" not in repeated.json()
     assert "request_fingerprint" not in repeated.json()
 

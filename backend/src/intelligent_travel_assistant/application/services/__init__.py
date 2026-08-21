@@ -14,6 +14,9 @@ from intelligent_travel_assistant.application.services.provider_planning_jobs im
 from intelligent_travel_assistant.application.services.provider_replanning import (
     ProviderNeutralReplanExecutor,
 )
+from intelligent_travel_assistant.application.services.unavailable_planning_jobs import (
+    ConfigurationMissingPlanningJobExecutor,
+)
 
 __all__ = [
     "OfflinePlanningOrchestrator",
@@ -22,4 +25,5 @@ __all__ = [
     "MultiCityPlanningOrchestrator",
     "ProviderPlanningJobExecutor",
     "ProviderNeutralReplanExecutor",
+    "ConfigurationMissingPlanningJobExecutor",
 ]

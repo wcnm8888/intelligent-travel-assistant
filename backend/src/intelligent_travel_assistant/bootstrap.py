@@ -33,6 +33,7 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepository,
 )
 from intelligent_travel_assistant.application.services import (
+    ConfigurationMissingPlanningJobExecutor,
     MultiCityPlanningOrchestrator,
     OfflinePlanningOrchestrator,
     ProviderPlanningJobExecutor,
@@ -161,11 +162,11 @@ def build_provider_adapters(settings: Settings) -> ProviderAdapters:
 def build_planning_job_executor(
     repository: PlanningJobRepository,
     adapters: ProviderAdapters,
-) -> PlanningJobExecutor | None:
-    """Enable live-capable execution only when every required adapter is present."""
+) -> PlanningJobExecutor:
+    """Compose live execution or a safe zero-call terminal executor."""
 
     if adapters.amap is None or adapters.qweather is None or adapters.deepseek is None:
-        return None
+        return ConfigurationMissingPlanningJobExecutor(repository)
     orchestrator = OfflinePlanningOrchestrator(
         adapters.amap,
         adapters.qweather,
