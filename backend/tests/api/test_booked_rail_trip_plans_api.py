@@ -1,8 +1,9 @@
-"""F-004B1 V3 same-URI API and write-before-replan rejection tests."""
+"""F-004C V4 same-URI API projection and pre-write replan rejection."""
 
 from __future__ import annotations
 
 import asyncio
+import copy
 import sqlite3
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
@@ -10,11 +11,11 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi.testclient import TestClient
-from tests.application.test_multicity_planning_job_repository import (
+from tests.application.test_booked_rail_planning_job_repository import (
     advance_to_validating,
     result,
 )
-from tests.contracts.test_multicity_trip_planning_contracts import request_payload
+from tests.contracts.test_booked_rail_trip_planning_contracts import request_payload
 
 from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
 from intelligent_travel_assistant.app import create_app
@@ -23,6 +24,14 @@ from intelligent_travel_assistant.contracts import PlanningStatus
 from intelligent_travel_assistant.settings import Settings
 
 NOW = datetime(2026, 8, 20, 4, tzinfo=UTC)
+
+
+class RecordingExecutor:
+    def __init__(self) -> None:
+        self.job_ids: list[UUID] = []
+
+    async def execute(self, job_id: UUID) -> None:
+        self.job_ids.append(job_id)
 
 
 def settings(path: Path) -> Settings:
@@ -36,15 +45,7 @@ def settings(path: Path) -> Settings:
     )
 
 
-class RecordingExecutor:
-    def __init__(self) -> None:
-        self.job_ids: list[UUID] = []
-
-    async def execute(self, job_id: UUID) -> None:
-        self.job_ids.append(job_id)
-
-
-def test_v3_post_get_retry_delete_share_existing_uris_with_executor_dispatch() -> None:
+def test_v4_post_get_retry_delete_use_existing_uris_and_exact_shape() -> None:
     repository = InMemoryPlanningJobRepository(clock=lambda: NOW)
     executor = RecordingExecutor()
     app = create_app(planning_job_repository=repository, planning_job_executor=executor)
@@ -52,12 +53,20 @@ def test_v3_post_get_retry_delete_share_existing_uris_with_executor_dispatch() -
     with TestClient(app) as client:
         created = client.post("/api/trip-plans", json=request_payload())
         restored = client.get(f"/api/trip-plans/{created.json()['job_id']}")
+        repeated = client.post("/api/trip-plans", json=request_payload())
+        changed = copy.deepcopy(request_payload())
+        segments = changed["intercity_segments"]
+        assert isinstance(segments, list) and isinstance(segments[0], dict)
+        segments[0]["service_number"] = "G1235"
+        conflict = client.post("/api/trip-plans", json=changed)
 
     assert created.status_code == 202 and restored.status_code == 200
     assert restored.json() == created.json()
-    assert created.json()["response_version"] == "3"
-    assert created.json()["request_summary"]["request_version"] == "3"
-    assert created.json()["resolved_destinations"] == []
+    assert repeated.status_code == 202 and repeated.json() == created.json()
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "idempotency_conflict"
+    assert created.json()["response_version"] == "4"
+    assert created.json()["request_summary"]["request_version"] == "4"
     assert "resolved_destination" not in created.json()
     assert executor.job_ids == [UUID(created.json()["job_id"])]
 
@@ -75,17 +84,15 @@ def test_v3_post_get_retry_delete_share_existing_uris_with_executor_dispatch() -
         terminal = client.get(f"/api/trip-plans/{partial.job_id}")
         retried = client.post(f"/api/trip-plans/{partial.job_id}/retry")
         deleted = client.delete(f"/api/trip-plans/{partial.job_id}")
-        missing = client.get(f"/api/trip-plans/{partial.job_id}")
 
-    assert terminal.status_code == 200
-    assert terminal.json()["status"] == "partial"
-    assert terminal.json()["plan"]["plan_format_version"] == "3"
+    assert terminal.json()["plan"]["plan_format_version"] == "4"
+    assert terminal.json()["plan"]["intercity_segments"][0]["service_number"] == "G1234"
     assert retried.status_code == 202 and retried.json()["attempt"] == 2
-    assert deleted.status_code == 204 and missing.status_code == 404
+    assert deleted.status_code == 204
     assert executor.job_ids == [partial.job_id, partial.job_id]
 
 
-def test_openapi_and_strict_request_discriminator_expose_four_versioned_branches() -> None:
+def test_openapi_exposes_v4_as_the_fourth_strict_request_branch() -> None:
     app = create_app(planning_job_repository=InMemoryPlanningJobRepository())
     schema = app.openapi()["paths"]["/api/trip-plans"]["post"]["requestBody"]["content"][
         "application/json"
@@ -98,22 +105,11 @@ def test_openapi_and_strict_request_discriminator_expose_four_versioned_branches
         "TripPlanRequestV4",
     }
 
-    with TestClient(app) as client:
-        invalid = []
-        for version in (3, None, "5", True):
-            payload = request_payload()
-            payload["request_version"] = version
-            invalid.append(client.post("/api/trip-plans", json=payload))
 
-    assert {response.status_code for response in invalid} == {422}
-    assert {response.json()["error"]["code"] for response in invalid} == {"input_invalid"}
-
-
-def test_sqlite_v3_replan_is_rejected_before_service_and_all_writes(tmp_path: Path) -> None:
-    path = tmp_path / "multicity-api.sqlite3"
+def test_sqlite_v4_replan_is_rejected_before_all_replan_writes(tmp_path: Path) -> None:
+    path = tmp_path / "booked-rail-api.sqlite3"
     with TestClient(create_app(settings=settings(path))) as client:
         created = client.post("/api/trip-plans", json=request_payload())
-        assert created.status_code == 202
         job_id = created.json()["job_id"]
         rejected = client.post(
             f"/api/trip-plans/{job_id}/replans",

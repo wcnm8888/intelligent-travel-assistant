@@ -30,6 +30,7 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJobRepository,
     PlanningJobResult,
     PlanningJobResultV3,
+    PlanningJobResultV4,
 )
 from intelligent_travel_assistant.application.services.multicity_planning import (
     MultiCityPlanningOrchestrator,
@@ -74,6 +75,7 @@ from intelligent_travel_assistant.contracts import (
     TripPlan,
     TripPlanRequestV2,
     TripPlanRequestV3,
+    TripPlanRequestV4,
     TripPlanV2,
     Uncertainty,
     ViolationSeverity,
@@ -211,11 +213,14 @@ class ProviderPlanningJobExecutor:
                 expected_version=current.version,
             )
 
-        if isinstance(job.request, TripPlanRequestV3):
+        if isinstance(job.request, (TripPlanRequestV3, TripPlanRequestV4)):
             if self._multicity_orchestrator is None:
                 await self._repository.record_result(
                     job_id,
-                    _multicity_internal_failure_result("multicity_planner_unavailable"),
+                    _multicity_internal_failure_result(
+                        "multicity_planner_unavailable",
+                        request_version=job.request.request_version,
+                    ),
                     expected_version=job.version,
                 )
                 return
@@ -235,12 +240,18 @@ class ProviderPlanningJobExecutor:
                 current = await self._repository.get(job_id)
                 await self._repository.record_result(
                     job_id,
-                    _multicity_internal_failure_result("multicity_internal_failure"),
+                    _multicity_internal_failure_result(
+                        "multicity_internal_failure",
+                        request_version=job.request.request_version,
+                    ),
                     expected_version=current.version,
                 )
                 raise
             except Exception:
-                multicity_result = _multicity_internal_failure_result("multicity_internal_failure")
+                multicity_result = _multicity_internal_failure_result(
+                    "multicity_internal_failure",
+                    request_version=job.request.request_version,
+                )
             finally:
                 if attempt_runtime is not None:
                     await attempt_runtime.close()
@@ -320,7 +331,7 @@ class ProviderPlanningJobExecutor:
 
 
 def _task_timeout_seconds(request: PlanningRequest) -> float:
-    if isinstance(request, TripPlanRequestV3):
+    if isinstance(request, (TripPlanRequestV3, TripPlanRequestV4)):
         return multicity_task_timeout_seconds(
             city_count=len(request.city_stays),
             day_count=request.day_count,
@@ -336,7 +347,7 @@ def _offline_request(
     job_id: UUID,
     evaluated_at: datetime,
 ) -> OfflinePlanningRequest:
-    if isinstance(request, TripPlanRequestV3):
+    if isinstance(request, (TripPlanRequestV3, TripPlanRequestV4)):
         raise ValueError("multicity_planning_not_implemented")
     trip: TripRequestInput | MultiDayTripRequestInput
     if isinstance(request, TripPlanRequestV2):
@@ -1198,8 +1209,13 @@ def _internal_failure_result() -> PlanningJobResult:
     )
 
 
-def _multicity_internal_failure_result(code: str) -> PlanningJobResultV3:
-    return PlanningJobResultV3(
+def _multicity_internal_failure_result(
+    code: str,
+    *,
+    request_version: str = "3",
+) -> PlanningJobResultV3 | PlanningJobResultV4:
+    result_type = PlanningJobResultV4 if request_version == "4" else PlanningJobResultV3
+    return result_type(
         status=PlanningStatus.FAILED,
         resolved_destinations=(),
         plan=None,

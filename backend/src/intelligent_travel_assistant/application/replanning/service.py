@@ -23,6 +23,7 @@ from intelligent_travel_assistant.contracts import (
     PlanningStatus,
     TripPlanRequestV2,
     TripPlanRequestV3,
+    TripPlanRequestV4,
 )
 from intelligent_travel_assistant.domain import ReplanChoice, ReplanStatus
 
@@ -143,7 +144,7 @@ class ReplanApplicationService:
 
     @staticmethod
     def _require_supported_scope(job: PlanningJob) -> None:
-        if isinstance(job.request, TripPlanRequestV3):
+        if isinstance(job.request, (TripPlanRequestV3, TripPlanRequestV4)):
             raise ReplanApplicationError("replan_scope_not_supported")
         if isinstance(job.request, TripPlanRequestV2) and job.request.day_count > 2:
             raise ReplanApplicationError("replan_scope_not_supported")
