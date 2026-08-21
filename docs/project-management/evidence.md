@@ -4,8 +4,8 @@
 
 - 日期：2026-08-22；当前结论：`LOCAL_PASS / DELIVERY_ACTIVE`。固定 Python `3.13.3`、Node `22.16.0`、pnpm `11.19.0` 运行 `scripts/verify.ps1`，Ruff format/lint、151 个 source strict mypy、后端 `1388 passed`、Prettier、ESLint、TypeScript、前端 `12 files / 131 passed`、Vite build、文档测试 `28 passed` 和 17 required/28 Markdown 契约全部通过；
 - TDD/门禁修正：首次统一门禁依次暴露并关闭一个 mypy `Any`、两个异步终态测试假设和一个绝对日期测试脆弱点；随后独立 review 又关闭 Stack 1 测试归属、Stack 2 提前 `remove` 接口引用，以及 Stack 3 跟踪暂时失败、损坏 canonical pointer 回落和 storage-disabled 页内恢复问题。相关测试全部使用动态上海日期和权威 terminal polling；
-- 当前提交链：`b99d5fc` → Stack 1 `b3e29aa` → Stack 2 `972b1d4` → Stack 3 `f5903f4` → Stack 4 `a5b4b5d`。Stack 1/2/3 最终独立 review 为 `NO FINDINGS`；Stack 4 review 与远程交付仍在进行；
-- 范围：四层生产/测试/script 分别为 11/9/11/3 文件，净新增 472/134/843/676 行；任务累计 34 文件、净新增 2125 行，`styles.css` 净新增 74 行。全部低于 20/1600、65/5200 和 600 行阈值；Schema/migration、依赖/lockfile、CI workflow 和秘密配置 diff 为 0；
+- 当前提交链：`b99d5fc` → Stack 1 `b3e29aa` → Stack 2 `972b1d4` → Stack 3 `f5903f4` → Stack 4 初始交付提交 `7a9b488`。Stack 1/2/3 最终独立 review 为 `NO FINDINGS`；Stack 4 review 与远程交付仍在进行；
+- 范围：四层生产/测试/script 分别为 11/9/11/3 文件，净新增 472/134/843/676 行；任务累计去重后为 31 文件、净新增 2125 行，`styles.css` 净新增 74 行。全部低于 20/1600、65/5200 和 600 行阈值；Schema/migration、依赖/lockfile、CI workflow 和秘密配置 diff 为 0；
 - 边界：本地门禁显式清空 Provider key 环境变量；未读取秘密、调用真实 Provider 或访问非 loopback 业务服务。本条证据不等同真实 Provider UAT；F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown/null、混合交通 fallback 仅离线及 F-004B2 `BLOCKED / ARCHIVED` 均保持；
 - 下一入口：仅继续完成四层 push、stacked PR、逐层远程 CI 和当前状态证据；不得 merge、运行最终 main CI、归档或进入 Step 8。
 

@@ -638,7 +638,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-017：F-006 MVP 体验收口与本地验收
 
-- 状态：`APPROVED / TASK_ACTIVE / STEP_3_DONE`
+- 状态：`APPROVED / TASK_ACTIVE / STEP_7_DELIVERY_ACTIVE`
 - 日期：2026-08-21
 - 适用范围：现有本地 MVP 的用户模式、终态展示、恢复/DELETE、本地运行、组合式离线验收与四层交付
 - 不适用：新产品版本、新 Provider、真实 UAT、公开 API/Schema 扩展、历史列表、运行中取消、设计系统重写、云端或生产高可用
