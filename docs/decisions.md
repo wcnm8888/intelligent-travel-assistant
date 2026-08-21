@@ -456,7 +456,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-014：F-005 统一外部服务韧性、数据时效与离线 Agent 评估
 
-- 状态：`APPROVED_AND_FROZEN`；F-005 Step 0–7 已完成，Step 7 与 Codex CLI 已披露过程偏差均由用户接受，当前执行 Step 8 五层交付
+- 状态：`APPROVED_AND_FROZEN`；F-005 Step 0–8 已完成，Step 7 与 Codex CLI 已披露过程偏差均由用户接受，当前等待 Step 9 单独批准
 - 日期：2026-08-21
 - 适用范围：既有 DeepSeek、高德、和风天气适配器及 legacy/V2/V3 planning、F-003 replan 兼容、API/UI 失败体验和完全离线 Agent 评估
 - 不适用：新 Provider、F-004B2、真实 Provider UAT、Schema/migration、依赖升级、生产高可用、遥测或公网服务

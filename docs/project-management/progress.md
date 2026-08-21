@@ -4,10 +4,10 @@
 
 - 当前任务：`F-005 外部服务韧性、数据时效与 Agent 评估`
 - 任务状态：`ACTIVE`
-- 最近完成：`Step 7 - 纵向与独立审查`，状态 `DONE`；结论含已披露过程偏差，不构成无条件 PASS
-- 当前 Step：`Step 8 - 全量门禁与 stacked PR`，状态 `ACTIVE`
-- 当前分支：`feat/f-005-ui-delivery`（五层本地重组完成后切换）
-- 当前交付动作：用户已接受 Step 7 与已披露的 Codex CLI 全局插件外连失败偏差，并批准五层拓扑；正在执行本地全量门禁、逐层独立 review、push、stacked PR 和远程 CI
+- 最近完成：`Step 8 - 全量门禁与 stacked PR`，状态 `DONE`
+- 当前 Step：`Step 9 - 依序合并与归档`，状态 `TODO`；尚未批准、尚未进入
+- 当前分支：`feat/f-005-ui-delivery`
+- 当前交付动作：五层 Draft stacked PR 与逐层 CI 已完成；停止在 merge、clean-restack、最终 main CI 与归档之前
 
 ## Step 0 完成摘要
 
@@ -92,15 +92,18 @@
 
 ## 阻塞与下一入口
 
-Step 7 技术验收已完成，首次 `npx` 探测可能访问 npm registry 的已披露过程偏差已由用户明确接受。Step 8 正在执行；不得 merge、clean-restack、运行最终 main CI、归档或进入 Step 9。
+Step 7 技术验收已完成，首次 `npx` 探测可能访问 npm registry 的已披露过程偏差已由用户明确接受。Step 8 也已完成；不得自动 merge、clean-restack、运行最终 main CI、归档或进入 Step 9。
 
-## Step 8 进行中摘要
+## Step 8 完成摘要
 
 - 用户接受已披露的 Codex CLI 全局插件外连失败偏差；该失败未访问真实 Provider、未形成 Provider UAT，也未改变项目代码或数据边界；
 - 用户批准把交付拓扑改为五层，并在 application/Agent 与 UI 之间新增 `feat/f-005-agent-eval-integration`；
 - 新层的 RED 是 eval 测试在收集阶段因 `evals.f005.application` 不存在失败；最小 GREEN 通过真实 `ProviderPlanningJobExecutor`、legacy/V2/V3 orchestrator 与 `ReplanApplicationService` 的离线入口观测终态、来源、unknown/partial 和调用预算；
 - case schema 已拒绝 `published_source_ids` 与 `unknown_amount` 等自报观测字段；DeepSeek 使用 `MockTransport`，Amap/QWeather 使用 fake，F-004B1 城际 Provider 调用保持 0；
-- 当前仅完成本地五层提交重组，尚未 push、创建 PR、触发远程 CI 或 merge；最终门禁、独立 review 与远程事实将在本 Step 继续记录。
+- 最终本地门禁通过 backend format/lint、strict mypy 139 files、backend `1309 passed`、frontend format/lint/typecheck、`99 passed`、build、文档测试 `24 passed` 与文档检查器；
+- 三轮独立 review 的所有 P1/P2 均以对应 RED/GREEN 关闭，五层最终复审均为 NO FINDINGS；
+- 五层分支已普通 push；Draft PR #27/#28/#29/#30/#31 依次以 main/前层分支为 base，首轮 CI runs `32450657207`、`32450661429`、`32450664838`、`32450668170`、`32450671589` 全部 success；
+- 未 merge、clean-restack、运行最终 main CI、归档或进入 Step 9；未修改 Schema/migration、依赖/lockfile，未读取秘密或调用真实 Provider。
 
 ## 权威入口
 

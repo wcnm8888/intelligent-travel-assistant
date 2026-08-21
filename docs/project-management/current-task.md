@@ -6,8 +6,8 @@
 - 名称：外部服务韧性、数据时效与 Agent 评估
 - 等级：`L`
 - 状态：`ACTIVE`
-- 最近完成 Step：`Step 7 - 纵向与独立审查`，状态 `DONE`；结论含已披露过程偏差，不构成无条件 PASS
-- 当前 Step：`Step 8 - 全量门禁与 stacked PR`，状态 `ACTIVE`；用户已明确接受 Step 7 的 `npx` 非 loopback 过程偏差并批准本 Step
+- 最近完成 Step：`Step 8 - 全量门禁与 stacked PR`，状态 `DONE`
+- 当前 Step：`Step 9 - 依序合并与归档`，状态 `TODO`；尚未批准、尚未进入
 - 前置任务：F-001 至 F-004B1 已交付并归档
 - 基线提交：`c5f07e12abdc37f977ee0f7181a5f2800f015066`
 - 首层本地分支：`feat/f-005-resilience-domain-contracts`
@@ -251,7 +251,7 @@
 | Step 5 | 实现 proposal/repair 最小化、Provider 文本隔离和固定离线 Agent eval | DONE |
 | Step 6 | 统一同 shape API 错误投影与前端失败/时效/恢复展示 | DONE |
 | Step 7 | 完成临时 SQLite、loopback 浏览器和独立隐私安全审查 | DONE |
-| Step 8 | 运行全量门禁并完成五层 stacked PR 与远程 CI | ACTIVE |
+| Step 8 | 运行全量门禁并完成五层 stacked PR 与远程 CI | DONE |
 | Step 9 | 依序合并、必要 clean-restack、main CI、归档和任务关闭 | TODO |
 
 ## 验收标准
@@ -288,4 +288,4 @@
 
 ## 下一批准入口
 
-Step 7 的 SQLite、loopback browser 与独立审查已完成；首次 Playwright CLI 探测可能访问 npm registry 的过程偏差已披露并由用户明确接受。Step 8 的 Codex CLI 全局插件外连失败偏差也已由用户接受；它不构成真实 Provider UAT。Step 8 正在按用户批准的五层拓扑执行本地全量门禁、逐层独立 review、stacked PR 和远程 CI；不得 merge、clean-restack、运行最终 main CI、归档或进入 Step 9。
+Step 8 已按用户批准的五层拓扑完成本地全量门禁、逐层独立 review、Draft stacked PR #27/#28/#29/#30/#31 和逐层远程 CI；五层首轮 runs `32450657207`、`32450661429`、`32450664838`、`32450668170`、`32450671589` 全部成功。Step 7 的 `npx` 偏差与 Step 8 Codex CLI 全局插件外连失败偏差均已由用户接受，且都不构成真实 Provider UAT。下一入口仅为用户单独批准 Step 9；此前不得 merge、clean-restack、运行最终 main CI、归档或进入后续任务。

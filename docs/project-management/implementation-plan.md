@@ -4,10 +4,10 @@
 
 - 当前任务：`F-005 外部服务韧性、数据时效与 Agent 评估`
 - 任务状态：`ACTIVE`
-- 最近完成：`Step 7 - 纵向与独立审查`（有已披露过程偏差）
-- 当前 Step：`Step 8 - 全量门禁与 stacked PR`，状态 `ACTIVE`
-- 下一动作：完成五层独立审查、本地全量门禁、stacked PR 和逐层远程 CI；不得 merge 或进入 Step 9
-- 当前分支：`feat/f-005-ui-delivery`（五层本地重组完成后切换）
+- 最近完成：`Step 8 - 全量门禁与 stacked PR`
+- 当前 Step：`Step 9 - 依序合并与归档`，状态 `TODO`；尚未批准、尚未进入
+- 下一动作：停止交付写入并等待用户批准依序合并、必要 clean-restack、最终 main CI 与归档；不得自动进入 Step 9
+- 当前分支：`feat/f-005-ui-delivery`
 
 ## Step 0：事实复核、任务激活与治理基线
 
@@ -156,7 +156,7 @@
 
 唯一目标：完成本地全量门禁、五层 stacked PR、逐层独立 review 和远程 CI，不合并。
 
-状态：`ACTIVE`
+状态：`DONE`
 
 Step 8 批准修订：用户已接受 Codex CLI 全局插件外连失败偏差，并批准在原 application/Agent 层与 UI 层之间新增 `feat/f-005-agent-eval-integration`。该层只能让 legacy/V2/V3/F-003 的终态、来源、unknown/partial 和调用预算评估经过各自真实离线 application 入口，不得扩大生产/API/Provider/Schema/依赖边界；最终拓扑为 domain → provider runtime → application/Agent → application eval integration → UI/delivery。
 

@@ -1,15 +1,17 @@
 # 验收证据索引
 
-## F-005 Step 8：五层交付拓扑与真实离线 application eval 集成（进行中）
+## F-005 Step 8：五层全量门禁、独立 review 与 stacked PR 交付
 
-- 日期：2026-08-21；状态：`ACTIVE`。用户已接受 Step 7 的 `npx` 偏差及 Step 8 已披露的 Codex CLI 全局插件外连失败偏差；后者没有访问真实 Provider、没有形成 Provider UAT，也没有修改项目数据或扩大交付权限；
+- 日期：2026-08-21；结论：`PASS`。用户已接受 Step 7 的 `npx` 偏差及 Step 8 已披露的 Codex CLI 全局插件外连失败偏差；后者没有访问真实 Provider、没有形成 Provider UAT，也没有修改项目数据或扩大交付权限；
 - 拓扑修订：用户批准在 `feat/f-005-application-agent-eval` 与 `feat/f-005-ui-delivery` 之间新增 `feat/f-005-agent-eval-integration`，形成五层 stack；新层只承载固定 eval 及其测试，不新增生产/API/Repository/SQLite/Provider/前端能力；
 - RED/GREEN：新增测试首次在 collection 因 `evals.f005.application` 不存在失败；最小 GREEN 让 legacy/V2/V3 经过真实 `ProviderPlanningJobExecutor` 与各自 orchestrator，让 F-003 经过真实 `ReplanApplicationService`，并从入口结果观测终态、发布来源、unknown/null、logical call 和 HTTP attempt；
 - 防伪边界：case schema 明确拒绝 `published_source_ids` 与 `unknown_amount`，category→scenario 精确矩阵不可重标，安全 case 必须保留 99 次额外调用攻击，fixture 不能抬高代码拥有的预算、关闭攻击或改写期望调用数；统计覆盖全部 capability 与全部 Provider attempt。DeepSeek 使用 synthetic key 与 `httpx.MockTransport`，Amap/QWeather 使用项目 fake，未访问网络或真实 Provider，F-004B1 城际 Provider 调用仍为 0；
 - 独立 review 修复：第 3 层新增发布时路线 freshness 复核，legacy/V2/V3 的关键路线若在规划期间过期均以 `failed + plan=None` 拒绝；发布时钟被钳制为不早于任务开始且无效时 fail closed。V3 DeepSeek timeout 与 Amap route auth/schema 等错误保留原 Provider code、attribution、diagnostic/retryable，不再统一改写成 `model_output_invalid` 或可重试 route failure。第 4 层的 F-003 stale/unknown-cost 改变真实 baseline facts，成功结果沿用真实 baseline status；四个 slice 的 normal 与 unknown-validity 使用可区分的显式 synthetic 有效性事实，不虚构生产 TTL；
 - 当前验证：真实入口/fixture 防伪/场景矩阵/完整调用预算/freshness 对照/阈值/确定性 eval `26 passed`；从仓库根直接对 eval 子目录运行 mypy 曾因项目包按已安装非 `py.typed` 模块解析产生 11 个 `import-untyped`，不作为权威门禁结论；最终项目统一门禁通过 backend format/lint、strict mypy `139 source files`、backend `1309 passed`、frontend format/lint/typecheck、`99 passed`、build、文档测试 `24 passed` 与文档检查器；
-- 本地提交：Stack 1 `b66b061`、Stack 2 `c0d571a`、Stack 3 `8b51501`、新增 Stack 4 `5c38431`，Stack 5 本地提交已形成；尚未 push、创建 PR、触发远程 CI、merge、运行最终 main CI、归档或进入 Step 9；
-- 待完成：五层独立 review 收口、范围/秘密复核、push、Draft stacked PR 与逐层远程 CI；最终 SHA、PR 和 CI run 只在事实产生后追加，不预写。
+- 本地范围：Stack 1/2/3/4/5 分别为 5/8/17/7/8 个生产测试 eval 文件，净新增 938/1056/1533/1933/597 行；累计 45 文件/6057 净新增行，低于全部阈值。Schema/migration、依赖/lockfile、`.env` 均未变，secret-like 审计唯一命中为 synthetic 测试 key；
+- 独立 review：最终五层均为 NO FINDINGS；过程中发现的非法 domain 状态、并发预算超卖、Retry-After 重复 deadline、发布时路线过期、V3 错误投影、eval 自评分/可关闭攻击和状态文档漂移均以对应 RED/GREEN 修复并复审关闭；
+- 远程交付：Stack 1 `b66b061` → Stack 2 `c0d571a` → Stack 3 `8b51501` → Stack 4 `5c38431` → Stack 5 feature `89ce7bf` 已普通 push；Draft PR #27/#28/#29/#30/#31 的 base 依次为 main/直接前层，首轮 Windows offline verification runs `32450657207`、`32450661429`、`32450664838`、`32450668170`、`32450671589` 全部 success；
+- 边界：未 merge、clean-restack、运行最终 main CI、归档或进入 Step 9；未读取 `.env.local`、秘密或 Provider 配置，未调用真实 Provider。下一动作仅为等待用户单独批准 Step 9。
 
 ## F-005 Step 7：临时 SQLite、loopback 浏览器与独立隐私安全审查
 
