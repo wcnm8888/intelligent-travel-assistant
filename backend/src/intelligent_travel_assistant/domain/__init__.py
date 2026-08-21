@@ -30,6 +30,8 @@ from intelligent_travel_assistant.domain.foundation import (
     WeatherForecast,
 )
 from intelligent_travel_assistant.domain.multicity import (
+    BookedRailIntercitySegment,
+    BookedRailTrip,
     CityStay,
     IntercityMode,
     MultiCityActivitySlot,
@@ -40,6 +42,7 @@ from intelligent_travel_assistant.domain.multicity import (
     build_intercity_cost_item,
     classify_multicity_terminal,
     intercity_buffer,
+    normalize_service_number,
 )
 from intelligent_travel_assistant.domain.provider_result import (
     DataFreshness,
@@ -120,6 +123,8 @@ __all__ = [
     "BudgetAssessment",
     "BudgetCostItem",
     "BudgetSummaryResult",
+    "BookedRailIntercitySegment",
+    "BookedRailTrip",
     "ChangeEntityKind",
     "CityStay",
     "CoordinateSystem",
@@ -205,6 +210,7 @@ __all__ = [
     "decide_retry",
     "evaluate_freshness",
     "intercity_buffer",
+    "normalize_service_number",
     "plan_source_actions",
     "recalculate_replan_budget",
     "retry_schedule_for",
