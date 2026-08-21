@@ -7,7 +7,7 @@
 - 归档：完整任务卡保存为 [F-004B2 BLOCKED archive](../archive/task-cards/F-004B2-real-intercity-provider-blocked.md)，current-task 已恢复为无活动任务；roadmap 保持 F-004B2 `BLOCKED`，候选顺序为 F-004C → F-006；D-015 状态为 `PROVIDER_LEGAL_GATE_BLOCKED / TASK_ARCHIVED`；
 - 文档门禁：`uv run --project backend --frozen python -m unittest scripts.tests.test_check_docs` 为 `24 passed`；`uv run --project backend --frozen python scripts/check_docs.py --root .` 通过 17 份必需文档、27 份 Markdown、CI、状态和安全契约；`git diff --check` 通过；
 - 任务级一致性审计：以 `96f73d99c04a72e1e697172306d8f33d006419ec...HEAD` 为范围复核 name-status 和 diff；current-task/README/progress/implementation-plan 均声明无活动任务，roadmap 的 ACTIVE 行为 0，F-004B2 在 roadmap/D-015/归档卡中均为 `BLOCKED`，Step 2–10 均保持 `BLOCKED_BY_STEP_1`，归档链接存在，F-004C 与 F-006 都仅为候选；
-- 范围：只涉及 README、product-brief、decisions、current-task、implementation-plan、progress、roadmap、evidence 和新增归档任务卡共 9 份 Markdown；没有源码、测试、fixture、Schema、migration、依赖、lockfile、CI、环境文件或数据库变化；
+- 范围：只涉及 README、product-brief、architecture、agent-domain-spec、decisions、current-task、implementation-plan、progress、roadmap、evidence 和新增归档任务卡共 11 份 Markdown；没有源码、测试、fixture、Schema、migration、依赖、lockfile、CI、环境文件或数据库变化；
 - 安全：没有读取秘密或本地 Provider 配置，没有创建数据库，没有调用高德、12306、和风、DeepSeek 或其他 Provider；历史 evidence 仅追加本次 Step 0/1/closure 事实，既有条目未改写；
 - 保留事实：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0、F-005 离线证据不等于真实 UAT，以及 SQLite schema v2/migration 1/2 均保持。
 
