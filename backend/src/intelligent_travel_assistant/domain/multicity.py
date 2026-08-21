@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from enum import StrEnum
@@ -16,6 +17,7 @@ from intelligent_travel_assistant.domain.foundation import (
 )
 
 _SHANGHAI_OFFSET: Final = timedelta(hours=8)
+_SERVICE_NUMBER_PATTERN: Final = re.compile(r"^[A-Z0-9]{1,12}$")
 
 
 class IntercityMode(StrEnum):
@@ -99,6 +101,70 @@ class UserProvidedIntercitySegment:
         object.__setattr__(self, "arrival_station", arrival_station)
 
 
+def normalize_service_number(value: object) -> str:
+    """Normalize a strict user-provided service number without claiming verification."""
+
+    if not isinstance(value, str):
+        raise DomainInvariantError("intercity_service_number_invalid", field="service_number")
+    normalized = value.strip().upper()
+    if _SERVICE_NUMBER_PATTERN.fullmatch(normalized) is None:
+        raise DomainInvariantError("intercity_service_number_invalid", field="service_number")
+    return normalized
+
+
+@dataclass(frozen=True, slots=True)
+class BookedRailIntercitySegment:
+    """A user-provided, unverified, same-day direct rail segment."""
+
+    from_city_index: int
+    to_city_index: int
+    service_number: str
+    departure_station: str
+    arrival_station: str
+    departure_at: datetime
+    arrival_at: datetime
+    fare: Money | None = None
+
+    def __post_init__(self) -> None:
+        _require_city_index(self.from_city_index, field="from_city_index")
+        _require_city_index(self.to_city_index, field="to_city_index")
+        if self.to_city_index != self.from_city_index + 1:
+            raise DomainInvariantError("intercity_segment_order_invalid", field="to_city_index")
+        service_number = normalize_service_number(self.service_number)
+        departure_station = _require_text(
+            self.departure_station,
+            field="departure_station",
+            min_length=1,
+            max_length=120,
+        )
+        arrival_station = _require_text(
+            self.arrival_station,
+            field="arrival_station",
+            min_length=1,
+            max_length=120,
+        )
+        _require_shanghai_datetime(self.departure_at, field="departure_at")
+        _require_shanghai_datetime(self.arrival_at, field="arrival_at")
+        if (
+            self.departure_at.date() != self.arrival_at.date()
+            or self.arrival_at <= self.departure_at
+        ):
+            raise DomainInvariantError("intercity_time_invalid", field="arrival_at")
+        if self.fare is not None and (not isinstance(self.fare, Money) or self.fare.amount <= 0):
+            raise DomainInvariantError("intercity_fare_invalid", field="fare")
+        object.__setattr__(self, "service_number", service_number)
+        object.__setattr__(self, "departure_station", departure_station)
+        object.__setattr__(self, "arrival_station", arrival_station)
+
+    @property
+    def mode(self) -> IntercityMode:
+        return IntercityMode.RAIL
+
+    @property
+    def duration(self) -> timedelta:
+        return self.arrival_at - self.departure_at
+
+
 @dataclass(frozen=True, slots=True)
 class MultiCityTrip:
     start_date: date
@@ -130,6 +196,71 @@ class MultiCityTrip:
             or len(self.intercity_segments) != len(self.city_stays) - 1
             or not all(
                 isinstance(item, UserProvidedIntercitySegment) for item in self.intercity_segments
+            )
+        ):
+            raise DomainInvariantError(
+                "intercity_segment_order_invalid", field="intercity_segments"
+            )
+        for index, (segment, transfer_date) in enumerate(
+            zip(self.intercity_segments, self.transfer_dates, strict=True)
+        ):
+            if segment.from_city_index != index or segment.to_city_index != index + 1:
+                raise DomainInvariantError(
+                    "intercity_segment_order_invalid", field="intercity_segments"
+                )
+            if (
+                segment.departure_at.date() != transfer_date
+                or segment.arrival_at.date() != transfer_date
+            ):
+                raise DomainInvariantError("intercity_time_invalid", field="intercity_segments")
+
+    @property
+    def day_count(self) -> int:
+        return (self.end_date - self.start_date).days + 1
+
+    @property
+    def transfer_dates(self) -> tuple[date, ...]:
+        elapsed_nights = 0
+        dates: list[date] = []
+        for stay in self.city_stays[:-1]:
+            elapsed_nights += stay.nights
+            dates.append(self.start_date + timedelta(days=elapsed_nights))
+        return tuple(dates)
+
+
+@dataclass(frozen=True, slots=True)
+class BookedRailTrip:
+    """A V4 trip whose adjacent transfers are all user-provided rail segments."""
+
+    start_date: date
+    end_date: date
+    city_stays: tuple[CityStay, ...]
+    intercity_segments: tuple[BookedRailIntercitySegment, ...]
+
+    def __post_init__(self) -> None:
+        _require_date(self.start_date, field="start_date")
+        _require_date(self.end_date, field="end_date")
+        if self.end_date <= self.start_date or not 3 <= self.day_count <= 7:
+            raise DomainInvariantError("trip_day_count_invalid", field="end_date")
+        if (
+            not isinstance(self.city_stays, tuple)
+            or not 2 <= len(self.city_stays) <= 3
+            or not all(isinstance(item, CityStay) for item in self.city_stays)
+        ):
+            raise DomainInvariantError("multicity_city_count_invalid", field="city_stays")
+        normalized_cities = tuple(item.city.casefold() for item in self.city_stays)
+        accommodation_ids = tuple(item.accommodation_location_id for item in self.city_stays)
+        if len(set(normalized_cities)) != len(normalized_cities):
+            raise DomainInvariantError("multicity_city_order_invalid", field="city_stays")
+        if len(set(accommodation_ids)) != len(accommodation_ids):
+            raise DomainInvariantError("multicity_accommodation_invalid", field="city_stays")
+        if sum(item.nights for item in self.city_stays) != self.day_count - 1:
+            raise DomainInvariantError("multicity_nights_invalid", field="city_stays")
+        if (
+            not isinstance(self.intercity_segments, tuple)
+            or len(self.intercity_segments) != len(self.city_stays) - 1
+            or not all(
+                isinstance(item, BookedRailIntercitySegment) for item in self.intercity_segments
             )
         ):
             raise DomainInvariantError(
