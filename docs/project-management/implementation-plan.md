@@ -94,7 +94,7 @@ Step 2–10 全部由本 Gate 阻塞。只有补充书面授权同时满足 rail
 
 唯一目标：仅在再次明确批准后，按 Step 1 已通过的凭证、域名、次数、费用、字段、脱敏和销毁边界执行有上限的真实 UAT。
 
-当前状态：`BLOCKED_PENDING_APPROVAL`。没有 UAT PASS 时，F-004B2 不得标记完整完成。
+当前状态：`BLOCKED_BY_STEP_1`。只有 Step 1 Gate 通过后，才可再次请求独立 UAT 批准；没有该批准与 UAT PASS 时，F-004B2 不得标记完整完成。
 
 ## Step 9：五层 stacked PR 交付
 
