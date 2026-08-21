@@ -17,9 +17,25 @@ from intelligent_travel_assistant.application.tooling.governance import (
     multiday_task_timeout_seconds,
     multiday_tool_call_policies,
 )
+from intelligent_travel_assistant.application.tooling.resilience import (
+    ProviderAttemptOutcome,
+    ProviderAttemptRecord,
+    ProviderAttemptRuntime,
+    ProviderAttemptRuntimeError,
+    ProviderAttemptRuntimeErrorCode,
+    ProviderAttemptSnapshot,
+    parse_retry_after_seconds,
+    provider_result_from_attempt_outcome,
+)
 
 __all__ = [
     "DEFAULT_TOOL_CALL_POLICIES",
+    "ProviderAttemptOutcome",
+    "ProviderAttemptRecord",
+    "ProviderAttemptRuntime",
+    "ProviderAttemptRuntimeError",
+    "ProviderAttemptRuntimeErrorCode",
+    "ProviderAttemptSnapshot",
     "ROUTE_CONCURRENCY_LIMIT",
     "TASK_TIMEOUT_SECONDS",
     "ToolCallCapability",
@@ -32,6 +48,8 @@ __all__ = [
     "ToolCallSnapshot",
     "multiday_task_timeout_seconds",
     "multiday_tool_call_policies",
+    "parse_retry_after_seconds",
+    "provider_result_from_attempt_outcome",
     "multicity_task_timeout_seconds",
     "multicity_tool_call_policies",
 ]

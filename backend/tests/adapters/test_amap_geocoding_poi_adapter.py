@@ -467,6 +467,25 @@ async def test_non_json_and_oversized_responses_are_rejected_without_raw_text() 
 
 
 @pytest.mark.anyio
+async def test_http_429_exposes_only_bounded_retry_after_seconds() -> None:
+    result = await _adapter(
+        httpx2.MockTransport(
+            lambda request: httpx2.Response(
+                429,
+                headers={"Retry-After": "1"},
+                content=b"raw limit body must not escape",
+            )
+        )
+    ).resolve_city(CityResolutionRequest("杭州市"))
+
+    assert result.status is ProviderResultStatus.UNAVAILABLE
+    assert result.error is not None
+    assert result.error.category is ProviderErrorCategory.RATE_LIMITED
+    assert result.error.retry_after_seconds == 1.0
+    assert "raw limit body" not in repr(result)
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     "port_request",
     [
