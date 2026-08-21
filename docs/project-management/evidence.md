@@ -1,5 +1,102 @@
 # 验收证据索引
 
+## F-004C Step 5A：V4 preferences 隐私修正与 Step 5 收口
+
+- 日期：2026-08-21；结论：`PASS`。V4 已改用只含 `interests` 的专用 strict preferences；`free_text` / `hard_constraints` 在 FastAPI contract 解析阶段返回 422，早于 planning job reserve、SQLite 和 executor。Step 5 原 `BLOCKED` finding 保留在下方历史条目，本修正不改写首次审查事实；
+- RED/backend：定向 contracts + SQLite API 首次为 `3 failed / 20 passed`；两个非法 preferences 字段未抛 validation error，SQLite API 返回 202 而不是 422。RED/frontend 首次为 `2 failed / 105 passed`；V4 仍显示自由文本且 DTO 仍含 `free_text` / `hard_constraints`；
+- GREEN/contracts/API/SQLite：新增 V4 interests-only strict model 和 synthetic sentinel；非法 `free_text` / `hard_constraints` 均 422，`planning_jobs=0`、executor 未调度，SQLite 文本中无 sentinel；legacy/V2/V3 继续使用既有 preferences shape；
+- GREEN/application/Agent：V4→内部 planning projection 显式只复制 interests，并为旧内部模型使用空安全默认；generation context 的自由文本/硬约束为空，repair payload 不含两个键，sentinel 不进入 generation 或 repair；service number 与完整城际段既有隔离不变；
+- GREEN/frontend：进入 V4 时清空并隐藏自由文本，V4 serializer 的 preferences 精确为 `{interests}`；切回 V3 时字段仍为空，不恢复或静默携带 sentinel；
+- 验证：Step 5A backend 定向 `26 passed`，frontend 全量 `107 passed`，F-004C scoped backend `51 passed`，后端全量 `1360 passed`；Ruff format/check、strict mypy（144 source files）、Prettier、ESLint、TypeScript 和 Vite build 全部通过；
+- 独立安全审查：Codex Security working-tree scan `f997d002-9bdd-4a96-9807-ebd1198de42d` 完整覆盖 25 个权威源码项，0 candidates / 0 findings；本机报告位于 `C:/Users/24696/AppData/Local/Temp/codex-security-scans-IZ4PUi/13-intelligent-travel-assistant/577bdcbadf2e024022e59e52527d13edb0cbd659_20260821T115513Z_qjsazt_p/report.md`。Codex Security Access connector 未登录，TAC 受保护输出可见性无法核验，但不改变本地扫描结论；
+- 独立只读复审：结论 `NO FINDINGS`。复审确认 422/零持久化/Agent 隔离/前端清空与 legacy/V2/V3 兼容闭环；另一个 defense-in-depth 候选因生产结果只能由同一 typed request 在可信进程内确定性重建、无外部 result 写入口而关闭为非可操作 finding；
+- 范围：Step 5A 只修改 5 个批准的生产文件和 4 个对应测试文件，以及当前权威状态/evidence 文档；未修改 Schema、migration、依赖或 lockfile，未读取秘密、调用 Provider、执行 Git 写入或进入 Step 6；按 Git numstat 复算，任务累计为 35 个生产/测试/fixture 文件、净新增 3182 行，低于 50 文件/4000 净新增行阈值；
+- Step 5 结论：原 privacy finding 已关闭，先前临时 schema v2 SQLite、loopback desktop/390px、network/console/accessibility 证据继续有效；10 个 synthetic `-wal` / `-shm` sidecar 的本机策略清理限制保持披露，不含真实 Provider、凭证或用户数据；
+- 下一入口：等待用户单独批准 Step 6，才允许运行交付前全量门禁并按三层拓扑执行 commit、push、stacked PR、独立 review、远程 CI、依序合并、必要 clean-restack、最终 main CI 和归档。
+
+## F-004C Step 5：临时 SQLite、loopback browser QA 与独立隐私安全审查
+
+- 日期：2026-08-21；结论：`BLOCKED`。SQLite、desktop/`390×844`、loopback network、console 和基础 accessibility 证据已完成，但独立隐私安全审查发现 V4 自由文本可绕过 D-016 禁止票务/个人数据边界；Step 5 不得记为通过，也不得进入 Step 6；
+- SQLite：新增 V4 browser support 与临时 schema v2 HTTP 纵向；2/3 城分别覆盖 create/read/restart/idempotency/retry/delete、V3 旧记录读取、1/2 相邻段、`G1234`/`D2281`、unknown fare `null` 和 migration 精确 `1/2`。新增纵向 `3 passed`，F-004C scoped backend `47 passed`，Ruff 与 strict mypy（144 files）通过；
+- Browser：真实本机 Vite → FastAPI → 临时 SQLite → synthetic V4 executor 在 desktop 验证两城 create/reload/retry/attempt 2，在 `390×844` 验证三城两段、service number 规范化、partial、两项 unknown 不按 0、用户提供/未核验和来源时效；desktop/mobile 水平 overflow、重复 ID、无可访问名称控件均为 0；成功窄屏会话 console error/warn 为 0；
+- 网络：浏览器共观察 75 条 HTTP/WebSocket 请求，非 loopback 为 0；API 只出现同 URI create/get/retry。城际 Provider logical call 和 HTTP attempt 均为 0，没有调用高德、12306、和风、DeepSeek 或其他外部服务；
+- 工具边界：本机缺少已缓存 Playwright CLI 包，`npm_config_offline=true` 的探测以 `ENOTCACHED` fail closed，没有访问 registry；改用已安装的 Codex 应用内浏览器。该浏览器的 date `fill` 未触发 React state，测试仅通过本地 CDP 在页面内设置 synthetic 日期并派发 input/change 事件；没有修改生产代码或持久浏览器配置，结束时已关闭验收 tabs 并恢复 viewport；
+- 临时数据：成功三城数据库只含 schema versions `1/2`、V4 partial attempt 1、`G1234`/`D2281` 和两项 null fare，禁止字段名扫描为 0；五个精确主 SQLite 文件已在验证后删除。最终范围审计发现其 10 个 synthetic `-wal` / `-shm` sidecar 仍在系统临时目录；两次使用精确 `Remove-Item -LiteralPath` 的清理均被本机命令策略拒绝，因此没有绕过策略删除。这些 sidecar 不含真实 Provider、凭证或用户数据，但必须如实保留为本机清理限制。字段名扫描也不能关闭下述“禁止值藏入合法自由文本”的 finding；
+- 独立隐私 finding（MEDIUM/P2）：`TripPlanRequestV4` 复用允许 `preferences.free_text` / `hard_constraints` 的 `TravelerPreferences`。订单、证件、联系方式、座位、二维码、Cookie 或自由备注等禁止内容可作为合法嵌套字符串通过 strict parser；完整 request 会写入 SQLite，且 V4→V3 application 投影只移除 `service_number`，这些自由文本仍可进入 generation context。现有负向测试只拒绝 segment 额外键，SQLite 测试只查字段名，未证明禁止值不可进入；
+- 审查工具事实：主流程首次 Codex Security workspace scan 在创建 scanId 前因本地 Unicode surrogate 编码失败，未重试冒充成功；独立审查者随后形成只读报告，并在工作树新增 SQLite/browser support 后人工复核 finding 仍成立。报告位于本机临时安全扫描目录，不作为仓库交付物；
+- 自动化：frontend `107 passed`，ESLint、TypeScript、Vite build 通过；Node 实际版本为 24.19.0，与项目声明 22.16.0 的 engine warning 保留，不把该环境差异写成冻结 Node 门禁；
+- 范围：Step 5 新增 2 个直接 browser/SQLite 测试支撑文件，生产源码、Schema/migration、依赖/lockfile 改动为 0；没有读取秘密、执行真实 Provider UAT、commit、push、PR、CI、merge 或 Step 6；
+- 下一入口：需要用户另行批准一个 F-004C 隐私修正步骤，至少为 V4 使用不含自由文本/硬约束的专用 preferences allowlist（或严格强制两者为空），并以 synthetic sentinel 证明 API 422、SQLite 和 generation/repair context 均不含禁止值；修复与独立复审通过后，才能恢复 Step 5 收口。不得自动修复或进入 Step 6。
+
+## F-004C Step 4：V4 前端交互、strict parser、来源披露与恢复
+
+- 日期：2026-08-21；结论：`PASS`。授权只覆盖前端与直接测试；没有进入临时 SQLite、browser QA、Provider 或 Git 交付；
+- RED 命令：`corepack pnpm --dir frontend test -- bookedRailPlanning.test.tsx`；新增独立 V4 synthetic fixture 和 6 项前端契约测试后，结果为 `1 passed / 5 failed`；
+- RED 事实：现有前端没有“填写已购铁路车次”显式选择、service number 表单/规范化/首错、V4 response/plan parser 与结果 dispatch，也没有 V4 reload storage pointer；V4 extra/tag/service-number 负向拒绝已 fail closed；
+- GREEN/表单：保留 V3“自行填写交通段”为默认，显式选择“填写已购铁路车次”才提交 V4；切换只清空相邻段，V4 固定 rail，service number 在 blur/submit 时 trim + uppercase 并按闭集校验，首个 segment 错误获得焦点；
+- GREEN/parser/result：新增独立 V4 typed request/response/plan 和 strict parser；V3/V4 tag drift、额外 duration、非 canonical service number 均拒绝。V4 结果显示车次、由响应发到时间格式化的历时、用户提供/未核验、unknown-validity 与 null 金额，不推导服务端终态或声称车次真实、可售、已出票；
+- GREEN/recovery：沿用既有 POST/GET/retry/DELETE URI；V4 使用独立本机 job UUID pointer，reload 经同源 GET 恢复，retry 只接受 attempt 2/3 的 cleared snapshot；V3 pointer 与 legacy/V2/V3 行为保持；
+- 验证：V4 定向 `8 passed`；全量前端 `107 passed`；Prettier、ESLint、TypeScript 和 Vite production build 通过；文档检查器测试 `24 passed`，文档检查器通过 17 份必需文档/27 份 Markdown；`git diff --check` 通过；
+- 规模/范围：Step 4 共 13 个预期 production/test/fixture 文件，净新增约 802 行；Stack 3 低于 18 文件/1400 净行，任务累计约 34 文件/2687 净行，未触发阈值。Schema/migration/依赖/lockfile diff 为 0，新增外部 URL/凭证/Provider 模式为 0；
+- 安全边界：测试完全使用本地 jsdom、注入 HTTP 函数和 synthetic 数据，没有浏览器验收、非 loopback 网络、真实 Provider、秘密、数据库、Schema/migration、依赖/lockfile 或 Git 写入；
+- 下一入口：等待用户单独批准 Step 5，仅执行临时 schema v2 SQLite 纵向、loopback desktop/390px browser QA、network/console/accessibility 与独立隐私安全审查；不得自动执行 Git 交付或 Step 6。
+
+## F-004C Step 3：application、Repository/schema v2、同 URI API 与 replan 写前拒绝
+
+- 日期：2026-08-21；结论：`PASS`。用户单独批准 V4 application、typed unions、schema v2 JSON、同 URI API、fingerprint/幂等和 V3/V4 replan 写前拒绝；本次没有修改 Schema/migration、依赖/lockfile、Provider、前端或进入 Step 4；
+- RED：新增 booked-rail application、Repository/SQLite 和 API/replan 三个测试模块后，首次定向命令均在 collection 阶段因 `PlanningJobResultV4` 无法从 application Repository 直接 export 导入而失败；错误精确指向本 Step 尚未实现的 typed result/纵向接线，没有旧测试、数据库、网络或环境失败；
+- RED 命令：`uv run --project backend pytest backend/tests/application/test_booked_rail_application.py backend/tests/application/test_booked_rail_planning_job_repository.py backend/tests/api/test_booked_rail_trip_plans_api.py -q`，结果 `3 errors during collection`；
+- GREEN/application：新增 `PlanningJobResultV4` 和 V4 planning typed path；V4 先被投影为不含 service number 的内部 V3 allowlist 输入复用既有城市规划，再从原始 typed V4 request 在 Agent 边界外确定性重建 V4 rail segment/plan/result。DeepSeek payload 不含 `service_number`、车次值或完整 `intercity_segments`；只使用既有 Amap/QWeather/DeepSeek 城市规划调用，没有城际 Provider port/logical call/HTTP attempt；
+- GREEN/数据：`PlanningRequest` / `PlanningPlan` / `PlanningResponse`、application result、memory/SQLite Repository 均增加严格 V4 member；canonical fingerprint 排除 client ID、对 service number trim/case 等价、值变化改变 digest；SQLite 继续使用既有 request/result/plan JSON 列，restart/retry/delete 与 migration 1/2 往返通过；
+- GREEN/API/replan：POST/GET/retry/DELETE URI 与公开顶层 envelope 不变，OpenAPI 只增加批准的第四个 V4 request 分支；同 client/body 幂等复用、service number 变化返回既有 409。V3/V4 replan create/decide/execute 在 reserve/lookup/decision/executor 前拒绝，SQLite replan/decision/lineage 写入均为 0；
+- 兼容：旧三版本 OpenAPI 断言只同步合法第四分支，未知 tag 继续 422；legacy/V2/V3 exact contracts、fingerprint golden、Repository/API/replan 与既有 application 行为由全量回归覆盖；
+- 验证：Step 3 新增定向 `9 passed`；V4 + 相邻 V3 application/Repository/API/contracts `73 passed`；全后端 `1353 passed`；Ruff check 和 mypy 对 142 个 source files 通过；
+- 规模/范围：Step 3 修改 15 个预期生产/测试文件，净新增约 740 行，低于 Stack 2 的 18 文件/1400 净行阈值；任务累计低于 50 文件/4000 净行。`schema.py`、`migrations.py`、依赖/lockfile 和 frontend diff 为 0；
+- 安全/Git：测试仅使用 fake ports 和临时 schema v2 SQLite；未读取秘密或本地 Provider 配置，未调用真实高德、12306、和风、DeepSeek 或其他外部服务；未 commit、push、创建 PR 或触发远程 CI；
+- 下一入口：等待用户单独批准 Step 4；只允许 V4 前端选择、表单、strict parser、来源/未核验/unknown 展示和本机恢复，不得自动进入浏览器验收、Git 交付或 Step 5。
+
+## F-004C Step 2：V4 纯领域与 strict contracts
+
+- 日期：2026-08-21；结论：`PASS`。用户单独批准只以 TDD 实现 V4 纯领域与 strict contracts；本次没有进入 application、Repository、API、SQLite、replan 接线、Provider、前端或 Step 3；
+- RED：先新增 `test_booked_rail_rules.py` 与 `test_booked_rail_trip_planning_contracts.py`，首次定向命令在 collection 阶段分别因 `BookedRailIntercitySegment` 和 `TripPlanRequestV4` 无法从直接 export 导入而失败；两项错误均精确指向本 Step 尚未实现的能力，没有旧测试、环境、数据库或外部网络失败；
+- RED 命令：`uv run --project backend pytest backend/tests/domain/test_booked_rail_rules.py backend/tests/contracts/test_booked_rail_trip_planning_contracts.py -q`，结果 `2 errors during collection`；
+- GREEN：在 `multicity.py` 新增 `BookedRailIntercitySegment`、`BookedRailTrip` 和 strict service number 规范化；在 `trip_planning.py` 新增独立 V4 request/plan/response concrete strict models及直接 export。固定 rail、相邻索引、同日 `+08:00`、派生 transfer date/duration、60/30 缓冲、positive/null fare、user/unknown 来源和票务字段 fail-closed 均由离线测试覆盖；
+- shape/来源：request/plan/response tag 均严格为 `4`；`service_number` 按 strict string → trim → uppercase → `^[A-Z0-9]{1,12}$`；duration 只作为 Python 派生属性且不进入 dump；来源只能是既有 user-provided/unknown-validity/未核验闭集，unknown fare 为 null 并阻止 ready；
+- 兼容边界：`PlanningRequest` / `PlanningPlan` / `PlanningResponse` 及 application/Repository/API union 接线没有在本 Step 改动，留给 Step 3；因此 legacy/V2/V3 全局 union 与 shape 不受影响；
+- 验证：V4 定向 `35 passed`；V4 + 既有多城市/多日相邻回归 `85 passed`；全后端 `1344 passed`；`ruff format --check` 为 139 文件已格式化，`ruff check` 通过，mypy 对 139 个 source files 无问题；
+- 规模/范围：本 Step 只修改 4 个批准生产文件并新增 2 个对应测试文件，均为预期文件；生产/测试净新增约 1145 行，低于单 stack 18 文件/1400 净行阈值。累计工作区另含 Step 0–1 已批准文档，未触及 application、Repository、API、SQLite、Schema、migration、依赖、lockfile、Provider 或前端；
+- 安全/Git：未创建数据库，未读取秘密或本地 Provider 配置，未调用高德、12306、和风、DeepSeek 或其他外部服务；未 commit、push、创建 PR 或触发远程 CI；
+- 下一入口：等待用户单独批准 Step 3；仅允许 application、Repository/schema v2 typed JSON、同 URI API、V4 fingerprint/幂等和 V3/V4 replan 写前拒绝，不得自动进入前端或 Step 4。
+
+## F-004C Step 1：V4 contracts、领域、兼容与交付设计冻结
+
+- 日期：2026-08-21；结论：`PASS`。用户批准只冻结设计；Step 1 已完成，当前停在 Step 2 TDD 待单独批准，没有修改或执行生产/测试实现；
+- 事实核对：在分支 `feat/f-004c-booked-rail-domain-contracts`、HEAD/main/origin/main `577bdcbadf2e024022e59e52527d13edb0cbd659` 上只读检查现有 V3 contracts/domain、canonical fingerprint、typed Repository/SQLite hydration、schema/migration 1/2、同 URI API、replan guard 和前端 multi-city parser/form/result 入口；Step 0 未提交文档原样保留；
+- contracts/domain：冻结独立 V4 request/plan/response/result、固定 rail 的 `BookedRailIntercitySegmentV4`、规范化 `service_number`、同日 `+08:00`、派生转移日、60/30 缓冲、内部 duration 和 positive/null fare；额外/缺失/跨 tag 字段 fail closed；
+- 来源/终态：复用既有 user intercity source shape，固定 unknown-validity 与“用户提供，未核验”；D-013 availability 排除保持，用户段本身不冒充核验也不单独强制 partial，unknown fare 及其他缺口继续阻止 ready；
+- 兼容/数据：V4 fingerprint 包含规范化 service number 且排除 client ID；legacy/V2/V3 exact shape/fingerprint/旧记录不变；V4 使用独立 typed union 和 schema v2 既有 JSON 路径，Schema SQL/migration 必须保持不变；
+- replan/Agent：V3/V4 create-replan 在 reserve 前以既有 scope error 拒绝，后续 decision/executor/Provider/runtime/lineage/plan write 为 0；service number、完整 segment 和原始城际文本不进入 proposal/repair；城际 logical call/HTTP attempt 为 0；
+- UI：现有“自行填写交通段”继续默认生成 V3；只有显式选择“填写已购铁路车次”才生成 V4。切换清空段卡，V4 固定 rail，严格展示车次、未核验、unknown、隐私和无 replan/交易边界；
+- 测试/交付：冻结 domain/contracts → application/Repository/API/SQLite → UI/browser/privacy 的 RED→GREEN 矩阵、三层核心文件和受控相邻扩展；18 文件/1400 净行单 stack、50 文件/4000 净行任务阈值保持；
+- 文档门禁：`uv run --project backend --frozen python -m unittest scripts.tests.test_check_docs` 为 24 项通过；`uv run --project backend --frozen python scripts/check_docs.py --root .` 通过 17 份必需文档、27 份 Markdown、CI、状态和安全契约；`git diff --check` 通过；
+- 范围：累计工作区只修改 13 份批准的当前治理/权威 Markdown；没有源码、测试、fixture、Schema、migration、依赖、lockfile、CI、环境文件、数据库或归档任务卡变化，既有 evidence 条目未改写；
+- 安全：未创建数据库，未读取 `.env.local`、秘密或 Provider 配置，未调用高德、12306、和风、DeepSeek 或其他 Provider，未 commit、push、创建 PR 或触发远程 CI；
+- 下一入口：等待用户单独批准 Step 2；批准范围只能是 Stack 1 的 V4 纯领域与 contracts TDD，不得自动进入 Repository/API/application/前端或 Step 3。
+
+## F-004C Step 0：任务激活、D-016 与三层交付治理
+
+- 日期：2026-08-21；结论：`PASS`。Step 0 已完成，F-004C 是 roadmap 唯一 `ACTIVE` 任务；当前入口切换为 Step 1 设计冻结待单独批准，没有进入实现；
+- 基线：Step 0 开始前 `HEAD == main == origin/main == 577bdcbadf2e024022e59e52527d13edb0cbd659`，工作区干净、没有活动任务或开放 PR；F-004B2 `BLOCKED` 归档任务卡存在；
+- Git/PR/CI：F-004B2 documentation-only closure PR #33 已合并，最终 main CI run `32463645980` 为 `success` 且 head SHA 为上述基线；已从干净 main 创建本地 `feat/f-004c-booked-rail-domain-contracts`，HEAD 未增加提交；没有 commit、push、创建 PR 或触发远程 CI；
+- 治理：current-task 已写入完整 F-004C 任务卡；roadmap 顺序为 F-004C → F-006 且 F-004B2 保持 `BLOCKED / ARCHIVED`；implementation-plan 已切换为 Step 0–6；D-016、三层 stacked PR、核心文件、受控相邻扩展和规模阈值已建立；
+- D-016：独立 V4 只承载用户提供的已购铁路段；`service_number` 规范化且参与 V4 fingerprint，来源固定为 `user_provided / unknown_validity / 用户提供，未核验`；D-016 只替代 D-015 未实现的 V4 Provider union 预留，不改变 F-004B2 阻塞历史；
+- 不变量：legacy/V2/V3 exact shape、fingerprint、旧记录和行为不变；SQLite schema 保持 version 2、migration 只有 1/2；V3/V4 replan 写前拒绝；F-004C 城际 Provider logical call 和 HTTP attempt 均为 0；
+- 文档门禁：`uv run --project backend --frozen python -m unittest scripts.tests.test_check_docs` 为 `24 passed`；`uv run --project backend --frozen python scripts/check_docs.py --root .` 通过 17 份必需文档、27 份 Markdown、CI、状态和安全契约；`git diff --check` 通过；
+- 范围：只修改 README、product-brief、architecture、agent-domain-spec、decisions、current-task、implementation-plan、progress、roadmap 和 evidence 共 10 份当前治理/权威 Markdown；没有修改源码、测试、fixture、Schema、migration、依赖、lockfile、CI、环境文件、数据库或归档任务卡，既有 evidence 条目未改写；
+- 安全：未创建数据库，未读取 `.env.local`、秘密或本地 Provider 配置，未调用高德、12306、和风、DeepSeek 或其他 Provider，未注册账号、申请 Key、付费、抓取或逆向；
+- 保留事实：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0、F-005 离线证据不等于真实 UAT，以及 SQLite schema v2/migration 1/2 均保持；
+- 下一入口：等待用户单独批准 F-004C Step 1，仅冻结 V4 contracts、领域、兼容、fingerprint、replan、schema v2 和测试设计；不得自动进入 Step 1 或 Step 2。
+
 ## F-004B2 documentation-only blocked closure
 
 - 日期：2026-08-21；结论：`BLOCKED / ARCHIVED`。F-004B2 Step 0 已完成、Step 1 Provider/法律 Gate 已正式 `BLOCKED`，Step 2–10 均未执行；本次关闭不把候选 Provider、V4 Provider union 或真实 UAT 表述为已交付能力；

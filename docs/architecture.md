@@ -632,7 +632,7 @@ F-004B1 在 legacy/V2 之外增加独立 V3 变体，不继承单城市请求或
 
 Step 4 已按该边界实现独立 `MultiCityPlanningOrchestrator`。城市事实通过并发 2 的有界 fan-out 复用现有 Amap/QWeather ports，所有城市共享一个 governor 和一次全局 DeepSeek proposal/repair 预算；proposal 只包含逐日城市索引与 namespaced POI 引用，用户站点、城际段原文和 fare 不进入模型 payload。确定性应用层再注入用户段、缓冲、市内路线、活动时刻、预算、来源和 terminal。deadline 前置拒绝与取消 drain 已由离线测试证明；没有新增城际 port/adapter、Schema、migration、依赖或真实调用。
 
-F-004B1 后续 Step 5–8 已完成严格 V3 前端、schema v2 临时 SQLite 往返与重启恢复、loopback desktop/390px、网络/console/accessibility、独立隐私兼容审查、四层 stacked PR 和归档。最终归档 main 为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，CI run `32386260285` 成功；这些仍是 synthetic/离线证据，不构成真实 Provider UAT。F-005 已在既有三家 Provider 与同一架构边界内完成韧性、时效和离线 Agent 评估并归档；F-004B2 Provider/法律 Gate 已阻塞并归档，未新增城际 Provider、Schema、依赖、公开 API shape 或真实 UAT。当前无活动任务。
+F-004B1 后续 Step 5–8 已完成严格 V3 前端、schema v2 临时 SQLite 往返与重启恢复、loopback desktop/390px、网络/console/accessibility、独立隐私兼容审查、四层 stacked PR 和归档。最终归档 main 为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，CI run `32386260285` 成功；这些仍是 synthetic/离线证据，不构成真实 Provider UAT。F-005 已在既有三家 Provider 与同一架构边界内完成韧性、时效和离线 Agent 评估并归档；F-004B2 Provider/法律 Gate 已阻塞并归档，未新增城际 Provider、Schema、依赖、公开 API shape 或真实 UAT。F-004C Step 0–5 已完成：独立 V4 用户已购铁路段已接入 application、既有 schema v2 typed JSON Repository、同 URI API 和 strict 前端 parser/result/reload；service number 在 Agent 边界外确定性重建，V3/V4 replan 写前拒绝，城际 Provider 调用继续为 0。Step 5A 以 interests-only strict V4 preferences、API 422/零持久化和 Agent/frontend synthetic sentinel 关闭了原自由文本隐私 finding；两层复审无 finding，Step 6 三层交付与归档正在执行。
 
 ## F-005 韧性执行架构（Step 1 冻结）
 
@@ -784,3 +784,50 @@ pytest 在导入应用前固定 `APP_ENV=test`，禁止读取 `.env.local`，并
 - D-009 迁移采用 `PlanProposal → deterministic scheduler → existing PlanCandidate` 的绞杀式替换，不长期保留两个可独立生成精确时间的正常路径；
 - 失败发布优先用反向提交或 `git revert` 回滚，不使用破坏性工作树清理；
 - 出现真实多领域并行、独立审查和调度需求前，不演进为多 Agent。
+
+## F-004C 用户已购铁路段 V4 架构（Step 1 冻结）
+
+F-004C 在既有 V3 多城市依赖方向上增加平行的严格 V4 typed path，不把 V3 原地升级，也不恢复 D-015 Provider union：
+
+```text
+strict TripPlanRequestV4
+→ BookedRailIntercitySegmentV4 / deterministic rail rules
+→ existing city/weather/POI/local-route ports + bounded Agent context
+→ deterministic V4 schedule and PlanBookedRailSegmentV4
+→ PlanningJobResultV4
+→ existing Repository Protocol / SQLite schema v2 typed JSON
+→ same-URI TripPlanResponseV4
+```
+
+### 类型与确定性职责
+
+- `TripPlanRequestV4`、`TripPlanV4`、`TripPlanResponseV4` 和 `PlanningJobResultV4` 与 V3 平行存在；三个 union discriminator 分别只认 `request_version`、`plan_format_version`、`response_version="4"`；
+- `TripPlanRequestV4.preferences` 使用独立 interests-only strict model；`free_text` / `hard_constraints` 在 API 解析前拒绝。内部 V4→V3 planning projection 只复制 interests 并使用安全空默认，不改变 legacy/V2/V3 contract；
+- 新纯领域 `BookedRailIntercitySegment` 独立于 V3 `UserProvidedIntercitySegment`，固定 rail、规范化 `service_number`、相邻索引、站点、`+08:00` 同日时间和可空票价；V3 的 rail/air/coach、类型和行为不变；
+- “直达”只由一个相邻城市段、一个 service number、一组发到站/时间且不存在 transfer/stop 字段来表达。系统不查询其真实性，不从前缀推断列车类型；
+- duration 是 `arrival_at - departure_at` 的内部确定性值；不持久化重复字段，不由 Agent 或浏览器输入，也不参与 fingerprint 的额外键；
+- transfer date、城市连续性、60/30 分钟铁路缓冲、活动数、同城 RouteLeg、预算、来源引用和终态继续由 domain/application 确定性校验；Agent 不能创建、修改、选择或核验城际段。
+
+### Agent 与调用隔离
+
+- V4 沿用现有城市、住宿、天气、POI、市内路线和 DeepSeek planning 能力，但 `service_number`、完整 segment 对象和用户城际段原始文本不得进入 generation 或 repair；
+- V4 的模型输入偏好只允许 interests；legacy/V2/V3 保留原 preferences 类型。内部投影不得把 V4 自由文本或硬约束补回 generation/repair；
+- Agent 最多接收既有 allowlist 城市/日期/窗口骨架，以及由 application 派生的转移日、发到时间和 60/30 分钟缓冲数值；站点/车次不能成为模型可编辑输出；
+- V4 segment 在 proposal/repair 完成后由 deterministic application 重新附着并校验；模型输出中的 service number、城际来源、Provider、票价可信度、余票或库存字段一律视为越权并拒绝；
+- F-004C 城际 Provider port 不存在，城际 logical call 和 HTTP attempt 精确为 0；不为 V4 创建 F-005 intercity runtime/预算，也不访问 12306、高德或其他城际服务。
+
+### Repository、SQLite 与 replan
+
+- `PlanningRequest/PlanningPlan/PlanningResponse/PlanningResult` 只增加对应 V4 member；Repository Protocol、job/attempt/version/expected-version、append-only plan version、source links、retry、DELETE 和有界清理不变；
+- `request_fingerprint` 在 V4 typed normalization 后执行，因此 service number 大小写/边缘空白归一，规范化值进入 digest；`client_request_id` 仍排除；旧版本不经 V4 转换；
+- SQLite 继续在现有 schema version 2 JSON 列保存规范化 V4 request/result/plan/source；不得新增 Provider enum 列、表、索引或 migration。`schema.py`、`migrations.py` 只作为字节不变门禁读取；
+- hydration 先由 version discriminator 选择精确类型，再校验 request/result/plan tag 和来源引用；未知 V4 字段、跨版本组合、损坏 JSON 或旧应用不认识 V4 时 fail closed；
+- API 与 application 对 V3/V4 create-replan 都在 replan Repository reserve 前检查 scope；application `execute` 也在读取/调用 replan executor 前复核。拒绝不得创建 replan、decision、lineage、plan version 或调用 Provider，也不得改变 job/current plan/version；
+- GET/retry 使用持久化 request tag 投影对应 V4；retry 建立新 planning attempt，但 segment 和 fingerprint 语义不变，仍无城际调用。
+
+### 来源、终态与隐私
+
+- V4 复用现有 user source shape 和 `source_type=user_provided_intercity_segment`，保持 `valid_until=null/freshness=unknown_validity/provider_record_id=null/reference_url=null`；只证明用户提供，不证明铁路事实有效；
+- 用户已购段本身沿用 D-013 的外部 availability 排除：在其他必要事实完整、票价已知且所有确定性约束通过时可形成 ready，但 UI 必须继续显示“用户提供，未核验”；任何参与预算/排程的其他 unknown、stale 或缺失事实仍按 D-014 降级或拒绝；
+- SQLite 只保存批准的规范化 service number、站点、发到时间和可选票价；不保存原始输入文本、姓名、证件、联系方式、订单号、座位、二维码、Cookie、截图或自由备注；
+- 日志、CI artifact 和持久浏览器状态不得复制完整 request/segment；fixture 只允许明显 synthetic 的车次/站点，不得来自真实订单或截图。诊断只允许稳定字段路径/代码和计数，不输出实际 service number 或站名。

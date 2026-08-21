@@ -1723,7 +1723,8 @@ input[type="checkbox"] {
   }
 }
 
-.scope-selector {
+.scope-selector,
+.intercity-source-selector {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -1733,7 +1734,8 @@ input[type="checkbox"] {
   background: #ebe4d4;
 }
 
-.scope-selector legend {
+.scope-selector legend,
+.intercity-source-selector legend {
   padding-inline: 6px;
   color: var(--ink-soft);
   font-size: 10px;
@@ -1741,18 +1743,21 @@ input[type="checkbox"] {
   letter-spacing: 0.1em;
 }
 
-.scope-selector label {
+.scope-selector label,
+.intercity-source-selector label {
   position: relative;
 }
 
-.scope-selector input {
+.scope-selector input,
+.intercity-source-selector input {
   position: absolute;
   width: 1px;
   height: 1px;
   opacity: 0;
 }
 
-.scope-selector span {
+.scope-selector span,
+.intercity-source-selector span {
   display: grid;
   min-height: 42px;
   place-items: center;
@@ -1762,14 +1767,16 @@ input[type="checkbox"] {
   font-weight: 800;
 }
 
-.scope-selector input:checked + span {
+.scope-selector input:checked + span,
+.intercity-source-selector input:checked + span {
   border-color: var(--ink);
   background: var(--paper-raised);
   color: var(--ink);
   box-shadow: 3px 3px 0 var(--vermilion);
 }
 
-.scope-selector input:focus-visible + span {
+.scope-selector input:focus-visible + span,
+.intercity-source-selector input:focus-visible + span {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
@@ -1869,6 +1876,27 @@ input[type="checkbox"] {
   border: 1px solid var(--line);
   background: rgba(251, 248, 239, 0.96);
   box-shadow: 5px 5px 0 rgba(19, 44, 51, 0.09);
+}
+
+.intercity-source-selector {
+  margin: 8px 0 0;
+}
+
+.booked-rail-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--jade);
+  background: rgba(21, 117, 101, 0.08);
+  color: var(--jade);
+  font-size: 11px;
+}
+
+.booked-rail-identity span {
+  color: var(--ink-soft);
+  font-size: 10px;
 }
 
 .city-stay-card > legend,
@@ -1990,6 +2018,15 @@ input[type="checkbox"] {
 
   .multicity-editor__heading {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .intercity-source-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .booked-rail-identity {
+    align-items: flex-start;
     flex-direction: column;
   }
 

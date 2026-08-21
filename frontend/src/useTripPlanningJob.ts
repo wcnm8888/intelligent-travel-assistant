@@ -49,31 +49,47 @@ export const DEFAULT_POLLING_POLICY: PollingPolicy = {
 };
 
 export const ACTIVE_V3_JOB_STORAGE_KEY = "ita.active-v3-job";
+export const ACTIVE_V4_JOB_STORAGE_KEY = "ita.active-v4-job";
 
-function isVersion3Response(response: TripPlanResponseDto): boolean {
-  return "response_version" in response && response.response_version === "3";
+function multicityResponseVersion(
+  response: TripPlanResponseDto,
+): "3" | "4" | null {
+  if (!("response_version" in response)) return null;
+  return response.response_version === "3" || response.response_version === "4"
+    ? response.response_version
+    : null;
 }
 
-function savedV3JobId(): string | null {
+function savedMulticityJob(): { jobId: string; version: "3" | "4" } | null {
   try {
-    return window.localStorage.getItem(ACTIVE_V3_JOB_STORAGE_KEY);
+    const version4 = window.localStorage.getItem(ACTIVE_V4_JOB_STORAGE_KEY);
+    if (version4) return { jobId: version4, version: "4" };
+    const version3 = window.localStorage.getItem(ACTIVE_V3_JOB_STORAGE_KEY);
+    return version3 ? { jobId: version3, version: "3" } : null;
   } catch {
     return null;
   }
 }
 
-function rememberV3Job(response: TripPlanResponseDto): void {
-  if (!isVersion3Response(response)) return;
+function rememberMulticityJob(response: TripPlanResponseDto): void {
+  const version = multicityResponseVersion(response);
+  if (!version) return;
   try {
-    window.localStorage.setItem(ACTIVE_V3_JOB_STORAGE_KEY, response.job_id);
+    const key =
+      version === "4" ? ACTIVE_V4_JOB_STORAGE_KEY : ACTIVE_V3_JOB_STORAGE_KEY;
+    const obsoleteKey =
+      version === "4" ? ACTIVE_V3_JOB_STORAGE_KEY : ACTIVE_V4_JOB_STORAGE_KEY;
+    window.localStorage.removeItem(obsoleteKey);
+    window.localStorage.setItem(key, response.job_id);
   } catch {
     // Storage is a convenience pointer; the SQLite job remains authoritative.
   }
 }
 
-function forgetV3Job(): void {
+function forgetMulticityJob(): void {
   try {
     window.localStorage.removeItem(ACTIVE_V3_JOB_STORAGE_KEY);
+    window.localStorage.removeItem(ACTIVE_V4_JOB_STORAGE_KEY);
   } catch {
     // A blocked storage API must not prevent returning to the form.
   }
@@ -216,16 +232,16 @@ export function useTripPlanningJob(
   );
 
   useEffect(() => {
-    const jobId = savedV3JobId();
-    if (!jobId || busy.current) return;
+    const saved = savedMulticityJob();
+    if (!saved || busy.current) return;
     busy.current = true;
     const controller = new AbortController();
     abortController.current = controller;
     setState({ phase: "submitting" });
     void (async () => {
       try {
-        const response = await api.read(jobId, controller.signal);
-        if (!isVersion3Response(response)) {
+        const response = await api.read(saved.jobId, controller.signal);
+        if (multicityResponseVersion(response) !== saved.version) {
           throw new TripPlanningClientError(
             "response_invalid",
             "已保存任务不是可恢复的多城市计划。",
@@ -260,7 +276,7 @@ export function useTripPlanningJob(
 
       try {
         const response = await api.create(request, controller.signal);
-        rememberV3Job(response);
+        rememberMulticityJob(response);
         await track(response, controller);
       } catch (error) {
         if (!isAbort(error)) {
@@ -353,7 +369,7 @@ export function useTripPlanningJob(
   const reset = useCallback(() => {
     abortController.current?.abort();
     busy.current = false;
-    forgetV3Job();
+    forgetMulticityJob();
     setState({ phase: "idle" });
   }, []);
 

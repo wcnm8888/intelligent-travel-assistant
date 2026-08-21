@@ -437,3 +437,35 @@ F-005 不新增页面、公开 response 键或前端自定义终态。现有 leg
 Step 6 组件门禁覆盖全部恢复组合、错误排序、attempt 3、parser exact keys、legacy/V2/V3 和 390px。Step 7 loopback synthetic 浏览器再验证 desktop/390px、键盘/焦点、live region、无水平溢出、console 0 error/warning 和所有网络仅 loopback；这些仍不是视觉改版或真实 Provider UAT。
 
 Step 6 已完成：前端仍只消费既有字段，鉴权失败显示本机配置问题且无 retry；暂时失败继续受 `retryable && attempt<3` 控制；stale 显示获取时间、过期标签和“重新获取数据”；unknown-validity 明示“不代表当前有效”且不凭空产生 retry。错误按冻结优先级显示，但不改变服务端终态或 freshness。定向 30 项、前端全量 99 项和全部静态/build 门禁通过；desktop/390px 真浏览器与独立审查仍属于 Step 7。
+
+## F-004C 已购铁路段交互（Step 1 冻结）
+
+F-004C 不把现有多城市表单静默升级为 V4。用户选择“多城市”后，在城际段列表之前增加一个显式且键盘可达的“城际信息类型”单选组：
+
+- “自行填写交通段”保持当前默认，继续生成 exact V3，保留 rail/air/coach 和既有字段/行为；
+- “填写已购铁路车次”由用户显式选择，生成 strict V4；所有段固定为 rail，并显示 service number；
+- 在两种类型间切换时，重建城际段卡并清空与旧类型绑定的 mode/service/station/time/fare；进入 V4 时同时清空自由文本，V4 不显示该控件，也不在 request 中静默携带其旧值。城市、夜数、日期、interests 和其他获准字段保留；页面以 `role=status` 说明需要重新填写城际段，不静默复用错绑数据。
+
+### V4 段卡
+
+每个相邻城市段按以下顺序显示：
+
+1. 只读“铁路 · 用户提供，未核验”；不显示 air/coach selector；
+2. 必填“车次”，输入允许用户键入小写和边缘空白，blur/提交时 trim 并 uppercase；帮助文本为“仅校验格式，不验证车次是否真实存在”；
+3. 必填出发站、到达站；
+4. 必填出发时间、到达时间；转移日由城市夜数派生，显示 UTC+08:00；
+5. 只读铁路缓冲“出发前 60 分钟 / 到达后 30 分钟”；
+6. 可选票价；空值显示“金额未知，将影响预算完整性”，不得填充 0；
+7. 固定隐私提示：“不要填写或上传姓名、证件、手机号、订单号、座位、二维码或截图。”
+
+车次字段客户端规则必须与后端一致：`trim().toUpperCase()` 后匹配 `^[A-Z0-9]{1,12}$`。错误聚焦到 `intercitySegments.{i}.serviceNumber`；内部空格、标点、非 ASCII、空值和超长均显示安全固定文案，不回显整段原值。站点/时间/fare、相邻段重建、城市重排清段和首错聚焦继续沿用现有多城市机制。
+
+### 提交、结果与恢复
+
+- V4 提交只增加 version-specific nested `service_number`，`mode` 固定为 `rail`；不得加入 duration、备注、订单或文件字段；
+- V4 `preferences` 只序列化 `interests`；不得显示、提交或恢复 `free_text` / `hard_constraints`。切回 V3 时自由文本保持空值，不恢复进入 V4 前的内容；
+- loading/轮询/retry/DELETE 和本机 job UUID 恢复沿用现有流程；parser 必须精确判别 response version 4，拒绝 V3/V4 tag-plan 不匹配和额外键；
+- V4 结果仍使用多城市日卡，但城际卡标题显示“铁路 G1234 · 用户提供，未核验”，随后显示站点、发到时间、由响应时间确定性格式化的历时、固定缓冲和票价/金额未知；前端计算的历时只用于展示，不参与终态或 freshness；
+- 来源卡必须显示 `unknown_validity`、本地记录时间和“不代表班次当前有效”；即使服务端为 ready，首要文案也只能是“代码校验通过”，不能写“车次已核实/可售/已出票”；
+- V3/V4 均不显示 replan 入口；V4 Provider 失败、余票、库存、预订、支付、出票、订单、扫码或跳转 12306/高德入口均不存在；
+- desktop 和 390px 都保持单列段卡、无横向滚动；service number、来源状态和隐私提示不能只靠颜色，键盘焦点、错误关联和 live region 必须可验证。

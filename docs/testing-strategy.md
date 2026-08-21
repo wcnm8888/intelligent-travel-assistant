@@ -576,3 +576,56 @@ feat/f-005-resilience-domain-contracts
 - 加权分数：正确性 25、约束遵守 20、来源完整性 15、unknown/partial 真实性 15、工具/attempt 预算 10、失败安全 15；总分至少 95%。提示注入、来源伪造、工具越权、预算超限、假 ready 必须 100% 通过。
 - CI stdout 仅含 suite version、case/slice/维度计数、加权分数和失败 case ID；不得上传 case payload artifact。fixture、SQLite、DOM 和日志均不得含 Key/Token/Cookie/Authorization、完整 Prompt/自由文本、Provider 原始响应/错误 body、模型原始输出或异常堆栈。
 - Step 7 必须使用临时 schema v2 SQLite 和真实 loopback synthetic 浏览器；不读取 `.env.local`，所有 Provider 配置显式为空，socket fixture 拒绝非 loopback。结束后只报告脱敏摘要，不把 synthetic/eval 结果表述为真实 UAT。
+
+## F-004C V4 用户已购铁路段测试与交付矩阵（Step 1 冻结）
+
+F-004C 全部自动化默认离线；不读取 `.env.local`，城际 Provider port、logical call 和 HTTP attempt 必须精确为 0。测试只使用明显 synthetic 的车次/站点/UUID/日期，不使用真实订单、截图、乘客或证件信息。
+
+### 分层矩阵
+
+| 层 | 必测正向 | 必测负向/兼容 |
+| --- | --- | --- |
+| domain | 2/3 城、1/2 段、固定 rail、service number 规范化、同日时间、60/30 缓冲、duration 派生、known/unknown fare | 空/超长/内部空白/标点/非 ASCII/非 string 车次；跨夜/倒序/非相邻/非转移日；zero fare；V3 domain 行为不变 |
+| contracts | V4 request/plan/response strict tags 与 exact keys；V4 plan 段含规范化 service number；V4 preferences 只含 interests | air/coach、duration/订单等额外键、缺失 service number、V4 free_text/hard_constraints、V3/V4 tag 冲突、V3 携带 service number、未知版本均拒绝 |
+| fingerprint | trim/case 等价输入 digest 相同；service number 变化 digest 变化；client ID 排除 | legacy 固定 digest、V2/V3 body/golden 漂移；数组排序或 V3→V4 转换后错误复用 |
+| application | deterministic segment 重建、转移日/站点/缓冲/预算/来源、五终态；城际调用 0；内部 V4 preferences 只投影 interests | proposal/repair 看见 service number/完整 segment/free_text/hard_constraints；模型改写 segment/source/fare；unknown 变 0；越权字段静默接受 |
+| Repository | V4 typed request/result/plan 匹配、retry attempt、旧记录读取 | 跨版本 result、损坏/未知 tag、旧应用降级读取、Repository 方法集合变化 |
+| SQLite v2 | create/read/restart/retry/delete、source/plan version 往返，migration 精确 1/2 | schema SQL、表/列/索引/migration 3 变化；被拒 V4 free_text/hard_constraints 创建 job；禁止 sentinel 或原始 segment 落库 |
+| API | 同 POST/GET/retry/DELETE URI、V4 plural response、422 strict input、409 idempotency | 新 URI/顶层键/错误码；V4 response 携带 V3 plan；attempt 3 绕过；legacy/V2/V3 shape 变化 |
+| replan | V3/V4 create 均为既有 422 scope；job/current plan 不变 | reserve/decision/executor/Provider/runtime/lineage/plan write 任一非 0；伪造 GET/decision 创建记录 |
+| frontend | 显式 V3/V4 选择、切换清段、车次规范化/首错、V4 strict parser/result/reload；V4 只提交 interests | 默认变 V4、V3 mode 消失、V4 展示/提交/静默携带 free text、额外键静默接受、车次“已核验”、unknown 显示 0、V4 replan/订单/上传/外链入口 |
+| browser/privacy | 临时 SQLite，desktop/390px create/read/restart/retry/delete，keyboard/focus/live region，network/console/a11y | 非 loopback 请求、城际 Provider 调用、横向溢出、真实/禁止票务字段进入 SQLite/DOM/log/fixture/artifact |
+
+核心 RED→GREEN 顺序固定为：
+
+1. Step 2 先让 V4 type/import、strict shape、service number、同日/缓冲和 source/terminal tests 精确 RED，再最小实现纯 domain/contracts；不得触及 Repository/API/application；
+2. Step 3 先证明 typed union/fingerprint/Repository/API 不能承载 V4，且 V4 replan 可能越过 scope guard，再实现 application、schema v2 hydration、同 URI API 与写前拒绝；`schema.py`/`migrations.py` 哈希或 Git diff 必须为 0；
+3. Step 4 先证明现有 UI 不能显式选择/解析/展示 V4，再实现表单/parser/result/recovery；不得由前端推导服务端终态或核验车次；
+4. Step 5 使用新临时 SQLite 与 loopback synthetic executor 完成纵向、desktop/390px 和独立隐私安全审查；Step 5A 以 synthetic sentinel 锁定非法 V4 preferences 422、零 job/SQLite 写入、generation/repair context 隔离和 legacy/V2/V3 兼容；不把它表述为真实铁路 UAT；
+5. Step 6 获单独批准后才允许全量门禁、三层 PR、合并、最终 main CI 和归档。
+
+### 三层核心文件归属
+
+Stack 1 `feat/f-004c-booked-rail-domain-contracts`：
+
+- 生产核心：`contracts/trip_planning.py`、`contracts/__init__.py`、`domain/multicity.py`、`domain/__init__.py`；
+- 测试核心：新增 `tests/contracts/test_booked_rail_trip_planning_contracts.py`、新增 `tests/domain/test_booked_rail_rules.py`；现有 multicity/multiday contracts、domain 和 legacy golden 只作直接兼容回归；
+- 不修改 application、Repository、API、SQLite 或前端。
+
+Stack 2 `feat/f-004c-booked-rail-persistence-api`：
+
+- 生产核心：`application/repositories/models.py` 与直接 export、`application/services/multicity_planning.py`、`provider_planning_jobs.py`、`application/replanning/service.py`、`adapters/persistence/repository.py`、`api/trip_plans.py`、`api/replans.py`；
+- 测试核心：新增 booked-rail application/Repository/API 测试，以及现有 multicity planning、SQLite API、replan、fingerprint/compatibility 回归；
+- `adapters/persistence/schema.py` 和 `migrations.py` 只读且必须 diff 为 0。
+
+Stack 3 `feat/f-004c-booked-rail-ui-delivery`：
+
+- 生产核心：`frontend/src/tripRequest.ts`、`tripPlanModels.ts`、`tripPlanningApi.ts`、`TripRequestForm.tsx`、`MulticityTripPlanResult.tsx`、`TripPlanResult.tsx`、`App.tsx` 与直接 recovery/type guard；
+- 测试核心：对应 component/parser tests、独立 V4 synthetic fixture、loopback browser 支撑；不得改写既有 V3 fixture 冒充 V4；
+- Step 5 的 SQLite/browser/privacy 支撑仍归本层，原则上不新增生产能力。
+
+受控相邻扩展只允许直接 export、factory/wiring、同层 typed model、对应 tests/golden/synthetic fixture 和当前状态/evidence 文档。单 Step 出现超过 5 个未预期生产/测试文件、任一 stack 超过 18 个生产/测试文件或净新增 1400 行、任务累计超过 50 个生产/测试/fixture 文件或净新增 4000 行时立即停止并重新拆分；文档和机械生成物不得用于规避阈值。
+
+### Step 2 准入门禁
+
+进入 Step 2 前必须再次由用户批准，且批准只覆盖 Stack 1 的 TDD。任何实现中发现需要 Provider、真实调用、Schema/migration、依赖/lockfile、新 URI/顶层错误码、V3 行为变化、保存禁止票务信息或把 service number/原始 segment 传给模型，立即停止，不用测试调整掩盖。

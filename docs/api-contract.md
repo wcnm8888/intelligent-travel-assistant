@@ -531,3 +531,58 @@ F-005 不增加 URI、HTTP envelope、公开顶层错误码或 JSON 键。legacy
 - SQLite 仍只持久化现有 typed request/result/plan/source/error；HTTP attempt 记录、retry delay、active peer、Prompt、原始响应和安全运行诊断均不进入数据库。schema version 仍为 2，migration 集合仍为 1/2。
 - F-003 replan 的独立 attempt/lifecycle、失败保持原计划、来源 reuse/refresh/drop 和确认边界不变；V3 replan 继续在 runtime、Provider 和写入前拒绝。
 - legacy/V2/V3 golden 测试逐键比较正常、partial、failed、data_stale、unknown/null、retryable 和 attempt 3；任何新增键、缺失键、跨版本投影或旧 fingerprint 漂移都阻断交付。
+
+## F-004C version 4 用户已购铁路段契约（Step 1 冻结）
+
+F-004C 复用现有 `POST /api/trip-plans`、`GET /api/trip-plans/{job_id}`、`POST /api/trip-plans/{job_id}/retry` 和 `DELETE /api/trip-plans/{job_id}`。请求以字符串 `request_version="4"` 进入独立 strict model；缺少 version 仍只进入 legacy，`"2"`/`"3"` 仍只进入原模型，数字、`null`、未知版本、tag/字段冲突和任何额外键均返回既有 422 `input_invalid`，不得模糊回退。
+
+### V4 request exact shape
+
+`TripPlanRequestV4` 的顶层键精确为：
+
+```text
+request_version, client_request_id, start_date, end_date, travelers,
+total_budget, preferences, pace, transport_modes, city_stays,
+intercity_segments, day_windows, meal_budget_per_person_per_day
+```
+
+除 tag 外，通用字段沿用 V3 的类型和约束：总行程 3–7 日、2–3 个唯一有序中国大陆城市、总夜数等于 `day_count - 1`、窗口精确覆盖每天、段数精确为城市数减 1。V4 不接受单城市 `city/accommodation/intercity_transport_cost`，也不接受订单、乘客、证件、座位、二维码、截图、Cookie、自由备注、Provider 或 duration 字段。
+
+V4 的 `preferences` 使用独立 strict allowlist，精确只含 `interests`（最多 5 个既有 `ShortText`）；`free_text`、`hard_constraints` 或其他额外键均返回既有 422 `input_invalid`，且拒绝发生在 planning job reserve/持久化/执行之前。legacy/V2/V3 继续使用各自既有 preferences shape，不因 V4 收窄而改变。
+
+每个 `BookedRailIntercitySegmentV4` 的键精确为：
+
+| 字段 | 类型 | 冻结规则 |
+| --- | --- | --- |
+| `from_city_index` / `to_city_index` | strict int | 第 i 段必须为 i → i+1 |
+| `mode` | `Literal["rail"]` | 必填且只能为 rail；air/coach 拒绝 |
+| `service_number` | strict string | 先 `strip()`，再 `upper()`；规范化后必须匹配 `^[A-Z0-9]{1,12}$` |
+| `departure_station` / `arrival_station` | strict ShortText | trim 后 1–120 字符，控制字符拒绝；只表达站名 |
+| `departure_at` / `arrival_at` | aware datetime | 必须为 `+08:00`、同一派生转移日且 arrival > departure |
+| `fare` | Money / null | 已知时必须为正数 CNY；未知为 `null`，不得用 0 代替 |
+
+`service_number` 接受如 `" g1234 " → "G1234"`；内部空格、连字符、斜杠、非 ASCII 字母数字、空串、超过 12 字符、数字 JSON 值或 `null` 均拒绝。不维护前缀 allowlist，不校验车次是否真实存在。单个 segment 结构本身表示“同日直达”：没有经停、换乘、分段、跨夜或 availability 字段；这不是 Provider 核验。
+
+派生转移日继续为 `start_date + sum(city_stays[0..i].nights)`。铁路缓冲继续为出发前 60 分钟、到达后 30 分钟。历时只由规范化的发到时间在服务端确定性计算，用于排程/展示校验；不成为 request、plan 或 response 新键。
+
+### V4 plan、response 与来源 exact shape
+
+`TripPlanV4` 的键集合与 V3 多城市 plan 对应，唯一 version-specific 变化为 `plan_format_version="4"`，且 `intercity_segments` 元素使用 `PlanBookedRailSegmentV4`。每个计划段在 V3 段键集合上增加规范化 `service_number`，同时把 `mode` 收窄为字符串 `"rail"`；仍包含 segment ID、相邻索引、站点 location ID、发到时间、一个城际 `CostItem` 和非空 source IDs。不得增加 duration、订单、座位、票号、余票、库存或 Provider record 字段。
+
+票价为 `null` 时，计划仍创建 `category=intercity_transport`、`confidence=unknown`、`amount=null` 的费用项并以既有 `intercity_fare_unknown` 披露；已知正数票价为 `confidence=user_provided`，不得标记 verified/estimated。
+
+`TripPlanResponseV4` 的顶层键与 V3 plural-destination response 精确相同，唯一 tag 为 `response_version="4"`；`request_summary` 键集合也与 V3 相同，tag 为 `request_version="4"`，不回显 `service_number`。`plan` 只允许 `TripPlanV4|null`，`resolved_destinations` 为 0–3 个。tag 不匹配、V4 response 携带 V3 plan、V3 response/plan 携带 `service_number`、未知/额外/缺失键均 fail closed。
+
+每个 V4 城际段只引用一个现有形状的用户来源：`provider=user`、`source_type=user_provided_intercity_segment`、`provider_record_id=null`、`valid_until=null`、`freshness=unknown_validity`、`reference_url=null`、attribution 为“用户提供”、warning 为“未核验班次、票价、余票或库存”。UI 合并展示“用户提供，未核验”。`fetched_at` 仅表示本地记录时刻，不证明车次当前有效。
+
+与 D-013 一致，明确的用户输入及其排程校验通过本身不因 `unknown_validity` 强制降为 partial，但也绝不能表述为 Provider 验证；任何 unknown 票价、天气/路线缺口或其他既有 partial 事实继续阻止 ready。ready 文案只能是“代码校验通过”，不能是“班次已核验”。
+
+### Fingerprint、Repository、SQLite 与 replan
+
+- V4 fingerprint 使用规范化 typed V4 dump，排除 `client_request_id`，再执行现有 UTF-8、sort-keys、compact JSON、SHA-256；规范化相同的 `" g1234 "`/`"G1234"` digest 相同，车次、城市/夜数/数组顺序/站点/时间/fare/version 任一变化必须改变 digest；
+- legacy 固定 digest、V2/V3 typed body 与 golden 必须逐字节不变；不得先把旧版本升级成 V4 再算指纹；
+- 内部新增独立 `PlanningJobResultV4(resolved_destinations, TripPlanV4|null, terminal fields)`，并将 request/plan/result union 严格增加 V4；V3 result 类型不扩字段，跨版本 request/result/plan 一律拒绝；
+- Repository Protocol、attempt、幂等、retry、DELETE、30 天 job 生命周期和事务不变。V4 只进入 schema v2 既有 typed `request_json/result_json/plan_json/source` 路径；Schema SQL 和 migration 文件字节不变，migration 表只能为 1/2；
+- 旧应用读取 V4 必须 fail closed，不降级为 V3，不删除或改写旧记录；
+- 创建 V3 或 V4 replan 均在 replan reserve、decision、executor、Provider/runtime、lineage 和 plan write 前返回既有 422 `replan_scope_not_supported`；拒绝路径相关写入和城际 Provider 调用均为 0。由于这些 job 不可能创建 replan 资源，后续伪造的 GET/decision ID 沿用既有 404/安全错误，不新增 URI 或错误码；
+- V4 POST/GET/retry/DELETE 顶层 job/error envelope、HTTP status、Location、attempt 3、idempotency conflict 和 retry-not-allowed 行为与现有版本一致。

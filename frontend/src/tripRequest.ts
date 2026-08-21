@@ -5,6 +5,7 @@ export type Pace = "relaxed" | "balanced" | "intensive";
 export type TransportMode = "walking" | "public_transit";
 export type TripScope = "single_city" | "multi_city";
 export type IntercityMode = "rail" | "air" | "coach";
+export type IntercityInformationType = "manual" | "booked_rail";
 
 export interface DayWindowFormValue {
   localDate: string;
@@ -21,6 +22,7 @@ export interface CityStayFormValue {
 
 export interface IntercitySegmentFormValue {
   mode: IntercityMode;
+  serviceNumber: string;
   departureStation: string;
   arrivalStation: string;
   departureTime: string;
@@ -30,6 +32,7 @@ export interface IntercitySegmentFormValue {
 
 export interface TripRequestFormValues {
   scope: TripScope;
+  intercityInformationType: IntercityInformationType;
   city: string;
   startDate: string;
   endDate: string;
@@ -130,8 +133,39 @@ export interface TripPlanRequestV3Dto {
   meal_budget_per_person_per_day: MoneyDto;
 }
 
+export interface TripPlanRequestV4Dto {
+  request_version: "4";
+  client_request_id: string;
+  start_date: string;
+  end_date: string;
+  travelers: number;
+  total_budget: MoneyDto;
+  preferences: {
+    interests: Interest[];
+  };
+  pace: Pace;
+  transport_modes: TransportMode[];
+  city_stays: TripPlanRequestV3Dto["city_stays"];
+  intercity_segments: Array<{
+    from_city_index: number;
+    to_city_index: number;
+    mode: "rail";
+    service_number: string;
+    departure_station: string;
+    arrival_station: string;
+    departure_at: string;
+    arrival_at: string;
+    fare: MoneyDto | null;
+  }>;
+  day_windows: TripPlanRequestV3Dto["day_windows"];
+  meal_budget_per_person_per_day: MoneyDto;
+}
+
 export type TripPlanRequestDto =
-  LegacyTripPlanRequestDto | TripPlanRequestV2Dto | TripPlanRequestV3Dto;
+  | LegacyTripPlanRequestDto
+  | TripPlanRequestV2Dto
+  | TripPlanRequestV3Dto
+  | TripPlanRequestV4Dto;
 
 export type TripRequestField =
   | "city"
@@ -151,6 +185,7 @@ export type TripRequestField =
   | `cityStays.${number}.oneNightCost`
   | `cityStays.${number}.nights`
   | `intercitySegments.${number}.mode`
+  | `intercitySegments.${number}.serviceNumber`
   | `intercitySegments.${number}.departureStation`
   | `intercitySegments.${number}.arrivalStation`
   | `intercitySegments.${number}.departureTime`
@@ -162,6 +197,7 @@ export type TripRequestErrors = Partial<Record<TripRequestField, string>>;
 const MONEY_PATTERN = /^(0|[1-9]\d*)(\.\d{1,2})?$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const SERVICE_NUMBER_PATTERN = /^[A-Z0-9]{1,12}$/;
 
 export const INTERCITY_BUFFERS: Readonly<
   Record<IntercityMode, { before: number; after: number; label: string }>
@@ -178,6 +214,7 @@ export function emptyCityStay(): CityStayFormValue {
 export function emptyIntercitySegment(): IntercitySegmentFormValue {
   return {
     mode: "rail",
+    serviceNumber: "",
     departureStation: "",
     arrivalStation: "",
     departureTime: "10:00",
@@ -246,6 +283,7 @@ export function createInitialTripRequest(
   const endDate = addCalendarDays(startDate, 1);
   return {
     scope: "single_city",
+    intercityInformationType: "manual",
     city: "",
     startDate,
     endDate,
@@ -417,9 +455,19 @@ export function validateTripRequest(
         `各城共 ${actualNights} 晚，需与行程 ${expectedNights} 晚一致。`;
     }
     values.intercitySegments.forEach((segment, index) => {
-      if (!INTERCITY_BUFFERS[segment.mode]) {
+      const bookedRail = values.intercityInformationType === "booked_rail";
+      if (!bookedRail && !INTERCITY_BUFFERS[segment.mode]) {
         errors[`intercitySegments.${index}.mode`] =
           "请选择铁路、航空或长途客运。";
+      }
+      if (
+        bookedRail &&
+        !SERVICE_NUMBER_PATTERN.test(
+          normalizeServiceNumber(segment.serviceNumber),
+        )
+      ) {
+        errors[`intercitySegments.${index}.serviceNumber`] =
+          "请输入 1—12 位英文字母或数字的车次。";
       }
       if (
         segment.departureStation.trim().length < 1 ||
@@ -447,15 +495,19 @@ export function validateTripRequest(
         errors[`intercitySegments.${index}.arrivalTime`] =
           "到达时间必须晚于出发时间，且不能跨夜。";
       }
-      if (segment.fare && !isMoney(segment.fare)) {
-        errors[`intercitySegments.${index}.fare`] =
-          "票价最多保留两位小数，不清楚时可以留空。";
+      if (
+        segment.fare &&
+        (!isMoney(segment.fare) || (bookedRail && Number(segment.fare) <= 0))
+      ) {
+        errors[`intercitySegments.${index}.fare`] = bookedRail
+          ? "票价必须大于 0 且最多保留两位小数，不清楚时可以留空。"
+          : "票价最多保留两位小数，不清楚时可以留空。";
       }
       const transferOffset = values.cityStays
         .slice(0, index + 1)
         .reduce((total, stay) => total + Number(stay.nights || 0), 0);
       const window = values.dayWindows[transferOffset];
-      const buffer = INTERCITY_BUFFERS[segment.mode];
+      const buffer = INTERCITY_BUFFERS[bookedRail ? "rail" : segment.mode];
       if (
         window &&
         TIME_PATTERN.test(segment.departureTime) &&
@@ -491,6 +543,10 @@ function money(amount: string): MoneyDto {
   return { amount, currency: "CNY" };
 }
 
+export function normalizeServiceNumber(value: string): string {
+  return value.trim().toUpperCase();
+}
+
 export function toTripPlanRequest(
   values: TripRequestFormValues,
   clientRequestId: string,
@@ -498,18 +554,21 @@ export function toTripPlanRequest(
 ): TripPlanRequestDto {
   if (values.scope === "multi_city") {
     let elapsedNights = 0;
+    const bookedRail = values.intercityInformationType === "booked_rail";
     return {
-      request_version: "3",
+      request_version: bookedRail ? "4" : "3",
       client_request_id: clientRequestId,
       start_date: values.startDate,
       end_date: values.endDate,
       travelers: Number(values.travelers),
       total_budget: money(values.totalBudget),
-      preferences: {
-        interests: [...values.interests],
-        free_text: values.freeText.trim(),
-        hard_constraints: [],
-      },
+      preferences: bookedRail
+        ? { interests: [...values.interests] }
+        : {
+            interests: [...values.interests],
+            free_text: values.freeText.trim(),
+            hard_constraints: [],
+          },
       pace: values.pace,
       transport_modes: [...values.transportModes],
       city_stays: values.cityStays.map((stay) => ({
@@ -523,16 +582,23 @@ export function toTripPlanRequest(
       intercity_segments: values.intercitySegments.map((segment, index) => {
         elapsedNights += Number(values.cityStays[index]?.nights ?? 0);
         const transferDate = addCalendarDays(values.startDate, elapsedNights);
-        return {
+        const common = {
           from_city_index: index,
           to_city_index: index + 1,
-          mode: segment.mode,
+          mode: bookedRail ? ("rail" as const) : segment.mode,
           departure_station: segment.departureStation.trim(),
           arrival_station: segment.arrivalStation.trim(),
           departure_at: `${transferDate}T${segment.departureTime}:00+08:00`,
           arrival_at: `${transferDate}T${segment.arrivalTime}:00+08:00`,
           fare: segment.fare ? money(segment.fare) : null,
         };
+        return bookedRail
+          ? {
+              ...common,
+              mode: "rail" as const,
+              service_number: normalizeServiceNumber(segment.serviceNumber),
+            }
+          : common;
       }),
       day_windows: values.dayWindows.map((window, dayOffset) => ({
         day_offset: dayOffset,
@@ -540,7 +606,7 @@ export function toTripPlanRequest(
         end_time: `${window.endTime}:00`,
       })),
       meal_budget_per_person_per_day: money(values.mealBudgetPerPersonPerDay),
-    };
+    } as TripPlanRequestV3Dto | TripPlanRequestV4Dto;
   }
   const common: TripPlanRequestBaseDto = {
     client_request_id: clientRequestId,
