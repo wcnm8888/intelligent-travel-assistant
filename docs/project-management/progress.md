@@ -2,12 +2,13 @@
 
 ## 当前状态
 
-- 当前任务：`F-005 外部服务韧性、数据时效与 Agent 评估`
-- 任务状态：`ACTIVE`
-- 最近完成：`Step 8 - 全量门禁与 stacked PR`，状态 `DONE`
-- 当前 Step：`Step 9 - 依序合并与归档`，状态 `TODO`；尚未批准、尚未进入
-- 当前分支：`feat/f-005-ui-delivery`
-- 当前交付动作：五层 Draft stacked PR 与逐层 CI 已完成；停止在 merge、clean-restack、最终 main CI 与归档之前
+- 当前任务：无
+- 最近完成：`F-005 外部服务韧性、数据时效与 Agent 评估`
+- 任务状态：`DELIVERED / ARCHIVED`
+- Step 0–9：`DONE`
+- 完整功能 main：`fddd4e5add5919f1751279de9b833a3192ea6338`
+- 完整功能 main CI：run `32452988076`，`PASS`
+- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
 
 ## Step 0 完成摘要
 
@@ -92,7 +93,7 @@
 
 ## 阻塞与下一入口
 
-Step 7 技术验收已完成，首次 `npx` 探测可能访问 npm registry 的已披露过程偏差已由用户明确接受。Step 8 也已完成；不得自动 merge、clean-restack、运行最终 main CI、归档或进入 Step 9。
+当前无阻塞、无活动任务。roadmap 推荐下一候选为 F-004B2，但不得自动进入；其真实城际 Provider、条款、费用、隐私、Schema、依赖和真实调用边界必须另行起草并批准。
 
 ## Step 8 完成摘要
 
@@ -105,9 +106,18 @@ Step 7 技术验收已完成，首次 `npx` 探测可能访问 npm registry 的�
 - 五层分支已普通 push；Draft PR #27/#28/#29/#30/#31 依次以 main/前层分支为 base，首轮 CI runs `32450657207`、`32450661429`、`32450664838`、`32450668170`、`32450671589` 全部 success；
 - 未 merge、clean-restack、运行最终 main CI、归档或进入 Step 9；未修改 Schema/migration、依赖/lockfile，未读取秘密或调用真实 Provider。
 
+## Step 9 完成摘要
+
+- PR #27/#28/#29/#30/#31 已依序 squash merge，对应 main commits 为 `1534cad`、`66445c1`、`afc8a45`、`472a519`、`fddd4e5`；
+- #28–#31 在前层进入 main 后直接改指向最新 main，均保持 CLEAN/MERGEABLE 且 tree diff 仅含本层，因此无需替代式 clean-restack、rebase 或 force-push；
+- 逐层 main CI runs `32451655141`、`32451996154`、`32452323662`、`32452640620`、`32452988076` 全部 success；
+- 完整任务卡已归档，current-task、implementation-plan、roadmap、progress、evidence 和 docs/README 已切换为无活动任务；
+- 未修改 Schema/migration、依赖或 lockfile，未读取秘密或调用真实 Provider。
+
 ## 权威入口
 
-- 完整任务卡：[current-task.md](./current-task.md)
+- 最近关闭摘要：[current-task.md](./current-task.md)
+- 完整归档任务卡：[F-005 archive](../archive/task-cards/F-005-external-service-resilience-freshness-agent-eval.md)
 - Step 0–9：[implementation-plan.md](./implementation-plan.md)
 - 路线与优先级：[roadmap.md](./roadmap.md)
 - 长期决策：[D-014](../decisions.md#d-014f-005-统一外部服务韧性数据时效与离线-agent-评估)

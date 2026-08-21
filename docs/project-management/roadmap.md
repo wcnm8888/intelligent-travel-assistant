@@ -15,7 +15,7 @@
 
 ## 当前阶段
 
-目标：B-000、F-001、F-002、F-003、F-004A 和 F-004B1 已完成；F-005 已获批准并完成 Step 0–8，当前等待 Step 9 单独批准。后续顺序保持 F-005 → F-004B2，F-006 继续等待用户选择。
+目标：B-000、F-001、F-002、F-003、F-004A、F-004B1 和 F-005 已完成归档；当前没有活动任务。推荐下一候选为 F-004B2，F-006 继续等待用户选择。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
@@ -25,11 +25,11 @@
 | 3 | F-003 局部重规划与影响确认 | DONE | 用户能调整当天，并在跨日/跨城影响前掌握决定权 | F-002 |
 | 4 | F-004A 单城市 2–7 日计划扩展 | DONE | 用户可生成更长但仍可控、可追溯的单城市行程；PR #13/#16/#17 已依序合并 | F-003 |
 | 5 | F-004B1 多城市领域、用户提供的城际段与离线约束 | DONE | 用户可表达 2–3 城顺序、住宿切换和用户提供的相邻城际段 | F-004A、D-013、归档任务卡 |
-| 6 | F-005 外部服务韧性、时效与 Agent 评估 | ACTIVE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004B1、D-014、当前任务卡 |
+| 6 | F-005 外部服务韧性、时效与 Agent 评估 | DONE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004B1、D-014、归档任务卡 |
 | 7 | F-004B2 真实城际 Provider | CANDIDATE | 经条款、费用和数据治理批准后接入真实城际事实 | F-004B1、F-005、独立 Provider 决策 |
 | 8 | F-006 MVP 体验收口与本地验收 | CANDIDATE | 用户可稳定完成完整本地旅行决策流程 | F-001 至 F-005；F-004B2 如获选则一并纳入 |
 
-B-000 至 F-004B1 的已选任务均已完成归档。F-005 是唯一 ACTIVE 任务，Step 0–8 已完成且 Step 7/8 已披露过程偏差均由用户接受；不得自动 merge、进入 Step 9 或后续候选。
+B-000 至 F-005 的已选任务均已完成归档。当前没有活动任务；F-004B2 和 F-006 不得因前置完成而自动启动。
 
 ## B-000：项目与工程基线
 
@@ -110,7 +110,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-005：外部服务韧性、时效与 Agent 评估
 
-- 状态：`ACTIVE`；Step 0–8 已完成，五层 Draft PR #27–#31 与逐层 CI 已交付，等待 Step 9 单独批准
+- 状态：`DONE`；Step 0–9 全部完成，完整任务卡见 [F-005 archive](../archive/task-cards/F-005-external-service-resilience-freshness-agent-eval.md)
 - 目标：系统化处理 provider 超时、限流、鉴权失败、Schema 漂移、空数据、过期数据和模型失败；
 - 核心价值：失败时用户仍知道哪些数据可信、哪些缺失、能否重试；
 - 必须验证：统一错误映射、重试预算、fresh/stale/unknown-validity、提示注入、工具越权和固定回归 case；
@@ -121,6 +121,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - Step 4 实现结果：显式 runtime 已接入 legacy/V2/V3 application；统一 deadline 前置拒绝、取消/peer drain、retry/fallback 停止顺序和同 shape data_stale/timeout 投影；stale route 不成计划，stale weather/alert 剔除，未进入 Agent eval 或前端；
 - Step 5 实现结果：legacy/V2/V3 repair 改用 bounded `PlanRepairBrief`，generation/repair 对 Provider 文本实行双层 allowlist；固定 48-case 离线 eval 两次一致、加权分 100、五类硬门禁失败为 0；未进入前端且不构成真实 Provider/模型 UAT；
 - Step 6 实现结果：前端只消费既有 status/retryable/errors/uncertainties/sources/attempt，完成鉴权配置、暂时失败、stale、unknown-validity、固定错误排序和恢复展示；全量 99 项与静态/build 通过，未进入 SQLite/browser；
+- 交付：PR #27/#28/#29/#30/#31 已依序 squash merge；后续层直接改指向最新 main 后仍保持本层 tree diff，未创建替代 PR或 force-push；完整功能 main `fddd4e5`、CI `32452988076` 通过；
 - 非目标：生产高可用、分布式熔断、7×24 告警和公网 SLO。
 
 ### F-004B2：真实城际 Provider
@@ -196,7 +197,7 @@ F-004A 单城市 2–7 日
   ↓
 F-004B1 多城市领域与用户提供段（DONE）
   ↓
-F-005 韧性与评估（ACTIVE）
+F-005 韧性与评估（DONE）
   ↓
 F-004B2 真实城际 Provider（候选）
   ↓
