@@ -1,337 +1,176 @@
 # 当前实施计划
 
-当前无活动任务，因此没有正在执行的 Step。
-
 ## 当前状态
 
-- 当前任务：无
-- 最近完成：`F-004B1 多城市领域、用户提供的城际段与离线约束`
-- 任务状态：`DELIVERED / ARCHIVED`
-- Step 0–8：`DONE`
-- 完整功能 main：`c1fecb0e5545a25330aa179e7f25decd58c07139`
-- main CI：run `32384768085`，`PASS`
-- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
+- 当前任务：`F-005 外部服务韧性、数据时效与 Agent 评估`
+- 任务状态：`ACTIVE`
+- 最近完成：`Step 7 - 纵向与独立审查`（有已披露过程偏差）
+- 当前 Step：`Step 8 - 全量门禁与 stacked PR`，状态 `ACTIVE`
+- 下一动作：完成五层独立审查、本地全量门禁、stacked PR 和逐层远程 CI；不得 merge 或进入 Step 9
+- 当前分支：`feat/f-005-ui-delivery`（五层本地重组完成后切换）
 
-## Step 0：执行基线与治理收口
+## Step 0：事实复核、任务激活与治理基线
 
-唯一目标：在不进入实现的前提下，复核 F-004A 归档基线并激活已批准的 F-004B1。
+唯一目标：在不进入设计实现的前提下，复核最终 F-004B1 归档事实，激活已批准的 F-005 并建立执行治理。
 
 状态：`DONE`
 
 完成结果：
 
-- 复核 main、origin/main、HEAD、干净工作区和归档提交一致；
-- 复核 PR #13–#18 与 CI run `32360800884`；
-- 确认 current-task 原先没有活动任务；
-- 写入完整 F-004B1 任务卡并激活 roadmap；
-- roadmap 顺序调整为 F-004B1 → F-005 → F-004B2；
-- implementation-plan 切换为 Step 0–8；
-- product-brief 与 api-contract 的 F-004A 当前状态漂移已修正；
-- 新增 D-013，固化 V3、schema v2、全 V3 replan 拒绝、Provider/隐私和四层 stacked PR 决策；
-- 建立“核心文件清单 + 受控相邻扩展”治理；
-- 从干净 main 创建首层本地分支；
-- 没有提交、push、PR、merge、源码、测试、数据库、migration、依赖、秘密读取或 Provider 调用。
+- 复核 `HEAD == main == origin/main == c5f07e12abdc37f977ee0f7181a5f2800f015066` 和干净工作区；
+- 复核 PR #19/#23/#24/#25/#26 均已合并、无开放 PR，PR #26 merge commit 为 `c5f07e1`；
+- 复核 main CI run `32386260285` 在该提交上 `completed/success`；
+- 确认激活前没有活动任务；
+- 将完整已批准 F-005 任务卡写入 current-task，roadmap 中 F-005 成为唯一 ACTIVE；
+- 写入 Step 0–9、D-014、核心文件、受控相邻扩展、四层 stacked PR 和规模阈值；
+- 修正当前权威文档中 F-004B1 Step 0–8、PR #26、最终 main/CI 状态漂移；
+- 创建首层本地分支 `feat/f-005-resilience-domain-contracts`；
+- 未修改源码、测试、Schema、migration、依赖、lockfile、数据库或归档材料；未读取秘密或调用 Provider；未提交、push、创建 PR 或触发 CI。
 
 ## Step 1：实现前设计冻结
 
-唯一目标：把已批准任务卡转写为可实现、可测试的精确领域/API/Repository/Provider/UI 契约，不实现生产代码。
+唯一目标：把 D-014 已批准方向冻结为可实现、可测试且兼容的精确失败、时效、重试、Agent eval、API/UI 和交付契约，不实现生产代码或测试。
 
 状态：`DONE`
-
-核心文件：
-
-- `docs/architecture.md`
-- `docs/api-contract.md`
-- `docs/agent-domain-spec.md`
-- `docs/design-spec.md`
-- `docs/testing-strategy.md`
-- `docs/decisions.md`
-- 对应五份状态文档
 
 必须冻结：
 
-- V3 城市停留、住宿夜数、城际段、转移日、缓冲、活动数、预算、来源和终态不变量；
-- legacy/V2/V3 严格判别、URI、fingerprint 和稳定错误语义；
-- Repository typed union、schema v2 typed JSON、旧应用 fail closed 和无 migration v3 证明；
-- V3 replan 写前拒绝顺序；
-- 按城市 Provider 编排预算、deadline、并发、取消和完全离线测试边界；
-- 前端输入、错误定位、结果信息架构、离线读取和响应式/可访问性；
-- 分层测试矩阵、红绿证明和每个后续 Step 的精确核心文件。
-
-停止条件：出现任何未批准产品/API 语义、migration v3、新依赖、新 Provider、隐私变化或实现需求。
+- Provider failure → needs_input/conflict/failed/partial/ready 的能力关键性矩阵；
+- `fetched_at/valid_until/evaluated_at/freshness/attribution` 权威关系和 stale/unknown-validity 使用矩阵；
+- Amap/QWeather attempt、jitter、Retry-After、Provider/任务额外预算和 DeepSeek 0 传输 retry；
+- 逻辑调用与 HTTP attempt 分离、总 deadline、主动取消、peer drain 和 terminal 零新调用；
+- retry→route fallback→deterministic stop 顺序以及城际 Provider 调用 0；
+- legacy/V2/V3 bounded proposal/repair 输入和不可信 Provider 文本隔离；
+- ≥48 case eval 数据格式、维度、100% 安全硬门禁、95% 总分和 CI 输出边界；
+- 不新增 URI/JSON 键/顶层错误码的 API 与前端恢复语义；
+- unit/contract/adapter/application/API/SQLite/frontend/browser/security 测试矩阵；
+- 四层 stack 的精确归属、验证入口和 clean-restack 规则。
 
 完成结果：
 
-- architecture 冻结独立 V3 类型、城市/夜数/段/每日城市骨架、缓冲、预算、来源、终态和分层数据流；
-- api-contract 冻结同 URI 三分支 discriminator、V3 request/plan/response 精确字段、fingerprint、schema v2 水合和 replan 前置拒绝；
-- agent-domain-spec 冻结用户段 immutable、城市命名空间、确定性排程、调用预算/并发/deadline 和隐私日志；
-- design-spec 冻结显式单/多城市选择、城市停留卡、相邻段卡、错误定位、V3 结果/恢复和 desktop/390px 门禁；
-- testing-strategy 冻结分层正负矩阵、legacy/V2 golden、schema 1/2 不变、intercity provider 0 和 Step 2–7 RED/GREEN 顺序；
-- D-013 更新为 `APPROVED_AND_FROZEN`；未发现 migration v3、新依赖、新 Provider 或隐私边界变化需求；
-- 未修改源码、测试、前端、fixture、Schema、migration、数据库、依赖或 lockfile；未读取秘密或调用 Provider。
+- 冻结城市/住宿/站点/POI、最终路线、天气/预警和 DeepSeek 的关键性、retry 耗尽后终态以及 Provider failure 不得投影 needs_input/conflict 的矩阵；
+- 冻结 freshness 为 attempt 评估快照、GET 不按墙钟改写、stale 路线拒绝、天气/预警剔除和 unknown-validity 最多 partial 的逐能力政策；
+- 冻结纯 domain policy + 显式 job-scoped runtime + 单次 HTTP adapter 的边界，额外预算 3/1/4、full jitter、受控 Retry-After、每 attempt timeout、deadline 前置拒绝、terminal close 和 peer drain；
+- 冻结 generation allowlist 与不含原始输出/自由文本/Provider observation 的 `PlanRepairBrief`，以及 Provider 文本有限 display label 门禁；
+- 冻结 48-case 离线 eval 的 12×4 分布、两次确定性执行、25/20/15/15/10/15 权重、95% 总分和五类 100% 硬门禁；
+- 冻结既有 `data_stale`/`diagnostic_code` 投影、前端恢复动作、attempt 3 组合、legacy/V2/V3/F-003 compatibility 和 schema v2 snapshot 边界；
+- 冻结 Stack 1 domain、Stack 2 runtime、Stack 3 application/API/Agent eval、Stack 4 frontend/delivery 的精确归属及分层测试入口；
+- 只修改当前权威与状态文档；没有修改生产源码、测试、fixture、Schema、migration、依赖或 lockfile，没有读取秘密、创建数据库、调用 Provider、访问非 loopback、commit、push、PR、CI 或进入 Step 2。
 
-## Step 2：多城市领域与 V3 contracts
+核心文件仅限批准的当前权威文档。禁止修改生产源码、测试、fixture、Schema、migration、依赖、lockfile、数据库或分支拓扑；禁止读取秘密、调用 Provider 或访问非 loopback 服务。
 
-唯一目标：以 TDD 实现纯领域模型、V3 contracts 和确定性校验，不进入持久化/API/Provider/UI。
+## Step 2：纯领域 resilience 与 freshness 决策
+
+唯一目标：以 TDD 实现纯领域错误、时效、retry schedule 和安全诊断决策，不进入 adapter、application、API 或前端。
 
 状态：`DONE`
 
-核心文件：
-
-- `backend/src/intelligent_travel_assistant/contracts/trip_planning.py`
-- `backend/src/intelligent_travel_assistant/domain/**` 中经 Step 1 冻结的多城市/排程/预算入口
-- 对应 `backend/tests/**` 领域与 contract 测试
-- 必要 synthetic fixture
-- 对应五份状态文档
-
-验证重点：
-
-- 2/3 城市、3–7 日、每城至少一晚和夜数总和；
-- 城市/日期/住宿/城际段连续性；
-- 同日一次转移、无跨夜/第三城市、转移日最多一项活动；
-- 三种方式缓冲和窗口冲突；
-- user_provided/unknown 费用和五种终态；
-- legacy/V2 golden 与 fingerprint 不变。
+批准入口：只允许以 TDD 修改 `domain/provider_result.py`、新增 `domain/resilience.py`、直接 export 与对应 domain/contracts golden 测试；不得进入 adapter、application、API、Repository、SQLite、Provider 或前端。
 
 完成结果：
 
-- 首轮 RED 因纯多城市领域类型与 `TripPlanRequestV3` 尚不存在而在 collection 阶段失败；最小实现后新增测试转绿；
-- 第二轮 RED 证明 plan 缺少跨日城市连续性、response 未绑定 summary 夜数派生转移日；最小修复后转绿；
-- 第三轮 RED 证明 V3 response 未拒绝携带 error 的 ready；对齐现有结果终态规则后，ready/partial/conflict/needs_input/failed 正负 shape 全部转绿；
-- 新增纯领域 `CityStay`、`MultiCityTrip`、用户段、日排程、三种缓冲、逐城住宿预算、城际费用和五终态分类；
-- 新增独立严格 V3 request/plan/response、城市/段/日 DTO、用户来源约束和 plan/response final validation；
-- V3 未加入 `PlanningRequest/PlanningPlan/PlanningResponse` union；该集成明确留给 Step 3；
-- 定向 domain/contracts/兼容回归 `102 passed`；全仓 Ruff format/lint 与 strict mypy 对 126 个文件通过；
-- legacy 固定 digest `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd` 和 V2 fingerprint 定向回归通过；
-- 未进入 Repository/API/SQLite、Provider、前端、Schema/migration、依赖、lockfile、数据库、秘密或外部调用。
+- RED：新增定向测试首次在 collection 因 `FactCriticality` 等 F-005 领域符号不存在失败；
+- GREEN：`ProviderError` 加入仅 rate-limit 可用的 bounded Retry-After；新增纯 Provider/operation schedule、retry、freshness、required/optional failure 和安全诊断决策；
+- retry 锁定 Amap/QWeather 2 attempts、Provider 额外 3/1、任务额外 4、6 秒 attempt，DeepSeek 1 attempt/35 秒/0 retry，以及 jitter、budget、deadline、terminal/cancelled 前置停止；
+- freshness 锁定 inclusive boundary 复用、route stale reject、weather stale omit、location stale partial-use、unknown-validity partial-use；Provider failure 只可产生 failed/partial；
+- 验证：定向 `108 passed`；domain + contracts/golden `342 passed`；全 backend `134 files already formatted`、Ruff lint 通过、strict mypy `134 source files` 通过；
+- 生产/测试范围为 5 个批准文件，未进入 adapter/application/API/Repository/SQLite/前端，未修改 Schema/migration/依赖/lockfile，未创建数据库、读取秘密、调用 Provider、commit、push、PR 或 CI。
 
-## Step 3：Repository、SQLite 与 API 兼容
+## Step 3：Provider runtime
 
-唯一目标：实现 V3 typed union 的内存/SQLite 往返和同 URI API，不进入 Provider 编排或前端。
+唯一目标：实现可由每个 planning attempt 显式持有的统一 attempt runtime，并让现有 Amap/QWeather adapter 提供安全错误/Retry-After 输入；DeepSeek 只锁定 transport retry=0，不进入 application 编排接线、API 或 UI。
 
 状态：`DONE`
 
-核心文件：
-
-- `backend/src/intelligent_travel_assistant/application/repositories/**`
-- `backend/src/intelligent_travel_assistant/adapters/repositories/**`
-- `backend/src/intelligent_travel_assistant/adapters/persistence/repository.py`
-- `backend/src/intelligent_travel_assistant/api/**` 中 trip planning/replan 窄入口
-- 对应 Repository、SQLite、API 与 migration 基线测试
-- 对应五份状态文档
-
-验证重点：
-
-- schema version 保持 2，migration 文件无变化；
-- get_or_create、fingerprint、expected_version、retry、record_result、DELETE 与 30 天清理；
-- legacy/V2/V3 严格水合和旧数据回归；
-- 旧应用读取 V3 fail closed；
-- 所有 V3 replan 在 Provider/decision/版本写入前拒绝。
-
 完成结果：
 
-- 首轮 RED 在 collection 阶段证明 Repository 尚无 `PlanningJobResultV3`，V3 不能进入 application/SQLite/API；
-- 后续 RED 证明无 plan 的 legacy failed result 可绕过 V3 request/result 版本匹配；调整匹配顺序后跨版本终态也 fail closed；
-- `PlanningRequest/PlanningPlan/PlanningResponse` 扩为严格 legacy/V2/V3 三分支，旧两个 model 与 JSON 字段集合不变；
-- 新增独立 `PlanningJobResultV3` 和内部 `PlanningResult` union，Repository port 方法集合不变；V3 fingerprint 排除 client ID 但保留城市顺序、夜数、窗口与用户段字段；
-- 内存与 SQLite 复用既有 get/create/get/advance/record_result/retry/delete/cleanup；V3 metadata/plan 只写既有 JSON 列，schema version 保持 2；
-- 同一 POST/GET/retry/DELETE URI 严格投影 V3；OpenAPI 精确包含三个 typed request 分支；V3 不调度尚未实现的 planning executor；
-- V3 replan 在 API 和 application service 的 create/decide/execute 路径前置拒绝，reserve、lookup、decision、executor、replan/decision/lineage/plan version 写入均为 0；
-- controlled adjacent guard 使既有 Provider planning/replanning 对 V3 显式 fail closed，不实现或调用 V3 Provider；对应离线回归 `33 passed`；
-- 新增 Step 3 集合 `31 passed`；Repository/API/replan 相关 legacy/V2/V3 回归 `170 passed`；SQLite API 重启/兼容回归 `17 passed`；
-- 全仓 Ruff format/lint 与 strict mypy 对 130 个文件通过；未修改 Schema/migration、依赖、lockfile、前端或真实 Provider 边界。
+- RED 首次因 `ProviderAttemptRuntime` 尚不存在而在 collection 失败；最小 GREEN 后 runtime + Amap/QWeather 定向 `121 passed`；
+- 新增显式 task-scoped runtime，独立持有 attempt 记录、Provider/任务额外预算、deadline、active peers 和 closed 状态，覆盖单 attempt timeout、注入式 delay、终态/取消/异常 close、peer cancel/drain 与 closed 后零新调用；
+- Amap/QWeather 保持单次 HTTP exchange，只输出安全 `ProviderError` 和规范化 `0..2s` Retry-After；不保留原始 header/body，不在 adapter 内 sleep/retry；DeepSeek 生产代码不变且 transport retry=0 回归通过；
+- Provider/DeepSeek/治理/既有编排回归 `378 passed`，domain/contracts `164 passed`；全 backend Ruff format/lint 与 strict mypy 136 files 通过；
+- 生产/测试范围为 8 个批准核心或受控相邻文件、净新增 859 行、未预期文件 0；没有 application planning service 接线，也未进入 API、Repository、SQLite、前端、Schema/migration、依赖或 Step 4。
 
-## Step 4：离线多城市 planning 与调用治理
+## Step 4：application 调用治理
 
-唯一目标：实现 V3 planning、按城市复用现有适配器和确定性编排，不进入前端。
+唯一目标：在 legacy/V2/V3 编排中统一逻辑调用、HTTP attempt、deadline、取消、peer drain、retry/fallback 停止顺序和同 shape 后端错误/时效投影。
 
 状态：`DONE`
 
-核心文件：
-
-- `backend/src/intelligent_travel_assistant/application/**` 中 planning/executor/scheduler 入口
-- `backend/src/intelligent_travel_assistant/adapters/**` 中现有 DeepSeek/QWeather/Amap 边界的必要泛化
-- bootstrap/app 的最小装配入口
-- 对应 application/provider/synthetic 测试与 fixture
-- 对应五份状态文档
-
-验证重点：
-
-- 城市解析 ≤ C、POI ≤ 3C、forecast ≤ C、alert ≤ C；
-- generation 1、repair 1、route 并发 2、route ≤ min(28, 4D)；
-- 城市 fan-out 并发 2、deadline ≤ 180 秒、intercity provider 调用 0；
-- timeout、取消、partial/failed、来源和隐私边界；
-- 默认测试阻断真实 Provider 和非 loopback 网络。
-
 完成结果：
 
-- TDD 首轮 RED 在 collection 阶段证明多城市编排器与 V3 governor 不存在；第二轮 RED 证明 proposal 日期校验仍只承认 V2；两项均以最小严格扩展转绿；
-- 新增独立 `MultiCityPlanningOrchestrator`，按城市复用既有 Amap/QWeather ports，并通过一个全局 DeepSeek proposal/repair 边界生成 V3 活动选择；
-- V3 proposal 强制逐日复制三个城市索引、限制当日 POI 城市，并由确定性代码注入用户城际段、60/30、120/60、45/30 缓冲、市内路线、活动时间、预算、来源和终态；
-- 城市解析 ≤ C、POI ≤ 3C、forecast/alert ≤ C、generation/repair 各 1、route ≤ min(28,4D)、城市 fan-out/route 并发均为 2、deadline 为 180 秒；取消后 route active 收敛为 0；
-- V3 repair 不接收原始模型输出、自由文本、兴趣或硬约束；model context 不包含用户站点、城际段原文或票价；城际 Provider port/adapter/调用保持 0；
-- 现有 executor 和同 URI create/retry 已调度 V3；无完整 Provider 组合时仍不启用 executor；legacy/V2 路径与 shape 保持；
-- Step 4 新增测试 `9 passed`；application 全目录 `505 passed`，API/contracts/持久化相关 `141 passed`，bootstrap `22 passed`，DeepSeek/parser 相邻 `102 passed`；
-- Ruff format/lint、strict mypy 与 `git diff --check` 通过；未修改 schema/migration、Repository 方法集合、依赖、lockfile、前端或真实 Provider 边界。
+- RED 1：legacy/V2/V3 新接线测试首次因 orchestrator/executor 尚不接受显式 runtime 参数而 4 项失败；RED 2：过期天气仍进入计划投影，证明旧路径未消费 freshness 决策；
+- 每个 planning attempt 由 executor 创建一个 runtime，并在 Repository/API 终态发布前 close；legacy/V2/V3、DeepSeek generation/repair、城市事实、天气/预警和路线复用同一实例；
+- 逻辑 governor permit 只计一次，HTTP retry 独立计 attempt；deadline 不足时不启动 HTTP，并以既有 `provider_timeout` + 安全 diagnostic 投影；并发城市/路线异常或取消会 cancel/drain peers；
+- retry 完成后才裁决 route fallback；stale required route 直接 failed，不触发 mode fallback；stale weather/alert 从 planning/model/UI payload 剔除并形成 partial；unknown-validity 不再提升 V3 ready；
+- 同 URI、同 JSON keys、既有顶层 error code 保持；复用 `data_stale`、`retryable` 和安全 diagnostic code，Repository/SQLite schema 与 migration 未变；
+- 定向 runtime/application 回归 `60 passed`，完整 backend `1264 passed`；Ruff format/lint 与 strict mypy 136 files 通过；文档、diff 与范围门禁见 Step 4 evidence；
+- 未进入 Agent eval、前端、Schema/migration、依赖/lockfile、真实 Provider、外部网络、commit、push、PR 或远程 CI。
 
-## Step 5：前端多城市交互与离线恢复
+## Step 5：Agent 安全与离线评估
 
-唯一目标：实现最小多城市编辑器、严格 V3 解析、结果展示和重启恢复，不扩展产品范围。
+唯一目标：统一 proposal/repair 输入最小化与 Provider 不可信文本隔离，并建立达到批准阈值的固定离线 Agent eval 门禁。
 
 状态：`DONE`
 
-核心文件：
-
-- `frontend/src/tripRequest.ts`
-- `frontend/src/TripRequestForm.tsx`
-- `frontend/src/tripPlanningApi.ts`
-- `frontend/src/tripPlanModels.ts`
-- `frontend/src/TripPlanResult.tsx`
-- `frontend/src/App.tsx`
-- 必要样式、对应测试和 synthetic fixture
-- 对应五份状态文档
-
-验证重点：
-
-- 2/3 城市卡、住宿夜数、相邻城际段与字段级错误；
-- 城市排序只由用户编辑；
-- 转移日、缓冲、user_provided/unknown、partial 和来源展示；
-- 已保存 V3 离线读取与重启恢复；
-- desktop/390px、键盘、焦点、可访问名称和无水平溢出；
-- 不显示 ¥0 unknown，不把 partial 显示为 ready。
-
 完成结果：
 
-- 首轮 RED 中既有 parser 以 `response_invalid` 拒绝严格 V3 response，表单不存在多城市 scope 与卡片；其余既有前端 `88 passed`；
-- 独立 V3 请求/计划/响应 typed 变体与严格 parser 已覆盖 tag、城市/日期/夜数、日城市连续性、站点/段/source 引用、用户来源、unknown 与 terminal fail-closed；legacy/V2 解析和 JSON 形状保持；
-- 表单默认单城市，只有显式选择多城市才提交 V3；支持 2/3 城、用户上移/下移、删除第三城、夜数差额、相邻段、派生转移日、+08:00、三种缓冲、字段首错与固定未核验披露；排序后清空全部相邻段；
-- 结果页显示有序城市路线、停留、日城市、独立城际段/市内路线、缓冲、user_provided/unknown、partial、来源和固定无 replan 说明；unknown cost 行显示“未知”，不显示为 `¥0`；
-- V3 创建后只在本机 `localStorage` 保存非敏感 job UUID 指针；应用重启用同源 GET 读取 SQLite 权威快照并直接恢复结果，损坏/未知响应进入安全错误且不删除服务端记录；legacy/V2 不写该指针；
-- Step 5 专项 `7 passed`，前端全量 `95 passed`；Prettier check、ESLint、TypeScript 和 Vite build 通过；未修改依赖/lockfile、schema/migration、后端或 Provider 边界；
-- desktop/390px 真实浏览器、0 overflow、console/network、临时 SQLite create/read/restart/retry/delete 和独立隐私/兼容审查仍严格保留给 Step 6。
+- RED：repair 最小化测试首次在 collection 因 `PlanRepairBrief` 不存在失败，证明旧端口仍依赖完整 `PlanningContext + invalid_output`；
+- legacy/V2/V3 repair 现只接收 frozen/slotted `PlanRepairBrief`：日期/城市/窗口骨架、允许 location/source 目录、稳定 validation code 与可选无值 time failure；不再包含原始模型输出、完整 context、自由文本、preferences、hard constraints 或 Provider observations；
+- generation/repair payload 对 Provider label 执行 120 字、单行、控制符和提示标记门禁，对 category/kind 只接受项目 token；adapter 在发送边界再次过滤，unsafe label 只变为 `null`，不进入 Prompt；
+- 新增严格版本化 `f005-v1` 离线 eval：legacy/V2/V3/F-003 各 12 case，各 slice 四类各 3 case；连续确定性执行两次，六维加权 100.0%，五类硬门禁零失败；报告只含聚合计数和失败 case ID；
+- 定向 Agent/adapter/ports/eval `127 passed`，完整 backend `1270 passed`；Ruff format/lint、strict mypy 137 source files 与 eval 4 files 通过；
+- task 累计生产/测试/eval 36 文件、净新增 3421 行；按已批准 stack 归属估算 Stack 3 净新增 1706 行，均低于阈值；
+- 未进入前端、Schema/migration、依赖/lockfile、真实 Provider、外部网络、数据库、commit、push、PR、CI 或 Step 6。
 
-## Step 6：纵向验收与独立审查
+## Step 6：前端失败体验
 
-唯一目标：只用临时 SQLite 和 loopback synthetic executor 完成端到端验证、视觉 QA、隐私与兼容审查。
+唯一目标：消费 Step 4 已冻结的同 shape 后端结果，统一 data_stale、retryable、partial/failed 和恢复动作展示，不新增或推导服务端语义。
 
 状态：`DONE`
 
-核心文件：
+完成结果：
 
-- 已冻结的后端/前端纵向测试与 fixture
-- loopback synthetic UAT 脚本或既有验收入口
-- 对应五份状态文档
+- RED：新增同 shape 前端用例后，鉴权仍显示通用失败标题、错误沿服务端数组顺序展示、`data_stale` 仍使用通用 retry 文案、unknown-validity 未明确“不代表当前有效”，定向 30 项中 4 项按预期失败；
+- GREEN：`ResultEvidence` 只根据既有 error code/freshness 字段显示固定配置、暂时失败、stale 与不可安全使用语义，并按“输入→冲突→配置→暂时失败→stale→不可重试”排序；没有重算 freshness、Provider 关键性或终态；
+- failed 鉴权显示“本机服务配置需要检查”且不提供 retry；timeout/rate/unavailable 仍只在服务端 `retryable=true && attempt<3` 时使用既有 job retry；partial stale 使用“重新获取数据”，unknown-validity 明示“不代表当前有效”且不单独创造 retry；
+- legacy/V2/V3 继续使用 strict exact-shape parser，unknown 金额和多城市用户城际来源语义不变；定向 30 项、前端全量 99 项、Prettier、ESLint、TypeScript、Vite build 及无 SQLite 的后端 API/contracts 兼容 98 项通过；
+- 本 Step 仅修改 3 个批准生产组件及 3 个对应测试，`+290/-60`、净新增 230 行、未预期文件 0；任务累计 42 个生产/测试/eval 文件、净新增 3651 行，未触发阈值；
+- 未进入临时 SQLite、浏览器、Schema/migration、依赖/lockfile、真实 Provider、外部网络、数据库、commit、push、PR、CI 或 Step 7。
 
-验证重点：
+## Step 7：纵向与独立审查
 
-- V3 创建 → 查询 → 重启读取 → retry → DELETE；
-- 2 城/3 城和五种终态；
-- SQLite 重启、幂等、并发、保留期；
-- legacy/V2 纵向回归；
-- V3 replan 拒绝；
-- 浏览器 console、网络 origin、desktop/390px 和 accessibility；
-- 无真实数据库、秘密、Provider 或非 loopback 网络。
+唯一目标：完成临时 SQLite、loopback synthetic desktop/390px、网络/console/accessibility 和独立隐私安全审查。
+
+状态：`DONE`；结论含已披露过程偏差，不构成无条件 PASS
 
 完成结果：
 
-- 新增仅测试使用的 loopback 组合根和临时 SQLite API 纵向；数据库路径必须是系统临时目录内、启动前不存在的绝对文件，测试结束和浏览器进程关闭后已按精确路径清理；
-- V3 create/read/restart/retry/delete、幂等、2/3 城、五终态和 V3 replan 前置拒绝通过；retry attempt 2 为 job 唯一 source/plan identity 生成新标识，不修改 schema v2 的既有唯一性；
-- 真实 Vite → FastAPI → SQLite → synthetic executor 浏览器闭环在 `1440×1000` 与 `390×844` 通过；窄屏横向溢出为 0，页面 console error/warning 为 0，动态/静态请求共 58 条且全部为 `127.0.0.1`；
-- 键盘验证覆盖第三日导航、skip link、删除/新增第三城与焦点恢复；DOM 审计为 duplicate id 0、无效 ARIA 引用 0、无可访问名称交互项 0、H1 1、live region 3；刷新后仅凭本机 job UUID 恢复 SQLite 权威结果；
-- 浏览器实测发现“新增第三城”后触发按钮失效导致焦点落到 body；先补 RED 测试，再把焦点移到新城市输入，专项和前端全量转绿；
-- 相关后端纵向 `45 passed`，前端全量 `95 passed`；触及文件 Ruff 与 strict mypy、ESLint、TypeScript 均通过；
-- 独立 diff 安全审查 scan `efd6640a-731a-47ce-b4e8-58bf3931d5dc` 覆盖 36 个生产文件 review item、6 个信任面，结论 complete / 0 finding；TAC advisory 因 connector 未登录无法读取，不影响本地审查，但不应表述为 TAC 已验证；
-- 未读取 `.env.local`、秘密或本地 Provider 配置，未调用 DeepSeek、高德、和风、城际 Provider 或非 loopback 服务；未修改 schema/migration、依赖/lockfile，未 commit/push/PR/merge；
-- Step 7 全量门禁与四层 stacked PR 交付仍未授权、未执行。
+- 临时 schema v2 SQLite 纵向最终 `31 passed`；日期漂移以测试 RED 锁定后，只在 browser 支撑中用显式 `ITA_BROWSER_START_DATE` 平移冻结日期，未改变默认 fixture、生产 contracts、Repository、Schema 或 migration；
+- Edge 在 desktop `1440×1000` 与 mobile `390×844` 完成 V3 partial、keyboard/skip link、retry、reload、unknown/null 和时效披露；overflow、DOM/ARIA、console 均通过，浏览器 57 条请求全为 loopback；
+- 临时数据库 migration 仍为 1/2，秘密、原始响应/Prompt、运行诊断模式扫描为 0；三份精确临时文件移入可恢复的回收站；
+- Codex Security scan `c0d1100d-227b-4572-aa5a-769cb0689541` 覆盖 8 个信任面、coverage complete、0 finding；定向 `365 passed`、SQLite `31 passed`、Ruff 与项目权威 strict mypy 137 files 通过；
+- 仅受控修改 2 个测试文件、净新增 59 行；任务累计 44 文件/3710 净新增行，未触发阈值；未修改生产源码、Schema/migration、依赖/lockfile或交付状态；
+- 首次 `npx --yes @playwright/cli@latest --help` 可能查询 npm registry，后续均为 `npx --offline`。该过程偏差已永久记录，因此 Step 7 不记为无条件 PASS；用户已明确接受该偏差。
 
-## Step 7：全量门禁与 stacked PR 交付
+## Step 8：全量门禁与 stacked PR
 
-唯一目标：运行完整本地门禁，按四层拓扑精确提交、push、创建 PR、clean-restack、review 和 CI。
+唯一目标：完成本地全量门禁、五层 stacked PR、逐层独立 review 和远程 CI，不合并。
 
-状态：`DONE`。
+状态：`ACTIVE`
 
-核心范围：
+Step 8 批准修订：用户已接受 Codex CLI 全局插件外连失败偏差，并批准在原 application/Agent 层与 UI 层之间新增 `feat/f-005-agent-eval-integration`。该层只能让 legacy/V2/V3/F-003 的终态、来源、unknown/partial 和调用预算评估经过各自真实离线 application 入口，不得扩大生产/API/Provider/Schema/依赖边界；最终拓扑为 domain → provider runtime → application/Agent → application eval integration → UI/delivery。
 
-1. `feat/f-004b1-multicity-domain-contracts`
-2. `feat/f-004b1-multicity-persistence-api`
-3. `feat/f-004b1-multicity-planning`
-4. `feat/f-004b1-multicity-ui-delivery`
+## Step 9：依序合并与归档
 
-验证重点：
+唯一目标：依序合并、必要 clean-restack、完整 main CI、归档和任务关闭。
 
-- backend/frontend/docs 全量门禁；
-- 每层 diff、文件数、净新增行、依赖方向和秘密扫描；
-- 单层 ≤ 30 个生产/测试文件且净新增 ≤ 2500 行；
-- 前层 squash 后从最新 main clean restack，只移植下一层净变更；
-- 不 force-push 重写已审查历史；
-- 每层 PR/CI/review 成功。
+状态：`TODO`
 
-完成结果：
+## 全局禁止与停止条件
 
-- 统一入口最终通过：Ruff format/lint、strict mypy 134 files、backend `1166 passed`、frontend `10 files / 95 passed`、Prettier、ESLint、TypeScript、Vite build、文档检查器 `24 passed` 与 17 required/24 Markdown repository contracts；
-- 四层 Draft PR 已创建：#19 `main → domain-contracts`、#20 `domain-contracts → persistence-api`、#21 `persistence-api → planning`、#22 `planning → ui-delivery`；
-- 状态文档收口前的代码交付 head/CI 为 #19 `206bd9c` / `32379371761`、#20 `10f301d` / `32379662820`、#21 `de935c6` / `32379802803`、#22 `9239274` / `32379941695`，全部 `success`；
-- 首轮 #19 `32377941830` 与 #20 `32378099288` 的独立门禁失败已保留：V3 union 和测试辅助模块过早跨层，及第二层执行器未对 V3 fail closed；通过普通追加提交与逐层 merge 修正，未 force-push 或隐藏失败；
-- 四层生产/测试净新增分别为 1679、1393、2120、2497 行，单层文件数不超过 30；累计生产/测试净新增 7689 行，未触发重新切片；
-- 范围、依赖方向、added-line 秘密模式、Schema/migration、依赖/lockfile 和城际 Provider 文件复核通过；独立 review 未发现阻塞 finding；
-- 未读取秘密、调用真实 Provider、修改数据库、标记 PR ready、merge、运行 main CI 或归档。
-- 前层尚未 squash merge，因此 clean-restack 条件未触发；Step 8 如执行 squash 合并，才按冻结规则处理后续层。
-
-## Step 8：合并、main CI 与归档
-
-唯一目标：按依赖顺序合并四层交付，复核完整 main CI，并归档任务。
-
-状态：`DONE`。
-
-核心文件：
-
-- `docs/archive/task-cards/F-004B1-*.md` 新归档任务卡
-- roadmap、current-task、implementation-plan、progress、evidence、docs/README
-- 必要当前权威文档状态收口
-
-验证重点：
-
-- 四层按序合并且 commit/PR/CI 事实一致；
-- 完整 main CI 成功；
-- 归档只复制最终任务事实，不改写既有历史 evidence 或归档任务卡；
-- F-001 PARTIAL、Step 45M FAIL、Step 45T PASS、unknown、混合交通 fallback 仅离线、F-004A 无真实 Provider UAT 均保留；
-- current-task 关闭且 roadmap 无意外 ACTIVE 任务。
-
-完成结果：
-
-- PR #19、#23、#24、#25 已依序 squash merge为 `9f37e4f`、`712fd51`、`ec499fb`、`c1fecb0`；
-- #20/#21/#22 在父层 squash 后分别由 clean-restacked #23/#24/#25 替代并关闭；替代分支均从最新 main 创建且只 cherry-pick 所属层净提交，无 force-push；
-- 替代 PR CI `32382212012`、`32383225699`、`32384318796` 和各层 main CI `32381619737`、`32382625338`、`32383721748`、`32384768085` 全部成功；
-- 完整任务卡已归档，roadmap 不再有 ACTIVE 任务，current-task 已关闭；
-- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A/F-004B1 无真实 Provider UAT 均保留；
-- 未读取秘密、调用真实 Provider、修改 Schema/migration/依赖或删除历史证据。
-
-## 核心文件清单 + 受控相邻扩展
-
-一次 Step 批准覆盖：
-
-- 核心文件同层直接依赖；
-- 对应测试与 fixture；
-- 仅为当前 Step 门禁通过所需的机械修复；
-- `current-task.md`、`implementation-plan.md`、`progress.md`、`evidence.md`、`docs/README.md` 状态收口；
-- 该 Step 已批准边界要求同步的权威设计文档。
-
-以下不属于相邻扩展，必须停止：
-
-- 改变冻结产品或公开 API 语义；
-- Schema/migration、新依赖、新 Provider、数据或隐私变化；
-- 秘密读取、真实 Provider 或未批准外部服务；
-- 跨 Step/stack、历史 evidence 或归档任务卡修改；
-- 单 Step 超过 5 个未预期生产/测试文件；
-- 单 stack 超过 30 个生产/测试文件或净新增 2500 行；
-- 总任务超过 90 个生产/测试文件或净新增 8000 行。
-
-## 全程固定边界
-
-- F-001 产品状态保持 `PARTIAL`；
-- Step 45M `FAIL` 和 Step 45T `PASS` 均保留；
-- unknown 金额不变为 0；
-- 混合交通 fallback 仅有离线证据；
-- F-004A 无真实 Provider UAT；
-- 不自动进入下一 Step；
-- 不扩大到 F-005 或 F-004B2。
+- 未经当前 Step 明确批准不得跨 Step 或 stack；
+- 不新增 Provider、Schema/migration、依赖、URI、公开 JSON 键、账号、遥测或公网服务；
+- 不读取 `.env.local`、秘密或本地 Provider 配置，不执行真实 Provider UAT；
+- 不改写历史 evidence 或归档任务卡；
+- 单 Step 超过 5 个未预期生产/测试文件、单 stack 超过 30 文件或 2500 净新增行、任务累计超过 90 文件或 8000 净新增行时停止；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1 无真实 Provider UAT 和城际 Provider 调用 0 保持不变。

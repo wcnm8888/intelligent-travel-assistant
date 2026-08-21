@@ -1,4 +1,4 @@
-import type { TripPlanResponseDto } from "./tripPlanningApi";
+import type { ApiErrorDto, TripPlanResponseDto } from "./tripPlanningApi";
 import type {
   DataFreshness,
   ProviderName,
@@ -33,9 +33,11 @@ function SourceRow({ source }: { source: SourceRecordDto }) {
       <div className="source-time">
         <span>获取于 {formatTimestamp(source.fetched_at)}</span>
         <small>
-          {source.valid_until
-            ? `有效至 ${formatTimestamp(source.valid_until)}`
-            : "未提供有效截止时间"}
+          {source.freshness === "unknown_validity"
+            ? "有效期未知，不代表当前有效"
+            : source.valid_until
+              ? `有效至 ${formatTimestamp(source.valid_until)}`
+              : "未提供有效截止时间"}
         </small>
       </div>
       <span className={`freshness freshness--${source.freshness}`}>
@@ -136,63 +138,134 @@ export function ResultDiagnostics({
     response.errors.length > 0;
   if (!hasDiagnostics) return null;
 
+  const diagnostics = [
+    ...response.errors.map((value, index) => ({
+      kind: "error" as const,
+      value,
+      index,
+      priority: errorPriority(value),
+    })),
+    ...response.violations.map((value, index) => ({
+      kind: "violation" as const,
+      value,
+      index,
+      priority: 1,
+    })),
+    ...response.uncertainties.map((value, index) => ({
+      kind: "uncertainty" as const,
+      value,
+      index,
+      priority: 4,
+    })),
+    ...response.warnings.map((value, index) => ({
+      kind: "warning" as const,
+      value,
+      index,
+      priority: 6,
+    })),
+  ].sort(
+    (left, right) => left.priority - right.priority || left.index - right.index,
+  );
+
   return (
     <section className="result-section" aria-labelledby="diagnostics-title">
       <h3 id="diagnostics-title">数据与校验说明</h3>
       <div className="diagnostic-list">
-        {response.violations.map((violation, index) => (
-          <article
-            className={`diagnostic-card diagnostic-card--${violation.severity}`}
-            key={`violation-${violation.code}-${index}`}
-          >
-            <span>确定性冲突</span>
-            <strong>{violation.message}</strong>
-            <small>
-              {violation.code} · 影响 {violation.affected_refs.length} 项引用
-            </small>
-          </article>
-        ))}
-        {response.uncertainties.map((uncertainty, index) => (
-          <article
-            className="diagnostic-card diagnostic-card--uncertain"
-            key={`uncertainty-${uncertainty.code}-${index}`}
-          >
-            <span>数据不确定</span>
-            <strong>{uncertainty.message}</strong>
-            <small>
-              {uncertainty.code} · {uncertainty.source_ids.length} 个来源引用
-            </small>
-          </article>
-        ))}
-        {response.errors.map((error, index) => (
-          <article
-            className="diagnostic-card diagnostic-card--error"
-            key={`error-${error.code}-${index}`}
-          >
-            <span>{error.retryable ? "可安全重试" : "需要调整或确认"}</span>
-            <strong>{error.message}</strong>
-            <small>
-              {error.code} ·{" "}
-              {error.provider
-                ? (PROVIDER_LABELS[error.provider as ProviderName] ??
-                  "相关服务")
-                : "系统校验"}
-              {error.field ? ` · 字段 ${error.field}` : ""}
-            </small>
-          </article>
-        ))}
-        {response.warnings.map((warning, index) => (
-          <article
-            className="diagnostic-card diagnostic-card--warning"
-            key={`warning-${index}`}
-          >
-            <span>结果提示</span>
-            <strong>{warning}</strong>
-          </article>
-        ))}
+        {diagnostics.map((diagnostic) => {
+          if (diagnostic.kind === "violation") {
+            const violation = diagnostic.value;
+            return (
+              <article
+                className={`diagnostic-card diagnostic-card--${violation.severity}`}
+                key={`violation-${violation.code}-${diagnostic.index}`}
+              >
+                <span>确定性冲突</span>
+                <strong>{violation.message}</strong>
+                <small>
+                  {violation.code} · 影响 {violation.affected_refs.length}{" "}
+                  项引用
+                </small>
+              </article>
+            );
+          }
+          if (diagnostic.kind === "uncertainty") {
+            const uncertainty = diagnostic.value;
+            return (
+              <article
+                className="diagnostic-card diagnostic-card--uncertain"
+                key={`uncertainty-${uncertainty.code}-${diagnostic.index}`}
+              >
+                <span>数据不确定</span>
+                <strong>{uncertainty.message}</strong>
+                <small>
+                  {uncertainty.code} · {uncertainty.source_ids.length}{" "}
+                  个来源引用
+                </small>
+              </article>
+            );
+          }
+          if (diagnostic.kind === "error") {
+            const error = diagnostic.value;
+            return (
+              <article
+                className="diagnostic-card diagnostic-card--error"
+                key={`error-${error.code}-${diagnostic.index}`}
+              >
+                <span>{errorPresentationLabel(error)}</span>
+                <strong>{error.message}</strong>
+                <small>
+                  {error.code} ·{" "}
+                  {error.provider
+                    ? (PROVIDER_LABELS[error.provider as ProviderName] ??
+                      "相关服务")
+                    : "系统校验"}
+                  {error.field ? ` · 字段 ${error.field}` : ""}
+                </small>
+              </article>
+            );
+          }
+          return (
+            <article
+              className="diagnostic-card diagnostic-card--warning"
+              key={`warning-${diagnostic.index}`}
+            >
+              <span>结果提示</span>
+              <strong>{diagnostic.value}</strong>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
+}
+
+const CONFIGURATION_ERROR_CODES = new Set([
+  "configuration_missing",
+  "provider_unauthorized",
+]);
+const TEMPORARY_ERROR_CODES = new Set([
+  "provider_rate_limited",
+  "provider_timeout",
+  "provider_unavailable",
+]);
+
+function errorPriority(error: ApiErrorDto): number {
+  if (error.code === "input_invalid" && error.field) return 0;
+  if (error.code === "constraint_conflict") return 1;
+  if (CONFIGURATION_ERROR_CODES.has(error.code)) return 2;
+  if (TEMPORARY_ERROR_CODES.has(error.code) && error.retryable) return 3;
+  if (error.code === "data_stale") return 4;
+  return 5;
+}
+
+function errorPresentationLabel(error: ApiErrorDto): string {
+  if (error.code === "input_invalid" && error.field) return "需要补充信息";
+  if (error.code === "constraint_conflict") return "确定性冲突";
+  if (CONFIGURATION_ERROR_CODES.has(error.code)) return "检查本机服务配置";
+  if (error.code === "data_stale") return "数据可能已经变化";
+  if (TEMPORARY_ERROR_CODES.has(error.code) && error.retryable)
+    return "可安全重试";
+  return "服务数据不可安全使用";
 }
 
 const TERMINAL_COPY = {
@@ -216,6 +289,13 @@ const TERMINAL_COPY = {
   },
 } as const;
 
+const CONFIGURATION_FAILURE_COPY = {
+  kicker: "规划未完成 · 本机配置需要检查",
+  heading: "本机服务配置需要检查",
+  symbol: "×",
+  lead: "服务端已安全停止调用；请检查本机对应服务配置后重新创建任务。",
+} as const;
+
 export function TerminalOutcome({
   response,
   onRetry,
@@ -231,7 +311,12 @@ export function TerminalOutcome({
     response.status !== "conflict"
   )
     return null;
-  const copy = TERMINAL_COPY[response.status];
+  const configurationFailure =
+    response.status === "failed" &&
+    response.errors.some((error) => CONFIGURATION_ERROR_CODES.has(error.code));
+  const copy = configurationFailure
+    ? CONFIGURATION_FAILURE_COPY
+    : TERMINAL_COPY[response.status];
   const canRetry =
     response.status === "failed" && response.retryable && response.attempt < 3;
   const editField =

@@ -415,7 +415,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-013：F-004B1 使用独立 V3 表达多城市与用户提供城际段
 
-- 状态：`APPROVED_AND_FROZEN`；F-004B1 Step 0–4 已完成，Step 5 等待单独批准
+- 状态：`IMPLEMENTED_REVIEWED_AND_DELIVERED`；F-004B1 Step 0–8 已完成并归档，PR #26 已合并，最终 main CI `32386260285` 成功
 - 日期：2026-08-20
 - 适用范围：F-004B1 中国大陆 2–3 城、用户提供的相邻城际段和完全离线约束
 - 替代关系：把 D-012 中尚未拆分的 F-004B 候选细分为 F-004B1 → F-005 → F-004B2；不改变 D-012 已交付的 F-004A 事实
@@ -449,7 +449,75 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ### 后果
 
-- Step 1 已冻结精确领域、API、Repository、Provider、测试和 UI 契约；这不构成 Step 2 实现授权；
+- Step 1 已冻结精确领域、API、Repository、Provider、测试和 UI 契约；Step 2–8 后续已依次实现、验证、交付并归档；
 - F-005 在 F-004B1 后优先处理既有外部服务韧性、时效和 Agent 评估；真实城际 Provider 进入后续 F-004B2，并重新批准数据源、条款、费用、留存和 live UAT；
 - 任一 migration v3、新依赖、新 Provider、隐私变化、真实调用或未批准外部服务都必须停止；
 - F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线以及 F-004A 无真实 Provider UAT 不受本决定改变。
+
+## D-014：F-005 统一外部服务韧性、数据时效与离线 Agent 评估
+
+- 状态：`APPROVED_AND_FROZEN`；F-005 Step 0–7 已完成，Step 7 与 Codex CLI 已披露过程偏差均由用户接受，当前执行 Step 8 五层交付
+- 日期：2026-08-21
+- 适用范围：既有 DeepSeek、高德、和风天气适配器及 legacy/V2/V3 planning、F-003 replan 兼容、API/UI 失败体验和完全离线 Agent 评估
+- 不适用：新 Provider、F-004B2、真实 Provider UAT、Schema/migration、依赖升级、生产高可用、遥测或公网服务
+
+### 产品和终态决策
+
+- `needs_input` 只用于用户能够修正的必要输入；`conflict` 只用于确定性硬约束；关键链路不能形成安全计划时为 `failed`；只有仍存在可执行计划时才能以 `partial` 保留非关键缺口；
+- ready 必须通过关键数据、来源、时效和确定性校验。缺失、过期或参与决策的未验证事实不得提升为 ready；
+- 鉴权、Provider Schema 漂移和空数据不自动重试。限流、timeout 和 5xx 在批准的自动重试耗尽后按关键性进入 failed 或 partial；
+- DeepSeek generation/repair 继续各最多一次；唯一语义 repair 后仍无效为不可自动重试的 `model_output_invalid`；
+- legacy/V2/V3 现有五终态、attempt 3 上限、同 URI API、F-003 replan lifecycle 和 V3 replan 前置拒绝不变。
+
+### 数据时效决策
+
+- 保留 `fetched_at` 作为来源获取/观测时间，不新增公开 `observed_at`；业务发生时间继续存在于具体 typed payload；
+- `valid_until` 只有真实合约或确定性规则能够证明时才填写；不虚构统一 TTL 或 Provider TTL；
+- freshness 由 `fetched_at`、`valid_until` 和显式 `evaluated_at` 计算；attribution 只证明来源，不证明 freshness、准确性或 availability；
+- stale 的关键路线事实不得继续支持已验证排程；天气、预警、POI、城市和住宿事实按能力剔除或披露为 partial；unknown validity 不得冒充 fresh；
+- D-013 已冻结的用户提供城际 availability 排除边界不变；用户来源不冒充 Provider 验证；unknown 金额继续为 `null`，不得按 0。
+
+### Provider retry、deadline 和 fallback 决策
+
+- Amap/QWeather 的幂等只读请求只对 timeout、5xx 和受控 429 最多额外尝试一次；DeepSeek 自动传输 retry 为 0；
+- 每个可重试逻辑调用最多 2 个 HTTP attempt；Amap 额外 attempt 最多 3、QWeather 最多 1、任务额外总计最多 4；
+- retry 使用注入式 full jitter `0–200ms`；合法 `Retry-After` 最多 2 秒；剩余任务 deadline 不足时不等待、不重试；
+- HTTP attempt 计入独立 attempt 预算和总 deadline，不增加既有逻辑工具预算；终态、取消、deadline 或预算耗尽后不得启动新调用，active peer 必须 cancel/drain；
+- 混合交通 fallback 只用于业务空结果或无 Provider error 的本地非法路线。auth、schema、timeout、rate limit、server 和 unknown 不触发 mode fallback；
+- 不新增 Provider；F-004B1 城际 Provider 调用继续恒为 0。
+
+### Agent 安全和评估决策
+
+- legacy/V2/V3 proposal/repair 都只使用 bounded、typed、allowlist 输入；repair 不接收原始无效模型输出、完整自由文本、Provider 原始响应或敏感内容；
+- Provider 内容先转换为项目自有类型；提示控制、非 allowlist 字段、tool/system 内容、目录外 POI/来源以及模型提供的终态、路线、费用可信状态和 Provider attribution 必须拒绝；
+- 建立至少 48 个完全离线 synthetic Agent eval case，覆盖 legacy/V2/V3/F-003、正常/边界/冲突/Provider 失败/stale/unknown 和至少 12 个攻击 case；
+- 安全、来源伪造、工具越权、预算超限和假 ready 为 100% 硬门禁；其余正确性、约束遵守、来源完整性、unknown/partial 真实性、工具预算、失败安全和重复确定性加权总分至少 95%；
+- 不使用 LLM-as-judge，不调用真实模型；eval 不能替代真实 Provider UAT。
+
+### API、隐私、测试与交付决策
+
+- 不新增 URI、公开顶层错误码或 JSON 键；复用既有 `data_stale` 和安全 `diagnostic_code`；legacy/V2/V3 shape、fingerprint、Repository 方法和 SQLite schema v2 保持兼容；
+- 诊断只允许结构化、脱敏、有限字段；不保存 Key/Token/Cookie/Authorization、完整 Prompt/自由文本、Provider 原始响应/错误 body、原始模型输出或异常堆栈；
+- 诊断不进入 SQLite；CI 只输出聚合分数和失败 case ID，不上传 case payload artifact；不新增账号、云同步、遥测或公网服务；
+- 必须覆盖 unit、contract、adapter、application、API、SQLite、frontend、browser 和安全测试，并使用 fake、MockTransport、synthetic fixture、临时 SQLite 和非 loopback 网络阻断；
+- 必须执行临时 SQLite、loopback desktop/390px、网络/console/accessibility 和独立隐私安全审查；这些证据保持离线标记；
+- 交付采用五层 stacked PR：`feat/f-005-resilience-domain-contracts` → `feat/f-005-provider-runtime` → `feat/f-005-application-agent-eval` → `feat/f-005-agent-eval-integration` → `feat/f-005-ui-delivery`；新增层仅允许 legacy/V2/V3/F-003 的固定 eval 经过各自真实离线 application 入口；前层 squash 后从最新 main clean-restack，不 force-push；
+- 单 Step 超过 5 个未预期生产/测试文件、单 stack 超过 30 文件或净新增 2500 行、任务累计超过 90 文件或净新增 8000 行时停止并重新拆分。
+
+### Step 1 冻结细化
+
+- 实现分为纯 `domain/resilience.py` 政策、显式 job-scoped `application/tooling/resilience.py` runtime 和单次交换 Provider adapter；禁止全局/context-local attempt 预算。initial attempt 不占额外预算，Amap/QWeather 每个逻辑调用最多 2 个 HTTP attempt，高德/和风/任务额外预算分别为 3/1/4；DeepSeek transport attempt 仍为 1。
+- timeout/5xx 使用注入式 `0–200ms` full jitter；429 只有合法 delta-seconds 或注入时钟可解析的 HTTP-date 且不超过 2 秒时可重试，最终 delay 不超过 2 秒。剩余 deadline 不足 delay 加完整单次 timeout 时不启动 retry；retry 保持同一逻辑 permit/并发槽。
+- task runtime 在 terminal/cancel/deadline/budget close 后拒绝新 attempt，cancel/drain 所有 active peers 后才能投影结果；planning job 用户级 retry 创建新 runtime，但不增加 attempt 3 上限。route fallback 必须发生在 retry 完成后，且只接受业务空结果或无 Provider error 的本地非法路线。
+- freshness 是 attempt 的评估快照：边界 `evaluated_at <= valid_until` 为 fresh，缺少有效期为 unknown；GET 原样返回持久化 snapshot，不按墙钟改写。stale 路线从排程候选移除，无替代时 failed；stale 天气/预警剔除，stale/unknown 地点事实最多 partial；归因和用户确认不能提升 freshness。
+- API 复用既有 `data_stale`，capability 仅以 `route_source_stale`、`location_source_stale`、`weather_forecast_stale`、`weather_alert_stale` 安全诊断区分；unknown-validity 继续使用现有 source/uncertainty，不伪装成 stale/fresh。顶层 retryable 表达原因可重跑，UI 另与 `attempt < 3` 组合。
+- generation 仅接收 strict typed allowlist context；Provider 原始响应和不受控文本不进入模型。repair 使用不含原始模型输出、自由文本、偏好、硬约束或 Provider observations 的 `PlanRepairBrief`，只携带日期/城市骨架、允许 location/source 目录、固定规则和稳定验证码。
+- eval 基线固定为 48 case：legacy/V2/V3/F-003 各 12，每组正常/边界、Provider 失败、freshness/unknown、安全攻击各 3，并重复运行两次。权重固定为正确性 25、约束 20、来源 15、unknown/partial 15、工具/attempt 10、失败安全 15；总分至少 95%，提示注入、来源伪造、工具越权、预算超限和假 ready 零失败。
+- 后端错误/时效投影与 Agent 输入安全归属 Stack 3；Stack 4 只负责真实离线 application eval 集成；Stack 5 只消费既有 shape 完成前端和交付验收。五层核心文件、测试矩阵、clean-restack 和原规模阈值以 current-task/testing-strategy 为准；任何端口公开化、Schema/依赖/API shape 或隐私变化都必须停止。
+
+### 后果
+
+- Step 0 只完成任务激活、治理、状态漂移修正和首层本地分支创建，不构成 Step 1 或任何实现授权；
+- Step 1 已冻结精确能力矩阵、DTO/执行政策、eval case 格式、测试地图和 stack 归属；Step 2–7 已按批准边界完成领域政策、attempt runtime、application 接线、Agent 输入安全、同 shape UI 与离线纵向审查；当前只执行 Step 8 五层交付，merge、最终 main CI、归档和任务关闭仍须 Step 9 单独批准；
+- 任一新 Provider、真实调用、Schema/migration、依赖、公开 API shape、数据留存或隐私变化都必须停止并取得新批准；
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1 无真实 Provider UAT 和 F-004B1 城际 Provider 调用 0 均保持。

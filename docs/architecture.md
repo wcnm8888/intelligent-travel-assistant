@@ -589,7 +589,7 @@ Provider 治理使用按任务构造的不可变 policy，不修改 legacy 默�
 
 Step 2–4 已依次落地多日领域/排程/终检、V2 contracts/Repository/API/schema v2 水合，以及 Provider 编排。组合根按请求创建不可变 `ToolCallGovernor`；legacy 默认 policy 不变，V2 3–7 日使用冻结路线预算和总期限。DeepSeek 只接收版本化完整日期上下文并继续输出无最终时间 proposal；QWeather 缺日只保留已验证日期并形成 partial；executor 生成 typed `TripPlanV2`，unknown 费用仍为空。该实现没有新增公开端点、Schema、migration、Provider 或依赖。
 
-### F-004B1 多城市与用户提供城际段架构（Step 4 planning/治理已实现）
+### F-004B1 多城市与用户提供城际段架构（Step 0–8 已实现并归档）
 
 F-004B1 在 legacy/V2 之外增加独立 V3 变体，不继承单城市请求或计划形状，也不改变现有 11 个 `PlanningStatus`。V3 仍经过 contract → application → domain → adapter → Repository 的既有依赖方向；城市顺序、城际段、日期连续性、缓冲、费用和终态均由 typed model 与确定性代码裁决，LLM 不能改写。
 
@@ -631,6 +631,70 @@ F-004B1 在 legacy/V2 之外增加独立 V3 变体，不继承单城市请求或
 - 四层交付保持 domain/contracts → persistence/API → planning → UI/delivery；Step 2 不进入 Repository/API，Step 3 不进入 Provider/UI，Step 4 不进入 UI，Step 5 才实现前端。
 
 Step 4 已按该边界实现独立 `MultiCityPlanningOrchestrator`。城市事实通过并发 2 的有界 fan-out 复用现有 Amap/QWeather ports，所有城市共享一个 governor 和一次全局 DeepSeek proposal/repair 预算；proposal 只包含逐日城市索引与 namespaced POI 引用，用户站点、城际段原文和 fare 不进入模型 payload。确定性应用层再注入用户段、缓冲、市内路线、活动时刻、预算、来源和 terminal。deadline 前置拒绝与取消 drain 已由离线测试证明；没有新增城际 port/adapter、Schema、migration、依赖或真实调用。
+
+F-004B1 后续 Step 5–8 已完成严格 V3 前端、schema v2 临时 SQLite 往返与重启恢复、loopback desktop/390px、网络/console/accessibility、独立隐私兼容审查、四层 stacked PR 和归档。最终归档 main 为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，CI run `32386260285` 成功；这些仍是 synthetic/离线证据，不构成真实 Provider UAT。当前 F-005 只在既有三家 Provider 与同一架构边界内处理韧性、时效和离线 Agent 评估，不新增 Provider、Schema、依赖或公开 API shape。
+
+## F-005 韧性执行架构（Step 1 冻结）
+
+### 纯政策、任务级运行态与适配器边界
+
+F-005 采用三层显式组合，不把 retry 隐藏在全局 HTTP client 或 Provider adapter 单例中：
+
+1. `domain/resilience.py` 保存 Provider operation、事实关键性、失败处置、freshness 使用和 retry schedule 的纯值对象/纯函数；`provider_result.py` 只扩展安全、可选、非公开的 `retry_after_seconds`，不引入框架依赖；
+2. `application/tooling/resilience.py` 保存每个 planning attempt 新建的 `ProviderAttemptBudget`、可注入 clock/sleeper/random 和 attempt executor；预算对象经现有编排调用链显式传递，禁止 module global、`contextvars` 或跨 job 共享可变状态；
+3. 高德/和风 adapter 继续只负责一次 HTTP 交换、Schema/单位/时区转换和安全错误规范化。429 的 `Retry-After` 在 adapter 边界解析为最多 2 秒的数值，不保存原始 header；DeepSeek 保持一次 generation transport 和一次 repair transport，不接入传输 retry。
+
+生产调用顺序固定为：
+
+```text
+logical governor reserve
+→ initial HTTP attempt
+→ classify ProviderResult
+→ 可重试且额外预算、task deadline、terminal/cancel 均允许
+→ reserve extra-attempt slot
+→ injected delay
+→ 最多一次 retry attempt
+→ logical governor complete
+→ capability/freshness disposition
+→ deterministic validation / terminal projection
+```
+
+- initial attempt 不占“额外 attempt”预算；retry slot 以 Provider 和任务两个计数原子预留。高德最多 3、和风最多 1、任务合计最多 4；每个逻辑调用最多 2 个实际 HTTP attempt。
+- timeout/5xx 的 delay 为注入式 full jitter `0–200ms`。429 只有合法 delta-seconds 或可由注入式 UTC clock 计算的 HTTP-date 且结果在 `0..2s` 内才属于受控限流；最终 delay 为 `min(2s, Retry-After + jitter)`，缺失、非法或超界时不自动重试。
+- 只重放完全相同的 immutable typed、幂等只读请求。retry 保持原逻辑 permit 和原并发槽，不增加逻辑工具计数，也不扩大 route/city fan-out 并发。
+- Amap/QWeather 每个 HTTP attempt 最多沿用现有 6 秒 timeout；DeepSeek 沿用 35 秒。attempt timeout、delay 和第二 attempt 都计入现有任务总 deadline；剩余时限不足以覆盖下一 delay 和该 Provider 的完整单次 timeout 时不启动 retry。
+- 取消发生在 delay 或 HTTP 中时立即传播；未启动的 retry 为 0。终态、任务取消、deadline 或预算关闭先关闭 task runtime，再 cancel/drain active peers；返回 Repository/API 前 active peer 必须为 0。
+- planning job 的用户级 retry 会创建新的 task-scoped attempt budget；它不改变现有最多 3 个 planning attempt。F-003 replan 与 planning retry 继续隔离，V3 replan 在创建 runtime 之前拒绝。
+
+安全内存诊断只包含 trace ID、Provider/operation 枚举、逻辑调用和 attempt 序号、稳定错误码、retry 决策、有限毫秒耗时以及来源/预算计数。它不进入 domain result、公开 JSON、SQLite 或 CI artifact；原始 header、URL query、请求/响应 body、Prompt、异常文本和堆栈不得进入诊断。
+
+### 能力关键性与失败处置矩阵
+
+| 能力/事实 | 成为最终计划所需时 | 未被最终采用或可选时 |
+| --- | --- | --- |
+| 城市解析、住宿锚点、V3 站点解析 | 失败且用户不能通过补充/消歧修正时 `failed`；可消歧输入才 `needs_input` | 未使用候选不投影 |
+| POI/活动候选 | 无法形成当天最小可执行活动集合时 `failed` | 个别候选缺失可丢弃；仍有可执行计划时 `partial` |
+| 最终采用的市内路线 | 无合法事实时 `failed`；已知路线使窗口不可满足时 `conflict` | 未采用候选不投影；fallback 只按既有业务空/本地非法边界 |
+| 天气预报、当前预警 | 不阻断骨架计划，但缺失/不可安全使用时 `partial` | 从计划事实和模型上下文剔除并披露缺口 |
+| DeepSeek proposal/repair | generation 失败或唯一 repair 后仍非法为不可自动重试 `failed` | 模型不能提供终态、路线、费用可信状态或 attribution |
+
+Provider auth/schema/empty/unknown 不自动重试；timeout/5xx/受控 429 只在上表所列内部 attempt 政策下重试。retry 耗尽后按能力关键性形成 `failed` 或 `partial`。Provider failure 本身不产生 `needs_input` 或 `conflict`；这两个终态只能由输入裁决或确定性规则产生。
+
+### freshness 快照与使用矩阵
+
+`fetched_at` 是来源获取/观测时刻，业务事件时间保留在具体 typed payload；`valid_until` 只来自可证明合约或项目确定性规则。`freshness` 不是 Provider 声明，而是在 planning/replan attempt 的显式 `evaluated_at` 由 `fetched_at + valid_until` 计算的快照：`evaluated_at <= valid_until` 为 fresh，超过为 stale，缺少有效期为 unknown-validity；`evaluated_at < fetched_at` fail closed。
+
+| 数据能力 | fresh | stale | unknown-validity |
+| --- | --- | --- | --- |
+| 最终采用的路线 | 可进入排程 | 从候选中拒绝；无 fresh/unknown 替代时 `failed + data_stale` | 可进入排程但最高 `partial`，显示 validity unknown |
+| 城市、住宿、站点、POI | Schema/地理/引用校验通过后可用 | 只可作为明确披露的 partial 事实；无法形成必要目录时 failed | 可用但最高 partial |
+| 天气预报、当前预警 | 可显示并进入有限建议 | 从计划事实和模型输入剔除，保留 partial + `data_stale`；不得声称当前预警 | 可显示“有效期未知”，最高 partial |
+| DeepSeek proposal/repair | 仍须确定性校验 | 不适用 Provider TTL；不得伪造 fresh | 模型来源不能单独支持 ready，参与决策时保持 partial 边界 |
+| user/system | 只证明输入/规则来源 | 不按 Provider freshness 重分类 | D-013 的用户城际 availability 排除不变；其他 unknown 仍按既有规则裁决 |
+
+Repository 继续保存现有来源 freshness 快照并原样往返；GET 不按当前墙钟重新改写已完成计划。新 planning attempt 或获批准 replan 使用新的 `evaluated_at` 重算实际重新取用的来源，不能把复用来源、归因或用户确认提升为 fresh。
+
+Step 5 已在该架构内完成 Agent 边界收窄：legacy/V2/V3 repair 仅接收日期/城市/窗口骨架、允许 location/source 目录和稳定无值诊断组成的 `PlanRepairBrief`，不再回传原始模型输出、完整 planning context、自由文本或 Provider observation。generation builder 与 DeepSeek adapter 对 Provider display label/category token 实施双层 allowlist；固定 48-case 离线 eval 两次确定性执行，加权分 `100.0` 且五类安全硬门禁失败为 0。实现未改变公开 API、Repository/SQLite、Schema、依赖或 Provider 调用边界，也不构成 live UAT。
 
 ## 错误与降级
 

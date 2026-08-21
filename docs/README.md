@@ -8,7 +8,7 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-004B1 Step 0–8 已完成归档）
+- 当前任务：[current-task.md](./project-management/current-task.md)（F-005 ACTIVE；Step 0–7 已完成，Step 7 过程偏差已由用户接受，Step 8 交付中）
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -90,7 +90,16 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：无
+- 当前活动任务：F-005 外部服务韧性、数据时效与 Agent 评估
+- 当前 Step 8；状态 ACTIVE，用户已明确接受 Step 7 的 `npx` 非 loopback 过程偏差并批准本 Step
+- F-005 Step 0 已完成：最终 Git/PR/CI 和无活动任务基线已复核，完整任务卡、Step 0–9、D-014、四层 stacked PR 与规模治理已收口；已创建首层本地分支，没有 commit、push、PR、远程 CI、源码、测试、数据库、秘密读取或 Provider 调用
+- F-005 Step 1 已完成设计冻结：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、Amap/QWeather retry/deadline/取消、DeepSeek bounded proposal/repair、48-case 离线 eval、同 shape API/UI、分层测试和四层 stack 归属已收口；未修改生产源码、测试、Schema、migration、依赖或 lockfile，未进入 Step 2
+- F-005 Step 2 已按 TDD 实现纯领域安全扩展：`ProviderError` 支持仅限 rate-limit 的 `0..2s` 安全 Retry-After，新增 Provider/operation schedule、jitter/预算/deadline retry 决策、逐能力 freshness/失败处置和闭集诊断；定向 108 项、domain/contracts golden 342 项及全 backend Ruff/mypy 通过，尚未接入 adapter 或 application runtime
+- F-005 Step 3 已实现显式 task-scoped attempt runtime 与 Amap/QWeather 安全错误输入：runtime 覆盖 attempt timeout、额外预算、deadline、取消/异常 close、peer drain 和终态零新调用；adapter 仍为单次 HTTP exchange 且只保留规范化 `0..2s` Retry-After。定向 121 项、Provider/治理兼容 378 项、domain/contracts 164 项和全 backend Ruff/mypy 通过，尚未接入 application planning service
+- F-005 Step 4 已完成 legacy/V2/V3 application runtime 接线、deadline 前置拒绝、取消/peer drain、retry→fallback→stop 和同 shape 投影：stale required route failed、stale weather/alert 剔除并 partial、unknown-validity 不提升 ready；全 backend 1264 项及 Ruff/mypy 通过，未进入 Agent eval 或前端
+- F-005 Step 5 已实现 legacy/V2/V3 共用的 bounded `PlanRepairBrief`、generation/repair Provider 文本双层门禁和固定离线 Agent eval；48 case 两次运行一致、加权分 100、五类硬门禁失败均为 0，全 backend 1270 项及 Ruff/mypy 通过；该证据不构成真实 Provider/模型 UAT，未进入前端
+- F-005 Step 6 已按现有 shape 实现鉴权配置、暂时失败、stale、unknown-validity、固定错误排序和恢复动作展示；前端全量 99 项及 Prettier/ESLint/TypeScript/build 通过，未进入临时 SQLite 或浏览器 QA
+- F-005 Step 7 已完成临时 schema v2 SQLite `31 passed`、Edge desktop/390px loopback synthetic QA、network/console/accessibility 和独立隐私安全审查；浏览器 57 条请求全为 loopback，Codex Security 覆盖 8 个信任面且 0 finding。首次 Playwright CLI `npx` 探测可能查询 npm registry，后续全部离线；该过程偏差已披露并由用户接受，因此仍不把 Step 7 记为无条件 PASS
 - 最近完成：F-004B1 多城市领域、用户提供的城际段与离线约束；Step 0–8 全部 DONE，任务已归档
 - F-004B1 Step 0 已完成：归档基线、PR/CI、无活动任务和干净工作区已复核，任务卡/Step 0–8/roadmap/D-013 已收口，并已创建首层本地分支；没有提交、push、PR、源码、测试、数据库或外部调用
 - F-004B1 Step 1 已完成设计冻结：独立 V3 DTO、城市/夜数/用户段/缓冲/终态、同 URI API、Repository/schema v2、全 V3 replan 前置拒绝、Provider 治理、前端和测试矩阵已收口；尚未实现代码或测试
@@ -100,7 +109,7 @@ AGENTS.md
 - F-004B1 Step 5 已实现默认单城市/显式多城市表单、2/3 城及相邻段编辑、严格 V3 parser、独立多城市结果和本机 job UUID 重启恢复；前端 95 项与静态/build 门禁通过，真实 desktop/390px 与临时 SQLite 纵向仍属于 Step 6
 - F-004B1 Step 6 已完成临时 SQLite create/read/restart/retry/delete、2/3 城与五终态纵向；真实 loopback 浏览器覆盖 desktop/390px、重启恢复、键盘焦点、零横向溢出、零 console error/warning、无障碍引用与仅 loopback 网络。独立隐私/兼容审查覆盖 36 个生产文件变更项且无可报告 finding；证据仍为 synthetic，不代表真实 Provider UAT
 - F-004B1 Step 7 已完成全量门禁和四层 stacked Draft PR #19/#20/#21/#22；最终 CI runs `32379371761`、`32379662820`、`32379802803`、`32379941695` 全部成功。首轮 #19/#20 分层 CI 失败已如实保留并以普通追加提交修正，无 force-push；Step 7 收口时四 PR 尚未 merge
-- F-004B1 Step 8 已完成 clean-restack、依序 squash merge、完整功能 main CI 与归档：PR #19/#23/#24/#25 已合并，#20/#21/#22 由干净替代 PR 替换并关闭；完整功能 main `c1fecb0`、CI run `32384768085` 通过
+- F-004B1 Step 8 已完成 clean-restack、依序 squash merge、完整功能 main CI 与归档：PR #19/#23/#24/#25 已合并，#20/#21/#22 由干净替代 PR 替换并关闭；归档 PR #26 已合并，最终 main `c5f07e1`、归档 main CI run `32386260285` 通过
 - F-004B1 沿用“核心清单 + 受控相邻扩展”：一次 Step 批准覆盖直接依赖、对应测试/fixture、机械门禁修复和五份状态文档；产品/API 语义、Schema/migration、依赖、隐私、外部访问、跨 Step/stack 和规模扩张仍需新确认
 - F-004A 已完成多日领域基础、version 2 contracts、Repository/API 兼容、schema v2 SQLite 重启恢复、离线多日 Provider 编排、前端多日交互、临时 SQLite 纵向和真实本机 synthetic 浏览器验收；PR #13/#16/#17 已依序合并，完整功能 main CI run `32359762190` 通过；不包含多城市、城际 Provider、版本恢复或真实 Provider 验收
 - F-003 已交付并归档：单城市双日范围内支持四种结构化修改、确定性影响分析、15 分钟高影响确认、独立 replan lifecycle、migration v2、独立 Repository、三个窄 API 和结果页内影响预览/确认；PR #7、#10、#11 已合并，完整功能 main CI run `31939222646` 通过
@@ -124,4 +133,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- 下一步：当前没有活动任务。等待用户从 roadmap 选择并批准下一任务卡；不得自动进入 F-005、F-004B2 或 F-006。F-001 `PARTIAL` 保持不变
+- 下一步：完成 F-005 Step 8 的本地全量门禁、五层 stacked PR、独立 review 和逐层远程 CI；新增 `feat/f-005-agent-eval-integration` 仅运行真实离线 application eval。不得 merge、clean-restack、运行最终 main CI、归档、进入 Step 9、F-004B2 或 F-006。F-001 `PARTIAL` 保持不变

@@ -353,7 +353,7 @@ result, change_set, errors, created_at, updated_at
 - 已启动的后台规划不是持久化任务队列，应用退出时不会自动续跑进行中的外部调用；重启只恢复最后一次已提交的任务、attempt、结果和版本快照；
 - 真实规划执行器只有在 DeepSeek、高德和和风三组配置全部就绪时启用；
 - Step 38 只取得一次 live 契约证据；Step 39 和补充 Step 45A、45C、45E 均未取得 ready/partial 真实计划 UAT；Step 45H 已实现确定性调度器但只具备离线证据，不构成新的 live UAT 通过；
-- SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。F-003 Step 5 已实现三个可注入的 replan 端点、严格 DTO 和安全错误映射；默认组合不自行启用 Provider 或后台恢复。F-004B1 已实现独立 V3 contracts、Repository/SQLite/API typed 集成、离线 planning/调用治理和前端严格 V3 交互/本机 job 指针恢复；真实浏览器与临时 SQLite 纵向仍待 Step 6。批量清空、历史列表、版本比较/恢复、真实城际 Provider 和交易能力仍不在范围内。
+- SQLite 持久化由 F-002 接入；除新增单计划 DELETE 外，F-001 的 POST/GET/retry 形状保持不变。F-003 Step 5 已实现三个可注入的 replan 端点、严格 DTO 和安全错误映射；默认组合不自行启用 Provider 或后台恢复。F-004B1 Step 0–8 已实现并归档独立 V3 contracts、Repository/SQLite/API typed 集成、离线 planning/调用治理、前端严格 V3 交互/本机 job 指针恢复、临时 SQLite 纵向和 loopback desktop/390px；城际 Provider 调用为 0，且没有真实 Provider UAT。批量清空、历史列表、版本比较/恢复、真实城际 Provider 和交易能力仍不在范围内。
 
 ## F-004A version 2 多日契约（已实现并交付）
 
@@ -409,7 +409,7 @@ GET/retry 的 response union 由持久化请求版本决定，不能由 Accept h
 
 F-004A 不新增稳定错误码。日期跨度、窗口集合和版本字段错误使用 422 `input_invalid`；幂等冲突、Repository version 冲突、retry/delete/not-found 和安全 500 保持现有映射。legacy golden 必须逐字段、逐 JSON 形状保持不变；synthetic legacy 请求的 SHA-256 fingerprint 固定为 `f8e8a85d192745f703d968695945c2fa4200f224d4e8ae9162a69abd57bf7edd`。
 
-## F-004B1 version 3 多城市契约（Step 5 前端严格解析与恢复已实现）
+## F-004B1 version 3 多城市契约（Step 0–8 已实现并归档）
 
 ### 版本判别与 URI
 
@@ -497,3 +497,37 @@ POST、GET、retry 对 V3 job 返回独立 `TripPlanResponseV3`：顶层 `respon
 - SQLite schema 仍为 version 2，migration 表只能有 1/2；V3 只进入既有 request_json/plan_json/source/version 事务，不新增列、表、索引或 migration；
 - 旧应用读取 V3 fail closed，不 down migration、不删除记录；
 - 对任何 V3 job 创建 replan 都返回既有 422 `replan_scope_not_supported`。检查在 service 获取、reserve、decision、executor、Provider 和任何写入前；数据库新增 replan/decision/lineage/plan version 数均为 0，job/current plan/version 不变。
+
+## F-005 同 shape 失败与时效投影（Step 1 冻结）
+
+F-005 不增加 URI、HTTP envelope、公开顶层错误码或 JSON 键。legacy、V2、V3 各自现有 exact-key shape、discriminator、fingerprint 和 response model 保持不变；只在原有 `errors`、`warnings`、`uncertainties`、`sources`、`status` 与 `retryable` 字段中发布已存在的安全语义。
+
+### 终态与公开错误矩阵
+
+| 原因 | 关键链路 | 可选事实/仍有可执行计划 | 公开 retryable | 恢复语义 |
+| --- | --- | --- | --- | --- |
+| 用户可修正的缺失/歧义 | `needs_input` | 不适用 | false | 返回修改；必须有安全 `field` 才能归入该类 |
+| 确定性硬冲突 | `conflict` | 不适用 | false | 修改约束；不能通过 retry 改变 |
+| `provider_unauthorized` | `failed` | `partial` | false | 检查本机 Provider 配置 |
+| `provider_timeout` / `provider_rate_limited` / `provider_unavailable`，内部 retry 已耗尽 | `failed` | `partial` | true | 稍后执行既有 job retry |
+| `provider_schema_invalid` / 非用户原因的 `data_missing` | `failed` | `partial` | false | 服务数据当前不能安全使用；不盲目重试 |
+| 最终采用路线 `data_stale` | 去除该路线；无合法替代时 `failed` | 未采用候选不投影 | true | 重新获取并重跑 |
+| 天气/预警/地点 `data_stale` | 保留可执行计划为 `partial` | `partial` | true | 可查看已验证部分或重跑 |
+| `model_output_invalid` | `failed` | 不存在模型降级 plan | false | 返回修改或稍后重新创建；不执行 transport retry |
+
+`ready` 的 `errors` 必须为空，且不能靠 warning 隐藏 stale、unknown-validity 或参与决策的未验证事实。`partial` 必须有可执行 plan，并在现有 error/uncertainty/source 中指出缺口；`failed` 不得携带假计划。Provider failure 不投影成 `needs_input` 或 `conflict`。
+
+### `data_stale`、validity unknown 与诊断
+
+- stale 使用既有公开 `data_stale`。`provider` 取现有 Provider 枚举文本；`message` 使用项目固定安全文案；`field` 仅在现有契约允许且确有用户字段时填写；`retryable` 按上表。
+- capability 只通过现有可空 `diagnostic_code` 的闭集发布：`route_source_stale`、`location_source_stale`、`weather_forecast_stale`、`weather_alert_stale`。不得带 location ID、日期、坐标、URL、原始 record ID 或字段值。
+- `unknown_validity` 不是 `data_stale`，继续由 SourceRecord freshness 和既有 uncertainty 表达；它不得被改写为 fresh。retry 同一次调用不能创造不存在的 `valid_until`，因此该 uncertainty 本身不设置 retryable。
+- retry runtime 可使用的安全诊断闭集为 `provider_attempt_timeout`、`retry_budget_exhausted`、`retry_deadline_exhausted` 和 `retry_after_invalid`；公开时仍必须搭配既有顶层错误码，不新增计数、delay、header 或 body 字段。
+- response 顶层 `retryable` 表达“原因是否允许既有 planning job retry”，与 `attempt` 分开。attempt 3 即使原因可重试，前端也不再展示 retry，既有 retry endpoint 继续拒绝超过上限的请求。
+
+### 兼容与持久化边界
+
+- GET 返回任务完成时持久化的来源 freshness 快照；不得因读取时墙钟变化改写 plan、status、errors 或 fingerprint。retry/replan 新 attempt 才使用新的显式评估时刻。
+- SQLite 仍只持久化现有 typed request/result/plan/source/error；HTTP attempt 记录、retry delay、active peer、Prompt、原始响应和安全运行诊断均不进入数据库。schema version 仍为 2，migration 集合仍为 1/2。
+- F-003 replan 的独立 attempt/lifecycle、失败保持原计划、来源 reuse/refresh/drop 和确认边界不变；V3 replan 继续在 runtime、Provider 和写入前拒绝。
+- legacy/V2/V3 golden 测试逐键比较正常、partial、failed、data_stale、unknown/null、retryable 和 attempt 3；任何新增键、缺失键、跨版本投影或旧 fingerprint 漂移都阻断交付。
