@@ -47,8 +47,10 @@ class LocalRunnerContractTest(unittest.TestCase):
         self.assertNotIn("Stop-Process -Name", text)
         self.assertIn("Get-SafeFailureMessage $_.Exception.Message", text)
         self.assertNotIn("Write-Error $_.Exception.Message", text)
+        self.assertIn("$CleanupFailed = $true", text)
+        self.assertIn("Local application child process cleanup did not complete.", text)
 
-    def test_runner_self_test_covers_versions_ports_health_and_cleanup(self) -> None:
+    def test_runner_self_test_covers_frozen_negative_process_matrix(self) -> None:
         completed = subprocess.run(
             [
                 "powershell.exe",

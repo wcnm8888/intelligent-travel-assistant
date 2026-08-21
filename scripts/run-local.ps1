@@ -234,7 +234,8 @@ function Get-SafeFailureMessage {
         "Frontend could not start on the approved loopback port.",
         "Frontend health did not become ready within 30 seconds.",
         "Backend stopped unexpectedly; the local session is closing.",
-        "Frontend stopped unexpectedly; the local session is closing."
+        "Frontend stopped unexpectedly; the local session is closing.",
+        "Local application child process cleanup did not complete."
     )
     if ($ApprovedMessages -contains $Message) {
         return $Message
@@ -252,6 +253,9 @@ function Invoke-ContractSelfTest {
     if (Test-ExactVersionOutput "v22.16.0`nv22.16.0" "v22.16.0") {
         throw "Version parser accepted duplicate output."
     }
+    if (Test-ExactVersionOutput "Python 3.13.2" "Python 3.13.3") {
+        throw "Version parser accepted a mismatched runtime."
+    }
     if (-not (Test-BackendHealthPayload '{"status":"ok","service":"intelligent-travel-assistant-api"}')) {
         throw "Health parser rejected the exact backend contract."
     }
@@ -259,29 +263,116 @@ function Invoke-ContractSelfTest {
         throw "Health parser accepted an extra field."
     }
 
-    $Listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    $FixedListeners = @()
     try {
-        $Listener.Start()
-        $ProbePort = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
-        if (Test-PortAvailable $ProbePort) {
-            throw "Port probe missed an active loopback listener."
+        foreach ($Port in @($BackendPort, $FrontendPort)) {
+            $WasAvailable = Test-PortAvailable $Port
+            $Listener = $null
+            if ($WasAvailable) {
+                $Listener = [System.Net.Sockets.TcpListener]::new(
+                    [System.Net.IPAddress]::Loopback,
+                    $Port
+                )
+                $Listener.Start()
+            }
+            $FixedListeners += [PSCustomObject]@{
+                Port = $Port
+                Listener = $Listener
+                WasAvailable = $WasAvailable
+            }
+            if (Test-PortAvailable $Port) {
+                throw "Port probe missed a fixed-port conflict."
+            }
         }
     }
     finally {
-        $Listener.Stop()
+        foreach ($Probe in $FixedListeners) {
+            if ($null -ne $Probe.Listener) {
+                $Probe.Listener.Stop()
+            }
+        }
     }
-    if (-not (Test-PortAvailable $ProbePort)) {
-        throw "Port probe reported a stopped listener."
+    foreach ($Probe in $FixedListeners) {
+        if ($Probe.WasAvailable -and -not (Test-PortAvailable $Probe.Port)) {
+            throw "Port probe reported a stopped fixed listener."
+        }
+        if (-not $Probe.WasAvailable -and (Test-PortAvailable $Probe.Port)) {
+            throw "Port probe disturbed an existing fixed listener."
+        }
     }
 
     $PowerShell = (Get-Command "powershell.exe" -ErrorAction Stop).Source
+    foreach ($Kind in @("backend", "frontend")) {
+        $Exited = Start-Process -FilePath $PowerShell -ArgumentList @(
+            "-NoProfile",
+            "-Command",
+            "exit 17"
+        ) -PassThru -WindowStyle Hidden
+        try {
+            if ((Wait-LoopbackEndpoint $Exited "http://127.0.0.1:1/" $Kind) -ne "process_exited") {
+                throw "$Kind early exit was not detected."
+            }
+        }
+        finally {
+            $null = Stop-OwnedProcess $Exited
+        }
+    }
+
+    $TimeoutChild = Start-Process -FilePath $PowerShell -ArgumentList @(
+        "-NoProfile",
+        "-Command",
+        "Start-Sleep -Seconds 30"
+    ) -PassThru -WindowStyle Hidden
+    $OriginalStartupTimeoutSeconds = $StartupTimeoutSeconds
+    try {
+        $script:StartupTimeoutSeconds = 0
+        if ((Wait-LoopbackEndpoint $TimeoutChild "http://127.0.0.1:1/" "backend") -ne "timeout") {
+            throw "Backend health timeout was not detected."
+        }
+        if ((Wait-LoopbackEndpoint $TimeoutChild "http://127.0.0.1:1/" "frontend") -ne "timeout") {
+            throw "Frontend health timeout was not detected."
+        }
+    }
+    finally {
+        $script:StartupTimeoutSeconds = $OriginalStartupTimeoutSeconds
+        $null = Stop-OwnedProcess $TimeoutChild
+    }
+
+    $SQLiteFailure = "Backend or SQLite local storage could not start. Check the configured database path and permissions."
+    if ((Get-SafeFailureMessage $SQLiteFailure) -ne $SQLiteFailure) {
+        throw "SQLite startup failure did not retain its approved safe diagnostic."
+    }
+    if ((Get-SafeFailureMessage "synthetic-secret-sentinel") -match "sentinel") {
+        throw "Unknown runner failure leaked an unapproved diagnostic."
+    }
+
     $Owned = Start-Process -FilePath $PowerShell -ArgumentList @(
         "-NoProfile",
         "-Command",
         "Start-Sleep -Seconds 30"
     ) -PassThru -WindowStyle Hidden
-    if (-not (Stop-OwnedProcess $Owned)) {
-        throw "Owned process cleanup did not terminate its exact child."
+    $Peer = Start-Process -FilePath $PowerShell -ArgumentList @(
+        "-NoProfile",
+        "-Command",
+        "Start-Sleep -Seconds 30"
+    ) -PassThru -WindowStyle Hidden
+    try {
+        if (-not (Stop-OwnedProcess $Owned)) {
+            throw "Owned process cleanup did not terminate its exact child."
+        }
+        $Peer.Refresh()
+        if ($Peer.HasExited) {
+            throw "Owned process cleanup terminated an unrelated peer."
+        }
+    }
+    finally {
+        try {
+            $Owned.Dispose()
+        }
+        catch {
+            # Stop-OwnedProcess already disposes the exact owned child.
+        }
+        $null = Stop-OwnedProcess $Peer
     }
 
     Write-Output "Local runner contract self-test passed."
@@ -370,11 +461,22 @@ catch {
     [Console]::Error.WriteLine((Get-SafeFailureMessage $_.Exception.Message))
 }
 finally {
+    $CleanupFailed = $false
     if ($null -ne $FrontendProcess) {
-        $null = Stop-OwnedProcess $FrontendProcess
+        if (-not (Stop-OwnedProcess $FrontendProcess)) {
+            $CleanupFailed = $true
+        }
     }
     if ($null -ne $BackendProcess) {
-        $null = Stop-OwnedProcess $BackendProcess
+        if (-not (Stop-OwnedProcess $BackendProcess)) {
+            $CleanupFailed = $true
+        }
+    }
+    if ($CleanupFailed) {
+        $ExitCode = 1
+        [Console]::Error.WriteLine(
+            (Get-SafeFailureMessage "Local application child process cleanup did not complete.")
+        )
     }
     Pop-Location
 }
