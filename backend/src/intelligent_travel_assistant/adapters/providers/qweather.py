@@ -24,6 +24,9 @@ from intelligent_travel_assistant.application.ports import (
     WeatherForecastRequest,
     WeatherForecastResult,
 )
+from intelligent_travel_assistant.application.tooling.resilience import (
+    parse_retry_after_seconds,
+)
 from intelligent_travel_assistant.domain import (
     Coordinates,
     CoordinateSystem,
@@ -112,7 +115,7 @@ class QWeatherAdapter:
             f"/weather/v1/daily/{latitude}/{longitude}",
             {"days": "7", "localTime": "true", "lang": "zh"},
         )
-        if isinstance(response, ProviderErrorCategory):
+        if isinstance(response, ProviderError):
             return _unavailable(response)
         value, fetched_at = response
         attributions = _response_attributions(value)
@@ -151,7 +154,7 @@ class QWeatherAdapter:
             f"/weatheralert/v1/current/{latitude}/{longitude}",
             {"localTime": "true", "lang": "zh"},
         )
-        if isinstance(response, ProviderErrorCategory):
+        if isinstance(response, ProviderError):
             return _unavailable(response)
         value, fetched_at = response
         attributions = _response_attributions(value)
@@ -185,10 +188,10 @@ class QWeatherAdapter:
         self,
         path: str,
         params: dict[str, str],
-    ) -> tuple[dict[str, object], datetime] | ProviderErrorCategory:
+    ) -> tuple[dict[str, object], datetime] | ProviderError:
         issued_at = self._clock()
         if not _aware_datetime(issued_at):
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
         token = _jwt_token(
             self._private_key,
             credential_id=self._config.credential_id,
@@ -209,24 +212,28 @@ class QWeatherAdapter:
             ) as client:
                 response = await client.get(path, params=params)
         except httpx2.TimeoutException:
-            return ProviderErrorCategory.TIMEOUT
+            return ProviderError(ProviderErrorCategory.TIMEOUT)
         except httpx2.RequestError:
-            return ProviderErrorCategory.UNKNOWN
+            return ProviderError(ProviderErrorCategory.UNKNOWN)
 
-        http_error = _http_error_category(response.status_code)
+        http_error = _http_error(
+            response.status_code,
+            retry_after=response.headers.get("Retry-After"),
+            now=self._clock() if response.status_code == 429 else None,
+        )
         if http_error is not None:
             return http_error
         if len(response.content) > MAX_RESPONSE_BYTES:
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
         try:
             value = response.json()
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
         if not isinstance(value, dict):
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
         fetched_at = self._clock()
         if not _aware_datetime(fetched_at):
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
         return value, fetched_at
 
     def _available[T](
@@ -603,7 +610,25 @@ def _http_error_category(status_code: int) -> ProviderErrorCategory | None:
     return ProviderErrorCategory.UNKNOWN
 
 
-def _unavailable[T](category: ProviderErrorCategory) -> ProviderResult[T]:
+def _http_error(
+    status_code: int,
+    *,
+    retry_after: str | None,
+    now: datetime | None,
+) -> ProviderError | None:
+    category = _http_error_category(status_code)
+    if category is None:
+        return None
+    if category is ProviderErrorCategory.RATE_LIMITED and now is not None:
+        return ProviderError(
+            category,
+            retry_after_seconds=parse_retry_after_seconds(retry_after, now=now),
+        )
+    return ProviderError(category)
+
+
+def _unavailable[T](error: ProviderErrorCategory | ProviderError) -> ProviderResult[T]:
+    normalized = error if isinstance(error, ProviderError) else ProviderError(error)
     return ProviderResult(
         ProviderResultStatus.UNAVAILABLE,
         Provider.QWEATHER,
@@ -611,6 +636,6 @@ def _unavailable[T](category: ProviderErrorCategory) -> ProviderResult[T]:
         None,
         None,
         (),
-        ProviderError(category),
+        normalized,
         (),
     )

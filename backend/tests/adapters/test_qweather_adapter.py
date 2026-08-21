@@ -8,6 +8,7 @@ import json
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from email.utils import format_datetime
 from pathlib import Path
 from typing import cast
 from uuid import UUID
@@ -490,6 +491,30 @@ async def test_http_failures_use_safe_project_categories(
     assert result.error.category is category
     assert "private key" not in repr(result)
     assert "bearer" not in repr(result).lower()
+
+
+@pytest.mark.anyio
+async def test_http_429_normalizes_bounded_http_date_retry_after() -> None:
+    result = await _adapter(
+        httpx2.MockTransport(
+            lambda request: httpx2.Response(
+                429,
+                headers={
+                    "Retry-After": format_datetime(
+                        FIXED_NOW + timedelta(seconds=2),
+                        usegmt=True,
+                    )
+                },
+                content=b"raw limit body must not escape",
+            )
+        )
+    ).get_weather_forecast(_forecast_request())
+
+    assert result.status is ProviderResultStatus.UNAVAILABLE
+    assert result.error is not None
+    assert result.error.category is ProviderErrorCategory.RATE_LIMITED
+    assert result.error.retry_after_seconds == 2.0
+    assert "raw limit body" not in repr(result)
 
 
 @pytest.mark.anyio

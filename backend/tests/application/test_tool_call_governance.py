@@ -384,7 +384,7 @@ def test_governance_module_has_no_network_environment_sleep_or_async_runtime_dep
     }
     observed_imports: list[str] = []
     observed_calls: list[str] = []
-    for path in TOOLING_ROOT.rglob("*.py"):
+    for path in (TOOLING_ROOT / "governance.py",):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):

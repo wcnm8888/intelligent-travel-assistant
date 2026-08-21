@@ -21,6 +21,9 @@ from intelligent_travel_assistant.application.ports import (
     PoiSearchResult,
     RouteCalculationRequest,
 )
+from intelligent_travel_assistant.application.tooling.resilience import (
+    parse_retry_after_seconds,
+)
 from intelligent_travel_assistant.domain import (
     MAX_ROUTE_DISTANCE_METERS,
     MAX_ROUTE_DURATION_MINUTES,
@@ -152,7 +155,7 @@ class AmapAdapter:
                 "output": "JSON",
             },
         )
-        if isinstance(value, ProviderErrorCategory):
+        if isinstance(value, ProviderError):
             return _unavailable(value)
         parsed = _parse_city(value)
         if isinstance(parsed, ProviderErrorCategory):
@@ -185,7 +188,7 @@ class AmapAdapter:
             )
 
         value = await self._get_json("/v5/place/text", params)
-        if isinstance(value, ProviderErrorCategory):
+        if isinstance(value, ProviderError):
             return _unavailable(value)
         parsed = _parse_pois(value, request=request)
         if isinstance(parsed, ProviderErrorCategory):
@@ -241,7 +244,7 @@ class AmapAdapter:
             source_type = "amap_route_public_transit"
 
         value = await self._get_json(path, params)
-        if isinstance(value, ProviderErrorCategory):
+        if isinstance(value, ProviderError):
             return _unavailable(value)
         parsed = _parse_route(value, request=request)
         if isinstance(parsed, ProviderErrorCategory):
@@ -280,7 +283,7 @@ class AmapAdapter:
         self,
         path: str,
         params: dict[str, str],
-    ) -> dict[str, object] | ProviderErrorCategory:
+    ) -> dict[str, object] | ProviderError:
         query = {"key": self._config.web_service_key, **params}
         try:
             async with httpx2.AsyncClient(
@@ -293,25 +296,29 @@ class AmapAdapter:
             ) as client:
                 response = await client.get(path, params=query)
         except httpx2.TimeoutException:
-            return ProviderErrorCategory.TIMEOUT
+            return ProviderError(ProviderErrorCategory.TIMEOUT)
         except httpx2.RequestError:
-            return ProviderErrorCategory.UNKNOWN
+            return ProviderError(ProviderErrorCategory.UNKNOWN)
 
-        http_error = _http_error_category(response.status_code)
+        http_error = _http_error(
+            response.status_code,
+            retry_after=response.headers.get("Retry-After"),
+            now=self._clock() if response.status_code == 429 else None,
+        )
         if http_error is not None:
             return http_error
         if len(response.content) > MAX_RESPONSE_BYTES:
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
         try:
             value = response.json()
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
         if not isinstance(value, dict):
-            return ProviderErrorCategory.SCHEMA
+            return ProviderError(ProviderErrorCategory.SCHEMA)
 
         business_error = _business_error_category(value)
         if business_error is not None:
-            return business_error
+            return ProviderError(business_error)
         return value
 
     def _available[T](
@@ -698,7 +705,25 @@ def _http_error_category(status_code: int) -> ProviderErrorCategory | None:
     return ProviderErrorCategory.UNKNOWN
 
 
-def _unavailable[T](category: ProviderErrorCategory) -> ProviderResult[T]:
+def _http_error(
+    status_code: int,
+    *,
+    retry_after: str | None,
+    now: datetime | None,
+) -> ProviderError | None:
+    category = _http_error_category(status_code)
+    if category is None:
+        return None
+    if category is ProviderErrorCategory.RATE_LIMITED and now is not None:
+        return ProviderError(
+            category,
+            retry_after_seconds=parse_retry_after_seconds(retry_after, now=now),
+        )
+    return ProviderError(category)
+
+
+def _unavailable[T](error: ProviderErrorCategory | ProviderError) -> ProviderResult[T]:
+    normalized = error if isinstance(error, ProviderError) else ProviderError(error)
     return ProviderResult(
         ProviderResultStatus.UNAVAILABLE,
         Provider.AMAP,
@@ -706,6 +731,6 @@ def _unavailable[T](category: ProviderErrorCategory) -> ProviderResult[T]:
         None,
         None,
         (),
-        ProviderError(category),
+        normalized,
         (),
     )
