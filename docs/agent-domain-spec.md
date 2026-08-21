@@ -252,7 +252,7 @@ Step 4 已按上述边界实现：V2 `PlanningContext` 显式携带完整日期�
 
 Step 4 实现保持单 Agent 和单 governor：城市事实 fan-out 与路线并发分别由两个上限为 2 的 semaphore 约束，模型 generation/repair 不按城市倍增。V3 parser 逐日核对三个城市索引和 POI 城市；repair 只接收安全诊断与清除自由文本、兴趣和硬约束后的结构上下文，不接收原始模型输出。deadline 耗尽后不启动首个调用，取消会 cancel/drain 在途 route peer 并使 active 计数归零。所有证据来自 fake/MockTransport 边界，不构成真实 Provider 或城际 availability 证明。
 
-后续 Step 5–8 已完成 V3 前端、临时 SQLite/loopback 验收、独立隐私兼容审查、四层交付和归档；没有新增 Agent、Provider、Schema、依赖或真实调用。F-005 已完成 Step 0–5：统一 resilience/freshness/attempt 契约已接入 legacy/V2/V3，bounded proposal/repair 与固定离线 eval 已实现；当前等待 Step 6 前端单独批准。
+后续 Step 5–8 已完成 V3 前端、临时 SQLite/loopback 验收、独立隐私兼容审查、四层交付和归档；没有新增 Agent、Provider、Schema、依赖或真实调用。F-005 Step 0–9 已完成并归档：统一 resilience/freshness/attempt 契约已接入 legacy/V2/V3，bounded proposal/repair、固定离线 eval 和同 shape 前端恢复语义已交付；F-004B2 Provider/法律 Gate 已阻塞并归档，没有实现真实城际 Provider 或 UAT。当前无活动任务。
 
 ## 日志与追踪
 

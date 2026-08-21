@@ -632,7 +632,7 @@ F-004B1 在 legacy/V2 之外增加独立 V3 变体，不继承单城市请求或
 
 Step 4 已按该边界实现独立 `MultiCityPlanningOrchestrator`。城市事实通过并发 2 的有界 fan-out 复用现有 Amap/QWeather ports，所有城市共享一个 governor 和一次全局 DeepSeek proposal/repair 预算；proposal 只包含逐日城市索引与 namespaced POI 引用，用户站点、城际段原文和 fare 不进入模型 payload。确定性应用层再注入用户段、缓冲、市内路线、活动时刻、预算、来源和 terminal。deadline 前置拒绝与取消 drain 已由离线测试证明；没有新增城际 port/adapter、Schema、migration、依赖或真实调用。
 
-F-004B1 后续 Step 5–8 已完成严格 V3 前端、schema v2 临时 SQLite 往返与重启恢复、loopback desktop/390px、网络/console/accessibility、独立隐私兼容审查、四层 stacked PR 和归档。最终归档 main 为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，CI run `32386260285` 成功；这些仍是 synthetic/离线证据，不构成真实 Provider UAT。当前 F-005 只在既有三家 Provider 与同一架构边界内处理韧性、时效和离线 Agent 评估，不新增 Provider、Schema、依赖或公开 API shape。
+F-004B1 后续 Step 5–8 已完成严格 V3 前端、schema v2 临时 SQLite 往返与重启恢复、loopback desktop/390px、网络/console/accessibility、独立隐私兼容审查、四层 stacked PR 和归档。最终归档 main 为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，CI run `32386260285` 成功；这些仍是 synthetic/离线证据，不构成真实 Provider UAT。F-005 已在既有三家 Provider 与同一架构边界内完成韧性、时效和离线 Agent 评估并归档；F-004B2 Provider/法律 Gate 已阻塞并归档，未新增城际 Provider、Schema、依赖、公开 API shape 或真实 UAT。当前无活动任务。
 
 ## F-005 韧性执行架构（Step 1 冻结）
 

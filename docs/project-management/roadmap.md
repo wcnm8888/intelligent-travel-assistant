@@ -15,7 +15,7 @@
 
 ## 当前阶段
 
-目标：B-000、F-001、F-002、F-003、F-004A、F-004B1 和 F-005 已完成归档；当前没有活动任务。推荐下一候选为 F-004B2，F-006 继续等待用户选择。
+目标：B-000、F-001、F-002、F-003、F-004A、F-004B1 和 F-005 已完成归档；F-004B2 已以 `BLOCKED` 状态归档。当前没有活动任务，推荐顺序为 F-004C → F-006。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
@@ -26,10 +26,11 @@
 | 4 | F-004A 单城市 2–7 日计划扩展 | DONE | 用户可生成更长但仍可控、可追溯的单城市行程；PR #13/#16/#17 已依序合并 | F-003 |
 | 5 | F-004B1 多城市领域、用户提供的城际段与离线约束 | DONE | 用户可表达 2–3 城顺序、住宿切换和用户提供的相邻城际段 | F-004A、D-013、归档任务卡 |
 | 6 | F-005 外部服务韧性、时效与 Agent 评估 | DONE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004B1、D-014、归档任务卡 |
-| 7 | F-004B2 真实城际 Provider | CANDIDATE | 经条款、费用和数据治理批准后接入真实城际事实 | F-004B1、F-005、独立 Provider 决策 |
-| 8 | F-006 MVP 体验收口与本地验收 | CANDIDATE | 用户可稳定完成完整本地旅行决策流程 | F-001 至 F-005；F-004B2 如获选则一并纳入 |
+| 7 | F-004B2 真实城际 Provider 与可信城际事实 | BLOCKED | 经正式书面授权 Gate 后，为相邻城市段提供来源和时效可信的同日直达 rail 参考事实 | D-015 Step 1：SQLite 持久化禁止且 rail 字段授权不足 |
+| 8 | F-004C 用户已购铁路段与车次信息 | CANDIDATE | 用户可录入已购票的相邻铁路段和车次事实，并继续按用户提供、未核验语义规划 | F-004B1、F-004B2 BLOCKED closure、待批准 D-016 |
+| 9 | F-006 MVP 体验收口与本地验收 | CANDIDATE | 用户可稳定完成完整本地旅行决策流程 | F-001 至 F-005；F-004C 如获选则一并纳入 |
 
-B-000 至 F-005 的已选任务均已完成归档。当前没有活动任务；F-004B2 和 F-006 不得因前置完成而自动启动。
+B-000 至 F-005 的已选任务均已完成归档。F-004B2 已阻塞归档，当前没有活动任务；F-004C 和 F-006 都不得自动启动。
 
 ## B-000：项目与工程基线
 
@@ -115,21 +116,34 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - 核心价值：失败时用户仍知道哪些数据可信、哪些缺失、能否重试；
 - 必须验证：统一错误映射、重试预算、fresh/stale/unknown-validity、提示注入、工具越权和固定回归 case；
 - 已批准边界：Amap/QWeather 仅可重试类最多额外一次、DeepSeek 0 传输 retry、固定 attempt/deadline/freshness/隐私与离线 Agent eval 门禁；不新增 URI/JSON 键、Schema/migration、依赖、Provider 或真实调用；
-- Step 1 冻结结果：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、bounded proposal/repair、48-case 评分、同 shape API/UI、分层测试与四层 stack 归属已形成可实现契约；未修改源码或测试；
+- Step 1 冻结结果：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、bounded proposal/repair、48-case 评分、同 shape API/UI 和分层测试已形成可实现契约；交付期经批准调整为五层 stack；未修改源码或测试；
 - Step 2 实现结果：纯领域 ProviderError 安全 Retry-After、Provider/operation retry schedule、budget/deadline/jitter 决策、逐能力 freshness/失败处置和闭集诊断已由 TDD 实现；尚未接入 adapter/application runtime；
 - Step 3 实现结果：显式 task-scoped attempt runtime、预算/deadline/取消/peer drain 和 Amap/QWeather 安全错误/Retry-After 输入已离线实现；adapter 仍为单次交换，runtime 尚未接入 legacy/V2/V3 application；
 - Step 4 实现结果：显式 runtime 已接入 legacy/V2/V3 application；统一 deadline 前置拒绝、取消/peer drain、retry/fallback 停止顺序和同 shape data_stale/timeout 投影；stale route 不成计划，stale weather/alert 剔除，未进入 Agent eval 或前端；
 - Step 5 实现结果：legacy/V2/V3 repair 改用 bounded `PlanRepairBrief`，generation/repair 对 Provider 文本实行双层 allowlist；固定 48-case 离线 eval 两次一致、加权分 100、五类硬门禁失败为 0；未进入前端且不构成真实 Provider/模型 UAT；
 - Step 6 实现结果：前端只消费既有 status/retryable/errors/uncertainties/sources/attempt，完成鉴权配置、暂时失败、stale、unknown-validity、固定错误排序和恢复展示；全量 99 项与静态/build 通过，未进入 SQLite/browser；
-- 交付：PR #27/#28/#29/#30/#31 已依序 squash merge；后续层直接改指向最新 main 后仍保持本层 tree diff，未创建替代 PR或 force-push；完整功能 main `fddd4e5`、CI `32452988076` 通过；
+- 交付：PR #27/#28/#29/#30/#31 已依序 squash merge；后续层直接改指向最新 main 后仍保持本层 tree diff，未创建替代 PR 或 force-push；完整功能 main `fddd4e5`、CI `32452988076` 通过；归档 PR #32 已合并，最终归档 main `96f73d9`、CI `32453988289` 通过；
 - 非目标：生产高可用、分布式熔断、7×24 告警和公网 SLO。
 
-### F-004B2：真实城际 Provider
+### F-004B2：真实城际 Provider 与可信城际事实
 
-- 状态：`CANDIDATE`；只有 F-005 完成后才可起草任务卡；
-- 目标：在独立批准的数据源、条款、费用、时效、调用预算和失败语义下接入真实铁路、航空或长途客运事实；
-- 必须重新确认：Provider 选择、许可、数据留存、班次/票价/availability/freshness、真实 UAT 次数与费用；
-- 非目标仍包括出票、预订、支付、实时库存承诺、境外行程、登录/同步/云数据库和公网部署。
+- 状态：`BLOCKED / ARCHIVED`；Step 1 已完成审核，完整任务卡见 [F-004B2 BLOCKED archive](../archive/task-cards/F-004B2-real-intercity-provider-blocked.md)；
+- 目标：为中国大陆 2–3 城相邻段提供独立 V4 的同日直达 rail 查询意图，并在正式授权边界内生成来源、时效和费用可信状态明确的参考事实；
+- Gate：用户提供的高德回复允许非商用 Web API 与运行期内存临时保存，但明确禁止 SQLite 持久化，且没有授权 F-004B2 所需 rail 字段；正式结论为 `BLOCKED`；
+- 实现前置：没有已选 Provider；Gate 未重新 PASS 前不得进入 contracts/domain/adapter/application/API/Repository/前端实现，不得注册账号、申请 Key、付费或真实调用；
+- 不变量：legacy/V2/V3 兼容，V3/V4 replan 写前拒绝，SQLite schema v2/migration 1/2，unknown 金额为 `null`；
+- 非目标：air、coach、跨夜、换乘、跨境、复杂优化、抓取/逆向、余票/库存承诺、预订/支付/出票、账号/同步/云数据库和公网部署。
+
+### F-004C：用户已购铁路段与车次信息
+
+- 状态：`CANDIDATE`；尚未激活或实现；
+- 目标：在不接入 Provider 的前提下，让用户为中国大陆 2–3 城相邻段录入已购铁路车次、发到站、发到时间和可选票价；
+- 来源：固定为 `user_provided`、`unknown_validity` 和“用户提供，未核验”，不得表述为 Provider 核验、余票或库存保证；
+- 兼容候选：独立 V4，legacy/V2/V3 保持不变；继续评估 schema v2 typed JSON 可行性，不预先批准 Schema/migration 变化；
+- 版本决策候选：若后续批准 D-016，必须明确替代 D-015 中未实现的 V4 Provider union 预留；未来真实城际 Provider 必须使用新的版本和决策，不得与 F-004C 共用 V4；
+- 隐私候选：不得保存姓名、证件、联系方式、订单号、座位、二维码、Cookie、截图或自由备注；
+- 非目标：Provider 查询、12306 抓取/自动读取、真实 UAT、预订/支付/出票、余票/可售、账号/同步/公网；
+- 下一入口：只有用户批准完整任务卡和 Step 0 后才能激活；候选摘要不构成 D-016 或实现授权。
 
 ### F-006：MVP 体验收口与本地验收
 
@@ -199,7 +213,9 @@ F-004B1 多城市领域与用户提供段（DONE）
   ↓
 F-005 韧性与评估（DONE）
   ↓
-F-004B2 真实城际 Provider（候选）
+F-004B2 真实城际 Provider 与可信事实（BLOCKED / ARCHIVED）
+  ↓
+F-004C 用户已购铁路段与车次信息（CANDIDATE）
   ↓
 F-006 MVP 收口
 ```

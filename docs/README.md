@@ -8,7 +8,7 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-005 Step 0–9 已完成并归档）
+- 当前任务：[current-task.md](./project-management/current-task.md)（F-004B2 已以 `BLOCKED` 状态归档；当前无活动任务）
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -91,8 +91,10 @@ AGENTS.md
 ## 当前状态
 
 - 当前活动任务：无
+- 最近关闭：F-004B2 Step 1 `DONE / BLOCKED`，完整任务卡已归档；高德回复禁止 SQLite 持久化且没有明确授权所需 rail 字段
+- 当前范围：没有已选 Provider；不得进入 Step 2、调整架构、注册账号、申请 Key、付费或真实调用
 - 最近完成：F-005 外部服务韧性、数据时效与 Agent 评估；Step 0–9 全部 DONE，完整任务卡已归档
-- F-005 Step 9 已完成：PR #27/#28/#29/#30/#31 依序 squash merge；#28–#31 改指向最新 main 后仍只含本层净差异，无需替代式 clean-restack 或 force-push；完整功能 main `fddd4e5`、CI run `32452988076` success
+- F-005 Step 9 已完成：PR #27/#28/#29/#30/#31 依序 squash merge；#28–#31 改指向最新 main 后仍只含本层净差异，无需替代式 clean-restack 或 force-push；完整功能 main `fddd4e5`、CI run `32452988076` success；归档 PR #32 已合并，最终归档 main `96f73d9`、CI run `32453988289` success
 - F-005 Step 0 已完成：最终 Git/PR/CI 和无活动任务基线已复核，完整任务卡、Step 0–9、D-014、四层 stacked PR 与规模治理已收口；已创建首层本地分支，没有 commit、push、PR、远程 CI、源码、测试、数据库、秘密读取或 Provider 调用
 - F-005 Step 1 已完成设计冻结：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、Amap/QWeather retry/deadline/取消、DeepSeek bounded proposal/repair、48-case 离线 eval、同 shape API/UI、分层测试和四层 stack 归属已收口；未修改生产源码、测试、Schema、migration、依赖或 lockfile，未进入 Step 2
 - F-005 Step 2 已按 TDD 实现纯领域安全扩展：`ProviderError` 支持仅限 rate-limit 的 `0..2s` 安全 Retry-After，新增 Provider/operation schedule、jitter/预算/deadline retry 决策、逐能力 freshness/失败处置和闭集诊断；定向 108 项、domain/contracts golden 342 项及全 backend Ruff/mypy 通过，尚未接入 adapter 或 application runtime
@@ -134,4 +136,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- 下一步：等待用户从 roadmap 选择并批准下一任务卡；推荐候选为 F-004B2，但不得自动进入 F-004B2 或 F-006。F-001 `PARTIAL` 保持不变
+- 下一步：roadmap 推荐 F-004C → F-006。F-004B2 保持 `BLOCKED / ARCHIVED`；不得恢复 Step 2。F-004C 仍须单独批准 Step 0，F-001 `PARTIAL` 保持不变
