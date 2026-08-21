@@ -182,6 +182,38 @@ def test_error_category_controls_safe_code_and_retryability(
     assert error.retryable is retryable
 
 
+@pytest.mark.parametrize("retry_after_seconds", [0.0, 1.5, 2.0])
+def test_rate_limit_error_accepts_only_bounded_safe_retry_after(
+    retry_after_seconds: float,
+) -> None:
+    error = ProviderError(
+        ProviderErrorCategory.RATE_LIMITED,
+        retry_after_seconds=retry_after_seconds,
+    )
+    assert error.retry_after_seconds == retry_after_seconds
+
+
+@pytest.mark.parametrize(
+    "retry_after_seconds",
+    [-0.000001, 2.000001, float("nan"), float("inf"), True, "1"],
+)
+def test_rate_limit_error_rejects_invalid_retry_after(
+    retry_after_seconds: object,
+) -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        ProviderError(
+            ProviderErrorCategory.RATE_LIMITED,
+            retry_after_seconds=retry_after_seconds,  # type: ignore[arg-type]
+        )
+    assert error.value.code == "provider_retry_after_invalid"
+
+
+def test_non_rate_limit_error_rejects_retry_after() -> None:
+    with pytest.raises(DomainInvariantError) as error:
+        ProviderError(ProviderErrorCategory.TIMEOUT, retry_after_seconds=1.0)
+    assert error.value.code == "provider_retry_after_not_allowed"
+
+
 @pytest.mark.parametrize(
     ("evaluated_at", "expected"),
     [

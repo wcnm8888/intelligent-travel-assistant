@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from math import isfinite
 from types import MappingProxyType
 from typing import Final
 
@@ -59,6 +60,10 @@ class ProviderErrorReason(StrEnum):
     FINISH_REASON_INVALID = "finish_reason_invalid"
     MESSAGE_INVALID = "message_invalid"
     CONTENT_TOO_LARGE = "content_too_large"
+    PROVIDER_ATTEMPT_TIMEOUT = "provider_attempt_timeout"
+    RETRY_BUDGET_EXHAUSTED = "retry_budget_exhausted"
+    RETRY_DEADLINE_EXHAUSTED = "retry_deadline_exhausted"
+    RETRY_AFTER_INVALID = "retry_after_invalid"
 
 
 class DataFreshness(StrEnum):
@@ -93,12 +98,30 @@ class ProviderError:
 
     category: ProviderErrorCategory
     reason: ProviderErrorReason | None = None
+    retry_after_seconds: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.category, ProviderErrorCategory):
             raise DomainInvariantError("provider_error_category_invalid", field="category")
         if self.reason is not None and not isinstance(self.reason, ProviderErrorReason):
             raise DomainInvariantError("provider_error_reason_invalid", field="reason")
+        if self.retry_after_seconds is not None:
+            if self.category is not ProviderErrorCategory.RATE_LIMITED:
+                raise DomainInvariantError(
+                    "provider_retry_after_not_allowed",
+                    field="retry_after_seconds",
+                )
+            if (
+                not isinstance(self.retry_after_seconds, int | float)
+                or isinstance(self.retry_after_seconds, bool)
+                or not isfinite(self.retry_after_seconds)
+                or not 0 <= self.retry_after_seconds <= 2
+            ):
+                raise DomainInvariantError(
+                    "provider_retry_after_invalid",
+                    field="retry_after_seconds",
+                )
+            object.__setattr__(self, "retry_after_seconds", float(self.retry_after_seconds))
 
     @property
     def code(self) -> ProviderErrorCode:
