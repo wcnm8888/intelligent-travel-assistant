@@ -26,6 +26,7 @@ from intelligent_travel_assistant.application.repositories import (
     PlanningJobReservation,
     PlanningJobResult,
     PlanningJobResultV3,
+    PlanningJobResultV4,
     PlanningResult,
     ReplanCommit,
     ReplanCommitResult,
@@ -56,8 +57,10 @@ from intelligent_travel_assistant.contracts import (
     TripPlan,
     TripPlanRequestV2,
     TripPlanRequestV3,
+    TripPlanRequestV4,
     TripPlanV2,
     TripPlanV3,
+    TripPlanV4,
     Uncertainty,
 )
 from intelligent_travel_assistant.contracts.base import ContractModel
@@ -115,6 +118,18 @@ class _StoredResultMetadataV3(ContractModel):
     """V3 metadata variant stored in the existing result JSON column."""
 
     result_version: Literal["3"]
+    resolved_destinations: tuple[ResolvedDestination, ...] = Field(max_length=3)
+    violations: tuple[ConstraintViolation, ...] = Field(max_length=50)
+    warnings: tuple[str, ...] = Field(max_length=50)
+    uncertainties: tuple[Uncertainty, ...] = Field(max_length=50)
+    errors: tuple[ApiError, ...] = Field(max_length=20)
+    source_ids: tuple[UUID, ...] = Field(max_length=100)
+
+
+class _StoredResultMetadataV4(ContractModel):
+    """V4 metadata variant stored in the existing result JSON column."""
+
+    result_version: Literal["4"]
     resolved_destinations: tuple[ResolvedDestination, ...] = Field(max_length=3)
     violations: tuple[ConstraintViolation, ...] = Field(max_length=50)
     warnings: tuple[str, ...] = Field(max_length=50)
@@ -281,7 +296,10 @@ class SqlitePlanningJobRepository:
                 with sqlite_transaction(self._database.connection):
                     current = self._hydrate_job(self._job_row(job_id))
                     self._require_version(current, expected_version)
-                    if not isinstance(result, (PlanningJobResult, PlanningJobResultV3)):
+                    if not isinstance(
+                        result,
+                        (PlanningJobResult, PlanningJobResultV3, PlanningJobResultV4),
+                    ):
                         self._raise(PlanningJobRepositoryErrorCode.RESULT_INVALID)
                     if not result_matches_request(result, current.request):
                         self._raise(PlanningJobRepositoryErrorCode.RESULT_REQUEST_MISMATCH)
@@ -296,8 +314,20 @@ class SqlitePlanningJobRepository:
                         self._raise(PlanningJobRepositoryErrorCode.TRANSITION_NOT_ALLOWED)
 
                     updated_at = self._now(not_before=current.updated_at)
-                    metadata: _StoredResultMetadata | _StoredResultMetadataV3
-                    if isinstance(result, PlanningJobResultV3):
+                    metadata: (
+                        _StoredResultMetadata | _StoredResultMetadataV3 | _StoredResultMetadataV4
+                    )
+                    if isinstance(result, PlanningJobResultV4):
+                        metadata = _StoredResultMetadataV4(
+                            result_version="4",
+                            resolved_destinations=result.resolved_destinations,
+                            violations=result.violations,
+                            warnings=result.warnings,
+                            uncertainties=result.uncertainties,
+                            errors=result.errors,
+                            source_ids=tuple(source.source_id for source in result.sources),
+                        )
+                    elif isinstance(result, PlanningJobResultV3):
                         metadata = _StoredResultMetadataV3(
                             result_version="3",
                             resolved_destinations=result.resolved_destinations,
@@ -759,7 +789,10 @@ class SqlitePlanningJobRepository:
             return None
         if metadata_json is None:
             raise ValueError("stored_terminal_metadata_missing")
-        if isinstance(request, TripPlanRequestV3):
+        if isinstance(request, TripPlanRequestV4):
+            metadata_v4 = _StoredResultMetadataV4.model_validate(self._load_json(metadata_json))
+            source_ids = metadata_v4.source_ids
+        elif isinstance(request, TripPlanRequestV3):
             metadata_v3 = _StoredResultMetadataV3.model_validate(self._load_json(metadata_json))
             source_ids = metadata_v3.source_ids
         else:
@@ -777,6 +810,18 @@ class SqlitePlanningJobRepository:
             plan_version=plan_version,
             expected_source_ids=source_ids,
         )
+        if isinstance(request, TripPlanRequestV4):
+            return PlanningJobResultV4(
+                status=status,
+                resolved_destinations=metadata_v4.resolved_destinations,
+                plan=plan if isinstance(plan, TripPlanV4) else None,
+                violations=metadata_v4.violations,
+                warnings=metadata_v4.warnings,
+                uncertainties=metadata_v4.uncertainties,
+                sources=sources,
+                errors=metadata_v4.errors,
+                retryable=retryable,
+            )
         if isinstance(request, TripPlanRequestV3):
             return PlanningJobResultV3(
                 status=status,
@@ -871,6 +916,9 @@ class SqlitePlanningJobRepository:
                 raise ValueError("stored_plan_format_mismatch")
         elif isinstance(request, TripPlanRequestV3):
             if not isinstance(plan, TripPlanV3):
+                raise ValueError("stored_plan_format_mismatch")
+        elif isinstance(request, TripPlanRequestV4):
+            if not isinstance(plan, TripPlanV4):
                 raise ValueError("stored_plan_format_mismatch")
         elif type(plan) is not TripPlan:
             raise ValueError("stored_plan_format_mismatch")

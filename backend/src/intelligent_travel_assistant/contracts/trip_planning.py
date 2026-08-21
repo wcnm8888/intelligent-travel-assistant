@@ -1436,6 +1436,8 @@ def _require_activity_outside_intercity_buffer(
 
 
 def _request_version_discriminator(value: object) -> str | None:
+    if isinstance(value, TripPlanRequestV4):
+        return "v4"
     if isinstance(value, TripPlanRequestV3):
         return "v3"
     if isinstance(value, TripPlanRequestV2):
@@ -1449,10 +1451,14 @@ def _request_version_discriminator(value: object) -> str | None:
             return "v2"
         if value.get("request_version") == "3":
             return "v3"
+        if value.get("request_version") == "4":
+            return "v4"
     return None
 
 
 def _plan_version_discriminator(value: object) -> str | None:
+    if isinstance(value, TripPlanV4):
+        return "v4"
     if isinstance(value, TripPlanV3):
         return "v3"
     if isinstance(value, TripPlanV2):
@@ -1466,10 +1472,14 @@ def _plan_version_discriminator(value: object) -> str | None:
             return "v2"
         if value.get("plan_format_version") == "3":
             return "v3"
+        if value.get("plan_format_version") == "4":
+            return "v4"
     return None
 
 
 def _response_version_discriminator(value: object) -> str | None:
+    if isinstance(value, TripPlanResponseV4):
+        return "v4"
     if isinstance(value, TripPlanResponseV3):
         return "v3"
     if isinstance(value, TripPlanResponseV2):
@@ -1483,24 +1493,29 @@ def _response_version_discriminator(value: object) -> str | None:
             return "v2"
         if value.get("response_version") == "3":
             return "v3"
+        if value.get("response_version") == "4":
+            return "v4"
     return None
 
 
 PlanningRequest = Annotated[
     Annotated[TripPlanRequest, Tag("legacy")]
     | Annotated[TripPlanRequestV2, Tag("v2")]
-    | Annotated[TripPlanRequestV3, Tag("v3")],
+    | Annotated[TripPlanRequestV3, Tag("v3")]
+    | Annotated[TripPlanRequestV4, Tag("v4")],
     Discriminator(_request_version_discriminator),
 ]
 PlanningPlan = Annotated[
     Annotated[TripPlan, Tag("legacy")]
     | Annotated[TripPlanV2, Tag("v2")]
-    | Annotated[TripPlanV3, Tag("v3")],
+    | Annotated[TripPlanV3, Tag("v3")]
+    | Annotated[TripPlanV4, Tag("v4")],
     Discriminator(_plan_version_discriminator),
 ]
 PlanningResponse = Annotated[
     Annotated[TripPlanResponse, Tag("legacy")]
     | Annotated[TripPlanResponseV2, Tag("v2")]
-    | Annotated[TripPlanResponseV3, Tag("v3")],
+    | Annotated[TripPlanResponseV3, Tag("v3")]
+    | Annotated[TripPlanResponseV4, Tag("v4")],
     Discriminator(_response_version_discriminator),
 ]

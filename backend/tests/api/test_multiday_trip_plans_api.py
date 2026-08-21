@@ -231,11 +231,12 @@ def test_openapi_keeps_a_typed_one_of_request_body() -> None:
         "application/json"
     ]["schema"]
 
-    assert len(schema["oneOf"]) == 3
+    assert len(schema["oneOf"]) == 4
     assert {item["$ref"].rsplit("/", 1)[-1] for item in schema["oneOf"]} == {
         "TripPlanRequest",
         "TripPlanRequestV2",
         "TripPlanRequestV3",
+        "TripPlanRequestV4",
     }
 
 

@@ -37,7 +37,10 @@ from intelligent_travel_assistant.application.ports import (
     WeatherForecastRequest,
     WeatherForecastResult,
 )
-from intelligent_travel_assistant.application.repositories import PlanningJobResultV3
+from intelligent_travel_assistant.application.repositories import (
+    PlanningJobResultV3,
+    PlanningJobResultV4,
+)
 from intelligent_travel_assistant.application.services.offline_planning import _governed_call
 from intelligent_travel_assistant.application.tooling import (
     ProviderAttemptRuntime,
@@ -61,6 +64,7 @@ from intelligent_travel_assistant.contracts import (
     ItineraryItem,
     LocationRef,
     Money,
+    PlanBookedRailSegmentV4,
     PlanDayV3,
     PlanIntercitySegmentV3,
     PlanningStatus,
@@ -71,7 +75,9 @@ from intelligent_travel_assistant.contracts import (
     SourceRecord,
     TransportMode,
     TripPlanRequestV3,
+    TripPlanRequestV4,
     TripPlanV3,
+    TripPlanV4,
     Uncertainty,
     ViolationSeverity,
     WeatherAlert,
@@ -167,33 +173,43 @@ class MultiCityPlanningOrchestrator:
 
     async def plan(
         self,
-        request: TripPlanRequestV3,
+        request: TripPlanRequestV3 | TripPlanRequestV4,
         *,
         job_id: UUID,
         evaluated_at: datetime,
         state_observer: Callable[[PlanningStatus], Awaitable[None]] | None = None,
         attempt_runtime: ProviderAttemptRuntime | None = None,
         publication_clock: Callable[[], datetime] | None = None,
-    ) -> PlanningJobResultV3:
-        """Collect city facts, ask the model once, and deterministically build V3."""
+    ) -> PlanningJobResultV3 | PlanningJobResultV4:
+        """Collect city facts and rebuild V3/V4 segments outside the model boundary."""
 
-        governor = self._governor_factory(len(request.city_stays), request.day_count)
+        original_request = request
+        planning_request = _without_service_numbers(request)
+        governor = self._governor_factory(
+            len(planning_request.city_stays), planning_request.day_count
+        )
+
+        def finish(result: PlanningJobResultV3) -> PlanningJobResultV3 | PlanningJobResultV4:
+            return _result_for_request(result, original_request)
+
         try:
             await _observe(PlanningStatus.COLLECTING, state_observer)
-            facts = await self._collect_cities(request, governor, attempt_runtime)
+            facts = await self._collect_cities(planning_request, governor, attempt_runtime)
             failures = tuple(item for item in facts if isinstance(item, _CityCollectionFailure))
             if failures:
-                return _provider_failure_result(
-                    tuple(result for item in failures for result in item.results),
-                    diagnostic_code=failures[0].diagnostic_code,
-                    evaluated_at=evaluated_at,
+                return finish(
+                    _provider_failure_result(
+                        tuple(result for item in failures for result in item.results),
+                        diagnostic_code=failures[0].diagnostic_code,
+                        evaluated_at=evaluated_at,
+                    )
                 )
             cities = tuple(cast(_CityFacts, item) for item in facts)
             if len({item.city.adcode for item in cities}) != len(cities):
-                return _needs_input_result("city_stays")
+                return finish(_needs_input_result("city_stays"))
 
             await _observe(PlanningStatus.PLANNING, state_observer)
-            context = _planning_context(request, cities, evaluated_at=evaluated_at)
+            context = _planning_context(planning_request, cities, evaluated_at=evaluated_at)
             resolution = await DeepSeekProposalResolver(self._deepseek).resolve(
                 context,
                 governor,
@@ -201,20 +217,22 @@ class MultiCityPlanningOrchestrator:
             )
             if resolution.result.data is None:
                 if resolution.error_code is CandidateResolutionErrorCode.MODEL_OUTPUT_INVALID:
-                    return _failed_result("model_output_invalid", retryable=False)
-                return _provider_failure_result(
-                    (cast(ProviderResult[object], resolution.result),),
-                    diagnostic_code="model_generation_unavailable",
-                    evaluated_at=evaluated_at,
+                    return finish(_failed_result("model_output_invalid", retryable=False))
+                return finish(
+                    _provider_failure_result(
+                        (cast(ProviderResult[object], resolution.result),),
+                        diagnostic_code="model_generation_unavailable",
+                        evaluated_at=evaluated_at,
+                    )
                 )
             proposal = resolution.result.data
 
             await _observe(PlanningStatus.ENRICHING_ROUTES, state_observer)
-            route_needs = _route_needs(request, cities, proposal)
+            route_needs = _route_needs(planning_request, cities, proposal)
             route_facts = await self._collect_routes(
                 route_needs,
                 cities,
-                request,
+                planning_request,
                 governor,
                 attempt_runtime,
             )
@@ -222,10 +240,12 @@ class MultiCityPlanningOrchestrator:
                 item for item in route_facts if not _route_fact_structurally_valid(item)
             )
             if invalid_routes:
-                return _provider_failure_result(
-                    tuple(cast(ProviderResult[object], item.result) for item in invalid_routes),
-                    diagnostic_code="route_data_unavailable",
-                    evaluated_at=evaluated_at,
+                return finish(
+                    _provider_failure_result(
+                        tuple(cast(ProviderResult[object], item.result) for item in invalid_routes),
+                        diagnostic_code="route_data_unavailable",
+                        evaluated_at=evaluated_at,
+                    )
                 )
             publication_evaluated_at = _publication_evaluated_at(
                 evaluated_at,
@@ -235,23 +255,27 @@ class MultiCityPlanningOrchestrator:
                 _result_has_stale_source(item.result, evaluated_at=publication_evaluated_at)
                 for item in route_facts
             ):
-                return _stale_route_failure_result(
-                    tuple(_provider_results(cities, route_facts, resolution.result)),
-                    evaluated_at=publication_evaluated_at,
+                return finish(
+                    _stale_route_failure_result(
+                        tuple(_provider_results(cities, route_facts, resolution.result)),
+                        evaluated_at=publication_evaluated_at,
+                    )
                 )
 
             await _observe(PlanningStatus.VALIDATING, state_observer)
-            return _build_result(
-                request,
-                cities,
-                proposal,
-                route_facts,
-                resolution.result,
-                job_id=job_id,
-                evaluated_at=publication_evaluated_at,
+            return finish(
+                _build_result(
+                    planning_request,
+                    cities,
+                    proposal,
+                    route_facts,
+                    resolution.result,
+                    job_id=job_id,
+                    evaluated_at=publication_evaluated_at,
+                )
             )
         except ToolCallGovernanceError as error:
-            return _failed_result(error.code.value, retryable=False)
+            return finish(_failed_result(error.code.value, retryable=False))
 
     async def _collect_cities(
         self,
@@ -462,6 +486,74 @@ async def _observe(
 ) -> None:
     if observer is not None:
         await observer(status)
+
+
+def _without_service_numbers(
+    request: TripPlanRequestV3 | TripPlanRequestV4,
+) -> TripPlanRequestV3:
+    if isinstance(request, TripPlanRequestV3):
+        return request
+    payload = request.model_dump(mode="json")
+    payload["request_version"] = "3"
+    payload["preferences"] = {"interests": list(request.preferences.interests)}
+    segments = cast(list[dict[str, object]], payload["intercity_segments"])
+    for segment in segments:
+        segment.pop("service_number")
+    return TripPlanRequestV3.model_validate(payload)
+
+
+def _result_for_request(
+    result: PlanningJobResultV3,
+    request: TripPlanRequestV3 | TripPlanRequestV4,
+) -> PlanningJobResultV3 | PlanningJobResultV4:
+    if isinstance(request, TripPlanRequestV3):
+        return result
+    plan: TripPlanV4 | None = None
+    if result.plan is not None:
+        if len(result.plan.intercity_segments) != len(request.intercity_segments):
+            raise ValueError("booked_rail_segment_count_mismatch")
+        segments = tuple(
+            PlanBookedRailSegmentV4(
+                segment_id=planned.segment_id,
+                from_city_index=planned.from_city_index,
+                to_city_index=planned.to_city_index,
+                mode="rail",
+                service_number=provided.service_number,
+                departure_station_location_id=planned.departure_station_location_id,
+                arrival_station_location_id=planned.arrival_station_location_id,
+                departure_at=planned.departure_at,
+                arrival_at=planned.arrival_at,
+                fare=planned.fare,
+                source_ids=planned.source_ids,
+            )
+            for provided, planned in zip(
+                request.intercity_segments,
+                result.plan.intercity_segments,
+                strict=True,
+            )
+        )
+        plan = TripPlanV4(
+            plan_id=result.plan.plan_id,
+            plan_format_version="4",
+            city_adcodes=result.plan.city_adcodes,
+            start_date=result.plan.start_date,
+            end_date=result.plan.end_date,
+            locations=result.plan.locations,
+            intercity_segments=segments,
+            days=result.plan.days,
+            budget_summary=result.plan.budget_summary,
+        )
+    return PlanningJobResultV4(
+        status=result.status,
+        resolved_destinations=result.resolved_destinations,
+        plan=plan,
+        violations=result.violations,
+        warnings=result.warnings,
+        uncertainties=result.uncertainties,
+        sources=result.sources,
+        errors=result.errors,
+        retryable=result.retryable,
+    )
 
 
 def _mainland_adcode(value: str) -> bool:
