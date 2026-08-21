@@ -12,7 +12,10 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import AnyHttpUrl
 
-from intelligent_travel_assistant.application.planning import DeepSeekProposalResolver
+from intelligent_travel_assistant.application.planning import (
+    CandidateResolutionErrorCode,
+    DeepSeekProposalResolver,
+)
 from intelligent_travel_assistant.application.ports import (
     AmapPort,
     CityResolution,
@@ -37,6 +40,7 @@ from intelligent_travel_assistant.application.ports import (
 from intelligent_travel_assistant.application.repositories import PlanningJobResultV3
 from intelligent_travel_assistant.application.services.offline_planning import _governed_call
 from intelligent_travel_assistant.application.tooling import (
+    ProviderAttemptRuntime,
     ToolCallCapability,
     ToolCallGovernanceError,
     ToolCallGovernor,
@@ -74,12 +78,18 @@ from intelligent_travel_assistant.contracts import (
     WeatherSnapshot,
 )
 from intelligent_travel_assistant.domain import (
+    DataFreshness as DomainDataFreshness,
+)
+from intelligent_travel_assistant.domain import (
     Money as DomainMoney,
 )
 from intelligent_travel_assistant.domain import (
+    Provider,
     ProviderErrorCode,
+    ProviderOperation,
     ProviderResult,
     ProviderResultStatus,
+    ResilienceDiagnosticCode,
     evaluate_freshness,
 )
 from intelligent_travel_assistant.domain import (
@@ -132,6 +142,12 @@ class _RouteFact:
     result: ProviderResult[DomainRouteLeg]
 
 
+@dataclass(frozen=True, slots=True)
+class _CityCollectionFailure:
+    results: tuple[ProviderResult[object], ...]
+    diagnostic_code: str
+
+
 class MultiCityPlanningOrchestrator:
     """Own one V3 job governor while reusing existing city-scoped ports."""
 
@@ -156,31 +172,73 @@ class MultiCityPlanningOrchestrator:
         job_id: UUID,
         evaluated_at: datetime,
         state_observer: Callable[[PlanningStatus], Awaitable[None]] | None = None,
+        attempt_runtime: ProviderAttemptRuntime | None = None,
+        publication_clock: Callable[[], datetime] | None = None,
     ) -> PlanningJobResultV3:
         """Collect city facts, ask the model once, and deterministically build V3."""
 
         governor = self._governor_factory(len(request.city_stays), request.day_count)
         try:
             await _observe(PlanningStatus.COLLECTING, state_observer)
-            facts = await self._collect_cities(request, governor)
-            if any(item is None for item in facts):
-                return _failed_result("provider_unavailable", retryable=True)
-            cities = tuple(item for item in facts if item is not None)
+            facts = await self._collect_cities(request, governor, attempt_runtime)
+            failures = tuple(item for item in facts if isinstance(item, _CityCollectionFailure))
+            if failures:
+                return _provider_failure_result(
+                    tuple(result for item in failures for result in item.results),
+                    diagnostic_code=failures[0].diagnostic_code,
+                    evaluated_at=evaluated_at,
+                )
+            cities = tuple(cast(_CityFacts, item) for item in facts)
             if len({item.city.adcode for item in cities}) != len(cities):
                 return _needs_input_result("city_stays")
 
             await _observe(PlanningStatus.PLANNING, state_observer)
-            context = _planning_context(request, cities)
-            resolution = await DeepSeekProposalResolver(self._deepseek).resolve(context, governor)
+            context = _planning_context(request, cities, evaluated_at=evaluated_at)
+            resolution = await DeepSeekProposalResolver(self._deepseek).resolve(
+                context,
+                governor,
+                attempt_runtime,
+            )
             if resolution.result.data is None:
-                return _failed_result("model_output_invalid", retryable=False)
+                if resolution.error_code is CandidateResolutionErrorCode.MODEL_OUTPUT_INVALID:
+                    return _failed_result("model_output_invalid", retryable=False)
+                return _provider_failure_result(
+                    (cast(ProviderResult[object], resolution.result),),
+                    diagnostic_code="model_generation_unavailable",
+                    evaluated_at=evaluated_at,
+                )
             proposal = resolution.result.data
 
             await _observe(PlanningStatus.ENRICHING_ROUTES, state_observer)
             route_needs = _route_needs(request, cities, proposal)
-            route_facts = await self._collect_routes(route_needs, cities, request, governor)
-            if any(not _route_fact_valid(item) for item in route_facts):
-                return _failed_result("route_data_unavailable", retryable=True)
+            route_facts = await self._collect_routes(
+                route_needs,
+                cities,
+                request,
+                governor,
+                attempt_runtime,
+            )
+            invalid_routes = tuple(
+                item for item in route_facts if not _route_fact_structurally_valid(item)
+            )
+            if invalid_routes:
+                return _provider_failure_result(
+                    tuple(cast(ProviderResult[object], item.result) for item in invalid_routes),
+                    diagnostic_code="route_data_unavailable",
+                    evaluated_at=evaluated_at,
+                )
+            publication_evaluated_at = _publication_evaluated_at(
+                evaluated_at,
+                publication_clock,
+            )
+            if any(
+                _result_has_stale_source(item.result, evaluated_at=publication_evaluated_at)
+                for item in route_facts
+            ):
+                return _stale_route_failure_result(
+                    tuple(_provider_results(cities, route_facts, resolution.result)),
+                    evaluated_at=publication_evaluated_at,
+                )
 
             await _observe(PlanningStatus.VALIDATING, state_observer)
             return _build_result(
@@ -190,7 +248,7 @@ class MultiCityPlanningOrchestrator:
                 route_facts,
                 resolution.result,
                 job_id=job_id,
-                evaluated_at=evaluated_at,
+                evaluated_at=publication_evaluated_at,
             )
         except ToolCallGovernanceError as error:
             return _failed_result(error.code.value, retryable=False)
@@ -199,10 +257,11 @@ class MultiCityPlanningOrchestrator:
         self,
         request: TripPlanRequestV3,
         governor: ToolCallGovernor,
-    ) -> tuple[_CityFacts | None, ...]:
+        attempt_runtime: ProviderAttemptRuntime | None,
+    ) -> tuple[_CityFacts | _CityCollectionFailure, ...]:
         semaphore = asyncio.Semaphore(2)
 
-        async def collect(index: int) -> _CityFacts | None:
+        async def collect(index: int) -> _CityFacts | _CityCollectionFailure:
             async with semaphore:
                 stay = request.city_stays[index]
                 city_result = await _governed_call(
@@ -210,9 +269,15 @@ class MultiCityPlanningOrchestrator:
                     ToolCallCapability.RESOLVE_CITY,
                     PlanningStatus.COLLECTING,
                     lambda: self._amap.resolve_city(CityResolutionRequest(stay.city)),
+                    attempt_runtime=attempt_runtime,
+                    provider=Provider.AMAP,
+                    provider_operation=ProviderOperation.RESOLVE_CITY,
                 )
                 if city_result.data is None or not _mainland_adcode(city_result.data.adcode):
-                    return None
+                    return _CityCollectionFailure(
+                        (cast(ProviderResult[object], city_result),),
+                        "city_resolution_unavailable",
+                    )
                 city = city_result.data
                 accommodation_result = await _governed_call(
                     governor,
@@ -226,6 +291,9 @@ class MultiCityPlanningOrchestrator:
                             3,
                         )
                     ),
+                    attempt_runtime=attempt_runtime,
+                    provider=Provider.AMAP,
+                    provider_operation=ProviderOperation.SEARCH_POIS,
                 )
                 poi_result = await _governed_call(
                     governor,
@@ -239,6 +307,9 @@ class MultiCityPlanningOrchestrator:
                             min(20, max(6, 2 * request.day_count + 2)),
                         )
                     ),
+                    attempt_runtime=attempt_runtime,
+                    provider=Provider.AMAP,
+                    provider_operation=ProviderOperation.SEARCH_POIS,
                 )
                 station_names = _station_names(request, index)
                 station_result = None
@@ -250,6 +321,9 @@ class MultiCityPlanningOrchestrator:
                         lambda: self._amap.search_pois(
                             PoiSearchRequest(city.adcode, station_names, (), len(station_names)),
                         ),
+                        attempt_runtime=attempt_runtime,
+                        provider=Provider.AMAP,
+                        provider_operation=ProviderOperation.SEARCH_POIS,
                     )
                 if (
                     accommodation_result.data is None
@@ -258,10 +332,25 @@ class MultiCityPlanningOrchestrator:
                     or not poi_result.data.candidates
                     or (station_names and (station_result is None or station_result.data is None))
                 ):
-                    return None
+                    required_results: tuple[ProviderResult[object], ...] = (
+                        cast(ProviderResult[object], accommodation_result),
+                        cast(ProviderResult[object], poi_result),
+                    )
+                    if station_result is not None:
+                        required_results = (
+                            *required_results,
+                            cast(ProviderResult[object], station_result),
+                        )
+                    return _CityCollectionFailure(
+                        required_results,
+                        "location_data_unavailable",
+                    )
                 accommodation = accommodation_result.data.candidates[0]
                 if accommodation.city_adcode != city.adcode or accommodation.coordinates is None:
-                    return None
+                    return _CityCollectionFailure(
+                        (cast(ProviderResult[object], accommodation_result),),
+                        "location_data_invalid",
+                    )
                 accommodation_coordinates = accommodation.coordinates
                 weather_result = await _governed_call(
                     governor,
@@ -275,6 +364,9 @@ class MultiCityPlanningOrchestrator:
                             request.end_date,
                         )
                     ),
+                    attempt_runtime=attempt_runtime,
+                    provider=Provider.QWEATHER,
+                    provider_operation=ProviderOperation.GET_WEATHER_FORECAST,
                 )
                 alert_result = await _governed_call(
                     governor,
@@ -286,6 +378,9 @@ class MultiCityPlanningOrchestrator:
                             accommodation_coordinates,
                         )
                     ),
+                    attempt_runtime=attempt_runtime,
+                    provider=Provider.QWEATHER,
+                    provider_operation=ProviderOperation.GET_CURRENT_WEATHER_ALERTS,
                 )
                 return _CityFacts(
                     index,
@@ -298,7 +393,9 @@ class MultiCityPlanningOrchestrator:
                 )
 
         return tuple(
-            await asyncio.gather(*(collect(index) for index in range(len(request.city_stays))))
+            await _gather_with_peer_drain(
+                *(collect(index) for index in range(len(request.city_stays)))
+            )
         )
 
     async def _collect_routes(
@@ -307,6 +404,7 @@ class MultiCityPlanningOrchestrator:
         cities: tuple[_CityFacts, ...],
         request: TripPlanRequestV3,
         governor: ToolCallGovernor,
+        attempt_runtime: ProviderAttemptRuntime | None,
     ) -> tuple[_RouteFact, ...]:
         semaphore = asyncio.Semaphore(2)
         citycodes = {item.city.adcode: item.city.citycode for item in cities}
@@ -337,10 +435,25 @@ class MultiCityPlanningOrchestrator:
                             mode,
                         )
                     ),
+                    attempt_runtime=attempt_runtime,
+                    provider=Provider.AMAP,
+                    provider_operation=ProviderOperation.CALCULATE_ROUTES,
                 )
                 return _RouteFact(need, result)
 
-        return tuple(await asyncio.gather(*(collect(need) for need in needs)))
+        return tuple(await _gather_with_peer_drain(*(collect(need) for need in needs)))
+
+
+async def _gather_with_peer_drain[T](*operations: Awaitable[T]) -> tuple[T, ...]:
+    tasks = tuple(asyncio.ensure_future(operation) for operation in operations)
+    try:
+        return tuple(await asyncio.gather(*tasks))
+    except BaseException:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
 
 
 async def _observe(
@@ -393,6 +506,8 @@ def _day_city_indices(request: TripPlanRequestV3) -> tuple[tuple[int, int, int],
 def _planning_context(
     request: TripPlanRequestV3,
     cities: tuple[_CityFacts, ...],
+    *,
+    evaluated_at: datetime,
 ) -> PlanningContext:
     locations = tuple(
         PlanningLocation(item.location_id, item.name, item.category, item.city_adcode)
@@ -418,7 +533,14 @@ def _planning_context(
                 ),
             )
         )
-        if city.weather_result is not None and city.weather_result.data is not None:
+        if (
+            city.weather_result is not None
+            and city.weather_result.data is not None
+            and not _result_has_stale_source(
+                city.weather_result,
+                evaluated_at=evaluated_at,
+            )
+        ):
             observations.append(
                 PlanningObservation(
                     "weather",
@@ -426,7 +548,11 @@ def _planning_context(
                     _source_ids(city.weather_result),
                 )
             )
-        if city.alert_result is not None and city.alert_result.data is not None:
+        if (
+            city.alert_result is not None
+            and city.alert_result.data is not None
+            and not _result_has_stale_source(city.alert_result, evaluated_at=evaluated_at)
+        ):
             observations.append(
                 PlanningObservation(
                     "weather_alerts",
@@ -616,6 +742,7 @@ def _build_result(
         route_facts,
         segments,
         job_id=job_id,
+        evaluated_at=evaluated_at,
     )
     destinations = tuple(
         ResolvedDestination(
@@ -657,11 +784,19 @@ def _build_result(
     )
     weather_missing = any(day.weather is None for day in days)
     provider_partial = any(item.status is not ProviderResultStatus.OK for item in provider_results)
-    errors = _provider_errors(provider_results)
+    freshness_partial = any(
+        _result_freshness(item, evaluated_at=evaluated_at) is not DomainDataFreshness.FRESH
+        for item in provider_results
+        if item.data is not None
+    )
+    errors = (
+        *_provider_errors(provider_results),
+        *_freshness_errors(cities, route_facts, evaluated_at=evaluated_at),
+    )
     unknowns = tuple(item for item in cost_items if item.confidence is CostConfidence.UNKNOWN)
     status = (
         PlanningStatus.PARTIAL
-        if provider_partial or weather_missing or unknowns or errors
+        if provider_partial or freshness_partial or weather_missing or unknowns or errors
         else PlanningStatus.READY
     )
     if budget_summary.assessment is BudgetAssessment.OVER_BUDGET:
@@ -716,6 +851,7 @@ def _schedule_days(
     segments: tuple[PlanIntercitySegmentV3, ...],
     *,
     job_id: UUID,
+    evaluated_at: datetime,
 ) -> tuple[tuple[PlanDayV3, ...], str | None]:
     route_map = {
         (
@@ -813,7 +949,11 @@ def _schedule_days(
                 accommodation_location_id=cities[overnight].accommodation.location_id,
                 activities=tuple(activities),
                 routes=tuple(routes),
-                weather=_weather_for_day(cities[overnight], proposal_day.local_date),
+                weather=_weather_for_day(
+                    cities[overnight],
+                    proposal_day.local_date,
+                    evaluated_at=evaluated_at,
+                ),
             )
         )
     return tuple(days), None
@@ -847,8 +987,15 @@ def _after_route(
     return cursor + timedelta(minutes=route.duration_minutes + _ROUTE_BUFFER_MINUTES[route.mode])
 
 
-def _weather_for_day(city: _CityFacts, local_date: object) -> WeatherSnapshot | None:
+def _weather_for_day(
+    city: _CityFacts,
+    local_date: object,
+    *,
+    evaluated_at: datetime,
+) -> WeatherSnapshot | None:
     if city.weather_result is None or city.weather_result.data is None:
+        return None
+    if _result_has_stale_source(city.weather_result, evaluated_at=evaluated_at):
         return None
     day = next(
         (item for item in city.weather_result.data.days if item.forecast_date == local_date),
@@ -858,7 +1005,11 @@ def _weather_for_day(city: _CityFacts, local_date: object) -> WeatherSnapshot | 
         return None
     alerts: tuple[WeatherAlert, ...] = ()
     alert_sources: tuple[UUID, ...] = ()
-    if city.alert_result is not None and city.alert_result.data is not None:
+    if (
+        city.alert_result is not None
+        and city.alert_result.data is not None
+        and not _result_has_stale_source(city.alert_result, evaluated_at=evaluated_at)
+    ):
         alert_sources = _source_ids(city.alert_result)
         alerts = tuple(
             WeatherAlert(
@@ -1107,7 +1258,115 @@ def _provider_errors(results: tuple[ProviderResult[object], ...]) -> tuple[ApiEr
     return tuple(values)
 
 
-def _route_fact_valid(item: _RouteFact) -> bool:
+def _result_freshness[T](
+    result: ProviderResult[T],
+    *,
+    evaluated_at: datetime,
+) -> DomainDataFreshness:
+    values = tuple(
+        evaluate_freshness(
+            item.fetched_at,
+            item.valid_until,
+            max(evaluated_at, item.fetched_at),
+        )
+        for item in result.source_records
+    )
+    if DomainDataFreshness.STALE in values:
+        return DomainDataFreshness.STALE
+    if DomainDataFreshness.UNKNOWN_VALIDITY in values or not values:
+        return DomainDataFreshness.UNKNOWN_VALIDITY
+    return DomainDataFreshness.FRESH
+
+
+def _publication_evaluated_at(
+    started_at: datetime,
+    clock: Callable[[], datetime] | None,
+) -> datetime:
+    value = clock() if clock is not None else started_at
+    if (
+        not isinstance(value, datetime)
+        or value.tzinfo is None
+        or value.utcoffset() is None
+        or started_at.tzinfo is None
+        or started_at.utcoffset() is None
+    ):
+        raise ValueError("publication_clock_invalid")
+    return max(started_at, value)
+
+
+def _result_has_stale_source[T](
+    result: ProviderResult[T],
+    *,
+    evaluated_at: datetime,
+) -> bool:
+    return _result_freshness(result, evaluated_at=evaluated_at) is DomainDataFreshness.STALE
+
+
+def _freshness_errors(
+    cities: tuple[_CityFacts, ...],
+    route_facts: tuple[_RouteFact, ...],
+    *,
+    evaluated_at: datetime,
+) -> tuple[ApiError, ...]:
+    candidates: list[tuple[ProviderResult[object], ResilienceDiagnosticCode]] = []
+    for city in cities:
+        for result in (
+            city.city_result,
+            city.accommodation_result,
+            city.poi_result,
+            city.station_result,
+        ):
+            if result is not None:
+                candidates.append(
+                    (
+                        cast(ProviderResult[object], result),
+                        ResilienceDiagnosticCode.LOCATION_SOURCE_STALE,
+                    )
+                )
+        if city.weather_result is not None:
+            candidates.append(
+                (
+                    cast(ProviderResult[object], city.weather_result),
+                    ResilienceDiagnosticCode.WEATHER_FORECAST_STALE,
+                )
+            )
+        if city.alert_result is not None:
+            candidates.append(
+                (
+                    cast(ProviderResult[object], city.alert_result),
+                    ResilienceDiagnosticCode.WEATHER_ALERT_STALE,
+                )
+            )
+    candidates.extend(
+        (
+            cast(ProviderResult[object], item.result),
+            ResilienceDiagnosticCode.ROUTE_SOURCE_STALE,
+        )
+        for item in route_facts
+    )
+    values: list[ApiError] = []
+    seen: set[tuple[str, str]] = set()
+    for candidate_result, diagnostic in candidates:
+        key = (candidate_result.provider.value, diagnostic.value)
+        if key in seen or not _result_has_stale_source(
+            candidate_result,
+            evaluated_at=evaluated_at,
+        ):
+            continue
+        seen.add(key)
+        values.append(
+            ApiError(
+                code=ApiErrorCode.DATA_STALE,
+                message="外部数据已超过声明的有效期。",
+                provider=candidate_result.provider.value,
+                diagnostic_code=diagnostic.value,
+                retryable=True,
+            )
+        )
+    return tuple(values)
+
+
+def _route_fact_structurally_valid(item: _RouteFact) -> bool:
     route = item.result.data
     if route is None:
         return False
@@ -1144,6 +1403,63 @@ def _failed_result(code: str, *, retryable: bool) -> PlanningJobResultV3:
             ),
         ),
         retryable=retryable,
+    )
+
+
+def _stale_route_failure_result(
+    results: tuple[ProviderResult[object], ...],
+    *,
+    evaluated_at: datetime,
+) -> PlanningJobResultV3:
+    return PlanningJobResultV3(
+        status=PlanningStatus.FAILED,
+        resolved_destinations=(),
+        plan=None,
+        violations=(),
+        warnings=(),
+        uncertainties=(),
+        sources=_contract_sources(results, evaluated_at=evaluated_at),
+        errors=(
+            ApiError(
+                code=ApiErrorCode.DATA_STALE,
+                message="外部数据已超过声明的有效期。",
+                provider=Provider.AMAP.value,
+                diagnostic_code=ResilienceDiagnosticCode.ROUTE_SOURCE_STALE.value,
+                retryable=True,
+            ),
+        ),
+        retryable=True,
+    )
+
+
+def _provider_failure_result(
+    results: tuple[ProviderResult[object], ...],
+    *,
+    diagnostic_code: str,
+    evaluated_at: datetime,
+) -> PlanningJobResultV3:
+    errors = _provider_errors(results)
+    if not errors:
+        provider = results[0].provider.value if results else None
+        errors = (
+            ApiError(
+                code=ApiErrorCode.DATA_MISSING,
+                message="外部服务没有返回可用数据。",
+                provider=provider,
+                diagnostic_code=diagnostic_code,
+                retryable=False,
+            ),
+        )
+    return PlanningJobResultV3(
+        status=PlanningStatus.FAILED,
+        resolved_destinations=(),
+        plan=None,
+        violations=(),
+        warnings=(),
+        uncertainties=(),
+        sources=_contract_sources(results, evaluated_at=evaluated_at),
+        errors=errors,
+        retryable=any(item.retryable for item in errors),
     )
 
 

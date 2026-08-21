@@ -30,8 +30,8 @@ from intelligent_travel_assistant.application.ports import (
     CityResolutionRequest,
     DailyWeather,
     ModelTextOutput,
-    PlanCandidateRepairRequest,
     PlanningContext,
+    PlanRepairBrief,
     PoiCandidate,
     PoiSearchRequest,
     PoiSearchResult,
@@ -46,16 +46,20 @@ from intelligent_travel_assistant.application.services import (
     ProviderPlanningJobExecutor,
 )
 from intelligent_travel_assistant.application.tooling import (
+    ProviderAttemptRuntime,
     ToolCallCapability,
     ToolCallGovernor,
     multicity_task_timeout_seconds,
     multicity_tool_call_policies,
 )
-from intelligent_travel_assistant.contracts import PlanningStatus, TripPlanRequestV3
+from intelligent_travel_assistant.contracts import ApiErrorCode, PlanningStatus, TripPlanRequestV3
 from intelligent_travel_assistant.domain import (
     Coordinates,
     CoordinateSystem,
     Provider,
+    ProviderError,
+    ProviderErrorCategory,
+    ProviderOperation,
     ProviderResult,
     ProviderResultStatus,
     RouteLeg,
@@ -70,20 +74,39 @@ def _id(value: str) -> UUID:
     return uuid5(NAMESPACE_URL, f"f-004b1-step4:{value}")
 
 
-def _source(provider: Provider, value: str) -> SourceRecord:
-    return SourceRecord(_id(f"source:{value}"), provider, f"synthetic_{value}", NOW, None)
+def _source(
+    provider: Provider,
+    value: str,
+    *,
+    fetched_at: datetime = NOW,
+    valid_until: datetime | None = None,
+) -> SourceRecord:
+    return SourceRecord(
+        _id(f"source:{value}"),
+        provider,
+        f"synthetic_{value}",
+        fetched_at,
+        valid_until,
+    )
 
 
-def _result[T](provider: Provider, data: T, value: str) -> ProviderResult[T]:
+def _result[T](
+    provider: Provider,
+    data: T,
+    value: str,
+    *,
+    fetched_at: datetime = NOW,
+    valid_until: datetime | None = None,
+) -> ProviderResult[T]:
     return ProviderResult(
         ProviderResultStatus.OK,
         provider,
         data,
-        NOW,
-        None,
+        fetched_at,
+        valid_until,
         ("synthetic provider result",),
         None,
-        (_source(provider, value),),
+        (_source(provider, value, fetched_at=fetched_at, valid_until=valid_until),),
     )
 
 
@@ -149,7 +172,13 @@ def _proposal(poi_a: UUID, poi_b: UUID, source_a: UUID, source_b: UUID) -> str:
     )
 
 
-def _orchestrator() -> tuple[
+def _orchestrator(
+    *,
+    stale_routes: bool = False,
+    route_valid_until: datetime | None = None,
+    deepseek_error: ProviderError | None = None,
+    route_error: ProviderError | None = None,
+) -> tuple[
     MultiCityPlanningOrchestrator,
     FakeAmapAdapter,
     FakeQWeatherAdapter,
@@ -204,7 +233,18 @@ def _orchestrator() -> tuple[
         (pois[1], hotels[1]),
     )
     route_results = tuple(
-        _result(
+        ProviderResult(
+            ProviderResultStatus.UNAVAILABLE,
+            Provider.AMAP,
+            None,
+            None,
+            None,
+            ("synthetic route failure",),
+            route_error,
+            (),
+        )
+        if route_error is not None
+        else _result(
             Provider.AMAP,
             RouteLeg(
                 origin.location_id,
@@ -215,6 +255,8 @@ def _orchestrator() -> tuple[
                 (_id(f"source:route:{index}"),),
             ),
             f"route:{index}",
+            fetched_at=(NOW - timedelta(hours=2) if stale_routes else NOW),
+            valid_until=(NOW - timedelta(hours=1) if stale_routes else route_valid_until),
         )
         for index, (origin, destination) in enumerate(route_pairs)
     )
@@ -269,7 +311,18 @@ def _orchestrator() -> tuple[
     )
     deepseek = FakeDeepSeekAdapter(
         generation_results=(
-            _result(
+            ProviderResult(
+                ProviderResultStatus.UNAVAILABLE,
+                Provider.DEEPSEEK,
+                None,
+                None,
+                None,
+                ("synthetic model failure",),
+                deepseek_error,
+                (),
+            )
+            if deepseek_error is not None
+            else _result(
                 Provider.DEEPSEEK,
                 ModelTextOutput(_proposal(pois[0].location_id, pois[1].location_id, *poi_sources)),
                 "model",
@@ -302,6 +355,18 @@ def _orchestrator() -> tuple[
     )
 
 
+def _attempt_runtime() -> ProviderAttemptRuntime:
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    return ProviderAttemptRuntime(
+        clock=lambda: 0.0,
+        sleeper=no_delay,
+        jitter=lambda: 0.0,
+        task_timeout_seconds=180.0,
+    )
+
+
 def test_multicity_governance_scales_city_facts_but_not_model_calls() -> None:
     policies = multicity_tool_call_policies(city_count=3, day_count=7)
 
@@ -326,7 +391,7 @@ def test_multicity_orchestrator_builds_v3_plan_with_global_model_and_no_intercit
 
     result = asyncio.run(orchestrator.plan(_request(), job_id=_id("job"), evaluated_at=NOW))
 
-    assert result.status is PlanningStatus.READY
+    assert result.status is PlanningStatus.PARTIAL
     assert result.plan is not None
     assert result.plan.plan_format_version == "3"
     assert result.plan.city_adcodes == ("330100", "310000")
@@ -348,6 +413,169 @@ def test_multicity_orchestrator_builds_v3_plan_with_global_model_and_no_intercit
     assert context.day_city_indices == ((0, 0, 0), (0, 1, 1), (1, 1, 1))
     assert governors[0].snapshot().active_route_calls == 0
     assert governors[0].snapshot().count_for(ToolCallCapability.GENERATE_PLAN_CANDIDATE) == 1
+
+
+def test_multicity_uses_one_explicit_runtime_for_city_route_weather_and_model_attempts() -> None:
+    orchestrator, _amap, _qweather, _deepseek, _governors = _orchestrator()
+    attempt_runtime = _attempt_runtime()
+
+    result = asyncio.run(
+        orchestrator.plan(
+            _request(),
+            job_id=_id("runtime-job"),
+            evaluated_at=NOW,
+            attempt_runtime=attempt_runtime,
+        )
+    )
+
+    assert result.status is PlanningStatus.PARTIAL
+    snapshot = attempt_runtime.snapshot()
+    assert snapshot.active_executions == 0
+    assert snapshot.task_extra_attempts == 0
+    assert {
+        ProviderOperation.RESOLVE_CITY,
+        ProviderOperation.SEARCH_POIS,
+        ProviderOperation.GET_WEATHER_FORECAST,
+        ProviderOperation.GET_CURRENT_WEATHER_ALERTS,
+        ProviderOperation.GENERATE_PLAN_CANDIDATE,
+        ProviderOperation.CALCULATE_ROUTES,
+    } <= {record.operation for record in snapshot.records}
+
+
+def test_multicity_runtime_deadline_projects_existing_timeout_shape_without_http_call() -> None:
+    orchestrator, amap, qweather, deepseek, _governors = _orchestrator()
+
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    attempt_runtime = ProviderAttemptRuntime(
+        clock=lambda: 0.0,
+        sleeper=no_delay,
+        jitter=lambda: 0.0,
+        task_timeout_seconds=5.0,
+    )
+
+    result = asyncio.run(
+        orchestrator.plan(
+            _request(),
+            job_id=_id("runtime-deadline"),
+            evaluated_at=NOW,
+            attempt_runtime=attempt_runtime,
+        )
+    )
+
+    assert result.status is PlanningStatus.FAILED
+    assert result.errors[0].code is ApiErrorCode.PROVIDER_TIMEOUT
+    assert result.errors[0].diagnostic_code == "retry_deadline_exhausted"
+    assert amap.calls == ()
+    assert qweather.calls == ()
+    assert deepseek.calls == ()
+    assert attempt_runtime.snapshot().records == ()
+
+
+def test_multicity_stale_required_route_fails_with_attributed_data_stale_shape() -> None:
+    orchestrator, amap, _qweather, _deepseek, _governors = _orchestrator(stale_routes=True)
+
+    result = asyncio.run(
+        orchestrator.plan(
+            _request(),
+            job_id=_id("stale-routes"),
+            evaluated_at=NOW,
+        )
+    )
+
+    assert result.status is PlanningStatus.FAILED
+    assert result.plan is None
+    assert result.errors[0].code is ApiErrorCode.DATA_STALE
+    assert result.errors[0].provider == "amap"
+    assert result.errors[0].diagnostic_code == "route_source_stale"
+    assert result.errors[0].retryable is True
+    assert any(
+        source.provider.value == "amap" and source.freshness.value == "stale"
+        for source in result.sources
+    )
+    assert sum(call.operation is FakeOperation.CALCULATE_ROUTES for call in amap.calls) == 4
+
+
+def test_multicity_model_timeout_preserves_provider_failure_semantics() -> None:
+    orchestrator, _amap, _qweather, _deepseek, _governors = _orchestrator(
+        deepseek_error=ProviderError(ProviderErrorCategory.TIMEOUT)
+    )
+
+    result = asyncio.run(
+        orchestrator.plan(_request(), job_id=_id("model-timeout"), evaluated_at=NOW)
+    )
+
+    assert result.status is PlanningStatus.FAILED
+    assert result.plan is None
+    assert [(error.code, error.provider, error.retryable) for error in result.errors] == [
+        (ApiErrorCode.PROVIDER_TIMEOUT, "deepseek", True)
+    ]
+
+
+def test_multicity_route_auth_failure_is_not_retryable_or_relabelled() -> None:
+    orchestrator, _amap, _qweather, _deepseek, _governors = _orchestrator(
+        route_error=ProviderError(ProviderErrorCategory.AUTH)
+    )
+
+    result = asyncio.run(orchestrator.plan(_request(), job_id=_id("route-auth"), evaluated_at=NOW))
+
+    assert result.status is PlanningStatus.FAILED
+    assert result.plan is None
+    assert [(error.code, error.provider, error.retryable) for error in result.errors] == [
+        (ApiErrorCode.PROVIDER_UNAUTHORIZED, "amap", False)
+    ]
+
+
+def test_multicity_route_expiring_during_planning_is_rejected_before_publication() -> None:
+    orchestrator, amap, qweather, deepseek, _governors = _orchestrator(
+        route_valid_until=NOW + timedelta(seconds=30)
+    )
+    repository = InMemoryPlanningJobRepository(clock=lambda: NOW)
+
+    async def execute() -> PlanningJob:
+        reservation = await repository.get_or_create(_request())
+        readings = iter((NOW, NOW + timedelta(minutes=1)))
+        legacy = OfflinePlanningOrchestrator(
+            amap,
+            qweather,
+            deepseek,
+            lambda: ToolCallGovernor(clock=lambda: 0.0),
+        )
+        executor = ProviderPlanningJobExecutor(
+            repository,
+            legacy,
+            clock=readings.__next__,
+            multicity_orchestrator=orchestrator,
+        )
+        await executor.execute(reservation.job.job_id)
+        return await repository.get(reservation.job.job_id)
+
+    job = asyncio.run(execute())
+
+    assert job.status is PlanningStatus.FAILED
+    assert isinstance(job.result, PlanningJobResultV3)
+    assert job.result.plan is None
+    assert job.result.errors[0].code is ApiErrorCode.DATA_STALE
+    assert job.result.errors[0].diagnostic_code == "route_source_stale"
+
+
+def test_multicity_publication_clock_cannot_move_freshness_before_task_start() -> None:
+    orchestrator, _amap, _qweather, _deepseek, _governors = _orchestrator(stale_routes=True)
+
+    result = asyncio.run(
+        orchestrator.plan(
+            _request(),
+            job_id=_id("publication-clock-rollback"),
+            evaluated_at=NOW,
+            publication_clock=lambda: NOW - timedelta(hours=3),
+        )
+    )
+
+    assert result.status is PlanningStatus.FAILED
+    assert result.plan is None
+    assert result.errors[0].code is ApiErrorCode.DATA_STALE
+    assert result.errors[0].diagnostic_code == "route_source_stale"
 
 
 def test_v3_model_boundary_rejects_city_index_drift_and_omits_intercity_raw_values() -> None:
@@ -416,11 +644,11 @@ def test_v3_repair_receives_only_safe_context_and_one_diagnostic() -> None:
         assert resolution.repaired is True
         assert len(repair_deepseek.calls) == 2
         repair_request = repair_deepseek.calls[1].request
-        assert isinstance(repair_request, PlanCandidateRepairRequest)
-        assert repair_request.invalid_output == ""
-        assert repair_request.context.free_text == ""
-        assert repair_request.context.interests == ()
-        assert repair_request.context.hard_constraints == ()
+        assert isinstance(repair_request, PlanRepairBrief)
+        assert not hasattr(repair_request, "invalid_output")
+        assert not hasattr(repair_request, "context")
+        assert repair_request.request_version == "3"
+        assert repair_request.day_city_indices == ((0, 0, 0), (0, 1, 1), (1, 1, 1))
 
     asyncio.run(scenario())
 
@@ -447,7 +675,7 @@ def test_provider_executor_persists_v3_terminal_result_through_existing_reposito
 
     job = asyncio.run(execute())
 
-    assert job.status is PlanningStatus.READY
+    assert job.status is PlanningStatus.PARTIAL
     assert isinstance(job.result, PlanningJobResultV3)
     assert job.result.plan is not None
     assert job.result.plan.plan_format_version == "3"
@@ -537,7 +765,7 @@ def test_multicity_city_fact_fanout_is_bounded_at_two() -> None:
             ),
         )
         result = await orchestrator.plan(_request(), job_id=_id("fanout"), evaluated_at=NOW)
-        assert result.status is PlanningStatus.READY
+        assert result.status is PlanningStatus.PARTIAL
         assert concurrent.maximum == 2
         assert concurrent.active == 0
 

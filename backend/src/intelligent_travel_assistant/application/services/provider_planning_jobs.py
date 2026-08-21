@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -16,6 +17,7 @@ from intelligent_travel_assistant.application.planning import (
     FinalValidationIssue,
     FinalValidationIssueCode,
     FinalValidationSeverity,
+    RouteDataDiagnosticCode,
     SchedulingIssueCode,
     SchedulingUncertaintyCode,
     SchedulingWarningCode,
@@ -36,6 +38,12 @@ from intelligent_travel_assistant.application.services.offline_planning import (
     OfflinePlanningOrchestrator,
     OfflinePlanningOutcome,
     OfflinePlanningRequest,
+)
+from intelligent_travel_assistant.application.tooling import (
+    TASK_TIMEOUT_SECONDS,
+    ProviderAttemptRuntime,
+    multicity_task_timeout_seconds,
+    multiday_task_timeout_seconds,
 )
 from intelligent_travel_assistant.contracts import (
     ApiError,
@@ -88,6 +96,9 @@ from intelligent_travel_assistant.domain import (
     CostConfidence as DomainCostConfidence,
 )
 from intelligent_travel_assistant.domain import (
+    DataFreshness as DomainDataFreshness,
+)
+from intelligent_travel_assistant.domain import (
     Money as DomainMoney,
 )
 from intelligent_travel_assistant.domain import (
@@ -116,6 +127,7 @@ _PROVIDER_ERROR_MESSAGES = {
     ApiErrorCode.PROVIDER_UNAVAILABLE: "外部服务当前不可用。",
     ApiErrorCode.PROVIDER_SCHEMA_INVALID: "外部服务返回了无法安全解析的数据。",
     ApiErrorCode.DATA_MISSING: "外部服务没有返回可用数据。",
+    ApiErrorCode.DATA_STALE: "外部数据已超过声明的有效期。",
 }
 
 _SCHEDULING_WARNING_MESSAGES = {
@@ -141,7 +153,13 @@ _SCHEDULING_UNCERTAINTY_MESSAGES = {
 class ProviderPlanningJobExecutor:
     """Bridge the HTTP job resource to the provider-neutral orchestrator."""
 
-    __slots__ = ("_clock", "_multicity_orchestrator", "_orchestrator", "_repository")
+    __slots__ = (
+        "_attempt_runtime_factory",
+        "_clock",
+        "_multicity_orchestrator",
+        "_orchestrator",
+        "_repository",
+    )
 
     def __init__(
         self,
@@ -150,10 +168,12 @@ class ProviderPlanningJobExecutor:
         *,
         clock: Callable[[], datetime] | None = None,
         multicity_orchestrator: MultiCityPlanningOrchestrator | None = None,
+        attempt_runtime_factory: Callable[[float], ProviderAttemptRuntime] | None = None,
     ) -> None:
         self._repository = repository
         self._orchestrator = orchestrator
         self._multicity_orchestrator = multicity_orchestrator
+        self._attempt_runtime_factory = attempt_runtime_factory
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def execute(self, job_id: UUID) -> None:
@@ -199,26 +219,37 @@ class ProviderPlanningJobExecutor:
                     expected_version=job.version,
                 )
                 return
+            attempt_runtime = self._new_attempt_runtime(job.request)
             try:
                 multicity_result = await self._multicity_orchestrator.plan(
                     job.request,
                     job_id=identity_namespace,
                     evaluated_at=started_at,
+                    publication_clock=self._now,
                     state_observer=observe,
+                    attempt_runtime=attempt_runtime,
                 )
-                current = await self._repository.get(job_id)
-                await self._repository.record_result(
-                    job_id,
-                    multicity_result,
-                    expected_version=current.version,
-                )
-            except Exception:
+            except asyncio.CancelledError:
+                if attempt_runtime is not None:
+                    await attempt_runtime.close()
                 current = await self._repository.get(job_id)
                 await self._repository.record_result(
                     job_id,
                     _multicity_internal_failure_result("multicity_internal_failure"),
                     expected_version=current.version,
                 )
+                raise
+            except Exception:
+                multicity_result = _multicity_internal_failure_result("multicity_internal_failure")
+            finally:
+                if attempt_runtime is not None:
+                    await attempt_runtime.close()
+            current = await self._repository.get(job_id)
+            await self._repository.record_result(
+                job_id,
+                multicity_result,
+                expected_version=current.version,
+            )
             return
         try:
             request = _offline_request(
@@ -241,33 +272,62 @@ class ProviderPlanningJobExecutor:
             )
             return
 
+        attempt_runtime = self._new_attempt_runtime(job.request)
         try:
-            outcome = await self._orchestrator.plan(request, state_observer=observe)
-            current = await self._repository.get(job_id)
+            outcome = await self._orchestrator.plan(
+                request,
+                state_observer=observe,
+                attempt_runtime=attempt_runtime,
+            )
             result = _planning_result(
                 outcome,
                 job.request,
                 job_id=identity_namespace,
-                evaluated_at=request.evaluated_at,
+                evaluated_at=self._now(),
             )
-            await self._repository.record_result(
-                job_id,
-                result,
-                expected_version=current.version,
-            )
-        except Exception:
+        except asyncio.CancelledError:
+            if attempt_runtime is not None:
+                await attempt_runtime.close()
             current = await self._repository.get(job_id)
             await self._repository.record_result(
                 job_id,
                 _internal_failure_result(),
                 expected_version=current.version,
             )
+            raise
+        except Exception:
+            result = _internal_failure_result()
+        finally:
+            if attempt_runtime is not None:
+                await attempt_runtime.close()
+        current = await self._repository.get(job_id)
+        await self._repository.record_result(
+            job_id,
+            result,
+            expected_version=current.version,
+        )
 
     def _now(self) -> datetime:
         value = self._clock()
         if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("executor_clock_invalid")
         return value
+
+    def _new_attempt_runtime(self, request: PlanningRequest) -> ProviderAttemptRuntime | None:
+        if self._attempt_runtime_factory is None:
+            return None
+        return self._attempt_runtime_factory(_task_timeout_seconds(request))
+
+
+def _task_timeout_seconds(request: PlanningRequest) -> float:
+    if isinstance(request, TripPlanRequestV3):
+        return multicity_task_timeout_seconds(
+            city_count=len(request.city_stays),
+            day_count=request.day_count,
+        )
+    if isinstance(request, TripPlanRequestV2):
+        return multiday_task_timeout_seconds(request.day_count)
+    return TASK_TIMEOUT_SECONDS
 
 
 def _offline_request(
@@ -365,7 +425,7 @@ def _offline_request(
             for item in request.day_windows
         ),
         cost_items=costs,
-        evaluated_at=evaluated_at + _evaluation_grace(day_count),
+        evaluated_at=evaluated_at,
         accommodation_query=request.accommodation.area_or_poi,
         derive_local_transport_cost=True,
         fallback_route_modes=fallback_route_modes,
@@ -420,7 +480,10 @@ def _planning_result(
     route_provider_results = _route_provider_results(outcome)
     provider_results = (*base_provider_results, *route_provider_results)
     sources = _sources(provider_results, job_id=job_id, evaluated_at=evaluated_at)
-    errors = _provider_errors(base_provider_results)
+    errors = (
+        *_provider_errors(base_provider_results),
+        *_freshness_errors(outcome, evaluated_at=evaluated_at, include_routes=False),
+    )
     route_errors = _provider_errors(route_provider_results)
     if outcome.candidate_resolution_error is CandidateResolutionErrorCode.MODEL_OUTPUT_INVALID:
         errors = tuple(
@@ -440,21 +503,52 @@ def _planning_result(
         )
     if outcome.scheduling_issue is SchedulingIssueCode.ROUTE_DATA_UNAVAILABLE:
         if outcome.route_diagnostic_code is not None:
-            route_errors = tuple(
-                item.model_copy(update={"diagnostic_code": outcome.route_diagnostic_code.value})
-                for item in route_errors
-            )
-            if not route_errors:
+            if outcome.route_diagnostic_code is RouteDataDiagnosticCode.SOURCE_STALE:
                 route_errors = (
                     ApiError(
-                        code=ApiErrorCode.DATA_MISSING,
-                        message=_PROVIDER_ERROR_MESSAGES[ApiErrorCode.DATA_MISSING],
+                        code=ApiErrorCode.DATA_STALE,
+                        message=_PROVIDER_ERROR_MESSAGES[ApiErrorCode.DATA_STALE],
                         provider="amap",
                         diagnostic_code=outcome.route_diagnostic_code.value,
-                        retryable=False,
+                        retryable=True,
                     ),
                 )
+            else:
+                route_errors = tuple(
+                    item.model_copy(update={"diagnostic_code": outcome.route_diagnostic_code.value})
+                    for item in route_errors
+                )
+                if not route_errors:
+                    route_errors = (
+                        ApiError(
+                            code=ApiErrorCode.DATA_MISSING,
+                            message=_PROVIDER_ERROR_MESSAGES[ApiErrorCode.DATA_MISSING],
+                            provider="amap",
+                            diagnostic_code=outcome.route_diagnostic_code.value,
+                            retryable=False,
+                        ),
+                    )
+    elif route_provider_results:
+        route_errors = (
+            *route_errors,
+            *_freshness_errors(outcome, evaluated_at=evaluated_at, include_base=False),
+        )
     errors = (*errors, *route_errors)
+    if any(
+        _result_has_stale_source(result, evaluated_at=evaluated_at)
+        for result in route_provider_results
+    ):
+        return PlanningJobResult(
+            status=PlanningStatus.FAILED,
+            resolved_destination=_destination(outcome),
+            plan=None,
+            violations=(),
+            warnings=(),
+            uncertainties=(),
+            sources=sources,
+            errors=errors,
+            retryable=any(item.retryable for item in errors),
+        )
     scheduling_warnings = tuple(
         _SCHEDULING_WARNING_MESSAGES[item] for item in outcome.scheduling_warnings
     )
@@ -539,18 +633,27 @@ def _planning_result(
         trip_day_label=trip_day_label,
     )
     uncertainties = (*scheduling_uncertainties, *validation_uncertainties)
-    plan = _plan(outcome, request, job_id=job_id, trip_day_label=trip_day_label)
+    plan = _plan(
+        outcome,
+        request,
+        job_id=job_id,
+        trip_day_label=trip_day_label,
+        evaluated_at=evaluated_at,
+    )
     model_warnings = (
         tuple(outcome.candidate_result.data.warnings)
         if (outcome.candidate_result is not None and outcome.candidate_result.data is not None)
         else ()
     )
     warnings = (*model_warnings, *scheduling_warnings)
-    retryable = validation.status is PlanningStatus.PARTIAL and any(
-        item.retryable for item in errors
+    result_status = (
+        PlanningStatus.PARTIAL
+        if validation.status is PlanningStatus.READY and errors
+        else validation.status
     )
+    retryable = result_status is PlanningStatus.PARTIAL and any(item.retryable for item in errors)
     return PlanningJobResult(
-        status=validation.status,
+        status=result_status,
         resolved_destination=_destination(outcome),
         plan=plan,
         violations=violations,
@@ -580,6 +683,7 @@ def _plan(
     *,
     job_id: UUID,
     trip_day_label: str,
+    evaluated_at: datetime,
 ) -> PlanningPlan:
     assert outcome.city_result is not None and outcome.city_result.data is not None
     assert outcome.poi_result is not None and outcome.poi_result.data is not None
@@ -588,7 +692,7 @@ def _plan(
     assert outcome.final_validation is not None
     candidate = outcome.candidate_result.data
     locations = _locations(outcome, candidate, job_id=job_id)
-    weather_by_date = _weather(outcome)
+    weather_by_date = _weather(outcome, evaluated_at=evaluated_at)
     routes_by_day = _routes(outcome, job_id=job_id)
     budget = outcome.final_validation.budget
     budget_summary = BudgetSummary(
@@ -662,10 +766,6 @@ def _plan(
         days=days,
         budget_summary=budget_summary,
     )
-
-
-def _evaluation_grace(day_count: int) -> timedelta:
-    return timedelta(seconds=min(180, 90 + 18 * (day_count - 2)) + 1)
 
 
 def _locations(
@@ -770,13 +870,23 @@ def _routes(
     return tuple(tuple(items) for items in grouped)
 
 
-def _weather(outcome: OfflinePlanningOutcome) -> dict[object, WeatherSnapshot]:
+def _weather(
+    outcome: OfflinePlanningOutcome,
+    *,
+    evaluated_at: datetime,
+) -> dict[object, WeatherSnapshot]:
     if outcome.weather_result is None or outcome.weather_result.data is None:
+        return {}
+    if _result_has_stale_source(outcome.weather_result, evaluated_at=evaluated_at):
         return {}
     forecast_sources = _source_ids(outcome.weather_result)
     alert_sources = _source_ids(outcome.alert_result) if outcome.alert_result is not None else ()
     alerts: tuple[WeatherAlert, ...] = ()
-    if outcome.alert_result is not None and outcome.alert_result.data is not None:
+    if (
+        outcome.alert_result is not None
+        and outcome.alert_result.data is not None
+        and not _result_has_stale_source(outcome.alert_result, evaluated_at=evaluated_at)
+    ):
         alerts = tuple(
             WeatherAlert(
                 alert_id=item.alert_id,
@@ -864,7 +974,7 @@ def _sources(
             freshness = evaluate_freshness(
                 record.fetched_at,
                 record.valid_until,
-                evaluated_at,
+                max(evaluated_at, record.fetched_at),
             )
             values.append(
                 SourceRecord(
@@ -932,6 +1042,67 @@ def _provider_errors(
                     result.error.reason.value if result.error.reason is not None else None
                 ),
                 retryable=result.error.retryable,
+            )
+        )
+    return tuple(errors)
+
+
+def _result_has_stale_source[T](
+    result: ProviderResult[T],
+    *,
+    evaluated_at: datetime,
+) -> bool:
+    return any(
+        evaluate_freshness(
+            record.fetched_at,
+            record.valid_until,
+            max(evaluated_at, record.fetched_at),
+        )
+        is DomainDataFreshness.STALE
+        for record in result.source_records
+    )
+
+
+def _freshness_errors(
+    outcome: OfflinePlanningOutcome,
+    *,
+    evaluated_at: datetime,
+    include_base: bool = True,
+    include_routes: bool = True,
+) -> tuple[ApiError, ...]:
+    candidates: list[tuple[ProviderResult[object], str]] = []
+    if include_base:
+        for result, diagnostic_code in (
+            (outcome.city_result, "location_source_stale"),
+            (outcome.accommodation_result, "location_source_stale"),
+            (outcome.poi_result, "location_source_stale"),
+            (outcome.weather_result, "weather_forecast_stale"),
+            (outcome.alert_result, "weather_alert_stale"),
+        ):
+            if result is not None:
+                candidates.append((cast(ProviderResult[object], result), diagnostic_code))
+    if include_routes:
+        candidates.extend(
+            (result, RouteDataDiagnosticCode.SOURCE_STALE.value)
+            for result in _route_provider_results(outcome)
+        )
+    errors: list[ApiError] = []
+    seen: set[tuple[str, str]] = set()
+    for candidate_result, diagnostic_code in candidates:
+        key = (candidate_result.provider.value, diagnostic_code)
+        if key in seen or not _result_has_stale_source(
+            candidate_result,
+            evaluated_at=evaluated_at,
+        ):
+            continue
+        seen.add(key)
+        errors.append(
+            ApiError(
+                code=ApiErrorCode.DATA_STALE,
+                message=_PROVIDER_ERROR_MESSAGES[ApiErrorCode.DATA_STALE],
+                provider=candidate_result.provider.value,
+                diagnostic_code=diagnostic_code,
+                retryable=True,
             )
         )
     return tuple(errors)

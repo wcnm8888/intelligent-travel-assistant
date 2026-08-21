@@ -61,6 +61,7 @@ class RouteDataDiagnosticCode(StrEnum):
     FALLBACK_EXHAUSTED = "route_fallback_exhausted"
     COORDINATES_MISSING = "route_coordinates_missing"
     RESULT_INVALID = "route_result_invalid"
+    SOURCE_STALE = "route_source_stale"
     CALL_BUDGET_EXHAUSTED = "route_call_budget_exhausted"
     DEADLINE_EXHAUSTED = "route_deadline_exhausted"
 

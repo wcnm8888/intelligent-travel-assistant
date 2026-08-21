@@ -9,8 +9,8 @@ from intelligent_travel_assistant.application.ports.models import (
     CityResolutionRequest,
     CurrentWeatherAlertsRequest,
     ModelTextOutput,
-    PlanCandidateRepairRequest,
     PlanningContext,
+    PlanRepairBrief,
     PoiSearchRequest,
     PoiSearchResult,
     RouteCalculationRequest,
@@ -49,5 +49,5 @@ class DeepSeekPort(Protocol):
     ) -> ProviderResult[ModelTextOutput]: ...
 
     async def repair_plan_candidate(
-        self, request: PlanCandidateRepairRequest
+        self, request: PlanRepairBrief
     ) -> ProviderResult[ModelTextOutput]: ...

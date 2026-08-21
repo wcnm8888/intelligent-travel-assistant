@@ -11,8 +11,8 @@ from intelligent_travel_assistant.application.ports.models import (
     CityResolutionRequest,
     CurrentWeatherAlertsRequest,
     ModelTextOutput,
-    PlanCandidateRepairRequest,
     PlanningContext,
+    PlanRepairBrief,
     PoiSearchRequest,
     PoiSearchResult,
     RouteCalculationRequest,
@@ -40,7 +40,7 @@ type FakeRequest = (
     | WeatherForecastRequest
     | CurrentWeatherAlertsRequest
     | PlanningContext
-    | PlanCandidateRepairRequest
+    | PlanRepairBrief
 )
 
 
@@ -229,7 +229,7 @@ class FakeDeepSeekAdapter(_CallRecorder):
 
     async def repair_plan_candidate(
         self,
-        request: PlanCandidateRepairRequest,
+        request: PlanRepairBrief,
     ) -> ProviderResult[ModelTextOutput]:
         self._record(FakeOperation.REPAIR_PLAN_CANDIDATE, request)
         return self._repair.take()

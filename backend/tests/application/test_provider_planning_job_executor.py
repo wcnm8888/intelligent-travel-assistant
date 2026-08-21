@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -47,10 +48,15 @@ from intelligent_travel_assistant.application.services import (
     OfflinePlanningOrchestrator,
     ProviderPlanningJobExecutor,
 )
-from intelligent_travel_assistant.application.tooling import ToolCallGovernor
+from intelligent_travel_assistant.application.tooling import (
+    ProviderAttemptRuntime,
+    ToolCallGovernor,
+)
 from intelligent_travel_assistant.contracts import (
     AccommodationRequirement,
+    ApiErrorCode,
     DailyTimeWindow,
+    DataFreshness,
     PlanningStatus,
     TransportMode,
     TripPlanRequest,
@@ -479,6 +485,11 @@ async def _execute(
     wrong_route_provider: bool = False,
     raising_route_peer: bool = False,
     governor_capture: list[ToolCallGovernor] | None = None,
+    attempt_runtime_factory: Callable[[object], ProviderAttemptRuntime] | None = None,
+    weather_forecast_override: ProviderResult[WeatherForecastResult] | None = None,
+    resolve_city_results_override: tuple[ProviderResult[CityResolution], ...] | None = None,
+    cancel_when: asyncio.Event | None = None,
+    executor_clock_values: tuple[datetime, ...] | None = None,
 ) -> tuple[PlanningJob, FakeAmapAdapter, InMemoryPlanningJobRepository]:
     accommodation_result = _result(
         Provider.AMAP,
@@ -542,7 +553,8 @@ async def _execute(
     else:
         amap_type = FakeAmapAdapter
     amap = amap_type(
-        resolve_city_results=(
+        resolve_city_results=resolve_city_results_override
+        or (
             _result(
                 Provider.AMAP,
                 CityResolution("杭州市", "330100", "0571", HOTEL_COORDS),
@@ -554,7 +566,8 @@ async def _execute(
     )
     qweather = FakeQWeatherAdapter(
         weather_forecast_results=(
-            _result(
+            weather_forecast_override
+            or _result(
                 Provider.QWEATHER,
                 WeatherForecastResult(
                     HOTEL_ID,
@@ -644,9 +657,328 @@ async def _execute(
         deepseek,
         governor_factory,
     )
-    executor = ProviderPlanningJobExecutor(repository, orchestrator, clock=lambda: NOW)
-    await executor.execute(reserved.job.job_id)
+    executor_readings = (
+        iter(executor_clock_values).__next__ if executor_clock_values is not None else lambda: NOW
+    )
+    executor = ProviderPlanningJobExecutor(
+        repository,
+        orchestrator,
+        clock=executor_readings,
+        attempt_runtime_factory=attempt_runtime_factory,
+    )
+    if cancel_when is None:
+        await executor.execute(reserved.job.job_id)
+    else:
+        execution = asyncio.create_task(executor.execute(reserved.job.job_id))
+        await cancel_when.wait()
+        execution.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await execution
     return await repository.get(reserved.job.job_id), amap, repository
+
+
+def test_executor_owns_and_closes_exactly_one_attempt_runtime_before_publishing() -> None:
+    runtimes: list[ProviderAttemptRuntime] = []
+
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    def factory(_request: object) -> ProviderAttemptRuntime:
+        value = ProviderAttemptRuntime(
+            clock=lambda: 0.0,
+            sleeper=no_delay,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+        )
+        runtimes.append(value)
+        return value
+
+    job, _amap, _repository = asyncio.run(_execute(attempt_runtime_factory=factory))
+
+    assert job.result is not None
+    assert len(runtimes) == 1
+    snapshot = runtimes[0].snapshot()
+    assert snapshot.closed is True
+    assert snapshot.active_executions == 0
+    assert snapshot.records
+
+
+def test_executor_projects_sources_fetched_after_task_start_without_internal_failure() -> None:
+    job, _amap, _repository = asyncio.run(_execute())
+
+    assert job.status is PlanningStatus.PARTIAL
+    assert job.result is not None
+    assert all(error.code is not ApiErrorCode.INTERNAL_ERROR for error in job.result.errors)
+    assert job.result.sources
+
+
+def test_short_lived_source_is_evaluated_when_observed_not_at_maximum_deadline() -> None:
+    source = SourceRecord(
+        uuid5(NAMESPACE_URL, "synthetic:qweather:short-forecast"),
+        Provider.QWEATHER,
+        "synthetic_forecast",
+        FETCHED_AT,
+        FETCHED_AT + timedelta(seconds=30),
+    )
+    forecast = ProviderResult(
+        ProviderResultStatus.OK,
+        Provider.QWEATHER,
+        WeatherForecastResult(
+            HOTEL_ID,
+            (
+                DailyWeather(date(2026, 8, 15), "多云", "多云", Decimal("25"), Decimal("34")),
+                DailyWeather(date(2026, 8, 16), "阵雨", "多云", Decimal("24"), Decimal("32")),
+            ),
+        ),
+        FETCHED_AT,
+        source.valid_until,
+        ("synthetic short validity",),
+        None,
+        (source,),
+    )
+
+    job, _amap, _repository = asyncio.run(_execute(weather_forecast_override=forecast))
+
+    assert job.result is not None
+    assert all(error.code is not ApiErrorCode.DATA_STALE for error in job.result.errors)
+    weather_source = next(
+        item for item in job.result.sources if item.provider.value == Provider.QWEATHER.value
+    )
+    assert weather_source.freshness is DataFreshness.FRESH
+
+
+def test_executor_cancellation_drains_runtime_and_publishes_terminal_failure() -> None:
+    retry_started = asyncio.Event()
+    runtimes: list[ProviderAttemptRuntime] = []
+
+    async def blocking_delay(_seconds: float) -> None:
+        retry_started.set()
+        await asyncio.Event().wait()
+
+    def factory(_request: object) -> ProviderAttemptRuntime:
+        value = ProviderAttemptRuntime(
+            clock=lambda: 0.0,
+            sleeper=blocking_delay,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+        )
+        runtimes.append(value)
+        return value
+
+    timeout: ProviderResult[CityResolution] = ProviderResult(
+        ProviderResultStatus.UNAVAILABLE,
+        Provider.AMAP,
+        None,
+        None,
+        None,
+        ("synthetic timeout",),
+        ProviderError(ProviderErrorCategory.TIMEOUT),
+        (),
+    )
+    city = _result(
+        Provider.AMAP,
+        CityResolution("杭州市", "330100", "0571", HOTEL_COORDS),
+        "city",
+    )
+
+    job, _amap, _repository = asyncio.run(
+        _execute(
+            attempt_runtime_factory=factory,
+            resolve_city_results_override=(timeout, city),
+            cancel_when=retry_started,
+        )
+    )
+
+    assert job.status is PlanningStatus.FAILED
+    assert job.result is not None
+    assert job.result.errors[0].code is ApiErrorCode.INTERNAL_ERROR
+    assert runtimes[0].snapshot().closed is True
+    assert runtimes[0].snapshot().active_executions == 0
+
+
+def test_runtime_timeout_diagnostic_uses_existing_api_error_shape() -> None:
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    def factory(_timeout: object) -> ProviderAttemptRuntime:
+        return ProviderAttemptRuntime(
+            clock=lambda: 0.0,
+            sleeper=no_delay,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+        )
+
+    timeout: ProviderResult[ModelTextOutput] = ProviderResult(
+        ProviderResultStatus.UNAVAILABLE,
+        Provider.DEEPSEEK,
+        None,
+        None,
+        None,
+        ("synthetic timeout",),
+        ProviderError(ProviderErrorCategory.TIMEOUT),
+        (),
+    )
+    job, _amap, repository = asyncio.run(
+        _execute(
+            deepseek_override=FakeDeepSeekAdapter(generation_results=(timeout,)),
+            attempt_runtime_factory=factory,
+        )
+    )
+
+    assert job.result is not None
+    error = job.result.errors[0]
+    assert error.code is ApiErrorCode.PROVIDER_TIMEOUT
+    assert error.diagnostic_code == "provider_attempt_timeout"
+    assert error.retryable is True
+    with TestClient(create_app(planning_job_repository=repository)) as client:
+        body = client.get(f"/api/trip-plans/{job.job_id}").json()
+    assert set(body["errors"][0]) == {
+        "code",
+        "message",
+        "field",
+        "provider",
+        "diagnostic_code",
+        "retryable",
+    }
+
+
+def test_stale_weather_is_omitted_and_projected_as_partial_data_stale() -> None:
+    stale_fetched_at = NOW - timedelta(hours=2)
+    stale_valid_until = NOW - timedelta(hours=1)
+    source = SourceRecord(
+        uuid5(NAMESPACE_URL, "synthetic:qweather:stale-forecast"),
+        Provider.QWEATHER,
+        "synthetic_stale_forecast",
+        stale_fetched_at,
+        stale_valid_until,
+    )
+    stale_forecast = ProviderResult(
+        ProviderResultStatus.OK,
+        Provider.QWEATHER,
+        WeatherForecastResult(
+            HOTEL_ID,
+            (
+                DailyWeather(date(2026, 8, 15), "多云", "多云", Decimal("25"), Decimal("34")),
+                DailyWeather(date(2026, 8, 16), "阵雨", "多云", Decimal("24"), Decimal("32")),
+            ),
+        ),
+        stale_fetched_at,
+        stale_valid_until,
+        ("synthetic stale forecast",),
+        None,
+        (source,),
+    )
+
+    job, _amap, _repository = asyncio.run(_execute(weather_forecast_override=stale_forecast))
+
+    assert job.status is PlanningStatus.PARTIAL
+    assert job.result is not None and job.result.plan is not None
+    assert all(day.weather is None for day in job.result.plan.days)
+    error = next(item for item in job.result.errors if item.code is ApiErrorCode.DATA_STALE)
+    assert error.provider == "qweather"
+    assert error.diagnostic_code == "weather_forecast_stale"
+    assert error.retryable is True
+    assert any(
+        item.provider.value == "qweather" and item.freshness is DataFreshness.STALE
+        for item in job.result.sources
+    )
+
+
+def test_stale_required_routes_fail_with_existing_data_stale_error_shape() -> None:
+    stale_fetched_at = NOW - timedelta(hours=2)
+    stale_valid_until = NOW - timedelta(hours=1)
+    source = SourceRecord(
+        uuid5(NAMESPACE_URL, "synthetic:amap:stale-route"),
+        Provider.AMAP,
+        "synthetic_stale_route",
+        stale_fetched_at,
+        stale_valid_until,
+    )
+    routes = tuple(
+        ProviderResult(
+            ProviderResultStatus.OK,
+            Provider.AMAP,
+            RouteLeg(
+                origin,
+                destination,
+                RouteMode.PUBLIC_TRANSIT,
+                3000,
+                minutes,
+                (source.source_id,),
+            ),
+            stale_fetched_at,
+            stale_valid_until,
+            ("synthetic stale route",),
+            None,
+            (source,),
+        )
+        for origin, destination, minutes in (
+            (HOTEL_ID, POI_ONE_ID, 20),
+            (POI_ONE_ID, HOTEL_ID, 22),
+            (HOTEL_ID, POI_TWO_ID, 30),
+            (POI_TWO_ID, HOTEL_ID, 32),
+        )
+    )
+
+    job, _amap, _repository = asyncio.run(_execute(route_results_override=routes))
+
+    assert job.status is PlanningStatus.FAILED
+    assert job.result is not None and job.result.plan is None
+    assert job.result.errors[0].model_dump(exclude_none=True) == {
+        "code": "data_stale",
+        "message": "外部数据已超过声明的有效期。",
+        "provider": "amap",
+        "diagnostic_code": "route_source_stale",
+        "retryable": True,
+    }
+
+
+def test_route_expiring_during_planning_is_rejected_before_publication() -> None:
+    valid_until = NOW + timedelta(seconds=30)
+    route_source = SourceRecord(
+        uuid5(NAMESPACE_URL, "synthetic:amap:soon-expiring-route"),
+        Provider.AMAP,
+        "synthetic_soon_expiring_route",
+        NOW,
+        valid_until,
+    )
+    routes = tuple(
+        ProviderResult(
+            ProviderResultStatus.OK,
+            Provider.AMAP,
+            RouteLeg(
+                origin,
+                destination,
+                RouteMode.PUBLIC_TRANSIT,
+                3000,
+                minutes,
+                (route_source.source_id,),
+            ),
+            NOW,
+            valid_until,
+            ("synthetic soon-expiring route",),
+            None,
+            (route_source,),
+        )
+        for origin, destination, minutes in (
+            (HOTEL_ID, POI_ONE_ID, 20),
+            (POI_ONE_ID, HOTEL_ID, 22),
+            (HOTEL_ID, POI_TWO_ID, 30),
+            (POI_TWO_ID, HOTEL_ID, 32),
+        )
+    )
+
+    job, _amap, _repository = asyncio.run(
+        _execute(
+            route_results_override=routes,
+            executor_clock_values=(NOW, NOW + timedelta(minutes=1)),
+        )
+    )
+
+    assert job.status is PlanningStatus.FAILED
+    assert job.result is not None and job.result.plan is None
+    assert job.result.errors[0].code is ApiErrorCode.DATA_STALE
+    assert job.result.errors[0].diagnostic_code == "route_source_stale"
 
 
 def test_executor_publishes_real_orchestration_shape_using_only_offline_ports() -> None:
@@ -1495,7 +1827,10 @@ def test_mock_transport_candidate_failure_flows_through_executor_and_api_safely(
     assert len(observed_payloads) == 2
     repair_user_message = observed_payloads[1]["messages"][1]["content"]  # type: ignore[index]
     repair_payload = json.loads(repair_user_message)
-    assert repair_payload["validation_code"] == "candidate_json_invalid"
+    assert repair_payload["repair_brief"]["validation_code"] == "candidate_json_invalid"
+    assert "invalid_output" not in repair_payload
+    assert "context" not in repair_payload
+    assert generation_raw not in repair_user_message
     assert len(repair_payload["proposal_rules"]) == 13
     assert any("never output start_time" in rule for rule in repair_payload["proposal_rules"])
 
@@ -1567,9 +1902,11 @@ def test_mock_transport_rejects_exact_times_through_api() -> None:
 
     assert len(observed_payloads) == 2
     repair_payload = json.loads(observed_payloads[1]["messages"][1]["content"])  # type: ignore[index]
-    assert repair_payload["validation_code"] == "candidate_schema_invalid"
-    assert "validation_time_failure" not in repair_payload
+    assert repair_payload["repair_brief"]["validation_code"] == "candidate_schema_invalid"
+    assert "validation_time_failure" not in repair_payload["repair_brief"]
     assert "validation_hint" not in repair_payload
+    assert "invalid_output" not in repair_payload
+    assert "context" not in repair_payload
     assert not any(call.operation.value == "calculate_routes" for call in amap.calls)
 
     with TestClient(create_app(planning_job_repository=repository)) as client:
