@@ -16,6 +16,37 @@ async function completeRequiredFields() {
 }
 
 describe("TripRequestForm", () => {
+  it("presents exactly three product modes without internal version language", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <TripRequestForm
+        onSubmit={vi.fn()}
+        initialStartDate="2026-08-15"
+        planningToday="2026-08-14"
+      />,
+    );
+
+    const modeGroup = screen.getByRole("group", { name: "规划方式" });
+    expect(screen.getByRole("radio", { name: "单城市" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "多城市·自行填写交通段" }),
+    ).toBeVisible();
+    const bookedRail = screen.getByRole("radio", {
+      name: "多城市·填写已购铁路车次",
+    });
+    expect(bookedRail).toBeVisible();
+    expect(modeGroup).not.toHaveTextContent(/legacy|V2|V3|V4/i);
+    expect(container).not.toHaveTextContent(/legacy|V2|V3|V4/i);
+
+    await user.click(bookedRail);
+    expect(bookedRail).toBeChecked();
+    expect(bookedRail).toHaveFocus();
+    expect(screen.getByLabelText("车次 *")).toBeVisible();
+    expect(
+      screen.queryByRole("group", { name: "城际信息类型" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows approved defaults and does not expose a separate end date", () => {
     render(
       <TripRequestForm

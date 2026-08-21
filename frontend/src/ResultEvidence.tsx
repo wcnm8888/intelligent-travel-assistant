@@ -296,6 +296,56 @@ const CONFIGURATION_FAILURE_COPY = {
   lead: "服务端已安全停止调用；请检查本机对应服务配置后重新创建任务。",
 } as const;
 
+export function ResultRecoveryActions({
+  response,
+  onRetry,
+  onReset,
+}: {
+  response: Pick<
+    TripPlanResponseDto,
+    "status" | "attempt" | "retryable" | "errors"
+  >;
+  onRetry?: () => void;
+  onReset?: () => void;
+}) {
+  const canRetry =
+    response.status === "partial" &&
+    response.retryable &&
+    response.attempt < 3 &&
+    Boolean(onRetry);
+  const exhausted =
+    response.status === "partial" &&
+    response.retryable &&
+    response.attempt >= 3;
+  if (!canRetry && !onReset && !exhausted) return null;
+
+  return (
+    <div
+      className="outcome-actions result-actions result-actions--primary"
+      role="group"
+      aria-label="主要恢复操作"
+    >
+      {canRetry && (
+        <button type="button" onClick={onRetry}>
+          {response.errors.some((error) => error.code === "data_stale")
+            ? "重新获取数据"
+            : "重试缺失数据"}
+        </button>
+      )}
+      {onReset && (
+        <button type="button" onClick={onReset}>
+          返回修改需求
+        </button>
+      )}
+      {exhausted && (
+        <p className="outcome-action-note">
+          本任务已达到 3 次尝试上限，请返回修改需求后创建新任务。
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function TerminalOutcome({
   response,
   onRetry,
@@ -336,7 +386,9 @@ export function TerminalOutcome({
         </span>
         <div>
           <p className="tracking-kicker">{copy.kicker}</p>
-          <h2 id="plan-stage-title">{copy.heading}</h2>
+          <h2 id="plan-stage-title" tabIndex={-1}>
+            {copy.heading}
+          </h2>
           <p>{copy.lead}</p>
         </div>
       </header>
@@ -355,10 +407,7 @@ export function TerminalOutcome({
         {response.request_summary.travelers} 人 · 尝试 {response.attempt}/3
       </p>
 
-      <ResultDiagnostics response={response} />
-      <SourceEvidence sources={response.sources} />
-
-      <div className="outcome-actions">
+      <div className="outcome-actions result-actions--primary">
         {canRetry && (
           <button type="button" onClick={onRetry}>
             重试本次任务
@@ -378,6 +427,9 @@ export function TerminalOutcome({
           本任务已达到 3 次尝试上限，请返回修改需求后创建新任务。
         </p>
       )}
+
+      <ResultDiagnostics response={response} />
+      <SourceEvidence sources={response.sources} />
     </div>
   );
 }

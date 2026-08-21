@@ -33,6 +33,8 @@ interface TripRequestFormProps {
   submitting?: boolean;
 }
 
+type ProductMode = "single_city" | "manual_multicity" | "booked_rail_multicity";
+
 const PACE_OPTIONS: ReadonlyArray<{ value: Pace; label: string }> = [
   { value: "relaxed", label: "舒缓" },
   { value: "balanced", label: "均衡" },
@@ -88,6 +90,12 @@ export function TripRequestForm({
   const isBookedRail =
     values.scope === "multi_city" &&
     values.intercityInformationType === "booked_rail";
+  const productMode: ProductMode =
+    values.scope === "single_city"
+      ? "single_city"
+      : isBookedRail
+        ? "booked_rail_multicity"
+        : "manual_multicity";
 
   const update = <Key extends keyof TripRequestFormValues>(
     key: Key,
@@ -169,7 +177,10 @@ export function TripRequestForm({
     );
   };
 
-  const changeScope = (scope: TripScope) => {
+  const changeScope = (
+    scope: TripScope,
+    intercityInformationType: IntercityInformationType = "manual",
+  ) => {
     if (scope === values.scope) return;
     const hasIncompatibleInput =
       values.scope === "single_city"
@@ -199,18 +210,22 @@ export function TripRequestForm({
     setValues((current) => ({
       ...current,
       scope,
-      intercityInformationType: "manual",
+      intercityInformationType,
       city: "",
       accommodation: "",
       oneNightCost: "",
       cityStays: [emptyCityStay(), emptyCityStay()],
       intercitySegments: [emptyIntercitySegment()],
+      freeText:
+        intercityInformationType === "booked_rail" ? "" : current.freeText,
     }));
     setErrors({});
     setMulticityNotice(
-      scope === "multi_city"
-        ? "已切换为多城市模式；请按顺序填写城市和相邻城际段。"
-        : "已切换为单城市模式。",
+      scope === "single_city"
+        ? "已切换为单城市；请重新填写目的地和住宿。"
+        : intercityInformationType === "booked_rail"
+          ? "已切换为多城市·填写已购铁路车次；请重新填写城市和相邻铁路段。"
+          : "已切换为多城市·自行填写交通段；请重新填写城市和相邻交通段。",
     );
   };
 
@@ -231,6 +246,19 @@ export function TripRequestForm({
         ? "已切换为已购铁路车次；为避免来源混淆，全部城际段已清空。"
         : "已切换为自行填写交通段；为避免来源混淆，全部城际段已清空。",
     );
+  };
+
+  const changeProductMode = (mode: ProductMode) => {
+    if (mode === productMode) return;
+    const nextScope: TripScope =
+      mode === "single_city" ? "single_city" : "multi_city";
+    const nextInformationType: IntercityInformationType =
+      mode === "booked_rail_multicity" ? "booked_rail" : "manual";
+    if (nextScope !== values.scope) {
+      changeScope(nextScope, nextInformationType);
+      return;
+    }
+    changeIntercityInformationType(nextInformationType);
   };
 
   const updateCityStay = (
@@ -424,12 +452,16 @@ export function TripRequestForm({
       <div className="form-heading">
         <div>
           <p className="section-kicker">YOUR TRIP / 01</p>
-          <h2 id={`${formId}-title`}>行前设定</h2>
+          <h2 id={`${formId}-title`} tabIndex={-1}>
+            行前设定
+          </h2>
         </div>
         <span>
-          {values.scope === "multi_city"
-            ? "3—7 日 · 2—3 城"
-            : "2—7 日 · 单城市"}
+          {productMode === "single_city"
+            ? "2—7 日 · 单城市"
+            : productMode === "booked_rail_multicity"
+              ? "3—7 日 · 已购铁路"
+              : "3—7 日 · 自填交通"}
         </span>
       </div>
 
@@ -437,29 +469,37 @@ export function TripRequestForm({
         className="scope-selector"
         aria-describedby={`${formId}-scope-hint`}
       >
-        <legend>行程范围</legend>
+        <legend>规划方式</legend>
         <label>
           <input
             type="radio"
-            name={`${formId}-scope`}
-            checked={values.scope === "single_city"}
-            onChange={() => changeScope("single_city")}
+            name={`${formId}-product-mode`}
+            checked={productMode === "single_city"}
+            onChange={() => changeProductMode("single_city")}
           />
           <span>单城市</span>
         </label>
         <label>
           <input
             type="radio"
-            name={`${formId}-scope`}
-            checked={values.scope === "multi_city"}
-            onChange={() => changeScope("multi_city")}
+            name={`${formId}-product-mode`}
+            checked={productMode === "manual_multicity"}
+            onChange={() => changeProductMode("manual_multicity")}
           />
-          <span>多城市</span>
+          <span>多城市·自行填写交通段</span>
+        </label>
+        <label>
+          <input
+            type="radio"
+            name={`${formId}-product-mode`}
+            checked={productMode === "booked_rail_multicity"}
+            onChange={() => changeProductMode("booked_rail_multicity")}
+          />
+          <span>多城市·填写已购铁路车次</span>
         </label>
       </fieldset>
       <p className="field-hint scope-hint" id={`${formId}-scope-hint`}>
-        只有明确选择“多城市”才会提交版本化多城市请求；城际信息类型决定
-        V3/V4，不会按输入内容猜测。
+        请选择本次实际掌握的信息；系统不会根据自由文本猜测交通段来源。
       </p>
       <p className="sr-only" aria-live="polite">
         {multicityNotice}
@@ -825,35 +865,13 @@ export function TripRequestForm({
               })}
             </div>
 
-            <fieldset
-              className="intercity-source-selector"
-              aria-describedby={`${formId}-intercity-information-hint`}
-            >
-              <legend>城际信息类型</legend>
-              <label>
-                <input
-                  type="radio"
-                  name={`${formId}-intercity-information-type`}
-                  checked={values.intercityInformationType === "manual"}
-                  onChange={() => changeIntercityInformationType("manual")}
-                />
-                <span>自行填写交通段</span>
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name={`${formId}-intercity-information-type`}
-                  checked={values.intercityInformationType === "booked_rail"}
-                  onChange={() => changeIntercityInformationType("booked_rail")}
-                />
-                <span>填写已购铁路车次</span>
-              </label>
-            </fieldset>
             <p
               className="field-hint"
               id={`${formId}-intercity-information-hint`}
             >
-              默认沿用 V3 自填交通段；只有显式选择已购铁路车次才提交 V4。
+              {isBookedRail
+                ? "每个相邻城市段填写一个已购铁路车次；这些信息由你提供，系统不会核验余票、可售或出票状态。"
+                : "每个相邻城市段由你填写交通方式、发到地点和时间；系统不会查询城际班次或库存。"}
             </p>
 
             <div className="intercity-card-list">

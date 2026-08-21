@@ -23,8 +23,9 @@ async function renderBookedRailForm(onSubmit = vi.fn()) {
       createClientRequestId={() => "11111111-1111-4111-8111-111111111111"}
     />,
   );
-  await user.click(screen.getByRole("radio", { name: "多城市" }));
-  await user.click(screen.getByRole("radio", { name: "填写已购铁路车次" }));
+  await user.click(
+    screen.getByRole("radio", { name: "多城市·填写已购铁路车次" }),
+  );
   return user;
 }
 
@@ -60,14 +61,20 @@ describe("F-004C booked rail frontend", () => {
         planningToday="2026-08-20"
       />,
     );
-    await user.click(screen.getByRole("radio", { name: "多城市" }));
-    expect(screen.getByRole("radio", { name: "自行填写交通段" })).toBeChecked();
+    await user.click(
+      screen.getByRole("radio", { name: "多城市·自行填写交通段" }),
+    );
+    expect(
+      screen.getByRole("radio", { name: "多城市·自行填写交通段" }),
+    ).toBeChecked();
     await user.type(
       screen.getByLabelText("补充要求"),
       "SYNTHETIC_V4_PRIVATE_SENTINEL",
     );
     await user.type(screen.getByLabelText("出发站 *"), "杭州站");
-    await user.click(screen.getByRole("radio", { name: "填写已购铁路车次" }));
+    await user.click(
+      screen.getByRole("radio", { name: "多城市·填写已购铁路车次" }),
+    );
     expect(screen.getByLabelText("出发站 *")).toHaveValue("");
     expect(screen.getByLabelText("车次 *")).toBeVisible();
     expect(screen.queryByLabelText("补充要求")).not.toBeInTheDocument();
@@ -75,7 +82,9 @@ describe("F-004C booked rail frontend", () => {
     expect(
       screen.getByText(/不保存订单号、乘客、证件、座位、二维码或截图/),
     ).toBeVisible();
-    await user.click(screen.getByRole("radio", { name: "自行填写交通段" }));
+    await user.click(
+      screen.getByRole("radio", { name: "多城市·自行填写交通段" }),
+    );
     expect(screen.getByLabelText("补充要求")).toHaveValue("");
   });
 
