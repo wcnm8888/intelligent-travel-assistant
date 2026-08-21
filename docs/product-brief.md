@@ -67,7 +67,7 @@ MVP 计划提供：
 8. 用轻量 Web UI 展示输入、处理中状态、计划、预算、来源、冲突和重规划结果；
 9. 在外部 API 超时、限流、鉴权失败、数据缺失或响应不合法时提供明确降级。
 
-F-004A 已实现并交付：计划生成支持单城市连续 2–7 日、每日最多 2 项活动和一个住宿锚点；该交付没有执行真实 Provider UAT。F-004B1 Step 0–8 也已实现并归档：用户可以表达 2–3 个中国大陆城市、每城住宿和用户提供的相邻城际段，使用独立 V3 contracts、SQLite schema v2 typed JSON、离线多城市 planning、严格前端交互和本机恢复；城际 Provider 调用为 0，且没有真实 Provider UAT。F-005 已实现并归档既有外部服务韧性、时效和完全离线 Agent 评估；F-004B2 的真实城际 Provider Gate 已因 SQLite 持久化禁止和 rail 字段授权不足以 `BLOCKED` 状态归档，未实现 Provider 查询或真实 UAT。F-004C Step 0–6 已实现并归档：独立 V4 允许用户录入已购铁路段，继续使用 schema v2 typed JSON、同 URI API、strict 前端交互与恢复，preferences 收窄为 interests-only，城际 Provider logical call/HTTP attempt 为 0；PR #34/#35/#36 已依序合并，最终 main CI run `32484789531` success。当前没有活动任务，F-006 是下一候选。跨夜交通、局部重规划扩域、Provider 车次核验、出票、预订、支付和库存承诺仍不在范围内。
+F-004A 已实现并交付：计划生成支持单城市连续 2–7 日、每日最多 2 项活动和一个住宿锚点；该交付没有执行真实 Provider UAT。F-004B1 Step 0–8 也已实现并归档：用户可以表达 2–3 个中国大陆城市、每城住宿和用户提供的相邻城际段，使用独立 V3 contracts、SQLite schema v2 typed JSON、离线多城市 planning、严格前端交互和本机恢复；城际 Provider 调用为 0，且没有真实 Provider UAT。F-005 已实现并归档既有外部服务韧性、时效和完全离线 Agent 评估；F-004B2 的真实城际 Provider Gate 已因 SQLite 持久化禁止和 rail 字段授权不足以 `BLOCKED / ARCHIVED` 状态关闭，未实现 Provider 查询或真实 UAT。F-004C Step 0–6 已实现并归档：独立 V4 允许用户录入已购铁路段，继续使用 schema v2 typed JSON、同 URI API、strict 前端交互与恢复，preferences 收窄为 interests-only，城际 Provider logical call/HTTP attempt 为 0；PR #34/#35/#36 已依序合并，归档 PR #37 已合并，最终归档 main `b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`、CI run `32486428083` success。F-006 已激活且 Step 0–3 已完成：治理/设计冻结后，必要 Provider 组合不完整的四版本任务已能以零调用 `configuration_missing` 安全失败；前端只显示三种产品模式并保持既有内部版本映射，终态摘要、恢复动作、预算、来源与诊断层级已局部收口。当前等待 Step 4 单独批准，不构成恢复/DELETE 实现。跨夜交通、局部重规划扩域、Provider 车次核验、出票、预订、支付和库存承诺仍不在范围内。
 
 ## 费用范围与可信状态
 
@@ -100,6 +100,15 @@ F-004A 已实现并交付：计划生成支持单城市连续 2–7 日、每日
 - `ready` 必须由当前任务实际使用的关键事实、来源和确定性校验共同支持。stale 路线不能继续支撑已验证排程；stale 天气、预警或地点信息只能被剔除或明确形成 `partial`；有效期未知不能显示为 fresh。
 - unknown 金额继续显示为空金额和“未知”，不得按 `0` 计入完整预算。用户提供的 F-004B1 城际 availability 继续适用 D-013 的明确排除边界，不能外推为 Provider 已验证。
 - 公开 URI、JSON 键和五种终态不变；恢复能力复用现有 retry、返回修改和本机配置提示，不增加账户、云同步、遥测或公网服务。
+
+## F-006 本地 MVP 体验边界（Step 1 冻结）
+
+- 用户只面对“单城市”“多城市·自行填写交通段”“多城市·填写已购铁路车次”三种产品模式，不承担 API 版本选择。多城市模式分别映射既有 V3/V4；单城市保持现有“结束日期是否被显式编辑”规则选择 legacy/V2。
+- 无凭证或必要 Provider 组合不完整时，提交仍创建本机任务，但必须以既有 `failed / configuration_missing` 安全收口；不得无限显示处理中，不得调用 Provider，不提供无效 retry，也不暴露环境变量或配置细节。
+- “上次本机任务”只保存一个 UUID pointer。刷新或重启后从 SQLite 权威 job 恢复；无效、已删除或过期 pointer 被清理且不显示缓存结果，暂时连接错误则保留稍后恢复可能。
+- 用户可以对当前终态或恢复后的终态执行带二次确认的单任务删除；“返回修改”不等于删除。产品不提供历史任务列表、清空全部数据或运行中取消。
+- 页面只做局部层级、文案、状态色和恢复动作收口；processing/paused 与五终态、预算/unknown、来源/未核验、冲突和失败必须可区分并支持键盘、焦点和窄屏。
+- 本地 PowerShell 入口只负责固定版本、固定 loopback 端口、健康等待和自身子进程清理。synthetic/loopback/SQLite/干净检出验收只能支持 `LOCAL_ACCEPTANCE_PASS`，不能提升 F-001 `PARTIAL`、历史 live 证据或 Provider 就绪状态。
 
 ## 成功标准
 

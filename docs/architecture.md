@@ -632,7 +632,7 @@ F-004B1 在 legacy/V2 之外增加独立 V3 变体，不继承单城市请求或
 
 Step 4 已按该边界实现独立 `MultiCityPlanningOrchestrator`。城市事实通过并发 2 的有界 fan-out 复用现有 Amap/QWeather ports，所有城市共享一个 governor 和一次全局 DeepSeek proposal/repair 预算；proposal 只包含逐日城市索引与 namespaced POI 引用，用户站点、城际段原文和 fare 不进入模型 payload。确定性应用层再注入用户段、缓冲、市内路线、活动时刻、预算、来源和 terminal。deadline 前置拒绝与取消 drain 已由离线测试证明；没有新增城际 port/adapter、Schema、migration、依赖或真实调用。
 
-F-004B1 后续 Step 5–8 已完成严格 V3 前端、schema v2 临时 SQLite 往返与重启恢复、loopback desktop/390px、网络/console/accessibility、独立隐私兼容审查、四层 stacked PR 和归档。最终归档 main 为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，CI run `32386260285` 成功；这些仍是 synthetic/离线证据，不构成真实 Provider UAT。F-005 已在既有三家 Provider 与同一架构边界内完成韧性、时效和离线 Agent 评估并归档；F-004B2 Provider/法律 Gate 已阻塞并归档，未新增城际 Provider、Schema、依赖、公开 API shape 或真实 UAT。F-004C Step 0–6 已完成并归档：独立 V4 用户已购铁路段已接入 application、既有 schema v2 typed JSON Repository、同 URI API 和 strict 前端 parser/result/reload；service number 在 Agent 边界外确定性重建，V3/V4 replan 写前拒绝，城际 Provider 调用继续为 0。Step 5A 以 interests-only strict V4 preferences、API 422/零持久化和 Agent/frontend synthetic sentinel 关闭原自由文本隐私 finding；独立复审无 finding，PR #34/#35/#36 已依序合并，最终 main CI run `32484789531` success。当前没有活动任务。
+F-004B1 后续 Step 5–8 已完成严格 V3 前端、schema v2 临时 SQLite 往返与重启恢复、loopback desktop/390px、网络/console/accessibility、独立隐私兼容审查、四层 stacked PR 和归档。最终归档 main 为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，CI run `32386260285` 成功；这些仍是 synthetic/离线证据，不构成真实 Provider UAT。F-005 已在既有三家 Provider 与同一架构边界内完成韧性、时效和离线 Agent 评估并归档；F-004B2 Provider/法律 Gate 已阻塞并归档，未新增城际 Provider、Schema、依赖、公开 API shape 或真实 UAT。F-004C Step 0–6 已完成并归档：独立 V4 用户已购铁路段已接入 application、既有 schema v2 typed JSON Repository、同 URI API 和 strict 前端 parser/result/reload；service number 在 Agent 边界外确定性重建，V3/V4 replan 写前拒绝，城际 Provider 调用继续为 0。Step 5A 以 interests-only strict V4 preferences、API 422/零持久化和 Agent/frontend synthetic sentinel 关闭原自由文本隐私 finding；独立复审无 finding，PR #34/#35/#36 已依序合并，归档 PR #37 已合并，最终归档 main `b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`、CI run `32486428083` success。F-006 Step 0–5 已完成：production 组合根已接入零 Provider/Agent/runtime 调用的 configuration-missing executor；三产品模式、终态层级、canonical pointer、全版本恢复、DELETE 和安全本地 runner 已实现。runner 仅完成离线 self-test/preflight，SQLite/browser 独立验收仍待 Step 6。
 
 ## F-005 韧性执行架构（Step 1 冻结）
 
@@ -831,3 +831,57 @@ strict TripPlanRequestV4
 - 用户已购段本身沿用 D-013 的外部 availability 排除：在其他必要事实完整、票价已知且所有确定性约束通过时可形成 ready，但 UI 必须继续显示“用户提供，未核验”；任何参与预算/排程的其他 unknown、stale 或缺失事实仍按 D-014 降级或拒绝；
 - SQLite 只保存批准的规范化 service number、站点、发到时间和可选票价；不保存原始输入文本、姓名、证件、联系方式、订单号、座位、二维码、Cookie、截图或自由备注；
 - 日志、CI artifact 和持久浏览器状态不得复制完整 request/segment；fixture 只允许明显 synthetic 的车次/站点，不得来自真实订单或截图。诊断只允许稳定字段路径/代码和计数，不输出实际 service number 或站名。
+
+## F-006 本地 runtime、恢复与交付架构（Step 1 冻结）
+
+### 组合根与无配置执行器
+
+Step 1 冻结前，production 组合根只有在 Amap、QWeather、DeepSeek 三组 adapter 全部存在时才构建真实 `ProviderPlanningJobExecutor`；API 在 executor 为 `None` 时仍可 reserve，但不会调度，导致新任务保持 `draft`。Step 2 已在不改变端口或状态机的前提下，为组合根补齐同一 `PlanningJobExecutor` Protocol 的安全实现：
+
+```text
+production bootstrap
+├─ all required adapters available → existing ProviderPlanningJobExecutor
+└─ any required adapter unavailable → ConfigurationMissingPlanningJobExecutor
+                                      → DRAFT → NORMALIZING → FAILED
+                                      → typed legacy/V2/V3/V4 result
+                                      → zero Provider/Agent/runtime calls
+```
+
+- unavailable executor 通过既有 Repository 读取请求版本、推进状态并写对应 typed result；不绕过状态机，不直接 `draft → failed`，不新增 Repository 方法；
+- 错误只用既有 `configuration_missing` 和固定安全 diagnostic，不包含缺失变量名、Key 状态、原始配置或 Provider body；
+- QWeather 部分变量、非法 URL 等已存在的配置模型错误仍在 bootstrap 启动校验处 fail closed；安全 executor 只表示“必要 adapter 组合不完整”，不吞掉配置损坏；
+- 不实例化 attempt runtime、governor、proposal/repair 或 fake，不改变 live executor、retry、reservation、并发和关闭语义；历史 `draft` 不扫描、不迁移。
+
+### 产品模式与版本边界
+
+前端只有三种产品模式，版本 discriminator 仍仅存在于 strict request/response 内部：手工多城市为 V3，已购铁路为 V4；单城市由现有 `endDateEdited` 决定 legacy/V2。该规则故意保留“用户是否显式编辑结束日期”的历史行为，避免按最终天数重算并改变 fingerprint、旧 golden 或 replan 适用面。
+
+legacy 与 V2 恰好 2 日保留 F-003 replan；V2 3–7 日不向用户提供 replan 控件并保持既有 scope 拒绝，V3/V4 继续全链路写前拒绝。切换产品模式只在表单状态层清理不兼容输入，不转换持久化旧请求或结果。
+
+### authoritative 恢复与 DELETE
+
+```text
+ita.last-local-job UUID
+        │ absent
+        ├─ ita.active-v4-job
+        └─ ita.active-v3-job
+                 ↓ GET same URI
+          strict response parser
+                 ↓
+       SQLite authoritative job/result
+```
+
+- canonical pointer 与旧 key 都不保存版本；GET strict response 决定 legacy/V2/V3/V4。旧 key 成功恢复后迁移到 canonical 并清旧 key；
+- 非法 UUID 在网络前清除；404/过期清除全部相关 key；暂时网络、5xx 或 parse failure 保留 pointer。localStorage 异常被隔离，不能阻断 POST/GET；
+- 前端 DELETE client 调用既有单任务 URI；UI 只在 authoritative terminal response 上开放并二次确认。后端 DELETE contract 不因 UI 限制而改变；运行中取消仍不存在；
+- 返回修改只清 pointer，DELETE 成功才删除 Repository 记录并清 pointer。前端不保存缓存 result，恢复与删除后都重新依赖 API/SQLite 事实。
+
+### PowerShell runner 与进程所有权
+
+`scripts/run-local.ps1` 是唯一的一键本地入口，固定读取仓库版本声明并要求 Python 3.13.3、Node 22.16.0、pnpm 11.19.0；固定后端/前端为 `127.0.0.1:8000/5173`，复用 Vite `strictPort` 和 `/api` proxy，不引入动态端口配置。
+
+runner 的进程模型为：只读端口 preflight → 启动后端精确 Process → loopback `/api/health` 有界等待 → 启动前端精确 Process → loopback root 有界等待 → 用户 Ctrl+C → finally 停止/等待这两个 Process。所有异常也走同一 finally；禁止 process-name/taskkill wildcard、停止端口占用者、删除 SQLite 或修改系统配置。日常入口使用 offline/frozen 依赖模式；clean-checkout 缓存缺失的仓库访问只能在后续独立验收 Gate 明确发生。
+
+### 分层交付依赖
+
+Stack 1 只建立安全 runtime；Stack 2 只建立产品语言和表现 foundation；Stack 3 在其上建立 canonical recovery/DELETE 与完整旅程；Stack 4 提供 runner、组合验收和交付文档。Stack 3 若必须为动作 props 或确认态样式追加修改 Stack 2 文件，必须保持为可审查的最小后层 diff，不能反向让 Stack 1/2 依赖后层 helper。

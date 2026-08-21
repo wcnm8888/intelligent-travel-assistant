@@ -67,9 +67,21 @@ LLM 不作为预算、日期、时间或路线约束的最终裁决者。外部�
 
 根版本文件已固定 Python `3.13.3`、Node.js `22.16.0` 和 pnpm `11.19.0`。后端依赖由 `backend/pyproject.toml` 声明、由 `backend/uv.lock` 锁定；前端依赖由 `frontend/package.json` 声明、由根 `pnpm-lock.yaml` 锁定。本地与 CI 共用 `scripts/verify.ps1`，不维护第二套门禁命令。
 
+## 本地运行
+
+依赖已经按锁文件安装后，在项目根目录使用唯一的一键入口：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-local.ps1
+```
+
+入口固定校验 Python `3.13.3`、Node.js `22.16.0` 和 pnpm `11.19.0`，只使用已安装依赖且禁止 Corepack 联网；如果依赖缺失会安全退出，不会自动安装。脚本先只读检查 `127.0.0.1:8000/5173`，不会停止端口占用者；随后按后端 `/api/health`、前端根页的顺序各等待最多 30 秒。成功后只输出 `http://127.0.0.1:5173/`。按 Ctrl+C 或任一启动步骤失败时，只停止并等待脚本自己创建的两个精确进程。
+
+后端或 SQLite 本地存储无法启动时，入口只显示固定诊断，不输出数据库内容或配置值。入口本身不会安装依赖、打开浏览器或调用业务 Provider；缺少必要 Provider 配置时，任务继续由既有 `configuration_missing` 安全终态处理。
+
 ## 后端健康服务
 
-在项目根目录执行：
+以下命令只用于分项开发或诊断；日常完整应用使用上面的统一入口。在项目根目录执行：
 
 ```powershell
 uv sync --project backend --frozen
@@ -95,7 +107,7 @@ uv run --directory backend --frozen pytest
 
 ## 前端旅行需求工作台
 
-在项目根目录执行：
+以下命令只用于分项开发或诊断；日常完整应用使用上面的统一入口。在项目根目录执行：
 
 ```powershell
 corepack pnpm install --frozen-lockfile

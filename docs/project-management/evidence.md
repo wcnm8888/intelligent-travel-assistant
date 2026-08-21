@@ -1,5 +1,97 @@
 # 验收证据索引
 
+## F-006 Step 7：本地全量门禁、独立 review 与四层交付
+
+- 日期：2026-08-22；当前结论：`LOCAL_PASS / DELIVERY_ACTIVE`。固定 Python `3.13.3`、Node `22.16.0`、pnpm `11.19.0` 运行 `scripts/verify.ps1`，Ruff format/lint、151 个 source strict mypy、后端 `1388 passed`、Prettier、ESLint、TypeScript、前端 `12 files / 131 passed`、Vite build、文档测试 `28 passed` 和 17 required/28 Markdown 契约全部通过；
+- TDD/门禁修正：首次统一门禁依次暴露并关闭一个 mypy `Any`、两个异步终态测试假设和一个绝对日期测试脆弱点；随后独立 review 又关闭 Stack 1 测试归属、Stack 2 提前 `remove` 接口引用，以及 Stack 3 跟踪暂时失败、损坏 canonical pointer 回落和 storage-disabled 页内恢复问题。相关测试全部使用动态上海日期和权威 terminal polling；
+- 当前提交链：`b99d5fc` → Stack 1 `b3e29aa` → Stack 2 `972b1d4` → Stack 3 `f5903f4` → Stack 4 `a5b4b5d`。Stack 1/2/3 最终独立 review 为 `NO FINDINGS`；Stack 4 review 与远程交付仍在进行；
+- 范围：四层生产/测试/script 分别为 11/9/11/3 文件，净新增 472/134/843/676 行；任务累计 34 文件、净新增 2125 行，`styles.css` 净新增 74 行。全部低于 20/1600、65/5200 和 600 行阈值；Schema/migration、依赖/lockfile、CI workflow 和秘密配置 diff 为 0；
+- 边界：本地门禁显式清空 Provider key 环境变量；未读取秘密、调用真实 Provider 或访问非 loopback 业务服务。本条证据不等同真实 Provider UAT；F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown/null、混合交通 fallback 仅离线及 F-004B2 `BLOCKED / ARCHIVED` 均保持；
+- 下一入口：仅继续完成四层 push、stacked PR、逐层远程 CI 和当前状态证据；不得 merge、运行最终 main CI、归档或进入 Step 8。
+
+## F-006 Step 6：临时 SQLite、组合 journey、loopback QA 与独立安全审查
+
+- 日期：2026-08-21；结论：`PASS`。新增 14 个完全离线组合 journey 和 1 个矩阵闭合测试；临时 schema v2 SQLite 纵向集合 `56 passed`，migration 仍只有 1/2；
+- journey/eval：四版本无配置安全失败、legacy 五终态、V2 ready、多城市 V3 ready/partial、已购铁路 V4 partial、unknown fare=null、unknown-validity 与 user-provided 来源均由 typed application/API/SQLite 入口验证；F-005 固定 48-case eval 对应测试 `26 passed`；
+- 重启测试修正：两个既有 SQLite restart case 原先错误地把初始 POST draft 当成重启后的预期结果；本 Step 只修正测试，使第一进程先取得权威 `failed/configuration_missing` terminal result，再验证重启和幂等返回 exact match，生产代码未因该漂移修改；
+- 干净检出：临时检出位于 `E:\Agent\.tmp\f006-step6\clean-checkout-20260821-2340`，只应用当前 diff 和 8 个明确 untracked 任务文件；backend frozen/offline 安装 36 包、frontend frozen/offline 复用 257 包，下载 0。实际 `scripts/run-local.ps1` 通过 exact health，SQLite migration 为 1/2；Ctrl+C 后 8000/5173 listener 为 0，未遗留指向检出的 Python/Node process；
+- 浏览器：使用已安装全局 Playwright CLI，不通过 `npx` 探测或安装；V4 partial journey 在 `1440×1000` 与 `390×844` 覆盖 G1234 规范化、unknown/null、用户提供未核验、reload 恢复、canonical UUID-only pointer、inline DELETE、确认/Escape/完成后的确定性焦点。浏览器业务请求与后端均仅 loopback，console 0 error/0 warning，document 无横向 overflow，label/description/error 引用、live region、390px 可见交互 44px、颜色/焦点对比检查通过；
+- 隐私安全：Codex Security diff scan `dcb1c6b6-49e5-47da-87a0-706b43374a7e` 对 snapshot `94712a80...` 覆盖 21/21 changed-file review items，并人工补充 runner/SQLite/browser 边界，0 finding；报告位于 `C:\Users\24696\AppData\Local\Temp\codex-security-scans-4q2I1p\13-intelligent-travel-assistant\b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f_20260821T154710Z_nciw1eon\report.md`；
+- 直接门禁：组合/SQLite `56 passed`，runner unittest `28 passed`，新增/修正 3 个 Python 测试文件 Ruff check/format 通过；前端全量 `12 files / 126 passed`；
+- 范围：Step 6 只新增 1 个组合验收测试、修正 2 个相邻 SQLite restart 测试并更新当前状态/evidence；累计生产/测试/script 29 文件、净新增 1709 行，`styles.css` 净新增 74 行，低于全部阈值。Schema/migration、依赖/lockfile diff 为 0；未读取秘密、调用真实 Provider、访问非 loopback 业务服务、commit、push、PR、CI、merge 或 Step 7；
+- 证据边界：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、混合交通 fallback 仅离线、F-004B2 `BLOCKED / ARCHIVED` 均保持；本 Step synthetic/loopback/clean-checkout 不等同真实 Provider UAT；
+- 后续入口已由用户批准的 Step 7 取代；本条历史 Step 6 证据不改写。
+
+## F-006 Step 5：安全 PowerShell 本地运行入口
+
+- 日期：2026-08-21；结论：`PASS`。新增唯一 `scripts/run-local.ps1`，固定 Python `3.13.3`、Node `22.16.0`、pnpm `11.19.0` 和 `127.0.0.1:8000/5173`；
+- RED：`uv run --project backend --frozen python -m unittest scripts.tests.test_run_local` 在 runner 不存在时得到 `2 errors / 1 failure`，精确证明入口、所有权清理和自检缺失；
+- GREEN：同一模块最终 `4 passed`。contract self-test 验证 exact version/health parser、额外字段拒绝、临时 loopback listener 冲突/释放和精确无害 PowerShell child 清理；actual `-PreflightOnly` 核对已安装版本/入口与固定端口，未启动 FastAPI、Vite 或 SQLite；
+- 离线/端口：设置 Corepack 禁网和 uv offline；直接使用已安装 `.venv` Python 与 Vite entry，缺失时不安装。端口检查只读 active listeners，冲突只报告 8000/5173，不查询 PID、不停止占用者；
+- 健康/清理：直接 Process 模型避免 uv/pnpm wrapper 遗留；backend exact `/api/health`→frontend root 各 30 秒，HTTP 仅 127.0.0.1、禁 proxy/redirect。Ctrl+C、提前退出或任意失败只对保存的两个 Process ID 执行 stop/wait；
+- 安全诊断：后端早退固定提示 backend/SQLite 路径或权限问题；所有未知异常使用固定脱敏 fallback，不回显 raw stderr、配置值或秘密。成功只输出 `http://127.0.0.1:5173/`，不自动打开浏览器；
+- 范围：1 个 runner、1 个直接 unittest 和批准的运行/状态文档；未修改 Schema/migration、依赖/lockfile、公开 API shape，未创建数据库/启动业务服务、读取秘密、访问软件包仓库/Provider、执行 browser/Step 6 或 Git 交付；
+- 下一入口：等待用户单独批准 F-006 Step 6，只允许临时 schema v2 SQLite、组合 synthetic journey、loopback desktop/390px、network/console/accessibility、干净检出与独立隐私安全验收。
+
+## F-006 Step 4：全版本本机恢复、终态 DELETE 与焦点
+
+- 日期：2026-08-21；结论：`PASS`。canonical localStorage key 固定为 `ita.last-local-job` 且只写 job UUID；legacy/V2/V3/V4 均通过既有 GET URI 和 strict response parser 恢复；
+- RED：`corepack pnpm --dir frontend exec vitest run src/localJobRecovery.test.tsx src/tripPlanningApi.test.ts` 在生产实现前得到 `17 failed / 26 passed`，精确证明 canonical/旧 pointer 迁移、失效清理、错误保留、全版本恢复和 DELETE client/UI 尚未实现；
+- GREEN：同一集合最终 `43 passed`。读取顺序 canonical→旧 V4→旧 V3；非法 UUID 在网络前清理，旧 pointer 只在相符 V3/V4 响应后迁移；`job_not_found` 清 pointer 并返回新建，网络/5xx/strict parser 失败保留 pointer 和“稍后重试恢复”；localStorage 异常被隔离，不阻断新任务；
+- DELETE/焦点：前端 client 对既有单任务 URI 发送 DELETE 并要求 204；仅 terminal 渲染“删除本机任务”。inline 确认把焦点送到确认按钮，取消/Escape 回到原触发按钮；成功清全部 pointer、移除结果并聚焦“行前设定”，失败保留任务/pointer 并显示安全 alert；“返回修改”只清 pointer；
+- 兼容：canonical 新建/恢复覆盖 legacy/V2，旧 pointer 迁移覆盖 V3/V4；同一 strict parser、状态跳转、retry 和 replan 既有测试通过。公开 POST/GET/retry/DELETE/replan URI、顶层 shape、fingerprint、Repository/SQLite schema v2、migration 1/2 均未修改；
+- 验证：前端全量 `12 files / 126 passed`；Prettier check、ESLint、TypeScript `tsc --noEmit` 和 Vite production build 均通过；`git diff --check` 通过；
+- 范围：15 个 Stack 3 生产/测试文件，净新增约 630 行，未预期文件 0，低于 20 文件/1600 净行阈值；没有 PowerShell runner、组合 journey、SQLite/browser 验收、依赖/lockfile、秘密读取、数据库/服务、软件包仓库/Provider 访问或 Git 交付；
+- 下一入口：等待用户单独批准 F-006 Step 5，只允许安全本地 PowerShell runner，不得自动进入 SQLite/browser 验收或交付。
+
+## F-006 Step 3：三产品模式与有限 UX foundation
+
+- 日期：2026-08-21；结论：`PASS`。前端第一组只显示“单城市”“多城市·自行填写交通段”“多城市·填写已购铁路车次”，不再向用户显示 legacy/V2/V3/V4 或第二层城际类型；
+- RED：`corepack pnpm --dir frontend exec vitest run src/TripRequestForm.test.tsx src/PlanningStage.test.tsx` 在生产实现前得到 `3 failed / 19 passed`；缺口分别为三产品模式 group 不存在、plan conflict 恢复动作位于预算之后、needs_input 恢复动作位于诊断之后；
+- GREEN：合并模式入口后继续通过既有 `endDateEdited` 与 strict serializer 选择 legacy/V2/V3/V4；切换进入已购铁路时仍清空/隐藏自由文本和相邻段。计划与无计划终态把主要恢复动作放在摘要之后、支持信息之前，共享组件只消费服务端 status/retryable/attempt/errors，不重算终态、freshness 或预算；
+- 语义与兼容：unknown 费用仍显示“未知”且不按 0；partial 先展示已有计划，conflict verdict 先展示确定性冲突，configuration missing 不出现 retry；legacy/V2 两日 replan、V2 多日 scope、V3/V4 strict parser 与既有请求/结果测试保持；
+- 可访问性基础：三个模式位于单一 `fieldset/legend`，原生 radio 保持键盘/焦点行为并关联说明；主要动作至少 44px，模式卡至少 48px，390px 下单列，既有 focus-visible/reduced-motion/overflow-wrap 保持。真实 desktop/390px browser、单一全页 live region 与焦点恢复纵向仍按计划留给后续批准 Step；
+- 验证：扩大后的前端定向集合 `49 passed`；前端全量 `11 files / 109 passed`；Prettier check、ESLint、TypeScript `tsc --noEmit` 和 Vite production build 均通过；
+- 范围：9 个 Stack 2 生产/测试文件，`243 additions / 113 deletions`、净新增 130 行；`styles.css` 为 `31 additions / 8 deletions`、净新增 23 行。未预期文件 0，低于 20 文件/1600 净行与 styles 600 行阈值；
+- 安全与交付：未修改 API/contracts/fingerprint/Repository、Schema、migration、依赖或 lockfile；未进入 canonical/旧 pointer、DELETE、runner、SQLite/browser 或 Step 4；未读取秘密、创建数据库、启动服务、访问软件包仓库/Provider，未 commit、push、创建 PR 或触发 CI；
+- 下一入口：等待用户单独批准 F-006 Step 4，只允许完整旅程 pointer/recovery/terminal DELETE 与焦点收口，不得自动进入 runner、数据库/browser 或交付。
+
+## F-006 Step 2：无配置零调用安全终态与兼容接线
+
+- 日期：2026-08-21；结论：`PASS`。production bootstrap 在必要 adapter 不完整时装配 `ConfigurationMissingPlanningJobExecutor`，完整配置仍装配既有 `ProviderPlanningJobExecutor`；显式 Repository 测试注入继续允许 optional executor；
+- RED：`uv run --project backend --frozen pytest -q backend/tests/application/test_configuration_missing_planning_job_executor.py backend/tests/api/test_configuration_missing_trip_plans_api.py backend/tests/test_bootstrap.py` 在生产实现前以 3 个 collection ImportError 失败，精确证明 executor/export 尚不存在；
+- GREEN：同集合最终 `33 passed`；扩大后的非 SQLite API/bootstrap 集合 `59 passed, 5 deselected`，覆盖 production 组合根、legacy/V2/V3/V4 POST→GET、同 shape errors、idempotent reuse、retry-not-allowed、配置全空/单 Provider/完整组合及既有部分配置 fail closed；
+- Repository/状态：纯内存 state-machine 与 legacy/V2/V3/V4 typed Repository 集合 `169 passed`；executor 只接受 job ID，不扫描其他 draft，支持新建 `draft→normalizing→failed` 和 existing normalizing retry，结果固定为 `configuration_missing`、安全 message/diagnostic、`retryable=false`、空 plan/来源，AST 门禁证明无 adapter/Agent/tooling/network import；
+- 静态门禁：全 backend Ruff format `147 files already formatted`、Ruff lint通过；`mypy backend/src` 对 66 个 source files 通过；
+- SQLite 限制：用户本 Step 明确禁止创建数据库，因此 5 个 SQLite 测试被显式 deselect，没有运行或宣称 SQLite 纵向 PASS；`schema.py`、`migrations.py`、依赖和 lockfile diff 为 0，typed Repository 路径由内存契约验证；
+- 范围：7 个生产/测试文件，净新增约 430 行，未预期文件 0；只另同步当前状态/evidence 文档。没有前端、fixture、`.env.example`、Schema、migration、依赖、lockfile 或归档修改；
+- 安全与交付：未读取 `.env.local`/秘密/本地 Provider 配置，未创建数据库或启动业务服务，未访问软件包仓库/Provider，未 commit、push、创建 PR 或触发 CI；
+- 下一入口：等待用户单独批准 F-006 Step 3，只允许三产品模式语言、legacy/V2 内部映射和有限 UX foundation，不得自动进入 pointer/DELETE、runner、浏览器验收或交付。
+
+## F-006 Step 1：可实现设计冻结
+
+- 日期：2026-08-21；结论：`PASS`。本 Step 只冻结无配置安全终态、三种产品模式、legacy/V2 内部选择、全版本恢复/旧 pointer、终态 DELETE、本地 PowerShell runner、局部 UX/accessibility、组合验收和四层文件归属；
+- 代码事实：production bootstrap 当前只有三组必要 adapter 全部存在时才返回 planning executor；API 在 executor 为 `None` 时 reserve 但不调度，因此新 job 可停留 `draft`。前端当前只保存 `ita.active-v4-job`/`ita.active-v3-job`，单城市由 `endDateEdited` 选择 legacy/V2；Vite 固定 `127.0.0.1:5173`、strictPort 并代理 `127.0.0.1:8000`；
+- 冻结结论：安全 executor 必须走 `draft→normalizing→failed`，输出既有 `configuration_missing`、固定 `required_provider_configuration_missing`、不可重试且 Provider/Agent/runtime 调用 0；canonical key 为 `ita.last-local-job`，旧 key 顺序 V4→V3；DELETE 只在前端权威终态显示；runner 固定 Python 3.13.3/Node 22.16.0/pnpm 11.19.0 和 8000/5173；
+- 兼容与边界：不新增 URI/公开 key/错误码/strict shape/fingerprint；SQLite schema v2、migration 1/2、旧记录、V3/V4 replan 写前拒绝、V4 interests-only/privacy、F-004B2 阻塞和全部历史 live/离线事实保持；
+- 范围：只修改当前治理和权威 Markdown；没有修改生产源码、测试、fixture、`.env.example`、Schema、migration、依赖、lockfile、历史 archive 或既有 evidence，未创建数据库/服务，未读取秘密，未访问软件包仓库/Provider，未执行 Git 写入；
+- 验证：文档检查器、检查器测试、`git diff --check`、只允许 Markdown 的范围审计和秘密模式审计通过；
+- 下一入口：等待用户单独批准 F-006 Step 2，仅以 TDD 实现 Stack 1 无配置安全终态与兼容接线，不得自动进入 UX、恢复、runner、数据库或交付。
+
+## F-006 Step 0：任务激活、基线复核与治理
+
+- 日期：2026-08-21；当前结论：`PASS`。F-006 已作为唯一 `ACTIVE` 任务进入 Step 0；本条只记录当前事实与治理证据，不改写下方 F-004C 或更早历史 evidence；
+- Git：Step 0 开始前在 `main`，工作区干净，`HEAD == main == origin/main == b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`；
+- PR：#34/#35/#36 已依序 squash merge，归档 PR #37 已合并；GitHub 开放 PR 为 0；
+- CI：run `32486428083` 为 `completed / success`，event `push`，branch `main`，head SHA 为 `b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`；
+- 归档：F-004C Step 0–6 `DELIVERED / ARCHIVED`，完整任务卡仍位于 [F-004C archive](../archive/task-cards/F-004C-booked-rail-user-provided.md)；F-004B2 继续 `BLOCKED / ARCHIVED`；
+- 治理：current-task、roadmap、implementation-plan、progress、docs map 与 D-017 已建立 F-006 Step 0–8、四层 stack、核心文件、受控相邻扩展和规模阈值；
+- 分支：已从上述干净 main 创建 `feat/f-006-local-runtime-compatibility`；HEAD 仍为基线提交，没有 commit、push、PR 或远程 CI；
+- 范围：只修改批准的当前治理与权威 Markdown；没有修改生产源码、测试、fixture、`.env.example`、Schema、migration、依赖、lockfile、历史 archive 或既有 evidence 条目；没有创建数据库或启动服务；
+- 外部边界：只执行 GitHub PR/CI 只读查询；没有读取 `.env.local`、秘密或本地 Provider 配置，没有访问软件包仓库，没有调用高德、和风、DeepSeek、12306 或其他业务 Provider；
+- 门禁：文档检查器通过（17 份必需文档、28 个 Markdown、CI/status/safety contracts）；检查器测试 `24 passed`；`git diff --check`、范围审计和 added-line 秘密模式审计均通过；
+- 下一入口：等待用户单独批准 F-006 Step 1；不得自动修改生产源码、测试或进入实现。
+
 ## F-004C Step 6：三层交付、最终 main CI 与任务归档
 
 - 日期：2026-08-21；结论：`PASS / DELIVERED / ARCHIVED`。F-004C Step 0–6 全部完成，当前没有活动任务；完整任务卡已归档为 [F-004C archive](../archive/task-cards/F-004C-booked-rail-user-provided.md)；

@@ -8,8 +8,8 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-004C 已交付归档，F-004B2 保持 `BLOCKED / ARCHIVED`）
-- 下一候选：F-006；候选不构成激活或实现授权
+- 当前任务：[current-task.md](./project-management/current-task.md)（F-006 是唯一 `ACTIVE` 任务；Step 0–6 已完成）
+- 当前 Step 7 为 `DELIVERY_ACTIVE`：本地全量门禁和前三层最终独立 review 已通过，正在完成四层 stacked PR 与逐层远程 CI；不得 merge 或进入 Step 8
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -91,10 +91,16 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：无
+- 当前活动任务：F-006 MVP 体验收口与本地验收
+- F-006 Step 6 已完成：临时 schema v2 SQLite 与 14 个组合 journey、F-005 固定 48-case eval、loopback desktop/390px、network/console/accessibility、干净检出 frozen/offline 启动和独立 Codex Security 审查均通过；安全扫描 21/21、0 finding，未调用真实 Provider，证据不等同真实 UAT
+- F-006 Step 5 已完成：唯一 `scripts/run-local.ps1` 固定校验运行时、loopback 端口和 strict health，缺依赖不安装、端口冲突不杀进程；Ctrl+C/失败只收口自身精确 Python/Node Process，SQLite/未知异常使用固定脱敏诊断；仅运行离线 self-test/preflight，未启动业务服务或进入 SQLite/browser 验收
+- F-006 Step 4 已完成：canonical `ita.last-local-job` 只保存 UUID，legacy/V2/V3/V4 共用 GET/strict parser 恢复并兼容旧 V4/V3 pointer；失效清理、暂时错误保留、终态单任务 DELETE、inline 确认及确定性焦点均已通过离线测试；未进入 runner、SQLite 或 browser
+- F-006 Step 3 已完成：前端只显示三种批准的产品模式并继续按既有规则内部选择 legacy/V2/V3/V4；共享恢复动作已提升到摘要之后、预算/来源/诊断之前，状态语义仍由服务端提供；未进入 pointer、DELETE、runner、SQLite 或 browser
+- F-006 Step 2 已完成：production 组合根在必要 Provider adapter 不完整时装配零调用安全 executor；legacy/V2/V3/V4 均以既有 `configuration_missing` 和 typed result 经 `draft → normalizing → failed` 收口，完整配置和测试注入路径保持；未创建数据库、调用 Provider 或进入 UX
+- F-006 Step 1 已完成：无配置安全终态、三产品模式、legacy/V2 内部选择、canonical/旧 pointer、终态 DELETE、固定 loopback PowerShell runner、局部 UX/accessibility、组合式离线验收和四层文件归属已冻结；未修改生产源码、测试、fixture、Schema、migration、依赖或 lockfile
 - 最近归档：F-004C Step 0–6 已完成并归档
 - 最近关闭：F-004B2 Step 1 `DONE / BLOCKED`，完整任务卡已归档；高德回复禁止 SQLite 持久化且没有明确授权所需 rail 字段
-- 最近交付：独立 V4 只承载用户已购铁路段；没有城际 Provider，logical call/HTTP attempt 为 0；PR #34/#35/#36 已依序合并，最终 main CI run `32484789531` success
+- 最近交付：独立 V4 只承载用户已购铁路段；没有城际 Provider，logical call/HTTP attempt 为 0；PR #34/#35/#36 已依序合并，归档 PR #37 已合并；最终归档 main `b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`、CI run `32486428083` success
 - 最近完成：F-005 外部服务韧性、数据时效与 Agent 评估；Step 0–9 全部 DONE，完整任务卡已归档
 - F-005 Step 9 已完成：PR #27/#28/#29/#30/#31 依序 squash merge；#28–#31 改指向最新 main 后仍只含本层净差异，无需替代式 clean-restack 或 force-push；完整功能 main `fddd4e5`、CI run `32452988076` success；归档 PR #32 已合并，最终归档 main `96f73d9`、CI run `32453988289` success
 - F-005 Step 0 已完成：最终 Git/PR/CI 和无活动任务基线已复核，完整任务卡、Step 0–9、D-014、四层 stacked PR 与规模治理已收口；已创建首层本地分支，没有 commit、push、PR、远程 CI、源码、测试、数据库、秘密读取或 Provider 调用
@@ -138,4 +144,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- 下一步：等待用户起草并批准 F-006 任务卡；不得自动激活。F-004B2 保持 `BLOCKED / ARCHIVED`，不得恢复 Step 2；F-001 `PARTIAL` 保持不变
+- F-006 Step 7 已获批准并处于 `DELIVERY_ACTIVE`：本地全量门禁通过，四层提交已 clean-restack，正在完成最终 review、push、stacked PR 和逐层远程 CI；不得 merge、最终 main CI、归档或进入 Step 8。F-004B2 保持 `BLOCKED / ARCHIVED`；F-001 `PARTIAL` 保持不变

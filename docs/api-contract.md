@@ -586,3 +586,31 @@ V4 的 `preferences` 使用独立 strict allowlist，精确只含 `interests`（
 - 旧应用读取 V4 必须 fail closed，不降级为 V3，不删除或改写旧记录；
 - 创建 V3 或 V4 replan 均在 replan reserve、decision、executor、Provider/runtime、lineage 和 plan write 前返回既有 422 `replan_scope_not_supported`；拒绝路径相关写入和城际 Provider 调用均为 0。由于这些 job 不可能创建 replan 资源，后续伪造的 GET/decision ID 沿用既有 404/安全错误，不新增 URI 或错误码；
 - V4 POST/GET/retry/DELETE 顶层 job/error envelope、HTTP status、Location、attempt 3、idempotency conflict 和 retry-not-allowed 行为与现有版本一致。
+
+## F-006 同 shape 失败、恢复与 DELETE 契约（Step 1 冻结）
+
+F-006 不新增或修改任何 HTTP URI、method、status、header、公开顶层 JSON key、version-specific nested key、错误码、strict union、fingerprint 或 Repository shape。
+
+### 无配置 planning job
+
+- legacy/V2/V3/V4 POST 仍先按既有规则 parse、fingerprint、reserve 并返回 `202`/Location；无凭证或必要 Provider adapter 组合不完整不是新的同步 HTTP 错误；
+- production 安全 executor 随后写入对应版本的现有 response shape：`status="failed"`、`plan=null`、`retryable=false`、`errors` 只有既有 `code="configuration_missing"`，固定 message 为“本机服务配置不完整，无法生成旅行计划。”，固定 `diagnostic_code="required_provider_configuration_missing"`；不得返回缺失环境变量名、Provider 原始异常或配置值；
+- 状态轨迹为 `draft → normalizing → failed`；legacy 的 `resolved_destination=null`，V3/V4 的 `resolved_destinations=[]`，所有版本的 sources/warnings/uncertainties/violations 为空；attempt/trace/request summary 继续按既有版本契约投影；
+- 不调用 Provider、Agent、attempt runtime 或 proposal/repair。POST reservation `created=false` 不重复调度，既有 retry URI 和 retry-not-allowed 规则不变；历史 `draft` 不因应用启动而被回填；
+- 单个 Provider 的部分配置或非法配置仍沿用既有启动配置错误，不映射成 job `configuration_missing`。
+
+### 前端恢复 client
+
+- localStorage pointer 不是 API contract，也不携带 `request_version`。前端必须用既有 `GET /api/trip-plans/{job_id}` 和 strict response union 确定 legacy/V2/V3/V4；
+- pointer UUID 无效时不得发 GET。GET 404 表示本机 job 不存在或已清理，前端清 pointer 且不展示缓存 result；其他网络/5xx/strict parse 错误不得伪造 job，也不自动删除 pointer；
+- POST 成功、retry 和恢复均使用既有 job ID/Location/response。F-006 不新增 resume、list、readiness 或 pointer endpoint。
+
+### DELETE client
+
+- 前端新增调用 `DELETE /api/trip-plans/{job_id}` 的 typed client，成功只接受既有 `204 No Content`；非法 UUID、404 和既有 error envelope 按现有安全错误处理；
+- “只允许终态删除”是前端动作可见性规则，不收窄后端 DELETE contract，也不产生新状态码。UI 不在 nonterminal 暴露 DELETE，因此该 URI不能被描述为 cancel；
+- 删除失败必须保留当前 authoritative response 和 pointer；删除成功后清 pointer 并回到新建流程。没有历史列表、批量 DELETE、全库清理或运行中取消 URI。
+
+### replan 兼容
+
+legacy 与 V2 恰好 2 日继续使用既有 F-003 replan URI；V2 3–7 日不显示控件并返回既有 `replan_scope_not_supported`。V3/V4 不显示控件且全链路写前拒绝保持。F-006 不以 UX 收口扩大或重定义 replan scope。
