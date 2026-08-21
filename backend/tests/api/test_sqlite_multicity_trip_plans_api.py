@@ -67,6 +67,37 @@ def test_v3_create_restart_idempotency_retry_and_delete(
         assert inspection.execute("SELECT COUNT(*) FROM planning_jobs").fetchone() == (0,)
 
 
+@pytest.mark.parametrize(
+    ("city_count", "expected_end_date"),
+    [(2, "2026-08-24"), (3, "2026-08-25")],
+)
+def test_browser_fixture_can_shift_frozen_dates_without_changing_schema_v2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    city_count: int,
+    expected_end_date: str,
+) -> None:
+    path = tmp_path / "multicity-shifted-browser.sqlite3"
+    configure_browser_environment(monkeypatch, path, city_count=city_count, scenario="partial")
+    monkeypatch.setenv("ITA_BROWSER_START_DATE", "2026-08-22")
+    request = request_payload(city_count)
+
+    assert request["start_date"] == "2026-08-22"
+    assert request["end_date"] == expected_end_date
+
+    with TestClient(create_browser_app()) as client:
+        created = client.post("/api/trip-plans", json=request)
+        terminal = wait_for_status(client, created.json()["job_id"], "partial")
+
+    assert terminal.json()["request_summary"]["start_date"] == "2026-08-22"
+    assert terminal.json()["request_summary"]["end_date"] == expected_end_date
+    assert terminal.json()["plan"]["days"][-1]["local_date"] == expected_end_date
+    with sqlite3.connect(path) as inspection:
+        assert inspection.execute(
+            "SELECT version FROM schema_migrations ORDER BY version"
+        ).fetchall() == [(1,), (2,)]
+
+
 def test_v3_synthetic_retry_publishes_a_second_attempt_with_fresh_source_ids(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

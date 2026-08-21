@@ -8,6 +8,7 @@ import os
 import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import date
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import cast
@@ -37,6 +38,7 @@ from tests.contracts.test_multicity_trip_planning_contracts import response_payl
 
 _SCENARIOS = frozenset({"ready", "partial", "conflict", "needs_input", "failed"})
 _CITY_COUNTS = frozenset({2, 3})
+_FROZEN_START_DATE = date(2026, 8, 21)
 _SOURCE_C = "d1000000-0000-4000-8000-000000000002"
 _HOTEL_C = "c1000000-0000-4000-8000-000000000001"
 _STATION_C = "c2000000-0000-4000-8000-000000000001"
@@ -94,8 +96,42 @@ def _configured_city_count() -> int:
     return value
 
 
+def _configured_start_date() -> date | None:
+    raw = os.environ.get("ITA_BROWSER_START_DATE")
+    if raw is None:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        raise RuntimeError("synthetic_browser_start_date_invalid") from None
+
+
+def _shift_frozen_dates(value: object, start: date) -> object:
+    if isinstance(value, str) and len(value) >= 10:
+        try:
+            current = date.fromisoformat(value[:10])
+        except ValueError:
+            return value
+        offset = (current - _FROZEN_START_DATE).days
+        if 0 <= offset <= 6:
+            return f"{date.fromordinal(start.toordinal() + offset).isoformat()}{value[10:]}"
+        return value
+    if isinstance(value, list):
+        return [_shift_frozen_dates(item, start) for item in value]
+    if isinstance(value, dict):
+        return {key: _shift_frozen_dates(item, start) for key, item in value.items()}
+    return value
+
+
+def _with_configured_dates(payload: dict[str, object]) -> dict[str, object]:
+    start = _configured_start_date()
+    if start is None:
+        return payload
+    return cast(dict[str, object], _shift_frozen_dates(payload, start))
+
+
 def request_payload(city_count: int) -> dict[str, object]:
-    return copy.deepcopy(contract_request_payload(city_count))
+    return _with_configured_dates(copy.deepcopy(contract_request_payload(city_count)))
 
 
 def _user_source(source_id: str) -> dict[str, object]:
@@ -248,6 +284,7 @@ def _terminal_result(scenario: str, city_count: int, *, attempt: int = 1) -> Pla
     payload = copy.deepcopy(response_payload(unknown_fare=unknown_fare))
     if city_count == 3:
         _expand_to_three_cities(payload, unknown_fare=unknown_fare)
+    payload = _with_configured_dates(payload)
     if scenario == "partial":
         payload["retryable"] = True
         payload["errors"] = [

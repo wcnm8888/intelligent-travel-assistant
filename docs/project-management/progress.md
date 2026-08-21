@@ -2,128 +2,113 @@
 
 ## 当前状态
 
-- 当前任务：无
-- 最近完成：`F-004B1 多城市领域、用户提供的城际段与离线约束`
-- 任务状态：`DELIVERED / ARCHIVED`
-- Step 0–8：`DONE`
-- 完整功能 main：`c1fecb0e5545a25330aa179e7f25decd58c07139`
-- main CI：run `32384768085`=`PASS`
-- 下一动作：等待用户从 roadmap 选择并批准下一任务卡
+- 当前任务：`F-005 外部服务韧性、数据时效与 Agent 评估`
+- 任务状态：`ACTIVE`
+- 最近完成：`Step 8 - 全量门禁与 stacked PR`，状态 `DONE`
+- 当前 Step：`Step 9 - 依序合并与归档`，状态 `TODO`；尚未批准、尚未进入
+- 当前分支：`feat/f-005-ui-delivery`
+- 当前交付动作：五层 Draft stacked PR 与逐层 CI 已完成；停止在 merge、clean-restack、最终 main CI 与归档之前
 
 ## Step 0 完成摘要
 
-- 已复核 `main == origin/main == HEAD`，基线为 F-004A 归档提交 `1a3e0a0`，修改前工作区干净；
-- 已复核 PR #13/#16/#17/#18 合并、PR #14/#15 clean-restack 替代关闭，以及 main CI run `32360800884` 成功；
-- 已确认激活前 current-task 没有活动任务；
-- 已写入已批准 F-004B1 完整任务卡和 Step 0–8 计划；
-- roadmap 已按 F-004B1 → F-005 → F-004B2 拆分排序，且只有 F-004B1 为 ACTIVE；
-- product-brief 和 api-contract 的 F-004A 当前状态漂移已修正；
-- 已新增 D-013 决策入口，并建立“核心文件清单 + 受控相邻扩展”治理；
-- 已从干净 main 创建本地首层分支；
-- 未提交、push、创建 PR 或 merge；未修改源码、测试、Schema、migration、依赖、lockfile、fixture 或数据库；
-- 未读取 `.env.local`、秘密或本地 Provider 配置，未调用真实 Provider 或访问未批准外部服务。
-
-## 当前产品与技术边界
-
-- F-004A 已交付单城市连续 2–7 日、单住宿锚点、V2 typed contracts、schema v2 typed JSON 和 V2 恰好两日 replan；
-- F-004B1 的纯领域/contracts、Repository/API/SQLite schema v2 往返、离线 V3 planning/调用治理及前端多城市交互/恢复已在 Step 2–5 实现；
-- 城际 Provider 调用为 0；铁路/航空/长途客运真实数据源属于 F-004B2；
-- 推荐顺序为 F-004B1 → F-005 → F-004B2；
-- F-001 产品状态保持 `PARTIAL`；
-- Step 45M 历史真实 UAT `FAIL`、Step 45T `PASS` 均保留；
-- unknown 保持 `null`，混合交通 fallback 只有离线证据；
-- F-004A 没有真实 Provider UAT。
+- 2026-08-21 复核本地 `HEAD/main/origin/main` 与 GitHub remote main 均为 `c5f07e12abdc37f977ee0f7181a5f2800f015066`，修改前工作区干净；
+- PR #19/#23/#24/#25/#26 均为 `MERGED`，PR #26 merge commit 为 `c5f07e1`，当前无开放 PR；
+- main CI run `32386260285` 在 `c5f07e1` 上 `completed/success`；
+- 激活前 current-task 明确没有活动任务；F-005 现为 roadmap 唯一 ACTIVE，后续顺序保持 F-005 → F-004B2；
+- 完整已批准任务卡、D-014、Step 0–9、核心文件清单、受控相邻扩展、四层 stacked PR 和规模阈值已写入当前权威文档；
+- F-004B1 当前状态已收口为 Step 0–8 完成归档、PR #26 已合并、最终 main/CI 为 `c5f07e1` / `32386260285`；历史 evidence 和归档任务卡未改写；
+- 已从干净 main 创建本地首层分支 `feat/f-005-resilience-domain-contracts`；
+- 本 Step 未修改生产源码、测试、fixture、Schema、migration、依赖、lockfile 或数据库；未读取 `.env.local`、秘密或本地 Provider 配置，未调用 DeepSeek、高德、和风或城际 Provider；
+- 未 commit、push、创建 PR、触发远程 CI 或进入 Step 1。
 
 ## Step 1 完成摘要
 
-- 已冻结独立 `request_version/plan_format_version/response_version="3"`，V3 不继承或污染 legacy/V2 字段集合；
-- 已冻结 2–3 城、3–7 日、每城至少一晚、累计夜数派生转移日、相邻用户段、三种 mode、同日时间和方式缓冲；
-- 已冻结 V3 每日出发/到达/住宿城市、转移日最多一项活动、市内 RouteLeg 不跨城、用户 fare/unknown 和安全来源披露；
-- 已冻结同 URI 严格三分支、V3 canonical fingerprint、Repository typed union、schema v2 typed JSON、旧应用 fail closed 和无 migration v3；
-- 已冻结全部 V3 replan 在 reserve/Provider/write 前 422 拒绝；
-- 已冻结按城市 Provider 调用上限、全局模型 1+1、route/城市并发、180 秒 deadline 和城际 Provider 调用 0；
-- 已冻结前端显式模式、城市/段卡、字段错误、结果/离线恢复、V3 无 replan 和 desktop/390px 门禁；
-- 已冻结 Step 2–7 分层 RED/GREEN 与兼容、SQLite、Provider、隐私和浏览器测试矩阵；
-- 未实现生产代码或测试，未修改 Schema/migration/依赖，未读取秘密或调用 Provider。
+- 逐能力冻结失败终态：Provider failure 不产生 needs_input/conflict；城市/地点/路线/天气/模型按关键性在 retry 耗尽后进入 failed 或 partial，ready 不容纳 stale/参与决策的未验证事实；
+- freshness 冻结为 attempt 评估快照，GET 不按墙钟重写；stale 最终路线被拒绝，天气/预警被剔除，unknown-validity 保持披露且最高 partial；
+- attempt runtime 冻结为每个 planning attempt 显式创建，额外预算为 Amap 3/QWeather 1/任务 4，timeout/5xx 使用 0–200ms jitter，受控 429 delay 最多 2 秒；terminal/cancel/deadline 后零新调用并 drain peers；
+- generation/repair 输入、Provider 文本隔离、48-case 四 slice、两次确定性运行、五类硬门禁和 95% 加权门禁已冻结；
+- API/UI 复用既有 URI、shape、`data_stale` 和 `diagnostic_code`；Stack 3 负责后端投影和 Agent 输入安全，Step 8 新增 Stack 4 只负责真实离线 application eval 集成，Stack 5 只消费既有 shape；五层核心文件和分层测试入口已对齐；
+- 本 Step 只修改批准文档，没有修改生产源码、测试、fixture、Schema、migration、依赖、lockfile 或数据库；没有秘密读取、Provider/外部调用、commit、push、PR、CI 或进入 Step 2。
 
 ## Step 2 完成摘要
 
-- TDD 首轮 RED 证明多城市领域类型与 V3 contracts 缺失；第二轮证明跨日城市连续性和 summary 夜数派生转移日绑定缺失；第三轮证明 ready 终态可错误携带 error；三轮均完成最小 GREEN；
-- 纯领域覆盖 2–3 城、3–7 日、每城至少一晚、累计夜数、相邻用户段、+08:00 同日时间、rail/air/coach 缓冲、普通/转移日活动、同城市内路线、逐城住宿、用户 fare/unknown 和五终态；
-- 独立 V3 contracts 覆盖 request/plan/response、城市/段/日 DTO、住宿/站点/活动/路线引用、跨日连续性、用户来源和终态 final validation；
-- V3 没有加入现有 Planning unions，Repository/API/SQLite 集成留给 Step 3；
-- 定向回归 `102 passed`，全仓 Ruff format/lint 与 strict mypy 通过，legacy/V2 fingerprint 保持；
-- 未修改 Repository/API、SQLite/schema/migration、Provider、前端、依赖或 lockfile；未创建数据库、读取秘密、调用外部服务或执行远程 Git 写入。
+- RED 首次定向运行在 collection 阶段因新的 F-005 领域符号不存在失败；最小 GREEN 后定向 `108 passed`；
+- `ProviderError` 只接受 rate-limit 的 `0..2s` 安全 Retry-After；纯 schedule 锁定 Amap/QWeather 2 attempts、额外预算 3/1/任务 4、6 秒 timeout，DeepSeek 1 attempt/35 秒/0 retry；
+- retry 决策覆盖 timeout/server/受控 429、0–200ms jitter、budget、remaining deadline、terminal/cancelled；不可重试类别和 Provider/operation mismatch fail closed；
+- freshness 决策覆盖 route stale reject、weather/alert stale omit、location stale partial-use、unknown-validity partial-use；Provider failure 只产生 failed/partial；安全诊断保持 8 项闭集；
+- domain + contracts/golden `342 passed`，全 backend Ruff format/lint 与 strict mypy 134 files 通过；unknown/null、legacy/V2/V3 shape 和 domain dependency boundary 保持；
+- 生产/测试只涉及 5 个批准文件、净新增 856 行且无未预期文件；没有 adapter/application/API/Repository/SQLite/前端、Schema/migration、依赖/lockfile、数据库、秘密、Provider/外部调用、commit、push、PR、CI 或 Step 3 实现。
 
 ## Step 3 完成摘要
 
-- TDD 首轮 RED 证明 V3 无 Repository result variant；补充 RED 证明无 plan 终态可绕过 request/result 版本匹配；均以最小 typed union 和 fail-closed 修复转绿；
-- 三组 planning unions 已严格扩为 legacy/V2/V3；新增 `PlanningJobResultV3`/`PlanningResult`，Repository port 方法集合不变；
-- 内存与 SQLite schema v2 覆盖 V3 fingerprint、幂等、record_result、重启水合、retry、DELETE、30 天有界清理、损坏 plan fail closed 和旧 models 读取 V3 失败；
-- 同 URI API 覆盖 POST/GET/retry/DELETE、三分支 OpenAPI、非法 tag 422、V3 draft/partial 投影和不调度 V3 executor；
-- V3 replan 的 API/service create、decide、execute 均在 reserve/lookup/decision/executor/write 前拒绝；SQLite replan/decision/lineage 为 0，job version/status 不变；
-- Step 3 新增集合 `31 passed`，相关 Repository/API/replan 回归 `170 passed`，Provider 相邻纯离线回归 `33 passed`，SQLite API 回归 `17 passed`；全仓 Ruff/strict mypy 通过；
-- schema/migration、依赖、lockfile、前端均未修改；临时 SQLite 仅位于系统临时目录；未读取秘密、调用真实 Provider 或执行远程 Git 写入。
+- RED 首次定向运行因 `ProviderAttemptRuntime` 尚不存在而在 collection 失败；最小 GREEN 后 runtime + Amap/QWeather 定向 `121 passed`；
+- 显式 task-scoped runtime 独立持有 attempt 记录、Amap/QWeather/任务额外预算、deadline、active peers 与 closed 状态；覆盖单 attempt timeout、注入式 jitter/sleeper、budget/deadline 停止、取消/异常 close、peer drain 和 closed 后零新调用；
+- Amap/QWeather adapter 仍只执行一次 HTTP exchange，无内部 sleep/retry；timeout/request/HTTP/Schema 错误和 Retry-After 只投影为闭集安全错误与 `0..2s` 数值，不保留原始 header/body；DeepSeek 生产代码未修改，0 transport retry 回归通过；
+- Provider/DeepSeek/治理/既有编排兼容回归 `378 passed`，domain/contracts `164 passed`；全 backend Ruff format/lint 与 strict mypy 136 files 通过；
+- 生产/测试范围为 8 个批准核心或受控相邻文件、净新增 859 行、未预期文件 0；没有接入 application planning service，没有 API/Repository/SQLite/前端、Schema/migration、依赖/lockfile、数据库、秘密、Provider/外部调用、commit、push、PR、CI 或 Step 4 实现。
 
 ## Step 4 完成摘要
 
-- 两轮真实 RED 分别证明缺少多城市编排/governor，以及 proposal parser 仍只接受 V2 日期上下文；最小修复后转绿；
-- 独立 V3 编排器按城市复用既有 Provider ports，生成一个全局 proposal，并由确定性代码注入城市连续性、用户段、缓冲、市内路线、活动时间、预算、来源和终态；
-- 调用预算为 resolve ≤ C、POI ≤ 3C、forecast/alert ≤ C、generation/repair 各 1、route ≤ min(28,4D)，城市事实与 route 并发均为 2，总 deadline 180 秒；
-- 取消测试证明两条在途 route peer 均被 drain、active 归零且第三条未启动；deadline 测试证明首个 Provider call 前拒绝；
-- V3 repair 只接收安全诊断与脱敏结构上下文，不接收原始模型输出、自由文本、兴趣、硬约束或用户城际段原文；intercity Provider 调用恒为 0；
-- 新增集合 `9 passed`；application `505 passed`，API/contracts/持久化相关 `141 passed`，bootstrap `22 passed`，DeepSeek/parser `102 passed`；Ruff、strict mypy 和 diff 检查通过；
-- 未修改 schema/migration、Repository 方法集合、依赖、lockfile 或前端；未读取秘密、调用真实 Provider、创建业务数据库或执行远程 Git 写入。
+- RED 首次以 4 个接线测试证明 legacy/V2/V3 orchestrator/executor 不接受显式 runtime；第二个 RED 证明 stale weather 仍会进入 plan；随后完成最小 application 接线和同 shape 投影；
+- executor 为每次 planning attempt 创建并持有一个 runtime，终态写 Repository 前 close；同一 runtime 覆盖 Amap/QWeather/DeepSeek、城市、路线与天气调用，logical call 与 HTTP attempt 计数保持分离；
+- deadline 前置拒绝不启动 HTTP，timeout/retry budget 只输出既有错误 shape 和安全 diagnostic；城市/路线并发异常或取消均 cancel/drain peers，终态 active execution 为 0；
+- retry 先于 deterministic route fallback；Provider-wide failure 与 stale route 均不 fallback。stale route failed，stale weather/alert 剔除并 partial，unknown-validity 不提升 ready；
+- legacy/V2/V3 API URI/JSON keys、Repository typed union、SQLite schema v2、migration、F-003 replan 和 F-004B1 城际 Provider 调用 0 均未改变；
+- 定向 runtime/application `60 passed`，全 backend `1264 passed`；Ruff format/lint、strict mypy 136 files 通过；任务累计生产/测试 22 文件、净新增 2713 行，低于任务阈值，Step 4 无未预期文件；
+- 没有读取秘密、调用真实 Provider、访问外部网络、创建数据库、修改前端/依赖/lockfile、commit、push、PR、CI 或进入 Step 5。
 
 ## Step 5 完成摘要
 
-- RED 先证明旧 parser 拒绝严格 V3 response 且表单没有多城市入口；当时既有前端 88 项保持通过；
-- 默认单城市和 legacy/V2 请求保持；显式多城市模式支持 2/3 城、夜数平衡、相邻段、+08:00 派生转移日、三种缓冲、用户排序/删除和字段首错；
-- 城市排序只由用户按钮触发，排序后相邻段全部清空并通过 live region 披露；第三城删除只移除相邻派生段并恢复焦点；
-- V3 parser/结果覆盖城市路线、逐日城市连续性、独立城际段、缓冲、用户来源、unknown/partial 和 V3 无 replan；unknown 费用明细不显示为 `¥0`；
-- V3 job UUID 仅作为本机恢复指针保存；重启通过同源 GET 读取权威快照，不保存请求、站点、票价或 Provider 数据；
-- 专项 `7 passed`、前端全量 `95 passed`，format/lint/typecheck/build 通过；依赖/lockfile、schema/migration 与后端无本 Step 修改；
-- 未读取 `.env.local`/秘密，未调用 Provider、创建数据库、访问外部服务或执行远程 Git 写入；Node 24.19.0 对项目声明 22.16.0 产生 engine warning，但命令均成功。
+- RED 在 collection 因 `PlanRepairBrief` 不存在失败；GREEN 后 repair 不再携带原始无效模型输出或完整 `PlanningContext`，只使用日期/城市/窗口骨架、允许 ID 目录与稳定诊断；
+- generation/repair 在 builder 和 DeepSeek adapter 两层过滤 Provider label：最多 120 字、单行、无控制符/提示控制标记；category/kind 仅允许项目 token，unsafe 文本不会进入模型 payload；
+- `f005-v1` 固定 48 case 按 legacy/V2/V3/F-003 各 12、每 slice 正常/Provider/freshness/security 各 3 分布；重复两次结果一致，六维加权 100.0%，提示注入、来源伪造、工具越权、预算超限和假 ready 零失败；
+- 定向 `127 passed`、完整 backend `1270 passed`；Ruff、strict mypy（137 source + eval 4 files）通过；任务累计 36 文件/3421 净新增行，Stack 3 估算 1706 净新增行，未触发阈值；
+- 没有前端、Schema/migration、依赖/lockfile、数据库、秘密、Provider/外部调用、commit、push、PR、CI 或 Step 6 实现；eval 只证明固定离线回归，不代表真实 Provider/模型 UAT。
 
 ## Step 6 完成摘要
 
-- 临时 SQLite 纵向覆盖 V3 create/read/restart/retry/delete、幂等、2/3 城、五终态和 V3 replan 拒绝；相关 legacy/V2/V3 回归 `45 passed`；
-- browser-only synthetic executor 在 retry attempt 2 生成 job 唯一 source/plan identity，保持 schema v2、migration 1/2 和 Repository 冲突语义不变；
-- 真实 loopback Vite → FastAPI → SQLite → synthetic 链在 desktop `1440×1000` 与 `390×844` 通过，刷新恢复成功，横向溢出 0、console error/warning 0，58 条请求全部指向 `127.0.0.1`；
-- 键盘/无障碍验证覆盖第三日、skip link、第三城删除/新增焦点；发现新增第三城焦点丢失后以 RED/GREEN 修复，新输入获得焦点；DOM 审计 duplicate id、无效 ARIA 引用和无名称交互项均为 0；
-- 前端全量 `95 passed`，ESLint 与 TypeScript 通过；触及后端文件 Ruff 与 strict mypy 通过；
-- 独立安全/隐私/兼容 diff scan `efd6640a-731a-47ce-b4e8-58bf3931d5dc` 完整覆盖 36 个生产文件 review item 和 6 个信任面，0 finding；TAC advisory 因 connector 未登录保持未验证；
-- 本轮创建的两份 synthetic 临时 SQLite 已在精确进程关闭后从系统临时目录删除；未读取秘密、调用真实 Provider/非 loopback 服务、修改 schema/migration/依赖/lockfile 或执行远程 Git 写入；
-- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown、混合交通 fallback 仅离线和 F-004A 无真实 Provider UAT 均保持。
+- RED 定向 30 项中 4 项按预期失败，证明鉴权配置、错误排序、stale 恢复和 unknown-validity 披露缺口；最小 GREEN 后 30 项全部通过；
+- 前端只按现有同 shape 字段展示服务端裁决：鉴权无 retry，暂时失败受 `retryable/attempt` 控制，stale 显示重新获取，unknown-validity 不暗示 fresh，也不单独创造 retry；
+- 固定错误排序、safe Provider 名称和安全文案已覆盖 legacy/V2/V3；exact parser、unknown/null、attempt 3、F-003 replan 与 V3 用户城际语义保持；
+- 前端全量 `99 passed`，Prettier、ESLint、TypeScript、Vite build 和无 SQLite API/contracts `98 passed`；6 个批准文件净新增 230 行，任务累计 42 文件/3651 行，未触发阈值；
+- 未进入临时 SQLite、browser、Step 7、Schema/migration、依赖/lockfile、秘密、Provider/网络、数据库或交付操作。
 
 ## Step 7 完成摘要
 
-- 最终累计全量门禁通过：strict mypy 134 files、backend `1166 passed`、frontend `95 passed`、build 与 24 项文档检查器均成功；
-- Draft PR #19/#20/#21/#22 按 domain → persistence/API → planning → UI/docs 的直接 base 拓扑创建；最终 CI runs `32379371761`、`32379662820`、`32379802803`、`32379941695` 全部成功；
-- 首轮 #19/#20 CI 失败未隐藏；V3 union、测试辅助模块和 fail-closed 兼容被校正到所属层，并以普通追加提交逐层传播，无 force-push；
-- 四层生产/测试净新增 1679/1393/2120/2497，累计 7689；每层 ≤30 文件且净新增 ≤2500，累计未超过 8000；
-- diff/range/依赖/秘密复核通过，无 migration、Schema、依赖、lockfile 或城际 Provider 文件变更；review 无阻塞 finding；
-- 四个 PR 保持 Draft；未 merge、未运行 main CI、未归档、未读取秘密或调用真实 Provider。
+- 临时 schema v2 SQLite 纵向最终 `31 passed`；冻结 V3 browser 日期在当日成为 D+0 后，先新增测试取得精确 RED，再仅在 browser 支撑中允许显式平移冻结日期；生产 contracts、Repository、Schema/migration 未变；
+- Edge desktop/390px 覆盖 V3 partial、键盘/skip link、retry、reload 恢复、unknown/null 与时效披露；浏览器 57 条请求全为 loopback，overflow、DOM/ARIA、console error/warning 均为 0；
+- 临时数据库只含 migration 1/2 和既有表，敏感/原始 payload/运行诊断模式扫描为 0；三份精确数据库文件已移入可恢复的回收站；
+- 独立 Codex Security scan `c0d1100d-227b-4572-aa5a-769cb0689541` 覆盖 8 个信任面、coverage complete、0 finding；安全/韧性 `365 passed`，SQLite `31 passed`，Ruff 与 strict mypy 137 files 通过；
+- Step 7 仅受控修改 2 个测试文件、净新增 59 行；任务累计 44 文件/3710 净新增行，未触发阈值；未进入 stacked PR 或任何 Git/远程交付操作；
+- 首次 Playwright CLI `npx` 探测可能查询 npm registry，随后全部改为 offline。该严格非 loopback 过程偏差已披露并阻止无条件 PASS；用户已明确接受该偏差。
+
+## 当前产品与技术边界
+
+- F-001 产品状态保持 `PARTIAL`；Step 45M 真实 UAT `FAIL`、Step 45T 真实 UAT `PASS` 均保留；
+- unknown 金额保持 `null`，混合交通 fallback 只有离线证据；
+- F-004A/F-004B1 均无真实 Provider UAT，F-004B1 城际 Provider 调用为 0；
+- SQLite schema 保持 version 2，无 migration v3；legacy/V2/V3、F-003 replan 和现有 API shape 必须兼容；
+- F-005 不新增 Provider、真实调用、依赖、账号、遥测、公网服务、交易或生产高可用能力。
+
+## 阻塞与下一入口
+
+Step 7 技术验收已完成，首次 `npx` 探测可能访问 npm registry 的已披露过程偏差已由用户明确接受。Step 8 也已完成；不得自动 merge、clean-restack、运行最终 main CI、归档或进入 Step 9。
 
 ## Step 8 完成摘要
 
-- PR #19/#23/#24/#25 已依序 squash merge；功能 main 提交依次为 `9f37e4f`、`712fd51`、`ec499fb`、`c1fecb0`；
-- 原 #20/#21/#22 在父层 squash 后由 clean-restacked #23/#24/#25 替代并关闭；每个替代分支从最新 main 创建且只移植所属层净提交，没有 force-push；
-- 替代 PR CI `32382212012`、`32383225699`、`32384318796` 均成功；四层 main CI `32381619737`、`32382625338`、`32383721748`、`32384768085` 均成功；
-- 完整功能 main 全量门禁保持 backend `1166 passed`、frontend `95 passed`、文档检查器 `24 passed`，并通过全部静态、类型和 build 检查；
-- F-004B1 任务卡已归档，roadmap 无 ACTIVE 任务，当前任务关闭；
-- 未读取秘密、调用真实 Provider、修改 Schema/migration/依赖或改写历史 evidence。
-
-## 阻塞与停止条件
-
-当前没有事实冲突或技术阻塞，也没有活动任务。
-
-下一任务必须由用户从 roadmap 明确选择并批准；不得因 F-004B1 完成而自动启动 F-005、F-004B2 或 F-006。
+- 用户接受已披露的 Codex CLI 全局插件外连失败偏差；该失败未访问真实 Provider、未形成 Provider UAT，也未改变项目代码或数据边界；
+- 用户批准把交付拓扑改为五层，并在 application/Agent 与 UI 之间新增 `feat/f-005-agent-eval-integration`；
+- 新层的 RED 是 eval 测试在收集阶段因 `evals.f005.application` 不存在失败；最小 GREEN 通过真实 `ProviderPlanningJobExecutor`、legacy/V2/V3 orchestrator 与 `ReplanApplicationService` 的离线入口观测终态、来源、unknown/partial 和调用预算；
+- case schema 已拒绝 `published_source_ids` 与 `unknown_amount` 等自报观测字段；DeepSeek 使用 `MockTransport`，Amap/QWeather 使用 fake，F-004B1 城际 Provider 调用保持 0；
+- 最终本地门禁通过 backend format/lint、strict mypy 139 files、backend `1309 passed`、frontend format/lint/typecheck、`99 passed`、build、文档测试 `24 passed` 与文档检查器；
+- 三轮独立 review 的所有 P1/P2 均以对应 RED/GREEN 关闭，五层最终复审均为 NO FINDINGS；
+- 五层分支已普通 push；Draft PR #27/#28/#29/#30/#31 依次以 main/前层分支为 base，首轮 CI runs `32450657207`、`32450661429`、`32450664838`、`32450668170`、`32450671589` 全部 success；
+- 未 merge、clean-restack、运行最终 main CI、归档或进入 Step 9；未修改 Schema/migration、依赖/lockfile，未读取秘密或调用真实 Provider。
 
 ## 权威入口
 
 - 完整任务卡：[current-task.md](./current-task.md)
-- Step 0–8 计划：[implementation-plan.md](./implementation-plan.md)
+- Step 0–9：[implementation-plan.md](./implementation-plan.md)
 - 路线与优先级：[roadmap.md](./roadmap.md)
-- 验收证据：[evidence.md](./evidence.md)
-- 长期决策：[D-013](../decisions.md)
+- 长期决策：[D-014](../decisions.md#d-014f-005-统一外部服务韧性数据时效与离线-agent-评估)
+- Step 0–7 证据：[evidence.md](./evidence.md)

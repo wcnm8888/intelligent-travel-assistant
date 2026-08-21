@@ -45,6 +45,20 @@ it("accepts a strict V3 response and renders a user-provided transfer", () => {
   expect(screen.queryByText("¥0")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "替换活动" })).toBeNull();
 });
+it("keeps V3 unknown validity as a disclosed fact without inventing retry", () => {
+  const parsed = parseTripPlanResponse(multicityPlanningPayload(true));
+  if (!parsed.plan) throw new Error("V3 fixture must contain a plan");
+  render(
+    <TripPlanResult
+      response={{ ...parsed, plan: parsed.plan }}
+      onRetry={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("有效期未知，不代表当前有效")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: /重新获取|重试缺失/ }),
+  ).toBeNull();
+});
 it("rejects V3 tag drift, forged user sources and ready-with-unknown", () => {
   const tagDrift = payload();
   (tagDrift.plan as Record<string, unknown>).plan_format_version = "2";

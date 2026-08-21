@@ -299,7 +299,7 @@ F-004A 继续使用当前单页、结果优先布局，不新增历史页、版�
 
 Step 5 已按上述冻结设计实现组件层交互：保持现有旅行手账式单页布局，新增显式结束日期、动态日窗口、可换行日期索引和 2–7 日日卡；3–7 日 replan 范围与 V2 双日兼容均已锁定。桌面与 `390×844` 的真实本机 synthetic 浏览器验收仍属于 Step 6，不能由组件测试结论替代。
 
-## F-004B1 多城市交互（Step 1 冻结，Step 5 组件层已实现）
+## F-004B1 多城市交互（Step 0–8 已实现并归档）
 
 F-004B1 继续使用现有单页和任务轮询，不增加地图、历史页或票务流程。表单顶部新增“单城市 / 多城市”明确选择，默认保持单城市；只有用户选择多城市才提交 V3，不能按城市数量或已有字段猜版本。
 
@@ -345,7 +345,7 @@ F-004B1 继续使用现有单页和任务轮询，不增加地图、历史页或
 - loading、needs_input、conflict、failed、partial、retry 和恢复继续使用现有 live region 与焦点规则；状态、城市切换、unknown 和用户提供来源不能只依赖颜色；
 - 组件测试覆盖 2/3 城和错误定位；Step 6 必须再用 loopback synthetic 浏览器覆盖 desktop/390px、键盘、焦点、0 overflow、console 0 error/warning 和网络仅 loopback；截图不能替代行为断言。
 
-Step 5 已按冻结方向实现“旅行行程手账 / 路线图式编辑器”：默认单城市，显式切换才进入 V3；有序停留卡与独立城际段卡使用可访问按钮、字段错误、夜数差额和固定未核验披露。V3 结果分离市内路线与城际段，持续显示 unknown/partial/source 且不提供 replan；本机只保存 job UUID 恢复指针。真实 desktop/390px、键盘全链、overflow、console/network 和临时 SQLite 重启仍属于 Step 6，不能由组件测试或 build 代替。
+Step 5 已按冻结方向实现“旅行行程手账 / 路线图式编辑器”：默认单城市，显式切换才进入 V3；有序停留卡与独立城际段卡使用可访问按钮、字段错误、夜数差额和固定未核验披露。V3 结果分离市内路线与城际段，持续显示 unknown/partial/source 且不提供 replan；本机只保存 job UUID 恢复指针。Step 6 后续已完成真实 loopback desktop/390px、键盘全链、零 overflow、console/network、accessibility 和临时 SQLite 重启验收；该证据仍为 synthetic，不构成真实 Provider UAT。
 
 ## B-000 健康诊断页
 
@@ -409,3 +409,31 @@ B-000 只交付工程诊断页，用来证明前端和后端本地闭环，不�
 - 酒店、票务和支付交易流程；
 - 登录、云同步和多人协作；
 - PDF、图片海报或公开分享页。
+
+## F-005 同 shape 失败与恢复交互（Step 1 冻结）
+
+F-005 不新增页面、公开 response 键或前端自定义终态。现有 legacy/V2/V3 strict parser 继续拒绝额外/缺失键；前端只使用服务端给出的 `status`、`retryable`、`errors`、`uncertainties`、`sources` 和 `attempt`，不自行计算 freshness、Provider 关键性、fallback 或终态。
+
+### 信息顺序与动作
+
+| 服务端结果 | 首要标题 | 必须显示 | 主恢复动作 |
+| --- | --- | --- | --- |
+| `needs_input` | 需要补充信息 | 安全字段问题和已保留输入 | 返回修改并聚焦首个可修正字段 |
+| `conflict` | 约束无法同时满足 | 确定性冲突摘要，不混入 Provider 猜测 | 返回修改约束 |
+| `failed` + 鉴权 | 本机服务配置需要检查 | Provider 名称、固定安全说明；不显示秘密状态值 | 返回修改/检查本机配置，无 retry |
+| `failed` + timeout/rate/unavailable | 暂时无法完成计划 | 已验证到的来源、失败影响和 attempt | `retryable=true && attempt<3` 时显示既有重试 |
+| `partial` | 计划可用，但信息不完整 | 可执行计划、具体缺口、来源 freshness、unknown 费用 | 查看计划；允许时提供次要重试 |
+| `data_stale` | 数据可能已经变化 | 来源、获取时间、stale 标签及被剔除/受影响能力 | 允许时重新获取；路线 stale 无计划时按 failed 展示 |
+| `unknown_validity` | 有效期未知 | 来源获取时间和“不代表 fresh”文案 | 不因该标签单独提供 retry |
+
+错误信息排序固定为：用户可修正输入 → 确定性冲突 → 配置问题 → 可重试暂时失败 → stale → 不可重试数据/模型错误。状态优先级仍为 `needs_input/conflict/failed/partial/ready`，不能因 error 数量或颜色改变服务端终态。
+
+- `retryable` 表示原因可重跑；按钮还必须满足 `attempt < 3` 且当前没有请求。点击沿用既有 retry URI、loading/live-region、禁用和焦点恢复，不在浏览器执行 HTTP attempt retry。
+- `provider_unauthorized` 的文案只说“检查本机该服务配置”，不展示环境变量值、Key 是否部分匹配或原始错误。Schema/model invalid 不展示原始响应，并且不提供盲目自动重试。
+- stale/unknown 不能只用颜色；source card 同时显示中文状态和 `fetched_at`。optional stale 已从计划剔除时仍在缺口摘要说明影响，不用空卡伪装正常内容。
+- unknown 金额始终显示“未知”，amount 为空；不显示 `¥0`，不把已知合计描述为完整总价。
+- F-003 replan 和 V3 scope 文案不变；V3 用户城际来源继续显示“用户提供，未核验”，不能误写成 stale Provider。
+
+Step 6 组件门禁覆盖全部恢复组合、错误排序、attempt 3、parser exact keys、legacy/V2/V3 和 390px。Step 7 loopback synthetic 浏览器再验证 desktop/390px、键盘/焦点、live region、无水平溢出、console 0 error/warning 和所有网络仅 loopback；这些仍不是视觉改版或真实 Provider UAT。
+
+Step 6 已完成：前端仍只消费既有字段，鉴权失败显示本机配置问题且无 retry；暂时失败继续受 `retryable && attempt<3` 控制；stale 显示获取时间、过期标签和“重新获取数据”；unknown-validity 明示“不代表当前有效”且不凭空产生 retry。错误按冻结优先级显示，但不改变服务端终态或 freshness。定向 30 项、前端全量 99 项和全部静态/build 门禁通过；desktop/390px 真浏览器与独立审查仍属于 Step 7。

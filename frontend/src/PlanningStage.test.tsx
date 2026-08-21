@@ -7,7 +7,10 @@ import failedCase from "../../backend/tests/fixtures/synthetic_hangzhou_failed.j
 import needsInputCase from "../../backend/tests/fixtures/synthetic_hangzhou_needs_input.json";
 
 import { PlanningStage } from "./PlanningStage";
-import { planningResponse } from "./test/tripPlanningFixtures";
+import {
+  partialPlanningResponse,
+  planningResponse,
+} from "./test/tripPlanningFixtures";
 import { parseTripPlanResponse } from "./tripPlanningApi";
 
 describe("PlanningStage", () => {
@@ -174,9 +177,99 @@ describe("PlanningStage", () => {
     );
 
     expect(screen.getByText("AI 服务返回结果未通过安全解析。")).toBeVisible();
-    expect(screen.getByText("需要调整或确认")).toBeVisible();
+    expect(screen.getByText("服务数据不可安全使用")).toBeVisible();
     expect(screen.queryByRole("button", { name: "重试本次任务" })).toBeNull();
     expect(screen.queryByText(/本计划包含 DeepSeek AI 生成内容/)).toBeNull();
+  });
+
+  it("presents provider authentication as a local configuration problem without retry", () => {
+    const response = parseTripPlanResponse({
+      ...failedCase.response,
+      errors: [
+        {
+          code: "provider_unauthorized",
+          message: "地图服务鉴权失败，当前无法安全获取路线。",
+          field: null,
+          provider: "amap",
+          diagnostic_code: null,
+          retryable: false,
+        },
+      ],
+      retryable: false,
+    });
+
+    render(
+      <PlanningStage
+        state={{ phase: "terminal", response }}
+        onResume={vi.fn()}
+        onRetry={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "本机服务配置需要检查" }),
+    ).toBeVisible();
+    expect(screen.getByText("检查本机服务配置")).toBeVisible();
+    expect(screen.getAllByText(/高德开放平台/).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /重试/ })).toBeNull();
+    expect(screen.queryByText(/Key|Token|Authorization/)).toBeNull();
+  });
+
+  it("orders mixed diagnostics by the frozen recovery priority", () => {
+    const response = partialPlanningResponse();
+    response.errors = [
+      {
+        code: "provider_schema_invalid",
+        message: "服务数据当前不能安全使用。",
+        field: null,
+        provider: "qweather",
+        retryable: false,
+      },
+      {
+        code: "data_stale",
+        message: "天气数据可能已经变化。",
+        field: null,
+        provider: "qweather",
+        diagnostic_code: "weather_forecast_stale",
+        retryable: true,
+      },
+      {
+        code: "provider_timeout",
+        message: "路线服务暂时超时。",
+        field: null,
+        provider: "amap",
+        retryable: true,
+      },
+      {
+        code: "provider_unauthorized",
+        message: "天气服务配置无法通过鉴权。",
+        field: null,
+        provider: "qweather",
+        retryable: false,
+      },
+    ];
+    render(
+      <PlanningStage
+        state={{ phase: "terminal", response }}
+        onResume={vi.fn()}
+        onRetry={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    const messages = Array.from(
+      document.querySelectorAll<HTMLElement>(".diagnostic-card > strong"),
+    ).map((element) => element.textContent);
+    expect(messages.indexOf("天气服务配置无法通过鉴权。")).toBeLessThan(
+      messages.indexOf("路线服务暂时超时。"),
+    );
+    expect(messages.indexOf("路线服务暂时超时。")).toBeLessThan(
+      messages.indexOf("天气数据可能已经变化。"),
+    );
+    expect(messages.indexOf("天气数据可能已经变化。")).toBeLessThan(
+      messages.indexOf("服务数据当前不能安全使用。"),
+    );
   });
 
   it("shows only the normalized safe client error", () => {

@@ -15,7 +15,7 @@
 
 ## 当前阶段
 
-目标：B-000、F-001、F-002、F-003、F-004A 和 F-004B1 已完成；当前没有活动任务。推荐后续顺序仍为 F-005 → F-004B2，F-006 等待用户选择。
+目标：B-000、F-001、F-002、F-003、F-004A 和 F-004B1 已完成；F-005 已获批准并完成 Step 0–8，当前等待 Step 9 单独批准。后续顺序保持 F-005 → F-004B2，F-006 继续等待用户选择。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
@@ -25,11 +25,11 @@
 | 3 | F-003 局部重规划与影响确认 | DONE | 用户能调整当天，并在跨日/跨城影响前掌握决定权 | F-002 |
 | 4 | F-004A 单城市 2–7 日计划扩展 | DONE | 用户可生成更长但仍可控、可追溯的单城市行程；PR #13/#16/#17 已依序合并 | F-003 |
 | 5 | F-004B1 多城市领域、用户提供的城际段与离线约束 | DONE | 用户可表达 2–3 城顺序、住宿切换和用户提供的相邻城际段 | F-004A、D-013、归档任务卡 |
-| 6 | F-005 外部服务韧性、时效与 Agent 评估 | CANDIDATE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004B1 |
+| 6 | F-005 外部服务韧性、时效与 Agent 评估 | ACTIVE | provider 失败或数据过期时仍得到可信、可恢复结果 | F-001 至 F-004B1、D-014、当前任务卡 |
 | 7 | F-004B2 真实城际 Provider | CANDIDATE | 经条款、费用和数据治理批准后接入真实城际事实 | F-004B1、F-005、独立 Provider 决策 |
 | 8 | F-006 MVP 体验收口与本地验收 | CANDIDATE | 用户可稳定完成完整本地旅行决策流程 | F-001 至 F-005；F-004B2 如获选则一并纳入 |
 
-B-000 至 F-004B1 的已选任务均已完成归档。当前没有活动任务；后续候选不得因前置完成而自动启动。
+B-000 至 F-004B1 的已选任务均已完成归档。F-005 是唯一 ACTIVE 任务，Step 0–8 已完成且 Step 7/8 已披露过程偏差均由用户接受；不得自动 merge、进入 Step 9 或后续候选。
 
 ## B-000：项目与工程基线
 
@@ -110,15 +110,22 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-005：外部服务韧性、时效与 Agent 评估
 
-- 状态：`CANDIDATE`
+- 状态：`ACTIVE`；Step 0–8 已完成，五层 Draft PR #27–#31 与逐层 CI 已交付，等待 Step 9 单独批准
 - 目标：系统化处理 provider 超时、限流、鉴权失败、Schema 漂移、空数据、过期数据和模型失败；
 - 核心价值：失败时用户仍知道哪些数据可信、哪些缺失、能否重试；
 - 必须验证：统一错误映射、重试预算、fresh/stale/unknown-validity、提示注入、工具越权和固定回归 case；
+- 已批准边界：Amap/QWeather 仅可重试类最多额外一次、DeepSeek 0 传输 retry、固定 attempt/deadline/freshness/隐私与离线 Agent eval 门禁；不新增 URI/JSON 键、Schema/migration、依赖、Provider 或真实调用；
+- Step 1 冻结结果：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、bounded proposal/repair、48-case 评分、同 shape API/UI、分层测试与四层 stack 归属已形成可实现契约；未修改源码或测试；
+- Step 2 实现结果：纯领域 ProviderError 安全 Retry-After、Provider/operation retry schedule、budget/deadline/jitter 决策、逐能力 freshness/失败处置和闭集诊断已由 TDD 实现；尚未接入 adapter/application runtime；
+- Step 3 实现结果：显式 task-scoped attempt runtime、预算/deadline/取消/peer drain 和 Amap/QWeather 安全错误/Retry-After 输入已离线实现；adapter 仍为单次交换，runtime 尚未接入 legacy/V2/V3 application；
+- Step 4 实现结果：显式 runtime 已接入 legacy/V2/V3 application；统一 deadline 前置拒绝、取消/peer drain、retry/fallback 停止顺序和同 shape data_stale/timeout 投影；stale route 不成计划，stale weather/alert 剔除，未进入 Agent eval 或前端；
+- Step 5 实现结果：legacy/V2/V3 repair 改用 bounded `PlanRepairBrief`，generation/repair 对 Provider 文本实行双层 allowlist；固定 48-case 离线 eval 两次一致、加权分 100、五类硬门禁失败为 0；未进入前端且不构成真实 Provider/模型 UAT；
+- Step 6 实现结果：前端只消费既有 status/retryable/errors/uncertainties/sources/attempt，完成鉴权配置、暂时失败、stale、unknown-validity、固定错误排序和恢复展示；全量 99 项与静态/build 通过，未进入 SQLite/browser；
 - 非目标：生产高可用、分布式熔断、7×24 告警和公网 SLO。
 
 ### F-004B2：真实城际 Provider
 
-- 状态：`CANDIDATE`；只有 F-004B1 和 F-005 完成后才可起草任务卡；
+- 状态：`CANDIDATE`；只有 F-005 完成后才可起草任务卡；
 - 目标：在独立批准的数据源、条款、费用、时效、调用预算和失败语义下接入真实铁路、航空或长途客运事实；
 - 必须重新确认：Provider 选择、许可、数据留存、班次/票价/availability/freshness、真实 UAT 次数与费用；
 - 非目标仍包括出票、预订、支付、实时库存承诺、境外行程、登录/同步/云数据库和公网部署。
@@ -189,7 +196,7 @@ F-004A 单城市 2–7 日
   ↓
 F-004B1 多城市领域与用户提供段（DONE）
   ↓
-F-005 韧性与评估（候选）
+F-005 韧性与评估（ACTIVE）
   ↓
 F-004B2 真实城际 Provider（候选）
   ↓

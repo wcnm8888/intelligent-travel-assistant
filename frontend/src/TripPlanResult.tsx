@@ -732,7 +732,9 @@ function SingleCityTripPlanResult({
         <div className="outcome-actions result-actions">
           {canRetry && (
             <button type="button" onClick={() => onRetry?.()}>
-              重试缺失数据
+              {active.errors.some((error) => error.code === "data_stale")
+                ? "重新获取数据"
+                : "重试缺失数据"}
             </button>
           )}
           {onReset && (

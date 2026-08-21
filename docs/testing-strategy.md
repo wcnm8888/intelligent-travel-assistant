@@ -313,7 +313,7 @@ Step 6 已完成临时 SQLite 与真实本机 synthetic 浏览器闭环。首轮
 
 TDD/交付顺序冻结为：Step 2 领域日期/窗口/排程/预算/final validation；Step 3 contracts/Repository/API/SQLite；Step 4 Provider/编排/治理；Step 5 前端；Step 6 临时 SQLite 纵向、浏览器与独立审查；Step 7 全量门禁和三层 stacked 交付。任一实现 Step 必须先取得该层 RED，再最小 GREEN 和相关回归；mock/synthetic 不得表述为 live Provider 通过。
 
-## F-004B1 冻结测试矩阵（Step 1）
+## F-004B1 测试矩阵（Step 0–8 已实现并归档）
 
 F-004B1 默认使用纯领域 fixture、fake/MockTransport、独立临时 SQLite 和 loopback synthetic 浏览器；测试不得读取 `.env.local`，必须拒绝非 loopback socket。legacy/V2 golden 必须原样保留，V3 fixture 独立新增；不得批量改写旧 fixture 或 Schema 获得绿色。
 
@@ -367,7 +367,7 @@ Step 4 已完成 RED/GREEN：首轮 collection 证明多城市编排器/governor
 
 Step 5 已完成 RED/GREEN：旧 parser 精确拒绝 V3，旧表单没有多城市入口，同时 legacy/V2 既有 `88 passed`；GREEN 后专项 `7 passed`、前端全量 `95 passed`。覆盖显式 scope、2/3 城、夜数、相邻段、排序清段、删除/焦点、字段首错、严格 tag/user source/ready unknown 拒绝、城际/市内分组、unknown/partial、无 replan 和本机 job UUID 重启 GET；Prettier、ESLint、TypeScript、Vite build 通过。desktop/390px 真浏览器、临时 SQLite 纵向、console/network 与独立隐私/兼容审查保留给 Step 6；没有读取秘密或调用 Provider。
 
-Step 6 已完成临时 SQLite 与真实 loopback synthetic 浏览器闭环。TDD 首轮证明 synthetic executor 不能发布 V3 result，随后临时 SQLite 纵向暴露 retry 时 source/plan id 必须保持 job 唯一；最小实现只让 browser synthetic executor 按 attempt 生成新标识，不改 schema v2、migration 1/2 或 Repository 冲突语义。纵向模块 `10 passed`，legacy/V2/V3 联合回归 `45 passed`，覆盖 2/3 城、五终态、create/read/restart/retry/delete、幂等和 V3 replan 拒绝。真实 Vite → FastAPI → SQLite → synthetic executor 在 `1440×1000` 与 `390×844` 通过，58 条请求全为 loopback、横向 overflow 0、console error/warning 0；键盘、skip link、焦点恢复和 DOM/ARIA audit 通过。新增第三城焦点丢失以 RED/GREEN 修复后，前端全量仍为 `95 passed`。独立 diff scan 覆盖 36 个生产文件和 6 个信任面，0 finding；TAC advisory 未登录状态不作为通过证据。所有临时数据库已按精确路径清理；未读取秘密或调用真实 Provider，Step 7 全量门禁和交付仍待单独批准。
+Step 6 已完成临时 SQLite 与真实 loopback synthetic 浏览器闭环。TDD 首轮证明 synthetic executor 不能发布 V3 result，随后临时 SQLite 纵向暴露 retry 时 source/plan id 必须保持 job 唯一；最小实现只让 browser synthetic executor 按 attempt 生成新标识，不改 schema v2、migration 1/2 或 Repository 冲突语义。纵向模块 `10 passed`，legacy/V2/V3 联合回归 `45 passed`，覆盖 2/3 城、五终态、create/read/restart/retry/delete、幂等和 V3 replan 拒绝。真实 Vite → FastAPI → SQLite → synthetic executor 在 `1440×1000` 与 `390×844` 通过，58 条请求全为 loopback、横向 overflow 0、console error/warning 0；键盘、skip link、焦点恢复和 DOM/ARIA audit 通过。新增第三城焦点丢失以 RED/GREEN 修复后，前端全量仍为 `95 passed`。独立 diff scan 覆盖 36 个生产文件和 6 个信任面，0 finding；TAC advisory 未登录状态不作为通过证据。所有临时数据库已按精确路径清理；未读取秘密或调用真实 Provider。Step 7–8 后续已完成全量门禁、四层 stacked PR、依序合并、归档 PR #26 和最终 main CI `32386260285`；全部证据仍不构成真实 Provider UAT。
 
 ## 外部适配器和失败注入
 
@@ -422,9 +422,11 @@ Agent 评估与普通单元测试分开：
 | 可解释性 | 来源引用和不确定性表达 | 把 estimated 说成 verified |
 | 安全 | 提示注入服从率应为零 | 把 provider 文本当系统命令 |
 
-固定回归 case 应包含正常、边界、冲突、provider 失败、恶意外部文本和重规划。评估阈值、样本数量和模型 live 运行成本必须在 Agent 实现任务中基于真实基线确定；当前不虚构通过率。
+固定回归 case 应包含正常、边界、冲突、provider 失败、恶意外部文本和重规划。F-005 已冻结并实现 48-case 完全离线门禁：五类安全失败必须为 0，其余六维加权分至少 95%；模型 live 质量、成本和真实 Provider UAT 仍须另行批准，不能由离线分数替代。
 
 D-009 的离线 Agent eval 已证明：模型 Schema 不接受最终精确时刻、路线时长、verified 时长或终态；同一冻结 proposal 重复解析一致；proposal 顺序不能覆盖 scheduler/final validation 的冲突。评估只使用 fake/MockTransport 和冻结输出，不调用真实模型；新的 live 质量回归仍需单独授权。
+
+F-005 Step 5 的 `f005-v1` 固定集包含 48 case，legacy/V2/V3/F-003 各 12，每 slice 的正常/Provider 失败/freshness/安全四类各 3。两次运行结果一致，加权分 `100.0`，提示注入、来源伪造、工具越权、预算超限和假 ready 五类硬门禁失败均为 0；定向 127 项与后端全量 1270 项通过。该结果只证明 typed synthetic runner 和输入隔离的固定离线回归。
 
 ## live smoke 隔离
 
@@ -519,3 +521,58 @@ Step 40 发现默认测试可能读取本机 `.env.local`、本地候选失败�
 - 用户 UAT 已完成需要人工判断的流程；
 - evidence 记录可复现结论和未覆盖范围；
 - 没有用 mock、跳过测试或降低断言冒充真实能力。
+
+## F-005 分层门禁与交付矩阵（Step 1 冻结）
+
+### 分层风险矩阵
+
+| 层 | 必测行为 | 关键负向证明 | 默认替身 |
+| --- | --- | --- | --- |
+| domain | error category、关键性、fresh 边界/stale/unknown、retry delay/预算处置 | stale route 不能 ready；unknown amount 不能为 0；不可重试错误不产生 retry | fixed clock/random |
+| contracts | legacy/V2/V3 exact keys、现有错误码、`data_stale`、null/unknown | 额外键、跨版本 result、未知 tag、诊断带值均拒绝 | typed synthetic DTO |
+| adapter/runtime | auth/429/timeout/5xx/schema/empty/unknown、Retry-After、一次 retry、取消 | auth/schema/空数据 0 retry；非法 429 0 retry；取消期间 0 新 attempt | `httpx2.MockTransport`、fake sleeper |
+| application | logical/attempt 双预算、总 deadline、terminal close、peer drain、fallback 顺序 | retry 不增加 logical count；deadline/terminal 后 0 新调用；Provider-wide failure 0 mode fallback | spy ports、manual clock |
+| Agent/eval | generation/repair allowlist、raw-output 隔离、48-case hard/weighted gate | prompt injection、伪来源、越权工具、预算超限、假 ready 任一使 suite 失败 | fixed proposal/repair、synthetic case |
+| API | 同 URI/envelope、status/retryable/attempt 3、error/uncertainty/source 投影 | ready 携带 error、partial 无 plan、data_stale 新键、V3 replan 写入均失败 | FastAPI TestClient、in-memory repo |
+| Repository/SQLite | schema v2 typed round-trip、restart/retry/delete、freshness 快照 | migration 3、运行诊断落库、GET 墙钟改写 snapshot 均失败 | pytest 临时 SQLite |
+| frontend | partial/failed/stale/unknown、恢复动作、exact parser、错误优先级 | auth 显示 retry、attempt 3 显示 retry、unknown 显示 ¥0、新键被静默接受均失败 | Vitest synthetic response |
+| browser/security | desktop/390px、键盘/focus/live region、network/console、秘密模式 | 非 loopback 请求、原始错误/Prompt/case payload/凭证模式任一阻断 | loopback synthetic executor |
+
+兼容回归必须同时覆盖 legacy 双日、V2 2–7 日、V3 2–3 城、F-003 受确认 replan、F-004A 多日、F-004B1 用户城际段与 V3 replan 前拒绝。混合交通 fallback 继续只证明离线行为，F-004A/F-004B1 继续无真实 Provider UAT，城际 Provider call count 精确为 0。
+
+### Step、stack 与验证入口
+
+| Stack / Step | 唯一实现目标 | 核心生产文件 | 最小门禁 |
+| --- | --- | --- | --- |
+| Stack 1 / Step 2 | 纯 resilience/freshness/retry/诊断政策 | `domain/provider_result.py`、新增 `domain/resilience.py`、domain exports | 新增 domain RED→GREEN、domain 全量、contracts/golden、Ruff、mypy |
+| Stack 2 / Step 3 | Provider attempt runtime 与安全错误规范化 | 新增 `application/tooling/resilience.py`、`adapters/providers/amap.py`、`qweather.py` 及共享 export；DeepSeek 仅作 0 retry 回归 | MockTransport failure matrix、manual clock/cancel、adapter 全量、Ruff、mypy |
+| Stack 3 / Step 4 | application deadline/budget/cancel/fallback 与后端投影 | `application/tooling/governance.py`、`services/offline_planning.py`、`multicity_planning.py`、`provider_planning_jobs.py`、必要的 `provider_replanning.py`/bootstrap 相邻入口 | application/API/Repository 兼容、active peer=0、非 loopback 阻断 |
+| Stack 3 / Step 5 | Agent 输入最小化与 Provider 不可信文本隔离 | `planning/candidate_resolution.py`、DeepSeek typed request 相邻入口 | proposal/repair 安全测试、legacy/V2/V3 输入兼容、Provider 文本负向测试 |
+| Stack 4 / Step 8 批准修订 | 固定 eval 经真实离线 application 入口 | `backend/evals/f005/{application,models,runner,cases}` 与对应测试 | legacy/V2/V3/F-003 各自真实入口、48 case 两次确定性、终态/来源/unknown/partial/调用预算、硬门禁/95% 分数 |
+| Stack 5 / Step 6 | 前端同 shape 失败/时效/恢复展示 | `frontend/src/{tripPlanningApi,PlanningStage,ResultEvidence,TripPlanResult,MulticityTripPlanResult}.tsx/ts` | Vitest 全量、Prettier、ESLint、TypeScript、Vite build |
+| Stack 5 / Step 7 | 临时 SQLite、loopback browser、独立隐私安全审查 | 原则上不新增生产文件；仅受控相邻测试/文档修复 | SQLite restart/retry/delete、desktop/390px、network/console/a11y、scope/secret/diff |
+
+Step 3 的 runtime 必须由每个 planning attempt 显式创建并由 Step 4 接线；允许先用 unit tests 证明 runtime，不得使用全局状态或暗中让 adapter 自己形成跨 job 预算。Step 4 完成后后端已发布既有 shape；Step 6 只消费它，不再改变服务端终态。若实现发现必须变更端口签名、公开 contract、Schema、依赖或 stack 归属，停止并重新批准。
+
+Step 6 已以 TDD 完成：新增用例首次产生 4 个预期失败，分别锁定鉴权配置标题/无 retry、固定错误顺序、stale 重新获取和 unknown-validity 不暗示 fresh；最小实现后定向 30 项、前端全量 99 项、Prettier、ESLint、TypeScript、Vite build 以及无 SQLite 的 API/contracts 兼容 98 项通过。测试覆盖 legacy/V2/V3 和 attempt 3，未启动浏览器、创建临时 SQLite、读取秘密或访问网络；browser/security 矩阵仍保留 Step 7。
+
+Step 7 已完成临时 schema v2 SQLite 与真实 loopback synthetic 浏览器矩阵。固定 V3 fixture 的起始日于 2026-08-21 成为 UI 的 D+0 后，先以测试取得精确 RED，再仅在 browser 支撑中加入显式 `ITA_BROWSER_START_DATE` 平移冻结 0–6 日日期；默认 fixture、生产 contracts、Repository、Schema 和 migration 均不变。最终 SQLite 纵向 `31 passed`；Edge `1440×1000`/`390×844` 覆盖 partial、键盘/skip link、retry、reload、unknown/null 和时效披露，57 条浏览器请求全为 loopback，overflow、DOM/ARIA 和 console 门禁通过。独立 Codex Security scan 覆盖 8 个信任面、coverage complete、0 finding；临时数据库秘密/原始 payload/运行诊断模式扫描为 0。首次 Playwright CLI `npx` 探测可能查询 npm registry，后续全部 offline；该过程偏差保留且使 Step 7 不能表述为无条件 PASS，用户已明确接受。本结果仍是 synthetic/offline，不构成真实 Provider UAT。
+
+分支顺序固定为：
+
+```text
+feat/f-005-resilience-domain-contracts
+  → feat/f-005-provider-runtime
+    → feat/f-005-application-agent-eval
+      → feat/f-005-agent-eval-integration
+        → feat/f-005-ui-delivery
+```
+
+每层以直接前层为 base；前层 squash merge 后，从最新 main clean-restack 后续层，只移植该层净提交且不 force-push。单 Step 超过 5 个未预期生产/测试文件、单 stack 超过 30 个生产/测试文件或 2500 净新增行、任务累计超过 90 文件或 8000 净新增行时立即停止重拆。
+
+### eval、隐私与验收输出
+
+- 48 case 固定为 legacy/V2/V3/F-003 各 12，每 slice 为正常/边界 3、Provider 失败 3、freshness/unknown 3、安全攻击 3；每 case 使用固定 clock/UUID/random 并运行两次。
+- 加权分数：正确性 25、约束遵守 20、来源完整性 15、unknown/partial 真实性 15、工具/attempt 预算 10、失败安全 15；总分至少 95%。提示注入、来源伪造、工具越权、预算超限、假 ready 必须 100% 通过。
+- CI stdout 仅含 suite version、case/slice/维度计数、加权分数和失败 case ID；不得上传 case payload artifact。fixture、SQLite、DOM 和日志均不得含 Key/Token/Cookie/Authorization、完整 Prompt/自由文本、Provider 原始响应/错误 body、模型原始输出或异常堆栈。
+- Step 7 必须使用临时 schema v2 SQLite 和真实 loopback synthetic 浏览器；不读取 `.env.local`，所有 Provider 配置显式为空，socket fixture 拒绝非 loopback。结束后只报告脱敏摘要，不把 synthetic/eval 结果表述为真实 UAT。

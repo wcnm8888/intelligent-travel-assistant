@@ -312,7 +312,9 @@ export function MulticityTripPlanResult({ response, onRetry, onReset }: Props) {
             response.attempt < 3 &&
             onRetry && (
               <button type="button" onClick={onRetry}>
-                重试缺失数据
+                {response.errors.some((error) => error.code === "data_stale")
+                  ? "重新获取数据"
+                  : "重试缺失数据"}
               </button>
             )}
           {onReset && (

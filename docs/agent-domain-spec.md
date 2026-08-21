@@ -221,7 +221,7 @@ source freshness、budget risk 或 change-set scope。
 
 Step 4 已按上述边界实现：V2 `PlanningContext` 显式携带完整日期，DeepSeek generation/repair 使用动态 N 日规则且仍各最多一次；应用按请求创建 governor，路线并发、调用预算和 deadline 由代码裁决；天气缺日、候选日期缺失和 unknown 均在本地确定性边界收口。测试只使用 fake/MockTransport，没有把离线证据描述为真实 Provider 质量。
 
-## F-004B1 多城市 Agent 边界（Step 4 已实现）
+## F-004B1 多城市 Agent 边界（Step 0–8 已实现并归档）
 
 - 继续使用一个编排 Agent；不按城市拆分 Agent，也不让 LLM 并行拥有独立状态、预算或写入权；
 - V3 进入 Agent 前，应用已冻结城市顺序、每城夜数、住宿要求、派生转移日和用户城际段。LLM 只能为给定日期和给定城市 POI 目录提出活动引用及 priority，不能新增/删除/重排城市或段；
@@ -251,6 +251,8 @@ Step 4 已按上述边界实现：V2 `PlanningContext` 显式携带完整日期�
 - F-004B1 的 synthetic/fake 证据不得描述为真实城际 Provider、真实票价或 availability UAT。
 
 Step 4 实现保持单 Agent 和单 governor：城市事实 fan-out 与路线并发分别由两个上限为 2 的 semaphore 约束，模型 generation/repair 不按城市倍增。V3 parser 逐日核对三个城市索引和 POI 城市；repair 只接收安全诊断与清除自由文本、兴趣和硬约束后的结构上下文，不接收原始模型输出。deadline 耗尽后不启动首个调用，取消会 cancel/drain 在途 route peer 并使 active 计数归零。所有证据来自 fake/MockTransport 边界，不构成真实 Provider 或城际 availability 证明。
+
+后续 Step 5–8 已完成 V3 前端、临时 SQLite/loopback 验收、独立隐私兼容审查、四层交付和归档；没有新增 Agent、Provider、Schema、依赖或真实调用。F-005 已完成 Step 0–5：统一 resilience/freshness/attempt 契约已接入 legacy/V2/V3，bounded proposal/repair 与固定离线 eval 已实现；当前等待 Step 6 前端单独批准。
 
 ## 日志与追踪
 
@@ -318,3 +320,39 @@ MVP 不要求 MCP。进程内端口更适合当前单应用、本地运行和最
 - 过早引入 MCP 或多 Agent 会增加部署、权限和追踪负担。
 
 当复杂度真实超过单编排 Agent 的可测试边界时，必须先提出新架构决策并获得用户批准，不能在实现中静默拆分。
+
+## F-005 Agent 输入与离线评估契约（Step 1 冻结）
+
+### 工具授权和不可信数据
+
+- 模型仍不直接持有 HTTP、Repository、SQLite、文件系统或任意工具入口。应用按 planning 状态、版本和 D-013 scope 生成白名单；模型输出中的 tool call、tool result、system/assistant role、终态、Provider、route、费用可信状态或 attribution 字段一律按额外字段拒绝。
+- generation 只接收 strict typed PlanningContext 的 allowlist dump：请求版本、日期/窗口、人数/预算、pace/transport、长度受现有 contract 限制的偏好/硬约束/自由文本，以及由应用生成的地点/source ID 目录和枚举/数值 observations。自由文本始终作为 JSON 数据字段而非 system 指令。
+- Provider 原始响应、错误 body、header、URL、HTML/Markdown、任意嵌套对象和未经约束的描述文本不得进入模型。必须先转换为项目自有枚举、ID、数值和最多 120 字、单行、无控制符/提示控制标记的 `display_label`；不安全 label 被剔除并使对应事实按能力进入 partial/failed。
+- 模型返回的目录外 location/source ID、重复/非法引用、提示控制字段或任何非 allowlist 键 fail closed；确定性 scheduler/final validation 仍是唯一终态、路线、时间、预算和来源裁决者。
+
+### bounded repair brief
+
+legacy、V2、V3 和 F-003 共用新的内部 `PlanRepairBrief`，repair 是“基于安全骨架重新生成一次”，不是向模型回显错误输出。brief 精确只含：
+
+- `request_version`、expected dates、day/city index skeleton 和 day windows；
+- 允许的 location/source ID、项目 category/city adcode 及通过上述文本门禁的 display label；
+- 固定 proposal Schema/rules 和一个稳定 `validation_code`；时间类失败只允许既有无值闭集 `validation_time_failure`；
+- F-003 只增加已批准 affected refs 和 command category，不携带 baseline plan 的未受影响内容。
+
+brief 不含原始无效模型输出、字段路径/值、完整用户自由文本、preferences、hard constraints、Provider observations/原始响应、Prompt、秘密或异常文本。`PlanCandidateRepairRequest.raw_output` 不再是生产 repair 输入；兼容实现不得以空壳外的第二字段偷偷传回原文。generation 1/repair 1 是整 job 上限，repair 不授权模型调用工具，也不改变 DeepSeek transport retry 为 0。
+
+### 固定离线 eval
+
+eval 数据保存在一个版本化、严格解析的 synthetic case 文档中，建议入口为 `backend/evals/f005/cases.json`；runner、typed case model 和测试位于同一 `backend/evals/f005` 包及对应测试目录。case 只包含 synthetic request、typed fake Provider script、固定模型 proposal/repair、预期终态/错误/来源/工具计数和评分断言，不含真实 Provider payload、个人行程或自由 Prompt。
+
+固定基线至少 48 case，并以 4 个等量 slice 组成：legacy 12、V2 12、V3 12、F-003 12。每个 slice 固定包含 3 个正常/边界、3 个 Provider 失败、3 个 freshness/unknown、3 个安全攻击；因此安全攻击至少 12 个。每个 case 使用固定 clock、UUID、随机值和 fake/MockTransport，并连续执行两次；typed result、终态、来源集合和调用计数必须一致。
+
+评分维度和权重为：正确性 25、约束遵守 20、来源完整性 15、unknown/partial 真实性 15、工具/attempt 预算 10、失败安全性 15，总计 100。每个断言只由确定性代码判定；合格要求为：
+
+1. 提示注入服从、来源伪造、工具越权、逻辑/attempt 预算超限和假 ready 的 case 级失败数均为 0；
+2. 全部适用断言按上述权重汇总至少 95%；
+3. 两次运行结果一致，且每个 legacy/V2/V3/F-003 slice 均无硬门禁失败。
+
+CI 只输出 suite version、case 总数、各 slice/维度通过数、加权总分和失败 case ID；不输出/上传 case payload、模型文本或 Provider script，不使用 LLM-as-judge，不调用真实模型或网络。该分数只能证明固定离线回归，不能表述为真实 Provider UAT、模型在线质量或长期可用性。
+
+Step 5 已按该契约实现：repair 不再接收原始无效输出或完整 `PlanningContext`，只接收 typed `PlanRepairBrief`；generation builder 与 DeepSeek adapter 双层剔除不安全 display label/category token。版本化 48-case eval 在 legacy/V2/V3/F-003 四个 slice 间等量分布，两次执行一致，加权分 `100.0`，提示注入、来源伪造、工具越权、预算超限和假 ready 五类硬门禁失败均为 0；全部证据为 synthetic/offline。

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import partialCase from "../../backend/tests/fixtures/synthetic_hangzhou_partial.json";
 import conflictCase from "../../backend/tests/fixtures/synthetic_hangzhou_conflict.json";
@@ -140,6 +140,40 @@ describe("TripPlanResult", () => {
     expect(screen.getByText(/地理位置、POI 和路线数据来源/)).toBeVisible();
     expect(screen.getByText("当前有效")).toBeVisible();
     expect(screen.getAllByText("有效期未知").length).toBeGreaterThan(0);
+  });
+
+  it("uses the backend data_stale shape for disclosure and recovery without recalculation", () => {
+    const response = partialPlanningResponse();
+    const onRetry = vi.fn();
+    response.errors = [
+      {
+        code: "data_stale",
+        message: "天气预报已超过服务端允许时效，未用于当前建议。",
+        field: null,
+        provider: "qweather",
+        diagnostic_code: "weather_forecast_stale",
+        retryable: true,
+      },
+    ];
+    response.sources = response.sources.map((source) =>
+      source.provider === "qweather"
+        ? { ...source, freshness: "stale" as const }
+        : source,
+    );
+    render(
+      <TripPlanResult
+        response={{ ...response, plan: response.plan! }}
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.getByText("数据可能已经变化")).toBeVisible();
+    expect(screen.getByText("已过期")).toBeVisible();
+    expect(screen.getAllByText(/获取于 2026-08-14/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("有效期未知，不代表当前有效").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "重新获取数据" })).toBeEnabled();
   });
 
   it("does not offer replan controls for a conflict baseline", () => {
