@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch]$ContractSelfTest,
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    [switch]$InterruptSelfTest
 )
 
 Set-StrictMode -Version Latest
@@ -314,7 +315,9 @@ function Invoke-ContractSelfTest {
             }
         }
         finally {
-            $null = Stop-OwnedProcess $Exited
+            if (-not (Stop-OwnedProcess $Exited)) {
+                throw "$Kind early-exit child cleanup did not complete."
+            }
         }
     }
 
@@ -335,7 +338,9 @@ function Invoke-ContractSelfTest {
     }
     finally {
         $script:StartupTimeoutSeconds = $OriginalStartupTimeoutSeconds
-        $null = Stop-OwnedProcess $TimeoutChild
+        if (-not (Stop-OwnedProcess $TimeoutChild)) {
+            throw "Health-timeout child cleanup did not complete."
+        }
     }
 
     $SQLiteFailure = "Backend or SQLite local storage could not start. Check the configured database path and permissions."
@@ -366,16 +371,100 @@ function Invoke-ContractSelfTest {
         }
     }
     finally {
-        try {
-            $Owned.Dispose()
+        if (-not (Stop-OwnedProcess $Peer)) {
+            throw "Unrelated peer cleanup did not complete."
         }
-        catch {
-            # Stop-OwnedProcess already disposes the exact owned child.
-        }
-        $null = Stop-OwnedProcess $Peer
     }
 
     Write-Output "Local runner contract self-test passed."
+}
+
+function Install-ConsoleInterruptHandler {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class ItaRunnerConsoleSignal
+{
+    private enum CtrlType { CtrlC = 0, CtrlBreak = 1 }
+    private delegate bool HandlerRoutine(CtrlType signal);
+
+    [DllImport("Kernel32")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetConsoleCtrlHandler(HandlerRoutine handler, bool add);
+
+    private static volatile bool cancelled;
+    private static readonly HandlerRoutine handler = Handle;
+
+    private static bool Handle(CtrlType signal)
+    {
+        if (signal != CtrlType.CtrlC && signal != CtrlType.CtrlBreak) return false;
+        cancelled = true;
+        return true;
+    }
+
+    public static bool Install()
+    {
+        cancelled = false;
+        return SetConsoleCtrlHandler(handler, true);
+    }
+
+    public static bool IsCancelled() { return cancelled; }
+    public static void Uninstall() { SetConsoleCtrlHandler(handler, false); }
+}
+"@
+    if (-not [ItaRunnerConsoleSignal]::Install()) {
+        throw "Local console interrupt handler could not start safely."
+    }
+}
+
+function Invoke-InterruptSelfTest {
+    $FirstOwned = $null
+    $SecondOwned = $null
+    $CleanupFailed = $false
+    $InterruptHandlerInstalled = $false
+    $PowerShell = (Get-Command "powershell.exe" -ErrorAction Stop).Source
+    try {
+        Install-ConsoleInterruptHandler
+        $InterruptHandlerInstalled = $true
+        $FirstOwned = Start-Process -FilePath $PowerShell -ArgumentList @(
+            "-NoProfile",
+            "-Command",
+            "Start-Sleep -Seconds 30"
+        ) -PassThru -WindowStyle Hidden
+        $SecondOwned = Start-Process -FilePath $PowerShell -ArgumentList @(
+            "-NoProfile",
+            "-Command",
+            "Start-Sleep -Seconds 30"
+        ) -PassThru -WindowStyle Hidden
+        Write-Output ([PSCustomObject]@{
+            first_pid = $FirstOwned.Id
+            second_pid = $SecondOwned.Id
+        } | ConvertTo-Json -Compress)
+        [Console]::Out.Flush()
+        while (-not [ItaRunnerConsoleSignal]::IsCancelled()) {
+            Start-Sleep -Seconds 1
+        }
+    }
+    finally {
+        if ($InterruptHandlerInstalled) {
+            [ItaRunnerConsoleSignal]::Uninstall()
+        }
+        if ($null -ne $SecondOwned -and -not (Stop-OwnedProcess $SecondOwned)) {
+            $CleanupFailed = $true
+        }
+        if ($null -ne $FirstOwned -and -not (Stop-OwnedProcess $FirstOwned)) {
+            $CleanupFailed = $true
+        }
+        if ($CleanupFailed) {
+            [Console]::Error.WriteLine(
+                (Get-SafeFailureMessage "Local application child process cleanup did not complete.")
+            )
+            exit 1
+        }
+        Write-Output "Interrupt cleanup completed."
+        [Console]::Out.Flush()
+    }
 }
 
 if ($ContractSelfTest) {
@@ -383,12 +472,20 @@ if ($ContractSelfTest) {
     exit 0
 }
 
+if ($InterruptSelfTest) {
+    Invoke-InterruptSelfTest
+    exit 0
+}
+
 $BackendProcess = $null
 $FrontendProcess = $null
 $ExitCode = 0
+$InterruptHandlerInstalled = $false
 
 Push-Location $ProjectRoot
 try {
+    Install-ConsoleInterruptHandler
+    $InterruptHandlerInstalled = $true
     Assert-RepositoryVersionDeclarations
 
     $PythonExecutable = Join-Path $ProjectRoot "backend\.venv\Scripts\python.exe"
@@ -446,7 +543,7 @@ try {
     }
 
     Write-Output $FrontendUri
-    while ($true) {
+    while (-not [ItaRunnerConsoleSignal]::IsCancelled()) {
         if (Test-ProcessExited $BackendProcess) {
             throw "Backend stopped unexpectedly; the local session is closing."
         }
@@ -477,6 +574,9 @@ finally {
         [Console]::Error.WriteLine(
             (Get-SafeFailureMessage "Local application child process cleanup did not complete.")
         )
+    }
+    if ($InterruptHandlerInstalled) {
+        [ItaRunnerConsoleSignal]::Uninstall()
     }
     Pop-Location
 }
