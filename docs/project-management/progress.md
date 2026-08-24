@@ -2,13 +2,23 @@
 
 ## 当前状态
 
-- 当前任务：`F-006 MVP 体验收口与本地验收`
-- 状态：`ACTIVE`
-- 当前 Step：`Step 8 - 合并、最终 CI 与归档（TODO / 待单独批准）`
-- 基线：`main == origin/main == b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`，Step 0 开始前工作区干净
+- 当前任务：无
+- 最近关闭：`F-006 MVP 体验收口与本地验收`
+- 状态：`DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`
+- Step 0–8：全部 `DONE`
+- 完整功能 main：`d82ca5c65794749932be65724455aca146a7cbca`
+- 完整功能 main CI：run `32691778088`，`success`
 - F-004C：Step 0–6 `DONE / DELIVERED / ARCHIVED`；PR #34/#35/#36 和归档 PR #37 已合并；最终 main CI run `32486428083` success
 - F-004B2：`BLOCKED / ARCHIVED`；不得恢复其 Provider 查询或 Step 2
-- 当前授权：F-006 Step 0–7 已完成；Step 8 仍待用户单独批准
+- 下一入口：roadmap 当前没有新候选；后续任务或路线图变更须另行起草并批准
+
+## F-006 Step 8
+
+- 状态：`DONE / PASS / ARCHIVED`；PR #38/#39/#40/#41 依序 squash merge，main commits 为 `22be214a`、`97dc949f`、`d70eb145`、`d82ca5c6`；
+- clean-restack：#39/#40/#41 分别以普通 merge commit 吸收最新 main，GitHub diff 收敛为 9/11/17 个本层文件；无 rebase、无 force-push；
+- CI：clean-restack PR runs `32690231596`/`32690839987`/`32691459865` success；逐层 main runs `32689910671`/`32690516152`/`32691143922`/`32691778088` success；
+- 归档：[F-006 archive](../archive/task-cards/F-006-mvp-local-acceptance.md)；当前无活动任务；
+- 真实性：结论仅为本地 MVP 验收通过，不新增真实 Provider UAT，不提升 F-001 或项目真实 Provider 就绪的 `PARTIAL` 状态。
 
 ## F-006 Step 7
 
@@ -16,7 +26,7 @@
 - 提交链：父链为 Stack 1 `b3e29aa` → Stack 2 `972b1d4` → Stack 3 `f5903f4` → Stack 4 `7a9b488` + 文档/runner 修正 `e6d3547`/`7f8cabb`/`2b95930`；没有 force-push，四分支均已普通 push；
 - review/CI：四层最终独立 review 无未关闭 finding；Draft PR #38/#39/#40/#41 保持 open，对应 Windows offline CI runs `32503520656`/`32503533764`/`32503554642`/`32547492597` 均为 success；
 - 范围：Stack 1 为 11 个生产/测试文件、净新增 472 行；Stack 2 为 9 个、净新增 134 行；Stack 3 为 11 个、净新增 843 行；Stack 4 为 3 个生产/测试/script 文件、净新增 969 行，另含批准的当前文档。任务累计去重后为 31 个生产/测试/script 文件、净新增 2418 行，`styles.css` 净新增 74 行，均低于阈值；Schema/migration、依赖/lockfile diff 为 0；
-- 下一动作：等待用户单独批准 Step 8；此前不得 merge、运行最终 main CI 或归档。
+- 后续入口已由完成的 Step 8 取代；本段保留 Step 7 交付时点事实。
 
 ## F-006 Step 6
 

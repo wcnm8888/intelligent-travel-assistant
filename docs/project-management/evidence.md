@@ -1,5 +1,15 @@
 # 验收证据索引
 
+## F-006 Step 8：依序合并、main CI、归档与任务关闭
+
+- 日期：2026-08-24；结论：`PASS / DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`。用户明确批准 Step 8，PR #38/#39/#40/#41 已按批准顺序 squash merge；main commits 依次为 `22be214a`、`97dc949f`、`d70eb145`、`d82ca5c6`；
+- clean-restack：#39/#40/#41 在前层 squash merge后分别将 base 改为 main，并以普通 merge commit 吸收最新 main；GitHub diff 收敛为 9/11/17 个本层文件，mergeability 均为 CLEAN/MERGEABLE；没有 rebase、替代 PR 或 force-push；
+- CI：clean-restack PR runs `32690231596`、`32690839987`、`32691459865` 全部 success；逐层 main runs `32689910671`、`32690516152`、`32691143922`、`32691778088` 全部 success；完整功能 main `d82ca5c65794749932be65724455aca146a7cbca` 的 run `32691778088` 为 success；
+- 归档：完整任务卡保存为 [F-006 archive](../archive/task-cards/F-006-mvp-local-acceptance.md)，current-task、implementation-plan、progress、roadmap、docs map 与 D-017 已切换为关闭状态；
+- 范围：归档层只修改当前治理/权威文档并新增任务卡；生产源码、测试、Schema/migration、依赖/lockfile 和 CI workflow diff 为 0；
+- 边界：未读取秘密或调用真实 Provider；F-006 的 synthetic/loopback/clean-checkout/local acceptance 不等于真实 Provider UAT。F-001 和项目真实 Provider 就绪继续为 `PARTIAL`，Step 45M `FAIL`、Step 45T `PASS`、unknown/null、混合交通 fallback 仅离线及 F-004B2 `BLOCKED / ARCHIVED` 均保持；
+- 下一入口：当前无活动任务和 roadmap 候选；新工作必须先起草并批准任务卡或路线图变更。
+
 ## F-006 Step 7：本地全量门禁、独立 review 与四层交付
 
 - 日期：2026-08-22；结论：`PASS`。固定 Python `3.13.3`、Node `22.16.0`、pnpm `11.19.0` 运行 `scripts/verify.ps1`，Ruff format/lint、151 个 source strict mypy、后端 `1388 passed`、Prettier、ESLint、TypeScript、前端 `12 files / 131 passed`、Vite build、文档测试 `29 passed` 和 17 required/28 Markdown 契约全部通过；

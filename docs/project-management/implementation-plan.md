@@ -1,10 +1,15 @@
-# F-006 实施计划：MVP 体验收口与本地验收
+# 最近关闭计划：F-006 MVP 体验收口与本地验收
 
 ## 当前状态
 
-- 当前任务：`F-006 MVP 体验收口与本地验收`
-- 当前 Step：`Step 8 - 合并、最终 CI 与归档（TODO / 待单独批准）`
-- 当前授权：Step 0–7 已完成；Step 8 仍待用户单独批准
+当前无活动任务，因此没有正在执行的 Step。
+
+- 当前任务：无
+- 当前 Step：无；F-006 Step 0–8 已全部完成
+- 最近关闭：`F-006 DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`
+- 完整功能 main：`d82ca5c65794749932be65724455aca146a7cbca`
+- 完整功能 main CI：run `32691778088`，`PASS`
+- 归档任务卡：[F-006 archive](../archive/task-cards/F-006-mvp-local-acceptance.md)
 - 基线：`main == origin/main == b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`
 - F-004C：`DELIVERED / ARCHIVED`；PR #34/#35/#36、归档 PR #37 和 CI run `32486428083` 已完成
 - F-004B2：`BLOCKED / ARCHIVED`
@@ -101,7 +106,7 @@
 
 唯一目标：依序合并四层 PR，必要时 clean-restack，运行最终 main CI，将 F-006 以 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED` 关闭归档。
 
-状态：`TODO / 待单独批准`。
+状态：`DONE / PASS`。PR #38/#39/#40/#41 已依序 squash merge；#39/#40/#41 通过普通 merge clean-restack 收敛为本层净差异，无 force-push。完整功能 main `d82ca5c6`，main CI run `32691778088` success；任务卡已归档并关闭活动任务。
 
 归档必须继续披露项目真实 Provider 就绪为 `PARTIAL`，不得把离线/loopback/clean-checkout 证据等同于真实 UAT。
 
