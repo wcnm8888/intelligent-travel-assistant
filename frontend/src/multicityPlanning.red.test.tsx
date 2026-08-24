@@ -18,7 +18,9 @@ async function renderMulticityForm(onSubmit = vi.fn()) {
       planningToday="2026-08-20"
     />,
   );
-  await user.click(screen.getByRole("radio", { name: "多城市" }));
+  await user.click(
+    screen.getByRole("radio", { name: "多城市·自行填写交通段" }),
+  );
   return user;
 }
 const groupCount = (name: RegExp) =>

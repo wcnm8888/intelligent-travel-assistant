@@ -13,6 +13,10 @@
   --jade: #157565;
   --amber: #9b6716;
   --focus: #126f94;
+  --status-ready: #157565;
+  --status-partial: #9b6716;
+  --status-conflict: #bd3a2b;
+  --status-failed: #8f2f25;
 }
 
 * {
@@ -673,7 +677,7 @@ input[type="checkbox"] {
   place-items: center;
   border: 2px solid currentcolor;
   border-radius: 50%;
-  color: var(--jade);
+  color: var(--status-ready);
   font-family: STKaiti, KaiTi, serif;
   font-size: 19px;
   font-weight: 800;
@@ -684,11 +688,11 @@ input[type="checkbox"] {
 }
 
 .result-stamp--partial {
-  color: var(--amber);
+  color: var(--status-partial);
 }
 
 .result-stamp--conflict {
-  color: var(--vermilion);
+  color: var(--status-conflict);
 }
 
 .result-verdict {
@@ -698,17 +702,17 @@ input[type="checkbox"] {
   gap: 12px;
   margin: 22px 0 0;
   padding: 14px 16px;
-  border-left: 4px solid var(--jade);
+  border-left: 4px solid var(--status-ready);
   background: rgba(21, 117, 101, 0.09);
 }
 
 .result-verdict--partial {
-  border-left-color: var(--amber);
+  border-left-color: var(--status-partial);
   background: rgba(155, 103, 22, 0.1);
 }
 
 .result-verdict--conflict {
-  border-left-color: var(--vermilion);
+  border-left-color: var(--status-conflict);
   background: var(--vermilion-soft);
 }
 
@@ -1419,6 +1423,7 @@ input[type="checkbox"] {
 }
 
 .outcome-actions button {
+  min-height: 44px;
   padding: 11px 16px;
   border: 1px solid var(--ink);
   background: transparent;
@@ -1442,6 +1447,16 @@ input[type="checkbox"] {
   color: var(--ink-soft);
   font-size: 9px;
   line-height: 1.6;
+}
+
+.result-actions--primary {
+  margin-top: 18px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.result-actions--primary .outcome-action-note {
+  flex-basis: 100%;
 }
 
 .plan-stage--result .scope-strip {
@@ -1726,7 +1741,7 @@ input[type="checkbox"] {
 .scope-selector,
 .intercity-source-selector {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 6px;
   padding: 6px;
@@ -1759,12 +1774,16 @@ input[type="checkbox"] {
 .scope-selector span,
 .intercity-source-selector span {
   display: grid;
-  min-height: 42px;
+  min-height: 48px;
+  padding: 8px 10px;
   place-items: center;
   border: 1px solid transparent;
   color: var(--ink-soft);
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .scope-selector input:checked + span,
@@ -2022,6 +2041,10 @@ input[type="checkbox"] {
   }
 
   .intercity-source-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .scope-selector {
     grid-template-columns: 1fr;
   }
 

@@ -84,6 +84,11 @@ describe("PlanningStage", () => {
     ).toHaveLength(2);
     expect(screen.getByText("已知费用超过预算")).toBeVisible();
     expect(screen.queryByText("完整\n可用")).not.toBeInTheDocument();
+    const action = screen.getByRole("button", { name: "返回修改需求" });
+    const budget = screen.getByRole("heading", { name: "预算可信度" });
+    expect(
+      action.compareDocumentPosition(budget) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("asks for the exact missing input and returns to the form", async () => {
@@ -105,6 +110,29 @@ describe("PlanningStage", () => {
     expect(screen.getByText(/住宿区域无法唯一定位/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "补充旅行信息" }));
     expect(onReset).toHaveBeenCalledOnce();
+  });
+
+  it("places the primary recovery action before supporting diagnostics", () => {
+    const response = parseTripPlanResponse(needsInputCase.response);
+    render(
+      <PlanningStage
+        state={{ phase: "terminal", response }}
+        onResume={vi.fn()}
+        onRetry={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    const action = screen.getByRole("button", {
+      name: "补充旅行信息",
+    });
+    const diagnostics = screen.getByRole("heading", {
+      name: "数据与校验说明",
+    });
+    expect(
+      action.compareDocumentPosition(diagnostics) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("shows only the safe failed result and enables the bounded retry", async () => {

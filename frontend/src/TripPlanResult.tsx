@@ -11,7 +11,11 @@ import type {
 } from "./tripPlanningApi";
 import type { ReplanCommand, ReplanningApi } from "./replanningApi";
 import type { MoneyDto } from "./tripRequest";
-import { ResultDiagnostics, SourceEvidence } from "./ResultEvidence";
+import {
+  ResultDiagnostics,
+  ResultRecoveryActions,
+  SourceEvidence,
+} from "./ResultEvidence";
 import type {
   BudgetAssessment,
   CostCategory,
@@ -529,8 +533,6 @@ function SingleCityTripPlanResult({
   );
   const isPartial = active.status === "partial";
   const isConflict = active.status === "conflict";
-  const canRetry =
-    isPartial && active.retryable && active.attempt < 3 && Boolean(onRetry);
   const hasItineraryContent = plan.days.some(
     (day) =>
       day.activities.length > 0 ||
@@ -556,7 +558,7 @@ function SingleCityTripPlanResult({
                 ? "部分数据缺失 · 可查看已有计划"
                 : "代码校验通过 · 可用于决策"}
           </p>
-          <h2 id="plan-stage-title">
+          <h2 id="plan-stage-title" tabIndex={-1}>
             {active.resolved_destination?.city_name ??
               active.request_summary.city}
             <span>{plan.days.length}日旅笺</span>
@@ -609,7 +611,11 @@ function SingleCityTripPlanResult({
         </div>
       </section>
 
-      <ResultDiagnostics response={active} />
+      <ResultRecoveryActions
+        response={active}
+        onRetry={onRetry}
+        onReset={onReset ? () => onReset() : undefined}
+      />
 
       {hasItineraryContent ? (
         <section className="result-section" aria-labelledby="days-title">
@@ -696,6 +702,7 @@ function SingleCityTripPlanResult({
       </section>
 
       <SourceEvidence sources={active.sources} />
+      <ResultDiagnostics response={active} />
 
       {editTarget && !prepared && (
         <ReplanComposer
@@ -728,28 +735,6 @@ function SingleCityTripPlanResult({
             }
           }}
         />
-      )}
-
-      {(isPartial || isConflict) && (canRetry || onReset) && (
-        <div className="outcome-actions result-actions">
-          {canRetry && (
-            <button type="button" onClick={() => onRetry?.()}>
-              {active.errors.some((error) => error.code === "data_stale")
-                ? "重新获取数据"
-                : "重试缺失数据"}
-            </button>
-          )}
-          {onReset && (
-            <button type="button" onClick={() => onReset()}>
-              返回修改需求
-            </button>
-          )}
-        </div>
-      )}
-      {isPartial && active.retryable && active.attempt >= 3 && (
-        <p className="outcome-action-note">
-          本任务已达到 3 次尝试上限，请返回修改需求后创建新任务。
-        </p>
       )}
     </div>
   );

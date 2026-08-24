@@ -1,5 +1,9 @@
 import { TripDayNavigation } from "./TripDayNavigation";
-import { ResultDiagnostics, SourceEvidence } from "./ResultEvidence";
+import {
+  ResultDiagnostics,
+  ResultRecoveryActions,
+  SourceEvidence,
+} from "./ResultEvidence";
 import type {
   TripPlanResponseV3Dto,
   TripPlanResponseV4Dto,
@@ -215,7 +219,7 @@ export function MulticityTripPlanResult({ response, onRetry, onReset }: Props) {
               ? "部分数据缺失 · 多城市计划"
               : "代码校验通过 · 多城市计划"}
           </p>
-          <h2 id="plan-stage-title">
+          <h2 id="plan-stage-title" tabIndex={-1}>
             {route}
             <span>{plan.days.length}日旅笺</span>
           </h2>
@@ -266,7 +270,11 @@ export function MulticityTripPlanResult({ response, onRetry, onReset }: Props) {
           })}
         </ol>
       </section>
-      <ResultDiagnostics response={response} />
+      <ResultRecoveryActions
+        response={response}
+        onRetry={onRetry}
+        onReset={onReset ? () => onReset() : undefined}
+      />
       <section className="result-section" aria-labelledby="days-title">
         <h3 id="days-title">逐日安排</h3>
         <TripDayNavigation
@@ -327,29 +335,7 @@ export function MulticityTripPlanResult({ response, onRetry, onReset }: Props) {
         </div>
       </section>
       <SourceEvidence sources={response.sources} />
-      {(onReset ||
-        (isPartial &&
-          response.retryable &&
-          response.attempt < 3 &&
-          onRetry)) && (
-        <div className="outcome-actions result-actions">
-          {isPartial &&
-            response.retryable &&
-            response.attempt < 3 &&
-            onRetry && (
-              <button type="button" onClick={onRetry}>
-                {response.errors.some((error) => error.code === "data_stale")
-                  ? "重新获取数据"
-                  : "重试缺失数据"}
-              </button>
-            )}
-          {onReset && (
-            <button type="button" onClick={() => onReset()}>
-              返回修改需求
-            </button>
-          )}
-        </div>
-      )}
+      <ResultDiagnostics response={response} />
     </div>
   );
 }
