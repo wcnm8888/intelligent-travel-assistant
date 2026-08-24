@@ -82,11 +82,12 @@ def create_app(
     )
     application.state.provider_adapters = resolved_adapters
     application.state.planning_job_repository = repository
-    executor = (
-        planning_job_executor
-        if planning_job_executor is not None
-        else build_planning_job_executor(repository, resolved_adapters)
-    )
+    if planning_job_executor is not None:
+        executor = planning_job_executor
+    elif planning_job_repository is None:
+        executor = build_planning_job_executor(repository, resolved_adapters)
+    else:
+        executor = None
     application.state.planning_job_executor = executor
     application.state.replan_application_service = replan_application_service
 

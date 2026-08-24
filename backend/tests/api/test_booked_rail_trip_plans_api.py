@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import sqlite3
+import time
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
 from pathlib import Path
@@ -24,6 +25,7 @@ from intelligent_travel_assistant.contracts import PlanningStatus
 from intelligent_travel_assistant.settings import Settings
 
 NOW = datetime(2026, 8, 20, 4, tzinfo=UTC)
+_TERMINAL = frozenset({"ready", "partial", "needs_input", "conflict", "failed"})
 
 
 class RecordingExecutor:
@@ -43,6 +45,16 @@ def settings(path: Path) -> Settings:
             "sqlite_database_path": path.resolve(),
         }
     )
+
+
+def wait_for_terminal(client: TestClient, job_id: str) -> dict[str, object]:
+    for _ in range(200):
+        response = client.get(f"/api/trip-plans/{job_id}")
+        body: dict[str, object] = response.json()
+        if body["status"] in _TERMINAL:
+            return body
+        time.sleep(0.01)
+    raise AssertionError("planning job did not reach a terminal state")
 
 
 def test_v4_post_get_retry_delete_use_existing_uris_and_exact_shape() -> None:
@@ -111,6 +123,11 @@ def test_sqlite_v4_replan_is_rejected_before_all_replan_writes(tmp_path: Path) -
     with TestClient(create_app(settings=settings(path))) as client:
         created = client.post("/api/trip-plans", json=request_payload())
         job_id = created.json()["job_id"]
+        baseline = wait_for_terminal(client, job_id)
+        with sqlite3.connect(path) as inspection:
+            baseline_job_row = inspection.execute(
+                "SELECT version, status FROM planning_jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
         rejected = client.post(
             f"/api/trip-plans/{job_id}/replans",
             json={
@@ -139,6 +156,7 @@ def test_sqlite_v4_replan_is_rejected_before_all_replan_writes(tmp_path: Path) -
     assert created.status_code == 202
     assert rejected.status_code == 422
     assert rejected.json()["error"]["code"] == "replan_scope_not_supported"
-    assert restored.json() == created.json()
+    assert restored.json() == baseline
     assert counts == {table: 0 for table in counts}
-    assert tuple(job_row) == (1, PlanningStatus.DRAFT.value)
+    assert tuple(job_row) == tuple(baseline_job_row)
+    assert job_row[1] == PlanningStatus.FAILED.value

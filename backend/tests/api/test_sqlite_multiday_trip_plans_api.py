@@ -109,6 +109,7 @@ def test_v2_post_get_idempotency_and_delete_survive_application_restarts(
         created = client.post("/api/trip-plans", json=request)
         assert created.status_code == 202
         job_id = created.json()["job_id"]
+        terminal_body = client.get(f"/api/trip-plans/{job_id}").json()
 
     with TestClient(create_app(settings=settings(path))) as restarted:
         restored = restarted.get(f"/api/trip-plans/{job_id}")
@@ -119,9 +120,11 @@ def test_v2_post_get_idempotency_and_delete_survive_application_restarts(
         missing = after_delete.get(f"/api/trip-plans/{job_id}")
 
     assert restored.status_code == 200
-    assert restored.json() == created.json()
+    assert terminal_body["status"] == "failed"
+    assert terminal_body["errors"][0]["code"] == "configuration_missing"
+    assert restored.json() == terminal_body
     assert repeated.status_code == 202
-    assert repeated.json() == created.json()
+    assert repeated.json() == terminal_body
     assert deleted.status_code == 204
     assert missing.status_code == 404
     with sqlite3.connect(path) as inspection:

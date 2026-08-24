@@ -13,6 +13,10 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from intelligent_travel_assistant.app import create_app
+from intelligent_travel_assistant.application.services import (
+    ConfigurationMissingPlanningJobExecutor,
+    ProviderPlanningJobExecutor,
+)
 from intelligent_travel_assistant.bootstrap import (
     ProviderActivationState,
     StartupConfigurationError,
@@ -66,7 +70,22 @@ def test_empty_provider_configuration_starts_health_with_disabled_report() -> No
     assert application.state.provider_adapters.report.deepseek is ProviderActivationState.DISABLED
     assert application.state.provider_adapters.report.amap is ProviderActivationState.DISABLED
     assert application.state.provider_adapters.report.qweather is ProviderActivationState.DISABLED
-    assert application.state.planning_job_executor is None
+    assert isinstance(
+        application.state.planning_job_executor,
+        ConfigurationMissingPlanningJobExecutor,
+    )
+
+
+def test_incomplete_required_provider_combination_uses_zero_call_executor() -> None:
+    application = create_app(_settings(deepseek_api_key="deepseek-local-test-value"))
+
+    assert application.state.provider_adapters.report.deepseek is ProviderActivationState.READY
+    assert application.state.provider_adapters.report.amap is ProviderActivationState.DISABLED
+    assert application.state.provider_adapters.report.qweather is ProviderActivationState.DISABLED
+    assert isinstance(
+        application.state.planning_job_executor,
+        ConfigurationMissingPlanningJobExecutor,
+    )
 
 
 def test_test_composition_never_consults_local_dotenv() -> None:
@@ -77,7 +96,10 @@ def test_test_composition_never_consults_local_dotenv() -> None:
     assert application.state.provider_adapters.report.deepseek is ProviderActivationState.DISABLED
     assert application.state.provider_adapters.report.amap is ProviderActivationState.DISABLED
     assert application.state.provider_adapters.report.qweather is ProviderActivationState.DISABLED
-    assert application.state.planning_job_executor is None
+    assert isinstance(
+        application.state.planning_job_executor,
+        ConfigurationMissingPlanningJobExecutor,
+    )
     assert application.state.sqlite_database is None
 
 
@@ -134,7 +156,7 @@ def test_complete_configuration_builds_all_adapters_without_network(tmp_path: Pa
     assert adapters.qweather is not None
 
     application = create_app(settings=settings)
-    assert application.state.planning_job_executor is not None
+    assert isinstance(application.state.planning_job_executor, ProviderPlanningJobExecutor)
 
 
 @pytest.mark.parametrize(
