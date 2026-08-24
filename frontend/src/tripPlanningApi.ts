@@ -173,6 +173,7 @@ export interface TripPlanningApi {
   ): Promise<TripPlanResponseDto>;
   read(jobId: string, signal?: AbortSignal): Promise<TripPlanResponseDto>;
   retry(jobId: string, signal?: AbortSignal): Promise<TripPlanResponseDto>;
+  remove(jobId: string, signal?: AbortSignal): Promise<void>;
 }
 
 export class TripPlanningClientError extends Error {
@@ -256,7 +257,7 @@ function hasExactKeys(
   );
 }
 
-function isUuid(value: unknown): value is string {
+export function isPlanningJobId(value: unknown): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
@@ -570,9 +571,9 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
       value.response_version !== "2" &&
       value.response_version !== "3" &&
       value.response_version !== "4") ||
-    !isUuid(value.job_id) ||
-    !isUuid(value.trace_id) ||
-    !isUuid(value.client_request_id) ||
+    !isPlanningJobId(value.job_id) ||
+    !isPlanningJobId(value.trace_id) ||
+    !isPlanningJobId(value.client_request_id) ||
     !PLANNING_STATUSES.includes(value.status as PlanningStatus) ||
     !Number.isInteger(value.attempt) ||
     Number(value.attempt) < 1 ||
@@ -702,7 +703,7 @@ function parseErrorEnvelope(value: unknown): ApiErrorDto | null {
   if (
     !isRecord(value) ||
     !hasExactKeys(value, ["trace_id", "error"]) ||
-    !(value.trace_id === null || isUuid(value.trace_id)) ||
+    !(value.trace_id === null || isPlanningJobId(value.trace_id)) ||
     !isApiError(value.error)
   ) {
     return null;
@@ -760,6 +761,42 @@ async function requestJson(
   return parseTripPlanResponse(payload);
 }
 
+async function requestNoContent(
+  request: RequestFunction,
+  input: string,
+  init: RequestInit,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await request(input, init);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
+    throw new TripPlanningClientError(
+      "network_unavailable",
+      "无法连接本机计划服务，请确认 FastAPI 已启动。",
+      true,
+    );
+  }
+
+  if (response.ok && response.status === 204) return;
+
+  const payload = await json(response);
+  const safeError = parseErrorEnvelope(payload);
+  if (safeError) {
+    throw new TripPlanningClientError(
+      safeError.code,
+      safeError.message,
+      safeError.retryable,
+    );
+  }
+  throw new TripPlanningClientError(
+    "http_error",
+    "本机计划服务暂时无法处理请求。",
+    response.status >= 500,
+  );
+}
+
 function invalidJobId(): TripPlanningClientError {
   return new TripPlanningClientError(
     "response_invalid",
@@ -804,7 +841,7 @@ export function createTripPlanningApi(
         202,
       ),
     read: (jobId, signal) => {
-      if (!isUuid(jobId)) {
+      if (!isPlanningJobId(jobId)) {
         return Promise.reject(invalidJobId());
       }
       return requestJson(
@@ -815,7 +852,7 @@ export function createTripPlanningApi(
       );
     },
     retry: async (jobId, signal) => {
-      if (!isUuid(jobId)) {
+      if (!isPlanningJobId(jobId)) {
         throw invalidJobId();
       }
       const response = await requestJson(
@@ -831,6 +868,16 @@ export function createTripPlanningApi(
         );
       }
       return response;
+    },
+    remove: (jobId, signal) => {
+      if (!isPlanningJobId(jobId)) {
+        return Promise.reject(invalidJobId());
+      }
+      return requestNoContent(
+        request,
+        `/api/trip-plans/${encodeURIComponent(jobId)}`,
+        { method: "DELETE", headers: { Accept: "application/json" }, signal },
+      );
     },
   };
 }

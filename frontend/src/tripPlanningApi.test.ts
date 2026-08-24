@@ -86,6 +86,30 @@ describe("tripPlanningApi", () => {
     expect(request.mock.calls[0][1].body).toBeUndefined();
   });
 
+  it("deletes one validated job through the existing same-origin resource", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const api = createTripPlanningApi(request);
+
+    await expect(api.remove(FIXED_JOB_ID)).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith(
+      `/api/trip-plans/${FIXED_JOB_ID}`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(request.mock.calls[0][1].body).toBeUndefined();
+  });
+
+  it("rejects an invalid delete ID before issuing a request", async () => {
+    const request = vi.fn();
+    const api = createTripPlanningApi(request);
+
+    await expect(api.remove("not-a-job")).rejects.toMatchObject({
+      code: "response_invalid",
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("rejects unsafe retry responses and preserves safe 409 errors", async () => {
     const stale = {
       ...readyPlanningResponse(),

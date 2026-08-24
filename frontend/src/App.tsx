@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { PlanningStage } from "./PlanningStage";
 import { TripRequestForm } from "./TripRequestForm";
@@ -24,18 +24,38 @@ export function App({
   pollingPolicy = DEFAULT_POLLING_POLICY,
   replanApi,
 }: AppProps) {
-  const { state, start, resume, retry, reset } = useTripPlanningJob(
-    tripPlanApi,
-    pollingPolicy,
-  );
+  const { state, start, resume, retry, restore, remove, reset } =
+    useTripPlanningJob(tripPlanApi, pollingPolicy);
   const [requestExpanded, setRequestExpanded] = useState(false);
   const requestPanel = useRef<HTMLElement>(null);
+  const focusedRestoredJob = useRef<string | null>(null);
   const busy =
     state.phase === "submitting" ||
     state.phase === "retrying" ||
     state.phase === "tracking";
   const resultFirst = state.phase !== "idle";
   const requestCollapsed = resultFirst && !requestExpanded;
+
+  useEffect(() => {
+    if (
+      (state.phase === "tracking" ||
+        state.phase === "paused" ||
+        state.phase === "terminal") &&
+      state.restored &&
+      focusedRestoredJob.current !== state.response.job_id
+    ) {
+      focusedRestoredJob.current = state.response.job_id;
+      document.getElementById("plan-stage-title")?.focus();
+    }
+    if (state.phase === "idle") {
+      focusedRestoredJob.current = null;
+    }
+    if (state.phase === "idle" && state.notice) {
+      window.setTimeout(() => {
+        requestPanel.current?.querySelector<HTMLElement>("h2")?.focus();
+      }, 0);
+    }
+  }, [state]);
 
   const returnToRequest = (field: string | null = null) => {
     reset();
@@ -189,6 +209,8 @@ export function App({
             setRequestExpanded(false);
             void retry();
           }}
+          onRestore={() => void restore()}
+          onDelete={remove}
           onReset={returnToRequest}
           replanApi={replanApi}
         />
