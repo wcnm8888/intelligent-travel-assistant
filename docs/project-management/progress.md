@@ -4,19 +4,19 @@
 
 - 当前任务：`F-006 MVP 体验收口与本地验收`
 - 状态：`ACTIVE`
-- 当前 Step：`Step 7 - 本地门禁与四层 stacked PR（DELIVERY_ACTIVE）`
+- 当前 Step：`Step 8 - 合并、最终 CI 与归档（TODO / 待单独批准）`
 - 基线：`main == origin/main == b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`，Step 0 开始前工作区干净
 - F-004C：Step 0–6 `DONE / DELIVERED / ARCHIVED`；PR #34/#35/#36 和归档 PR #37 已合并；最终 main CI run `32486428083` success
 - F-004B2：`BLOCKED / ARCHIVED`；不得恢复其 Provider 查询或 Step 2
-- 当前授权：F-006 Step 0–6 已完成；用户已批准 Step 7，Step 8 仍待单独批准
+- 当前授权：F-006 Step 0–7 已完成；Step 8 仍待用户单独批准
 
 ## F-006 Step 7
 
-- 状态：`LOCAL_PASS / DELIVERY_ACTIVE`；固定运行时下统一门禁通过，后端 `1388 passed`、前端 `131 passed`、文档测试 `28 passed`，Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约全部通过；
-- clean-restack：当前父链为 Stack 1 `b3e29aa` → Stack 2 `972b1d4` → Stack 3 `f5903f4` → Stack 4 初始交付提交 `7a9b488`；逐层修正测试归属、提前接口引用和恢复交叉边界，没有 force-push；四分支已普通 push；
-- review：Stack 1/2/3 最终独立复审均为 `NO FINDINGS`；Stack 4 最终 review 进行中；
+- 状态：`DONE / PASS`；固定运行时下统一门禁通过，后端 `1388 passed`、前端 `131 passed`、文档测试 `29 passed`，Ruff、strict mypy、Prettier、ESLint、TypeScript、Vite build 和文档契约全部通过；
+- 提交链：父链为 Stack 1 `b3e29aa` → Stack 2 `972b1d4` → Stack 3 `f5903f4` → Stack 4 `7a9b488` + 文档/runner 修正 `e6d3547`/`7f8cabb`/`2b95930`；没有 force-push，四分支均已普通 push；
+- review/CI：四层最终独立 review 无未关闭 finding；Draft PR #38/#39/#40/#41 保持 open，对应 Windows offline CI runs `32503520656`/`32503533764`/`32503554642`/`32547492597` 均为 success；
 - 范围：Stack 1 为 11 个生产/测试文件、净新增 472 行；Stack 2 为 9 个、净新增 134 行；Stack 3 为 11 个、净新增 843 行；Stack 4 为 3 个生产/测试/script 文件、净新增 969 行，另含批准的当前文档。任务累计去重后为 31 个生产/测试/script 文件、净新增 2418 行，`styles.css` 净新增 74 行，均低于阈值；Schema/migration、依赖/lockfile diff 为 0；
-- 下一动作：完成 Stack 4 review、四层 push、stacked PR 和逐层远程 CI；不得 merge、运行最终 main CI、归档或进入 Step 8。
+- 下一动作：等待用户单独批准 Step 8；此前不得 merge、运行最终 main CI 或归档。
 
 ## F-006 Step 6
 

@@ -3,8 +3,8 @@
 ## 当前状态
 
 - 当前任务：`F-006 MVP 体验收口与本地验收`
-- 当前 Step：`Step 7 - 本地门禁与四层 stacked PR（DELIVERY_ACTIVE）`
-- 当前授权：Step 0–6 已完成；用户已批准 Step 7，Step 8 仍待单独批准
+- 当前 Step：`Step 8 - 合并、最终 CI 与归档（TODO / 待单独批准）`
+- 当前授权：Step 0–7 已完成；Step 8 仍待用户单独批准
 - 基线：`main == origin/main == b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`
 - F-004C：`DELIVERED / ARCHIVED`；PR #34/#35/#36、归档 PR #37 和 CI run `32486428083` 已完成
 - F-004B2：`BLOCKED / ARCHIVED`
@@ -93,7 +93,7 @@
 
 唯一目标：运行全量本地门禁，按四层拓扑完成精确 commit、push、stacked PR、逐层独立 review 和远程 CI。
 
-状态：`DELIVERY_ACTIVE`。本地统一门禁已通过：Python 3.13.3、Node 22.16.0、pnpm 11.19.0；后端 `1388 passed`、前端 `131 passed`、文档测试 `28 passed`，其余 format/lint/typecheck/build/文档契约均通过。四层已形成独立提交；clean-restack 已修复 Stack 1 测试归属和 Stack 2 提前接口引用，Stack 3 又关闭跟踪失败恢复、损坏 pointer 回落和 storage-disabled 页内恢复问题。三层最终独立复审均为 `NO FINDINGS`；Stack 4 复审与远程交付仍在进行。
+状态：`DONE / PASS`。本地统一门禁已通过：Python 3.13.3、Node 22.16.0、pnpm 11.19.0；后端 `1388 passed`、前端 `131 passed`、文档测试 `29 passed`，其余 format/lint/typecheck/build/文档契约均通过。四层已形成独立父链；review findings 已通过普通追加提交关闭，最终逐层复审无未关闭 finding。Draft PR #38/#39/#40/#41 的 base/head 拓扑正确，对应 Windows offline CI runs `32503520656`/`32503533764`/`32503554642`/`32547492597` 均为 success。
 
 本 Step 不 merge、不运行最终 main CI、不归档。每层必须独立可测试、只依赖前层，review finding 关闭后才能继续。
 

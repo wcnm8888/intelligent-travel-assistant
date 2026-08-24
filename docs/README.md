@@ -8,8 +8,8 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（F-006 是唯一 `ACTIVE` 任务；Step 0–6 已完成）
-- 当前 Step 7 为 `DELIVERY_ACTIVE`：本地全量门禁和前三层最终独立 review 已通过，正在完成四层 stacked PR 与逐层远程 CI；不得 merge 或进入 Step 8
+- 当前任务：[current-task.md](./project-management/current-task.md)（F-006 是唯一 `ACTIVE` 任务；Step 0–7 已完成）
+- 当前 Step 8 为 `TODO / 待单独批准`：四层 Draft PR #38–#41 的独立 review 和逐层远程 CI 已通过；不得 merge、运行最终 main CI 或归档
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -144,4 +144,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- F-006 Step 7 已获批准并处于 `DELIVERY_ACTIVE`：本地全量门禁通过，四层提交已 clean-restack，正在完成最终 review、push、stacked PR 和逐层远程 CI；不得 merge、最终 main CI、归档或进入 Step 8。F-004B2 保持 `BLOCKED / ARCHIVED`；F-001 `PARTIAL` 保持不变
+- F-006 Step 7 已完成：四层 Draft PR #38/#39/#40/#41 保持 open，逐层 Windows offline CI runs `32503520656`/`32503533764`/`32503554642`/`32547492597` 均 success，最终独立 review 无未关闭 finding；不得 merge、运行最终 main CI、归档或在未批准时进入 Step 8。F-004B2 保持 `BLOCKED / ARCHIVED`；F-001 `PARTIAL` 保持不变

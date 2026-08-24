@@ -4,7 +4,7 @@
 
 - 任务：`F-006 MVP 体验收口与本地验收`
 - 状态：`ACTIVE`
-- 当前 Step：`Step 7 - 本地门禁与四层 stacked PR（DELIVERY_ACTIVE）`
+- 当前 Step：`Step 8 - 合并、最终 CI 与归档（TODO / 待单独批准）`
 - 批准入口：用户已批准 F-006 推荐决策、D-017 和 Step 0–7；Step 8 仍须单独批准
 - 基线：`main == origin/main == b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`
 - 最近归档：F-004C Step 0–6 `DELIVERED / ARCHIVED`；归档 PR #37、main CI run `32486428083` success
@@ -14,7 +14,7 @@
 
 F-006 只收口现有本地 MVP 的完整使用体验、恢复、本地运行和离线验收。用户应能用产品语言选择单城市、多城市手工交通段或已购铁路段，得到一致的处理中与终态体验，在刷新、重启、失败和删除场景中有明确恢复动作，并能通过一个安全的本地入口启动和停止应用。
 
-Step 2 已关闭无凭证/Provider 组合不完整时 job 滞留 `draft` 的缺口，Step 4 已关闭全版本本机恢复和单任务删除缺口，Step 5 已交付安全 PowerShell 本地运行入口。Step 6 又以临时 schema v2 SQLite、14 个组合 journey、loopback desktop/390px、干净检出启动和独立安全扫描关闭了本地验收缺口。Step 7 已完成本地全量门禁、四层精确提交和 findings 关闭，正在执行 push、stacked PR 与逐层远程 CI；不得 merge 或自动进入 Step 8。
+Step 2 已关闭无凭证/Provider 组合不完整时 job 滞留 `draft` 的缺口，Step 4 已关闭全版本本机恢复和单任务删除缺口，Step 5 已交付安全 PowerShell 本地运行入口。Step 6 又以临时 schema v2 SQLite、14 个组合 journey、loopback desktop/390px、干净检出启动和独立安全扫描关闭了本地验收缺口。Step 7 已完成本地全量门禁、四层精确提交、push、stacked Draft PR、独立 review、findings 关闭和逐层远程 CI；Step 8 未获批准，不得 merge、运行最终 main CI 或归档。
 
 ## 已批准决策（D-017 摘要）
 
@@ -105,7 +105,7 @@ Step 2 已关闭无凭证/Provider 组合不完整时 job 滞留 `draft` 的缺�
 | Step 4 | 实现全版本恢复、过期 pointer 清理、终态 DELETE 和完整旅程恢复 | DONE |
 | Step 5 | 实现安全 PowerShell 本地运行入口、preflight、健康等待与精确停止 | DONE |
 | Step 6 | 执行临时 SQLite、组合 synthetic browser、desktop/390px、网络/console/accessibility、干净检出和独立隐私安全验收 | DONE |
-| Step 7 | 运行本地全量门禁并完成四层 commit/push/stacked PR/独立 review/逐层远程 CI，不合并 | ACTIVE |
+| Step 7 | 运行本地全量门禁并完成四层 commit/push/stacked PR/独立 review/逐层远程 CI，不合并 | DONE |
 | Step 8 | 依序合并、必要 clean-restack、最终 main CI、归档与任务关闭 | TODO |
 
 ## 四层 stacked PR
@@ -200,8 +200,8 @@ Step 2 已关闭无凭证/Provider 组合不完整时 job 滞留 `draft` 的缺�
 - 不重写设计系统、品牌、路由或技术栈；
 - 不把 synthetic、MockTransport、离线 eval、loopback QA 或干净检出验收表述为真实 Provider UAT。
 
-## Step 7 当前结论与授权边界
+## Step 7 结论与 Step 8 授权边界
 
-Step 0–6 保持 `DONE / PASS`。Step 7 本地全量门禁已通过：固定 Python 3.13.3、Node 22.16.0、pnpm 11.19.0，后端 `1388 passed`、前端 `131 passed`、文档测试 `28 passed`，format/lint/typecheck/build/文档契约全部通过。四层已 clean-restack 为独立提交；独立 review 发现的 Stack 1/2 分层自足问题和 Stack 3 恢复边界问题均已修复并复审为 `NO FINDINGS`。
+Step 0–7 为 `DONE / PASS`。Step 7 本地全量门禁已通过：固定 Python 3.13.3、Node 22.16.0、pnpm 11.19.0，后端 `1388 passed`、前端 `131 passed`、文档测试 `29 passed`，format/lint/typecheck/build/文档契约全部通过。四层已形成精确父链；独立 review 发现的 Stack 1/2 分层自足问题、Stack 3 恢复边界问题和 Stack 4 runner/状态文档问题均已修复，最终复审无未关闭 finding。
 
-当前授权仅继续完成四层 push、stacked PR 与逐层远程 CI；不得 merge、运行最终 main CI、归档或进入 Step 8。不得读取秘密、调用 Provider、修改 Schema/migration、依赖或 lockfile。
+四层 Draft PR #38/#39/#40/#41 的 base/head 拓扑与批准顺序一致；对应 Windows offline CI runs `32503520656`、`32503533764`、`32503554642`、`32547492597` 均为 success。当前仅等待用户单独批准 Step 8；不得 merge、运行最终 main CI 或归档。不得读取秘密、调用 Provider、修改 Schema/migration、依赖或 lockfile。

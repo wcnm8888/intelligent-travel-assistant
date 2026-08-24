@@ -30,7 +30,7 @@
 | 8 | F-004C 用户已购铁路段与车次信息 | DONE | 用户可录入已购票的相邻铁路段和车次事实，并继续按用户提供、未核验语义规划 | F-004B1、F-004B2 BLOCKED closure、D-016、归档任务卡 |
 | 9 | F-006 MVP 体验收口与本地验收 | ACTIVE | 用户可稳定完成完整本地旅行决策流程，并获得可恢复、可本地运行、可离线验收的 MVP | F-001 至 F-005、F-004C、D-017 |
 
-B-000 至 F-005 以及 F-004C 的已选任务均已完成归档。F-004B2 保持阻塞归档；F-006 是唯一 `ACTIVE` 任务，Step 0–3 已完成，当前等待 Step 4 单独批准。
+B-000 至 F-005 以及 F-004C 的已选任务均已完成归档。F-004B2 保持阻塞归档；F-006 是唯一 `ACTIVE` 任务，Step 0–7 已完成，当前等待 Step 8 单独批准。
 
 ## B-000：项目与工程基线
 
@@ -151,7 +151,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-006：MVP 体验收口与本地验收
 
-- 状态：`ACTIVE / STEP_3_DONE`
+- 状态：`ACTIVE / STEP_7_DONE / STEP_8_PENDING_APPROVAL`
 - 目标：统一输入、计划、预算、来源、冲突、重规划和恢复体验，完成 MVP 本地 UAT；
 - 核心价值：真实用户可在本机完整完成旅行决策流程；
 - 必须验证：桌面/窄屏、可访问性、加载/空/部分/错误/确认状态、安装与恢复文档、独立 QA；
@@ -159,6 +159,8 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - Step 1 冻结结果：零调用 `configuration_missing` 安全 executor、三产品模式与 legacy/V2 内部选择、canonical/旧 pointer、终态 DELETE、固定 loopback PowerShell runner、局部 UX/accessibility、至少 12 个组合式 journey 和四层文件归属已形成可实现契约；尚未修改生产源码或测试。
 - Step 2 实现结果：production bootstrap 已接入纯 Repository 的零调用安全 executor，四版本无配置终态和完整配置兼容由 TDD/静态门禁证明；未创建数据库、修改 Schema/migration 或进入 UX。
 - Step 3 实现结果：三个用户产品模式、既有内部版本选择和共享终态恢复层级已由 TDD 落地；前端 109 项及静态/build 门禁通过，尚未进入 pointer/DELETE、runner 或本地纵向验收。
+- Step 4–6 实现与验收结果：全版本 canonical/旧 pointer 恢复、终态 DELETE、安全 PowerShell runner、临时 schema v2 SQLite、14 个组合 journey、loopback desktop/390px、干净检出启动和独立安全审查均已完成；未调用真实 Provider。
+- Step 7 交付结果：四层 Draft PR #38/#39/#40/#41 已完成独立 review 和逐层远程 CI，四个 Windows offline runs 均 success；Step 8 合并、最终 main CI 和归档仍待单独批准。
 
 ## 外部服务就绪门禁
 
