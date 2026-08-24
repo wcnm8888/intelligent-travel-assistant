@@ -638,7 +638,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ## D-017：F-006 MVP 体验收口与本地验收
 
-- 状态：`APPROVED / TASK_ACTIVE / STEP_7_DONE / STEP_8_PENDING_APPROVAL`
+- 状态：`APPROVED / IMPLEMENTED / LOCAL_ACCEPTANCE_PASS / TASK_ARCHIVED`
 - 日期：2026-08-21
 - 适用范围：现有本地 MVP 的用户模式、终态展示、恢复/DELETE、本地运行、组合式离线验收与四层交付
 - 不适用：新产品版本、新 Provider、真实 UAT、公开 API/Schema 扩展、历史列表、运行中取消、设计系统重写、云端或生产高可用
@@ -700,6 +700,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ### 后果
 
-- Step 0 只激活任务、同步 F-004C 最终归档事实、建立治理和首层本地分支；Step 1 只完成上述可实现设计冻结；Step 2 已以 TDD 实现 production 缺配置时的零调用安全终态；Step 3 已以 TDD 实现三产品模式与有限 UX foundation。四步均未修改 fixture、`.env.example`、Schema、migration、依赖或 lockfile，也不构成 Step 4 实现授权；
-- 后续 Step 必须逐步获得批准并保持同 URI、同 shape、schema v2、旧版本兼容、V3/V4 replan 前置拒绝和默认非 loopback 网络阻断；
+- Step 0–8 已按逐步批准完成：无配置安全终态、三产品模式、全版本恢复/DELETE、安全 runner、离线本地验收、四层交付、依序合并、最终 main CI 和归档均已关闭；
+- PR #38/#39/#40/#41 已依序 squash merge；#39/#40/#41 以普通 merge clean-restack 且无 force-push，完整功能 main 为 `d82ca5c6`，CI run `32691778088` success；
+- 同 URI、同 shape、schema v2、旧版本兼容、V3/V4 replan 前置拒绝和默认非 loopback 网络阻断均保持；
 - F-006 本地验收通过不能提升历史或当前真实 Provider 证据，也不能解除 F-004B2 阻塞。

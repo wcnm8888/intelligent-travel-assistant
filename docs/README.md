@@ -8,8 +8,8 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（F-006 是唯一 `ACTIVE` 任务；Step 0–7 已完成）
-- 当前 Step 8 为 `TODO / 待单独批准`：四层 Draft PR #38–#41 的独立 review 和逐层远程 CI 已通过；不得 merge、运行最终 main CI 或归档
+- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-006 已完成归档）
+- 最近关闭：F-006 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`；完整功能 main `d82ca5c6`、main CI run `32691778088` success
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -91,7 +91,8 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：F-006 MVP 体验收口与本地验收
+- 当前活动任务：无
+- F-006 Step 0–8 已全部完成并归档：PR #38/#39/#40/#41 依序 squash merge，#39/#40/#41 以普通 merge clean-restack 且无 force-push；完整功能 main `d82ca5c6`、CI run `32691778088` success；任务结论为 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`，但项目真实 Provider 就绪继续为 `PARTIAL`
 - F-006 Step 6 已完成：临时 schema v2 SQLite 与 14 个组合 journey、F-005 固定 48-case eval、loopback desktop/390px、network/console/accessibility、干净检出 frozen/offline 启动和独立 Codex Security 审查均通过；安全扫描 21/21、0 finding，未调用真实 Provider，证据不等同真实 UAT
 - F-006 Step 5 已完成：唯一 `scripts/run-local.ps1` 固定校验运行时、loopback 端口和 strict health，缺依赖不安装、端口冲突不杀进程；Ctrl+C/失败只收口自身精确 Python/Node Process，SQLite/未知异常使用固定脱敏诊断；仅运行离线 self-test/preflight，未启动业务服务或进入 SQLite/browser 验收
 - F-006 Step 4 已完成：canonical `ita.last-local-job` 只保存 UUID，legacy/V2/V3/V4 共用 GET/strict parser 恢复并兼容旧 V4/V3 pointer；失效清理、暂时错误保留、终态单任务 DELETE、inline 确认及确定性焦点均已通过离线测试；未进入 runner、SQLite 或 browser
@@ -144,4 +145,4 @@ AGENTS.md
 - Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
 - Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
 - Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- F-006 Step 7 已完成：四层 Draft PR #38/#39/#40/#41 保持 open，逐层 Windows offline CI runs `32503520656`/`32503533764`/`32503554642`/`32547492597` 均 success，最终独立 review 无未关闭 finding；不得 merge、运行最终 main CI、归档或在未批准时进入 Step 8。F-004B2 保持 `BLOCKED / ARCHIVED`；F-001 `PARTIAL` 保持不变
+- F-006 完整任务卡已归档为 [F-006 archive](./archive/task-cards/F-006-mvp-local-acceptance.md)；F-004B2 保持 `BLOCKED / ARCHIVED`，F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown/null 和混合交通 fallback 仅离线均保持
