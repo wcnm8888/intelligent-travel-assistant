@@ -469,3 +469,43 @@ F-004C 不把现有多城市表单静默升级为 V4。用户选择“多城市�
 - 来源卡必须显示 `unknown_validity`、本地记录时间和“不代表班次当前有效”；即使服务端为 ready，首要文案也只能是“代码校验通过”，不能写“车次已核实/可售/已出票”；
 - V3/V4 均不显示 replan 入口；V4 Provider 失败、余票、库存、预订、支付、出票、订单、扫码或跳转 12306/高德入口均不存在；
 - desktop 和 390px 都保持单列段卡、无横向滚动；service number、来源状态和隐私提示不能只靠颜色，键盘焦点、错误关联和 live region 必须可验证。
+
+## F-006 MVP 体验收口（Step 1 冻结）
+
+### 产品模式入口
+
+表单第一组使用 `fieldset/legend` 呈现三个单选项，标签精确为：
+
+1. “单城市”；
+2. “多城市·自行填写交通段”；
+3. “多城市·填写已购铁路车次”。
+
+页面不得出现 legacy/V2/V3/V4。单城市的日期交互和内部选择保持：结束日期未被用户编辑时使用自动双日 legacy；一旦用户显式编辑结束日期则使用 V2。两种多城市模式分别保持 V3/V4 strict shape。切换模式清空不兼容段及错误；进入已购铁路模式清空并隐藏自由文本。切换后焦点留在已选择单选项，单一 polite live region 说明需要重新填写的内容。
+
+### 页面信息层级
+
+固定阅读顺序为：产品模式 → 请求表单分组 → processing/paused 阶段 → terminal 摘要 → 主恢复动作 → 预算/来源/诊断。保留现有“旅笺”视觉、排版和单页结构，只允许少量语义 tokens 与共享表现组件：
+
+- `ready`：代码验证通过；若含用户提供段仍保留“未核验”；
+- `partial`：先展示可用计划，再列缺失/unknown/来源和可用恢复动作；
+- `needs_input`：主动作“返回修改”，聚焦首个可修正字段；
+- `conflict`：先展示确定性冲突，主动作返回修改约束；
+- `failed`：不展示假 plan；`configuration_missing` 固定提示“检查本机服务配置”且无 retry，暂时性失败才按既有 `retryable && attempt<3` 显示 retry；
+- `processing/paused`：继续显示已知阶段和手动继续；不得把 paused 表述为终态或允许删除。
+
+unknown 金额始终显示“未知”；已知合计不得被描述为完整总价。来源、unknown-validity、stale、用户提供未核验和错误都必须有文字/图标/标题，不能只使用颜色。
+
+### 恢复、返回与删除
+
+- 恢复成功后把焦点送到当前 processing/paused 标题或 terminal 标题；非法/404/过期 pointer 清理后显示非阻塞“上次本机任务无法恢复，已返回新建”，随后聚焦表单标题；暂时连接失败保留 pointer 并提供“稍后重试恢复”；
+- “返回修改”清除本机 pointer、展开表单并聚焦首错或表单标题，不删除数据库记录；
+- terminal 页面提供“删除本机任务”。首次激活显示 inline confirmation；“确认删除”获得焦点，“取消”或 Escape 关闭并把焦点还给触发按钮；成功后回到新建并聚焦表单标题；失败在确认区显示安全 alert，保留当前任务；
+- submitting、tracking、retrying、processing 和 paused 非终态不显示删除。DELETE 不得使用“取消运行”文案；不出现历史列表或清空全部。
+
+### 可访问性与响应式门禁
+
+- 所有表单组使用可读 legend；输入的 label、description 和 error 通过稳定 ID/ARIA 关联；首错摘要与具体字段均可键盘到达；
+- 全页只保留一个 canonical polite live region 用于模式、提交、恢复和阶段变化；终态失败、删除失败和破坏性确认使用可见 alert，但避免同一文案被重复播报；
+- 每个交互目标最小 44×44px；键盘顺序与 DOM/视觉顺序一致，无 focus trap；focus indicator 与相邻颜色至少 3:1，普通文本至少 4.5:1；
+- 尊重 `prefers-reduced-motion`；desktop 与 390px 均无横向溢出，长车次、来源、diagnostic 和按钮文案可换行，底部动作不固定遮挡内容；
+- legacy 与 V2 恰好 2 日保留既有 F-003 replan；V2 3–7 日显示既有范围说明而不显示可执行入口；V3/V4 不显示 replan 入口。用户可见解释使用产品范围语言，不显示内部版本号。

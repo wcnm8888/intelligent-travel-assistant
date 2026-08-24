@@ -635,3 +635,71 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 - Step 0 只激活任务卡、roadmap、实施计划、D-016、治理边界和首层本地分支，不构成 Step 1 或实现授权；
 - F-004B2 保持 `BLOCKED / ARCHIVED`，其 Provider/法律 Gate、未实现事实和历史 evidence 均不改写；
 - F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-005 无真实 Provider UAT、F-004B1 城际 Provider 调用 0，以及 F-005 离线 evidence 不等于真实 UAT 均保持。
+
+## D-017：F-006 MVP 体验收口与本地验收
+
+- 状态：`APPROVED / TASK_ACTIVE / STEP_7_DONE / STEP_8_PENDING_APPROVAL`
+- 日期：2026-08-21
+- 适用范围：现有本地 MVP 的用户模式、终态展示、恢复/DELETE、本地运行、组合式离线验收与四层交付
+- 不适用：新产品版本、新 Provider、真实 UAT、公开 API/Schema 扩展、历史列表、运行中取消、设计系统重写、云端或生产高可用
+
+### 产品状态与用户语言
+
+- F-006 只收口本地 MVP 体验、恢复、本地运行和离线验收；不扩大产品、Provider、API 或数据范围；
+- F-006 完成时使用 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`，但项目真实 Provider 就绪继续为 `PARTIAL`；F-001 产品状态保持 `PARTIAL`；
+- 用户只看到“单城市”“多城市·自行填写交通段”“多城市·填写已购铁路车次”。legacy/V2/V3/V4 仍是内部兼容术语；单城市 2 日和多日继续由内部规则选择 legacy/V2；
+- 只做局部 UX 收口：统一状态、结果摘要、预算、来源、冲突和恢复动作层级；允许少量语义 tokens 和共享组件，不做品牌、路由或设计系统重写。
+
+### 无配置终态、API 与持久化
+
+- 无凭证或 Provider 组合不完整时，复用既有 `configuration_missing`，让 job 安全进入同 shape `failed`；不得停留 `draft`，不得调用任何 Provider；
+- 保持 POST/GET/retry/DELETE 和 replan URI、公开顶层 shape、错误码、strict contracts、fingerprint、旧记录行为；不新增 Provider readiness 健康字段、URI 或公开 JSON key；
+- SQLite schema 保持 version 2，migration 只有 1/2；30 天生命周期和 job 级级联删除不变；
+- V3/V4 replan 继续在 reserve、decision、executor、Provider、lineage 和 plan write 前拒绝。
+
+### 恢复与删除
+
+- 使用统一“上次本机任务”UUID pointer 覆盖 legacy/V2/V3/V4，并兼容读取旧 V3/V4 pointer；localStorage 不保存版本、请求、结果或敏感数据；
+- pointer 指向的 job 不存在或已过期时，清除 pointer，不显示任何缓存结果；
+- 前端复用既有 DELETE，只允许用户删除当前终态或已恢复任务；不实现历史列表、清空全部数据库或运行中取消 API。
+
+### 安全、Provider 与真实性
+
+- V4 interests-only preferences、Agent bounded allowlist、票务个人信息禁令和 `user_provided / unknown_validity / 用户提供，未核验` 保持；
+- F-004B2 继续 `BLOCKED / ARCHIVED`；不恢复真实城际 Provider；F-004B1/F-004C 城际 Provider logical call 和 HTTP attempt 均为 0；
+- F-004A/F-004B1/F-004C/F-005 均无真实 Provider UAT；F-005 offline eval、MockTransport、synthetic fixture 和 loopback QA 不等于真实 UAT；
+- 核心 F-006 不执行真实 Provider UAT。任何 live 调用必须成为独立、默认关闭且另行批准的 Gate；
+- unknown 金额继续为 `null`，不得按 0；Step 45M `FAIL`、Step 45T `PASS` 和混合交通 fallback 仅离线证据保持。
+
+### 本地运行与验收
+
+- 新增安全 PowerShell 本地运行入口，覆盖固定 Python/Node/pnpm 版本、端口冲突、loopback 绑定、健康等待、SQLite 错误和 Ctrl+C 精确子进程清理；不得杀死非本入口创建的进程；
+- synthetic 只用于测试/验收，不作为产品模式；保留 F-005 固定 48-case eval，并另建 F-006 组合式完全离线 journey cases；
+- desktop/390px 必须覆盖键盘、焦点恢复、label/description/error 关联、live region、44px 触控、颜色对比和零横向溢出；浏览器 network/console/privacy 必须有可复现结论；
+- 干净检出安装验收只有在依赖缓存缺失时才允许访问项目已配置的软件包仓库；不得访问业务 Provider。
+
+### 交付、文件与停止治理
+
+- 四层 stack：`feat/f-006-local-runtime-compatibility` → `feat/f-006-mvp-ux-foundation` → `feat/f-006-mvp-journey-recovery` → `feat/f-006-local-acceptance-delivery`；
+- 各层核心文件和受控相邻扩展以 current-task/implementation-plan 为准；受控扩展只涵盖直接 export/factory/wiring、同层 typed helper、对应测试/synthetic fixture/browser 支撑和当前状态/evidence 文档；
+- 单 Step 超过 5 个未预期生产/测试文件、任一 stack 超过 20 个生产/测试/script 文件或净新增 1600 行、任务累计超过 65 文件或净新增 5200 行时停止并重新拆分；
+- `styles.css` 净新增超过 600 行、替换约 30% 以上既有样式、或需要新 UI 框架/路由器/依赖时停止并重新批准；
+- 任一需要新 URI/公开 key/错误码、Schema/migration、依赖/lockfile、Provider/真实调用、隐私/数据留存变化、历史列表/清库/运行中取消或范围扩张时停止。
+
+### Step 1 冻结细化
+
+- 必要 adapter 未全部装配时，production bootstrap 必须使用安全 unavailable executor。它保持 POST `202`，随后按对应版本写入 `draft → normalizing → failed` typed result：既有 `configuration_missing`、固定 message“本机服务配置不完整，无法生成旅行计划。”、固定安全 `required_provider_configuration_missing` diagnostic、`retryable=false`、无 plan/来源/调用；部分字段或非法配置仍由现有启动校验 fail closed；
+- 不扫描或回填历史 `draft`，不改变 reservation、fingerprint、retry URI 或旧记录；API 的 optional executor 仅保留隔离测试/注入兼容，不成为 production 缺配置行为；
+- 用户只见三种产品模式。手工多城市固定 V3，已购铁路固定 V4；单城市继续以“结束日期是否被显式编辑”选择 legacy/V2，不能改成仅按天数推导；
+- canonical pointer 固定为 `ita.last-local-job`，只存 UUID；读取顺序为 canonical → 旧 V4 → 旧 V3，成功迁移后移除旧 key。非法 UUID 与 404/过期清理 pointer；暂时网络/服务/解析错误保留 pointer；localStorage 不可用不得阻断规划；
+- DELETE 继续使用既有单任务 URI/204，只在前端权威终态显示，并采用 inline 两步确认和确定性焦点恢复；不得把 DELETE 表述为取消，返回修改只清 pointer 不删记录；
+- PowerShell runner 固定 Python `3.13.3`、Node `22.16.0`、pnpm `11.19.0` 及 `127.0.0.1:8000/5173`；先检查端口，再启动精确子进程，按后端 health→前端 root 顺序各等待最多 30 秒，Ctrl+C/失败仅收口自身进程。runner 日常离线，不读取/输出秘密、不杀既有进程、不删数据库；
+- UI 保持既有视觉，只收口层级与有限语义 tokens；状态不只靠颜色，desktop/390px 覆盖单一 live region、错误关联、键盘/焦点、44px、对比度、reduced motion 和零横向溢出；
+- 新增至少 12 个完全离线组合式 journey，不做全笛卡尔积，但必须分层覆盖四版本无配置、三模式、五终态、processing/paused、pointer 迁移/失效、reload/retry/delete、legacy/V2 两日 replan、V2 3–7 日 scope 拒绝、V3/V4 写前拒绝、unknown/来源/隐私；F-005 48-case 原样保留；
+- 四层归属固定为：Stack 1 无配置 runtime；Stack 2 产品语言与视觉 foundation；Stack 3 pointer/recovery/DELETE 和旅程行为；Stack 4 runner/组合验收/交付文档。跨层同文件只允许后层为动作 props/确认样式做最小追加，并计入后层阈值。
+
+### 后果
+
+- Step 0 只激活任务、同步 F-004C 最终归档事实、建立治理和首层本地分支；Step 1 只完成上述可实现设计冻结；Step 2 已以 TDD 实现 production 缺配置时的零调用安全终态；Step 3 已以 TDD 实现三产品模式与有限 UX foundation。四步均未修改 fixture、`.env.example`、Schema、migration、依赖或 lockfile，也不构成 Step 4 实现授权；
+- 后续 Step 必须逐步获得批准并保持同 URI、同 shape、schema v2、旧版本兼容、V3/V4 replan 前置拒绝和默认非 loopback 网络阻断；
+- F-006 本地验收通过不能提升历史或当前真实 Provider 证据，也不能解除 F-004B2 阻塞。

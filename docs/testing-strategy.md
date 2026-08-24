@@ -629,3 +629,58 @@ Stack 3 `feat/f-004c-booked-rail-ui-delivery`：
 ### Step 2 准入门禁
 
 进入 Step 2 前必须再次由用户批准，且批准只覆盖 Stack 1 的 TDD。任何实现中发现需要 Provider、真实调用、Schema/migration、依赖/lockfile、新 URI/顶层错误码、V3 行为变化、保存禁止票务信息或把 service number/原始 segment 传给模型，立即停止，不用测试调整掩盖。
+
+## F-006 组合式离线验收与交付矩阵（Step 1 冻结）
+
+### 分层矩阵
+
+| 风险面 | 最低层级 | 必须通过 | 必须能抓住的反例 |
+| --- | --- | --- | --- |
+| 无配置终态 | application/API/SQLite | legacy/V2/V3/V4 都经历 `draft→normalizing→failed`，同 shape `configuration_missing`、不可重试、零 Provider/Agent/runtime call | 留在 draft、直接非法跳转、错误版本 result、泄露配置、调用 fake/Provider |
+| 配置分类 | bootstrap | 全空/缺必要 adapter 使用 unavailable executor；完整组合使用 live executor；既有部分/非法配置仍启动 fail closed | 吞掉非法配置、错误启用 live adapter、optional executor 进入 production |
+| 产品模式 | frontend component/parser | 三个产品标签、手工=V3、已购=V4、单城市由 `endDateEdited` 选择 legacy/V2 | 可见内部版本、按最终天数重算、切换后携带不兼容段/free text |
+| canonical 恢复 | hook/API client | canonical→旧 V4→旧 V3；严格 GET 决定版本；成功迁移；localStorage 异常不阻断 | key 名推版本、保存 request/result、旧 key 覆盖 canonical、异常使提交失败 |
+| pointer 失效 | hook/component | 非法 UUID 网络前清理；404/过期清理且不显示缓存；网络/5xx/parse 错误保留 | 对非法 UUID 发请求、展示旧缓存、暂时错误丢失恢复入口 |
+| terminal DELETE | API client/component/SQLite | 仅终态按钮、inline confirm/cancel/Escape/focus、204 后清 pointer、失败保留 | nonterminal 当取消、原生 confirm、失败清 pointer、批量/清库能力 |
+| 局部 UX/a11y | component/browser | processing/paused/五终态层级、unknown/source、单 live region、label/error、44px、contrast、390px | 色彩唯一语义、重复播报、焦点丢失、横向溢出、错误按钮层级 |
+| replan 兼容 | API/frontend | legacy/V2 两日原行为；V2 3–7 日 scope 拒绝；V3/V4 写前拒绝 | 两日入口丢失、多日/多城市显示 replan、拒绝后产生任何 replan/decision/lineage/write |
+| PowerShell runner | script contract/process test | 固定版本/端口、冲突 fail closed、health 顺序、提前退出/SQLite 错误、Ctrl+C 精确收口 | 杀既有进程、非 loopback、自动联网安装、raw error/秘密、遗留子进程 |
+| 离线真实性 | full gate/browser | F-005 48-case 不变；所有 synthetic/loopback 网络清单可审计 | 访问业务 Provider、重标离线为 live UAT、fixture/日志含秘密或真实票务信息 |
+
+### 组合式 journey 集
+
+新增不少于 12 个固定 synthetic journey；用参数化的低层测试覆盖全版本，不用浏览器制造版本×状态全笛卡尔积。最小 case 族为：
+
+1. 四版本无配置安全失败与零调用；
+2. 单城市默认双日 legacy ready/reload 与 F-003 replan；
+3. 单城市显式结束日期 V2 两日 ready/reload/replan，以及 V2 多日范围说明和拒绝；
+4. 手工多城市 V3 partial/unknown/source/reload 与 replan 拒绝；
+5. 已购铁路 V4 partial/unknown fare/未核验/privacy/reload 与 replan 拒绝；
+6. `needs_input` 首错、返回修改和焦点；
+7. `conflict` 不伪造 ready/plan；
+8. 可重试暂时 `failed`、retry/reload 与 attempt 上限；
+9. 不可重试 `configuration_missing` 无 retry；
+10. canonical pointer、旧 V4/旧 V3 迁移和 canonical 优先；
+11. 非法/404/过期 pointer 清理，以及暂时网络错误保留；
+12. terminal DELETE 的确认、取消、成功和失败；
+13. processing/paused 的手动继续、无 DELETE；
+14. localStorage 不可用时仍可创建/读取任务。
+
+case 可以组合多个相邻断言，但不得用 fixture 自报终态、来源或预算来代替真实 application/API/Repository 入口。所有 ID、城市、车次和时间必须明显 synthetic；不得保存真实 Provider response、订单、截图或凭证。
+
+### 纵向、浏览器与 runner 验收
+
+- 使用全新临时 schema v2 SQLite，确认 migration 仍只有 1/2，并覆盖四版本 create/read/restart/retry/delete、30 天过期 pointer 的 404 行为和级联删除；不得修改 schema 或创建 migration；
+- loopback browser 的代表性 journey 在 desktop 与 390px 验证键盘/焦点/live region/label-error/44px/对比/overflow；console error/warning 为 0，网络清单除页面自身 loopback 外为 0；
+- runner 合约测试用受控 synthetic child/process probe 覆盖版本错、8000/5173 冲突、后端/前端提前退出、health 超时、SQLite 初始化失败和 Ctrl+C；断言只停止记录的 child PID，不接触既有 listener；
+- clean-checkout 先尝试已缓存 frozen 安装；只有缓存缺失且 Step 6 已获批准时，才能访问项目已配置的软件包仓库并在 evidence 记录。Provider host、Key、`.env.local` 内容和业务请求始终禁止；
+- 独立隐私安全审查必须覆盖 localStorage、SQLite、DOM、console、runner 输出、fixture、CI artifact 和 Agent context。通过结论明确为 `LOCAL_ACCEPTANCE_PASS`，不等同真实 Provider UAT。
+
+### 四层测试/文件归属
+
+- Stack 1：安全 unavailable executor、bootstrap/application/API/Repository 四版本回归；
+- Stack 2：三产品模式、内部版本映射、状态/结果/来源/预算/冲突层级和组件 accessibility；
+- Stack 3：canonical/旧 pointer、reload/retry/DELETE、focus、replan 可见性和组合 journey；后层修改 Stack 2 文件只能用于最小动作 props/确认态；
+- Stack 4：`run-local.ps1` 与进程合约、统一 synthetic/browser helper、临时 SQLite/clean-checkout/desktop/390px/privacy 和交付文档。
+
+每层独立运行其直接测试与全部向下兼容回归；Step 7 前再运行完整 backend/frontend/docs/F-005 eval/build 门禁。规模和受控相邻扩展继续执行 D-017 阈值，不能用生成文件或拆小测试名规避。

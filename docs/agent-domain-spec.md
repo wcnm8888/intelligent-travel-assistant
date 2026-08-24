@@ -252,7 +252,16 @@ Step 4 已按上述边界实现：V2 `PlanningContext` 显式携带完整日期�
 
 Step 4 实现保持单 Agent 和单 governor：城市事实 fan-out 与路线并发分别由两个上限为 2 的 semaphore 约束，模型 generation/repair 不按城市倍增。V3 parser 逐日核对三个城市索引和 POI 城市；repair 只接收安全诊断与清除自由文本、兴趣和硬约束后的结构上下文，不接收原始模型输出。deadline 耗尽后不启动首个调用，取消会 cancel/drain 在途 route peer 并使 active 计数归零。所有证据来自 fake/MockTransport 边界，不构成真实 Provider 或城际 availability 证明。
 
-后续 Step 5–8 已完成 V3 前端、临时 SQLite/loopback 验收、独立隐私兼容审查、四层交付和归档；没有新增 Agent、Provider、Schema、依赖或真实调用。F-005 Step 0–9 已完成并归档：统一 resilience/freshness/attempt 契约已接入 legacy/V2/V3，bounded proposal/repair、固定离线 eval 和同 shape 前端恢复语义已交付；F-004B2 Provider/法律 Gate 已阻塞并归档，没有实现真实城际 Provider 或 UAT。F-004C Step 0–6 已完成并归档：V4 application 复用既有多城市规划，但在 Agent 边界前剥离 `service_number` 和完整 segment，并从 typed request 在结果侧确定性重建；V4 preferences 只允许 interests，`free_text` / `hard_constraints` 在 strict contract/API 边界拒绝，内部 projection 也只复制 interests；前端只消费 strict typed V4 结果并保留未核验语义。城际 Provider logical call/HTTP attempt 均保持 0，Agent context sentinel 与隐私安全复审均通过；PR #34/#35/#36 已依序合并，最终 main CI run `32484789531` success。当前没有活动任务。
+后续 Step 5–8 已完成 V3 前端、临时 SQLite/loopback 验收、独立隐私兼容审查、四层交付和归档；没有新增 Agent、Provider、Schema、依赖或真实调用。F-005 Step 0–9 已完成并归档：统一 resilience/freshness/attempt 契约已接入 legacy/V2/V3，bounded proposal/repair、固定离线 eval 和同 shape 前端恢复语义已交付；F-004B2 Provider/法律 Gate 已阻塞并归档，没有实现真实城际 Provider 或 UAT。F-004C Step 0–6 已完成并归档：V4 application 复用既有多城市规划，但在 Agent 边界前剥离 `service_number` 和完整 segment，并从 typed request 在结果侧确定性重建；V4 preferences 只允许 interests，`free_text` / `hard_constraints` 在 strict contract/API 边界拒绝，内部 projection 也只复制 interests；前端只消费 strict typed V4 结果并保留未核验语义。城际 Provider logical call/HTTP attempt 均保持 0，Agent context sentinel 与隐私安全复审均通过；PR #34/#35/#36 已依序合并，归档 PR #37 已合并，最终归档 main `b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`、CI run `32486428083` success。F-006 Step 0–3 已完成；无配置安全 executor 在 Agent/tooling 之前结束任务，Step 3 只消费既有 typed 结果并调整前端语言/层级，未新增 Agent、Provider 或工具能力。
+
+## F-006 Agent 与 Provider 零扩张边界（Step 1 冻结）
+
+- 三种产品模式只在前端和 strict request 选择层存在；Agent 不读取产品模式文案，也不能选择 legacy/V2/V3/V4。application 从已验证 typed request 构造既有 bounded context；
+- 无凭证/必要 adapter 组合不完整时，安全 unavailable executor 在进入任何 Agent planning、governor、attempt runtime、proposal 或 repair 之前结束任务。固定 `configuration_missing` 结果不得由模型生成、解释或修复；
+- V4 继续只把 interests 投影到 Agent；`service_number`、完整城际段、订单/乘客/证件/座位/二维码/Cookie/自由文本继续禁止。F-006 不为恢复、DELETE 或 runner 增加 Agent/tool capability；
+- localStorage pointer、恢复 GET、DELETE、focus、live region 和 PowerShell 进程控制都属于前端/本地 runtime，不进入 PlanningContext、generation/repair、工具记录或 Agent eval payload；
+- legacy replan 维持既有 deterministic impact/confirmation/execute 边界；V2/V3/V4 不因 UI 收口获得新的 Agent replan scope，V3/V4 继续在 Agent 或 Provider 之前拒绝；
+- F-006 组合 journey 只能用既有 fake/MockTransport/synthetic executor。保留 F-005 固定 48-case 的工具越权、来源伪造、预算和假 ready 硬门禁；新 journey 不修改其 case、阈值或把离线结果当作 live 质量证明。
 
 ## 日志与追踪
 
