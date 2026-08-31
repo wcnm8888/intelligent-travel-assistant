@@ -285,6 +285,21 @@ def test_each_route_attempt_timeout_starts_after_its_external_admission_wait() -
     assert governor.snapshot().active_route_calls == 0
 
 
+def test_initial_route_admission_wait_can_be_deferred_before_attempt_start() -> None:
+    clock = ManualClock()
+    governor = ToolCallGovernor(clock=clock)
+    permit = governor.reserve(
+        ToolCallCapability.CALCULATE_ROUTES,
+        PlanningStatus.ENRICHING_ROUTES,
+    )
+
+    governor.defer_route_attempt_timeout_until_start(permit)
+    clock.advance(6.001)
+    governor.complete(permit)
+
+    assert governor.snapshot().active_route_calls == 0
+
+
 def test_route_attempt_reports_when_its_fixed_timeout_is_exceeded() -> None:
     clock = ManualClock()
     governor = ToolCallGovernor(clock=clock)

@@ -699,6 +699,7 @@ async def _governed_call[T](
             (),
         )
 
+    operation_failed = False
     try:
         if attempt_runtime is None:
             result = await operation()
@@ -709,12 +710,17 @@ async def _governed_call[T](
                 provider is Provider.AMAP
                 and provider_operation is ProviderOperation.CALCULATE_ROUTES
             )
+            if paced_route:
+                governor.defer_route_attempt_timeout_until_start(permit)
             outcome = await attempt_runtime.execute(
                 provider=provider,
                 operation=provider_operation,
                 call=operation_after_pacing_wait if paced_route else operation,
             )
             result = provider_result_from_attempt_outcome(outcome)
+    except BaseException:
+        operation_failed = True
+        raise
     finally:
         try:
             governor.complete(permit)
@@ -724,7 +730,9 @@ async def _governed_call[T](
                 and result.error is not None
                 and result.error.category is ProviderErrorCategory.TIMEOUT
             )
-            if error.code is not ToolCallGovernanceErrorCode.CALL_TIMEOUT or not provider_timeout:
+            if not operation_failed and (
+                error.code is not ToolCallGovernanceErrorCode.CALL_TIMEOUT or not provider_timeout
+            ):
                 raise
     assert result is not None
     return result

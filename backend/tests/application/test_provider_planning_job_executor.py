@@ -917,6 +917,77 @@ def test_route_pacing_waits_do_not_consume_each_attempt_timeout() -> None:
     assert governor.snapshot().active_route_calls == 0
 
 
+def test_cancelled_initial_route_pacing_wait_propagates_without_starting_http() -> None:
+    async def scenario() -> tuple[ToolCallGovernor, ProviderAttemptRuntime, int]:
+        clock = _ManualMonotonicClock()
+        sleeps = 0
+
+        async def cancelling_oversleep(delay: float) -> None:
+            nonlocal sleeps
+            if delay == 0:
+                return
+            sleeps += 1
+            clock.advance(delay + 90.0)
+            raise asyncio.CancelledError
+
+        policy = attempt_pacing_policy_for(
+            Provider.AMAP,
+            ProviderOperation.CALCULATE_ROUTES,
+        )
+        assert policy is not None
+        shared_limiter = PacedAttemptLimiter(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            policy=policy,
+            clock=clock,
+            sleeper=cancelling_oversleep,
+        )
+        seeded = await shared_limiter.acquire(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            latest_start_at=90.0,
+        )
+        assert seeded.started_at == 0.0
+        runtime = ProviderAttemptRuntime(
+            clock=clock,
+            sleeper=cancelling_oversleep,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+            attempt_limiter=shared_limiter,
+        )
+        governor = ToolCallGovernor(clock=clock)
+        http_attempts = 0
+
+        async def forbidden_http_attempt() -> ProviderResult[str]:
+            nonlocal http_attempts
+            http_attempts += 1
+            return _result(Provider.AMAP, "unreachable", "unreachable")
+
+        with pytest.raises(asyncio.CancelledError):
+            await _governed_call(
+                governor,
+                ToolCallCapability.CALCULATE_ROUTES,
+                PlanningStatus.ENRICHING_ROUTES,
+                forbidden_http_attempt,
+                attempt_runtime=runtime,
+                provider=Provider.AMAP,
+                provider_operation=ProviderOperation.CALCULATE_ROUTES,
+            )
+
+        assert sleeps == 1
+        assert clock.value == 90.5
+        return governor, runtime, http_attempts
+
+    governor, runtime, http_attempts = asyncio.run(scenario())
+
+    assert http_attempts == 0
+    assert governor.snapshot().active_route_calls == 0
+    assert governor.snapshot().count_for(ToolCallCapability.CALCULATE_ROUTES) == 1
+    assert runtime.snapshot().task_extra_attempts == 0
+    assert runtime.snapshot().active_executions == 0
+    assert runtime.snapshot().closed is True
+
+
 def test_cancelled_retry_pacing_wait_does_not_reopen_a_finished_attempt_timeout() -> None:
     async def scenario() -> None:
         clock = _ManualMonotonicClock()
