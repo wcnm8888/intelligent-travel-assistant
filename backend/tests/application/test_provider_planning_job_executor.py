@@ -5,6 +5,7 @@ import json
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from itertools import pairwise
 from pathlib import Path
 from typing import cast
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -48,8 +49,14 @@ from intelligent_travel_assistant.application.services import (
     OfflinePlanningOrchestrator,
     ProviderPlanningJobExecutor,
 )
+from intelligent_travel_assistant.application.services.offline_planning import _governed_call
 from intelligent_travel_assistant.application.tooling import (
+    ROUTE_CONCURRENCY_LIMIT,
+    PacedAttemptLimiter,
     ProviderAttemptRuntime,
+    ProviderAttemptRuntimeError,
+    ProviderAttemptRuntimeErrorCode,
+    ToolCallCapability,
     ToolCallGovernor,
 )
 from intelligent_travel_assistant.contracts import (
@@ -71,11 +78,13 @@ from intelligent_travel_assistant.domain import (
     ProviderError,
     ProviderErrorCategory,
     ProviderErrorReason,
+    ProviderOperation,
     ProviderResult,
     ProviderResultStatus,
     RouteLeg,
     RouteMode,
     SourceRecord,
+    attempt_pacing_policy_for,
 )
 
 NOW = datetime(2026, 8, 14, 2, tzinfo=UTC)
@@ -90,6 +99,17 @@ POI_TWO_ID = UUID("90000000-0000-4000-8000-000000000003")
 HOTEL_COORDS = Coordinates(Decimal("120.15"), Decimal("30.25"), CoordinateSystem.PROVIDER_NATIVE)
 POI_ONE_COORDS = Coordinates(Decimal("120.16"), Decimal("30.24"), CoordinateSystem.PROVIDER_NATIVE)
 POI_TWO_COORDS = Coordinates(Decimal("120.14"), Decimal("30.26"), CoordinateSystem.PROVIDER_NATIVE)
+
+
+class _ManualMonotonicClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
+
+    def advance(self, seconds: float) -> None:
+        self.value += seconds
 
 
 def _source(provider: Provider, suffix: str, *, attribution: bool = False) -> SourceRecord:
@@ -197,6 +217,34 @@ class _RaisingRoutePeerFakeAmap(FakeAmapAdapter):
             raise
         self.peer_completed = True
         return self._calculate_routes.take()
+
+
+class _TimedRouteFakeAmap(FakeAmapAdapter):
+    __slots__ = ("_route_start_clock", "_route_starts")
+
+    def __init__(
+        self,
+        *,
+        route_start_clock: Callable[[], float],
+        route_starts: list[tuple[float, RouteMode]],
+        resolve_city_results: tuple[ProviderResult[CityResolution], ...] | None = None,
+        search_pois_results: tuple[ProviderResult[PoiSearchResult], ...] | None = None,
+        calculate_routes_results: tuple[ProviderResult[RouteLeg], ...] | None = None,
+    ) -> None:
+        super().__init__(
+            resolve_city_results=resolve_city_results,
+            search_pois_results=search_pois_results,
+            calculate_routes_results=calculate_routes_results,
+        )
+        self._route_start_clock = route_start_clock
+        self._route_starts = route_starts
+
+    async def calculate_routes(
+        self,
+        request: RouteCalculationRequest,
+    ) -> ProviderResult[RouteLeg]:
+        self._route_starts.append((self._route_start_clock(), request.mode))
+        return await super().calculate_routes(request)
 
 
 def _request(
@@ -490,6 +538,8 @@ async def _execute(
     resolve_city_results_override: tuple[ProviderResult[CityResolution], ...] | None = None,
     cancel_when: asyncio.Event | None = None,
     executor_clock_values: tuple[datetime, ...] | None = None,
+    route_start_clock: Callable[[], float] | None = None,
+    route_starts: list[tuple[float, RouteMode]] | None = None,
 ) -> tuple[PlanningJob, FakeAmapAdapter, InMemoryPlanningJobRepository]:
     accommodation_result = _result(
         Provider.AMAP,
@@ -525,6 +575,11 @@ async def _execute(
         (HOTEL_ID, POI_TWO_ID, 30),
         (POI_TWO_ID, HOTEL_ID, 32),
     )
+    requested_route_mode = (
+        RouteMode.PUBLIC_TRANSIT
+        if TransportMode.PUBLIC_TRANSIT in transport_modes
+        else RouteMode.WALKING
+    )
     routes = route_results_override or tuple(
         ProviderResult(
             ProviderResultStatus.OK,
@@ -532,7 +587,7 @@ async def _execute(
             RouteLeg(
                 origin,
                 destination,
-                RouteMode.PUBLIC_TRANSIT,
+                requested_route_mode,
                 3000,
                 minutes,
                 (route_source.source_id,),
@@ -545,25 +600,35 @@ async def _execute(
         )
         for origin, destination, minutes in route_pairs
     )
-    amap_type: type[FakeAmapAdapter]
-    if raising_route_peer:
-        amap_type = _RaisingRoutePeerFakeAmap
-    elif wrong_route_provider:
-        amap_type = _WrongProviderRouteFakeAmap
-    else:
-        amap_type = FakeAmapAdapter
-    amap = amap_type(
-        resolve_city_results=resolve_city_results_override
-        or (
-            _result(
-                Provider.AMAP,
-                CityResolution("杭州市", "330100", "0571", HOTEL_COORDS),
-                "city",
-            ),
+    resolve_city_results = resolve_city_results_override or (
+        _result(
+            Provider.AMAP,
+            CityResolution("杭州市", "330100", "0571", HOTEL_COORDS),
+            "city",
         ),
-        search_pois_results=(accommodation_result, poi_result),
-        calculate_routes_results=routes,
     )
+    if route_start_clock is not None:
+        assert route_starts is not None
+        amap: FakeAmapAdapter = _TimedRouteFakeAmap(
+            route_start_clock=route_start_clock,
+            route_starts=route_starts,
+            resolve_city_results=resolve_city_results,
+            search_pois_results=(accommodation_result, poi_result),
+            calculate_routes_results=routes,
+        )
+    else:
+        amap_type: type[FakeAmapAdapter]
+        if raising_route_peer:
+            amap_type = _RaisingRoutePeerFakeAmap
+        elif wrong_route_provider:
+            amap_type = _WrongProviderRouteFakeAmap
+        else:
+            amap_type = FakeAmapAdapter
+        amap = amap_type(
+            resolve_city_results=resolve_city_results,
+            search_pois_results=(accommodation_result, poi_result),
+            calculate_routes_results=routes,
+        )
     qweather = FakeQWeatherAdapter(
         weather_forecast_results=(
             weather_forecast_override
@@ -701,6 +766,346 @@ def test_executor_owns_and_closes_exactly_one_attempt_runtime_before_publishing(
     assert snapshot.closed is True
     assert snapshot.active_executions == 0
     assert snapshot.records
+
+
+def test_two_concurrent_planning_jobs_share_one_paced_route_timeline_without_burst() -> None:
+    async def scenario() -> tuple[
+        list[tuple[float, RouteMode]],
+        list[ProviderAttemptRuntime],
+    ]:
+        clock = _ManualMonotonicClock()
+
+        async def advancing_sleep(delay: float) -> None:
+            clock.advance(delay)
+            await asyncio.sleep(0)
+
+        policy = attempt_pacing_policy_for(
+            Provider.AMAP,
+            ProviderOperation.CALCULATE_ROUTES,
+        )
+        assert policy is not None
+        shared_limiter = PacedAttemptLimiter(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            policy=policy,
+            clock=clock,
+            sleeper=advancing_sleep,
+        )
+        runtimes: list[ProviderAttemptRuntime] = []
+
+        def runtime_factory(task_timeout_seconds: object) -> ProviderAttemptRuntime:
+            assert isinstance(task_timeout_seconds, float)
+            value = ProviderAttemptRuntime(
+                clock=clock,
+                sleeper=advancing_sleep,
+                jitter=lambda: 0.0,
+                task_timeout_seconds=task_timeout_seconds,
+                attempt_limiter=shared_limiter,
+            )
+            runtimes.append(value)
+            return value
+
+        route_starts: list[tuple[float, RouteMode]] = []
+        await asyncio.gather(
+            _execute(
+                attempt_runtime_factory=runtime_factory,
+                transport_modes=(TransportMode.PUBLIC_TRANSIT,),
+                route_start_clock=clock,
+                route_starts=route_starts,
+            ),
+            _execute(
+                attempt_runtime_factory=runtime_factory,
+                transport_modes=(TransportMode.WALKING,),
+                route_start_clock=clock,
+                route_starts=route_starts,
+            ),
+        )
+        return route_starts, runtimes
+
+    route_starts, runtimes = asyncio.run(scenario())
+    start_times = [started_at for started_at, _mode in route_starts]
+
+    assert ROUTE_CONCURRENCY_LIMIT == 2
+    assert len(runtimes) == 2
+    assert len(route_starts) == 8
+    assert {mode for _started_at, mode in route_starts} == {
+        RouteMode.WALKING,
+        RouteMode.PUBLIC_TRANSIT,
+    }
+    assert start_times == [index * 0.5 for index in range(8)]
+    assert all(later - earlier >= 0.5 for earlier, later in pairwise(start_times))
+    for window_start in start_times:
+        assert (
+            sum(window_start <= started_at < window_start + 1.0 for started_at in start_times) <= 2
+        )
+    assert all(runtime.snapshot().closed for runtime in runtimes)
+    assert all(runtime.snapshot().active_executions == 0 for runtime in runtimes)
+
+
+def test_route_pacing_waits_do_not_consume_each_attempt_timeout() -> None:
+    async def scenario() -> tuple[ProviderResult[str], ToolCallGovernor, float]:
+        clock = _ManualMonotonicClock()
+
+        async def advancing_sleep(delay: float) -> None:
+            clock.advance(delay)
+
+        policy = attempt_pacing_policy_for(
+            Provider.AMAP,
+            ProviderOperation.CALCULATE_ROUTES,
+        )
+        assert policy is not None
+        shared_limiter = PacedAttemptLimiter(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            policy=policy,
+            clock=clock,
+            sleeper=advancing_sleep,
+        )
+        seeded = await shared_limiter.acquire(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            latest_start_at=90.0,
+        )
+        assert seeded.started_at == 0.0
+        runtime = ProviderAttemptRuntime(
+            clock=clock,
+            sleeper=advancing_sleep,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+            attempt_limiter=shared_limiter,
+        )
+        governor = ToolCallGovernor(clock=clock)
+
+        remaining = iter(
+            (
+                ProviderResult(
+                    ProviderResultStatus.UNAVAILABLE,
+                    Provider.AMAP,
+                    None,
+                    None,
+                    None,
+                    (),
+                    ProviderError(ProviderErrorCategory.SERVER),
+                    (),
+                ),
+                _result(Provider.AMAP, "paced route", "paced-route"),
+            )
+        )
+
+        async def retry_then_slow_success() -> ProviderResult[str]:
+            result = next(remaining)
+            if result.status is ProviderResultStatus.OK:
+                clock.advance(5.75)
+            return result
+
+        result = await _governed_call(
+            governor,
+            ToolCallCapability.CALCULATE_ROUTES,
+            PlanningStatus.ENRICHING_ROUTES,
+            retry_then_slow_success,
+            attempt_runtime=runtime,
+            provider=Provider.AMAP,
+            provider_operation=ProviderOperation.CALCULATE_ROUTES,
+        )
+        return result, governor, clock.value
+
+    result, governor, elapsed = asyncio.run(scenario())
+
+    assert result.status is ProviderResultStatus.OK
+    assert elapsed == 6.75
+    assert governor.snapshot().count_for(ToolCallCapability.CALCULATE_ROUTES) == 1
+    assert governor.snapshot().active_route_calls == 0
+
+
+def test_cancelled_initial_route_pacing_wait_propagates_without_starting_http() -> None:
+    async def scenario() -> tuple[ToolCallGovernor, ProviderAttemptRuntime, int]:
+        clock = _ManualMonotonicClock()
+        sleeps = 0
+
+        async def cancelling_oversleep(delay: float) -> None:
+            nonlocal sleeps
+            if delay == 0:
+                return
+            sleeps += 1
+            clock.advance(delay + 90.0)
+            raise asyncio.CancelledError
+
+        policy = attempt_pacing_policy_for(
+            Provider.AMAP,
+            ProviderOperation.CALCULATE_ROUTES,
+        )
+        assert policy is not None
+        shared_limiter = PacedAttemptLimiter(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            policy=policy,
+            clock=clock,
+            sleeper=cancelling_oversleep,
+        )
+        seeded = await shared_limiter.acquire(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            latest_start_at=90.0,
+        )
+        assert seeded.started_at == 0.0
+        runtime = ProviderAttemptRuntime(
+            clock=clock,
+            sleeper=cancelling_oversleep,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+            attempt_limiter=shared_limiter,
+        )
+        governor = ToolCallGovernor(clock=clock)
+        http_attempts = 0
+
+        async def forbidden_http_attempt() -> ProviderResult[str]:
+            nonlocal http_attempts
+            http_attempts += 1
+            return _result(Provider.AMAP, "unreachable", "unreachable")
+
+        with pytest.raises(asyncio.CancelledError):
+            await _governed_call(
+                governor,
+                ToolCallCapability.CALCULATE_ROUTES,
+                PlanningStatus.ENRICHING_ROUTES,
+                forbidden_http_attempt,
+                attempt_runtime=runtime,
+                provider=Provider.AMAP,
+                provider_operation=ProviderOperation.CALCULATE_ROUTES,
+            )
+
+        assert sleeps == 1
+        assert clock.value == 90.5
+        return governor, runtime, http_attempts
+
+    governor, runtime, http_attempts = asyncio.run(scenario())
+
+    assert http_attempts == 0
+    assert governor.snapshot().active_route_calls == 0
+    assert governor.snapshot().count_for(ToolCallCapability.CALCULATE_ROUTES) == 1
+    assert runtime.snapshot().task_extra_attempts == 0
+    assert runtime.snapshot().active_executions == 0
+    assert runtime.snapshot().closed is True
+
+
+def test_cancelled_retry_pacing_wait_does_not_reopen_a_finished_attempt_timeout() -> None:
+    async def scenario() -> None:
+        clock = _ManualMonotonicClock()
+        holder: list[ProviderAttemptRuntime] = []
+        sleeps = 0
+
+        async def closing_oversleep(delay: float) -> None:
+            nonlocal sleeps
+            if delay == 0:
+                return
+            sleeps += 1
+            clock.advance(delay if sleeps == 1 else delay + 6.0)
+            if sleeps == 2:
+                await holder[0].close()
+
+        policy = attempt_pacing_policy_for(
+            Provider.AMAP,
+            ProviderOperation.CALCULATE_ROUTES,
+        )
+        assert policy is not None
+        shared_limiter = PacedAttemptLimiter(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            policy=policy,
+            clock=clock,
+            sleeper=closing_oversleep,
+        )
+        seeded = await shared_limiter.acquire(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            latest_start_at=90.0,
+        )
+        assert seeded.started_at == 0.0
+        runtime = ProviderAttemptRuntime(
+            clock=clock,
+            sleeper=closing_oversleep,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+            attempt_limiter=shared_limiter,
+        )
+        holder.append(runtime)
+        governor = ToolCallGovernor(clock=clock)
+        remaining = iter(
+            (
+                ProviderResult(
+                    ProviderResultStatus.UNAVAILABLE,
+                    Provider.AMAP,
+                    None,
+                    None,
+                    None,
+                    (),
+                    ProviderError(ProviderErrorCategory.SERVER),
+                    (),
+                ),
+                _result(Provider.AMAP, "unreachable", "unreachable"),
+            )
+        )
+
+        async def retry_then_forbidden_success() -> ProviderResult[str]:
+            return next(remaining)
+
+        with pytest.raises(ProviderAttemptRuntimeError) as raised:
+            await _governed_call(
+                governor,
+                ToolCallCapability.CALCULATE_ROUTES,
+                PlanningStatus.ENRICHING_ROUTES,
+                retry_then_forbidden_success,
+                attempt_runtime=runtime,
+                provider=Provider.AMAP,
+                provider_operation=ProviderOperation.CALCULATE_ROUTES,
+            )
+
+        assert raised.value.code is ProviderAttemptRuntimeErrorCode.RUNTIME_CLOSED
+        assert clock.value == 7.0
+        assert governor.snapshot().active_route_calls == 0
+
+    asyncio.run(scenario())
+
+
+def test_slow_route_attempt_is_normalized_to_provider_timeout() -> None:
+    async def scenario() -> tuple[ProviderResult[str], int]:
+        clock = _ManualMonotonicClock()
+
+        async def advancing_sleep(delay: float) -> None:
+            clock.advance(delay)
+
+        runtime = ProviderAttemptRuntime(
+            clock=clock,
+            sleeper=advancing_sleep,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+        )
+        governor = ToolCallGovernor(clock=clock)
+        attempts = 0
+
+        async def slow_success() -> ProviderResult[str]:
+            nonlocal attempts
+            attempts += 1
+            clock.advance(6.001)
+            return _result(Provider.AMAP, "too slow", "too-slow")
+
+        result = await _governed_call(
+            governor,
+            ToolCallCapability.CALCULATE_ROUTES,
+            PlanningStatus.ENRICHING_ROUTES,
+            slow_success,
+            attempt_runtime=runtime,
+            provider=Provider.AMAP,
+            provider_operation=ProviderOperation.CALCULATE_ROUTES,
+        )
+        return result, attempts
+
+    result, attempts = asyncio.run(scenario())
+
+    assert attempts == 2
+    assert result.status is ProviderResultStatus.UNAVAILABLE
+    assert result.error is not None
+    assert result.error.category is ProviderErrorCategory.TIMEOUT
 
 
 def test_executor_projects_sources_fetched_after_task_start_without_internal_failure() -> None:

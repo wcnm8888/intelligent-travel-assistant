@@ -314,6 +314,23 @@ class ToolCallGovernor:
             self._active_route_calls += 1
         return permit
 
+    def defer_route_attempt_timeout_until_start(self, permit: ToolCallPermit) -> None:
+        """Exclude initial external admission wait from the first route-attempt timeout."""
+
+        capability = permit.capability if isinstance(permit, ToolCallPermit) else None
+        if not isinstance(permit, ToolCallPermit) or (
+            permit.governor_id != self._governor_id
+            or permit.permit_id not in self._active_permits
+            or permit.capability is not ToolCallCapability.CALCULATE_ROUTES
+            or permit.permit_id in self._active_route_attempts
+            or self._active_call_started_at[permit.permit_id] is None
+        ):
+            raise ToolCallGovernanceError(
+                ToolCallGovernanceErrorCode.PERMIT_INVALID,
+                capability,
+            )
+        self._active_call_started_at[permit.permit_id] = None
+
     def start_route_attempt_timeout_after_wait(self, permit: ToolCallPermit) -> None:
         """Start each route HTTP-attempt timeout after its external admission wait."""
 

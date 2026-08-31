@@ -1,5 +1,140 @@
 # 验收证据索引
 
+## F-007 Step 8A：初次 limiter waiter 取消传播最小修复
+
+- 日期：2026-08-31；结论：`DONE / PASS / OFFLINE ONLY`。不改写 Step 6 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 或 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；
+- 前置：#43 squash merge commit `6252193b8d3f3ed07498ff318e09b02edaca4889`，main CI `33365971491` success；#45 从该干净 main clean-restack 并替代仍 OPEN 的 #44；
+- TDD：RED `1 failed / 37 deselected`，原始 `CancelledError` 被 `ToolCallGovernor.complete()` 覆盖为 `TASK_TIMEOUT`；GREEN 将初次 route attempt timer 延后到真实 attempt start，并在已有业务/运行时异常时仅执行 permit 清理；
+- 语义：初次 limiter waiter 取消原样传播，HTTP attempt=0、retry budget=0、active runtime=0、active route calls=0；retry wait、实际 attempt timeout、deadline、non-route 与 0.5 秒无突发规则不变；
+- 本地：聚焦 `8 passed`、相关 `159 passed`、后端 `1426 passed`；Ruff format/check 与 strict mypy 150 文件通过；前端 `132 passed`，Prettier/ESLint/TypeScript/build 通过；文档检查和 checker `24 tests / OK`；
+- Git/review/CI：普通追加提交 `f87332c7f442429e03aac296f533517ec85721ad` 已推送并更新 #45 body；独立只读 review `NO_P0_P1`；Windows offline CI run `33375683517` / job `99436524161` success；
+- 范围：Step 8A 生产/测试为 4 文件、`+112/-1`、净新增 111 行；加治理文档后 Stack 2 为 16 文件/净新增 1303 行，任务累计 24 文件/净新增 2154 行，低于全部阈值；
+- 边界：Schema version 2、migration 1/2、依赖/lockfile、公开 API shape 与 Provider 数据边界无变化；没有读取秘密、调用真实 Provider、创建或修改项目数据库、merge、关闭 #44、归档或进入 F-008/F-009；
+- 服务偏差：准入时 8000/5173 已无监听，用户明确豁免条件 9；本步骤没有启动、停止或重启服务；
+- 下一入口：#44/#45 保持 OPEN，等待用户重新批准恢复 Step 8。
+
+## F-007 Step 7：本地全量门禁、独立 review 与两层交付
+
+- 日期：2026-08-31；结论：`DONE / PASS / OFFLINE DELIVERY`。不改写 Step 6 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 或 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；
+- Git/PR：Stack 1 提交 `c73cd7f2de51d95c34e10b8f115032df851d2727`，Draft PR #43 base `main`；Stack 2 提交 `273231ad45a424e6b73894669e9041e915b3383f`，Draft PR #44 base `feat/f-007-amap-qps-policy-runtime`；两者均 OPEN，未 merge；
+- 本地门禁：Python 3.13.3、Node 22.16.0、pnpm 11.19.0；后端 `1424 passed`，前端 `13 files / 132 tests`，Ruff format/check、strict mypy、Prettier、ESLint、TypeScript、Vite build、文档检查与 `git diff --check` 通过；
+- runner 环境事实：统一入口只有 `test_runner_preflight_uses_installed_offline_runtimes_without_starting_services` 因受保护的本机 8000 端口占用而按设计 fail closed，明确没有停止既有进程；其余文档/runner `28 tests / OK`；
+- 独立复审：初次发现 limiter admission wait 会侵占 6 秒 attempt timeout；后续继续发现 retry wait 误计已完成 attempt、stale permit 状态与超过 6 秒 attempt 规范化缺口。修复建立 governor-owned start/finish 生命周期、每 attempt 独立计时、取消原样传播和 TIMEOUT 规范化，最终只读复审结论 `FIXED`；
+- 远程 CI：PR #43 run `33363974674` / job `99400728962` success（5m28s）；PR #44 run `33364033165` / job `99400899510` success（5m37s）；均为 Windows offline verification；
+- 规模：Stack 1 为 10 文件、`+890/-39`、净新增 851 行；Stack 2 为 14 文件、`+1282/-135`、净新增 1147 行；任务累计 24 文件、净新增 1998 行，低于 12/1000、18/1400、30/2200 阈值；受控相邻扩展为 governance/planning timeout lifecycle 与直接回归，未预期生产/测试文件未超过 4；
+- 边界：SQLite schema version 2、migration 1/2、依赖、lockfile、公开 API shape、Provider/account/key/QPS/配额/计费和数据留存边界均未变化；未读取秘密、调用真实 Provider、创建数据库、停止/重启现有服务或访问非 loopback 业务网络；
+- 下一入口：Step 8 `TODO / BLOCKED_BY_APPROVAL`。必须等待用户单独批准后才可依序 merge、必要 clean-restack、最终 main CI、归档和关闭；不得进入 F-008。
+
+## F-007 Step 6：真实 UAT Gate 如实收口
+
+- 日期：2026-08-31；结论：`UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，不得表述为 QPS PASS；
+- 保留事实：2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 继续有效，不被后续离线证据或补充观察覆盖；
+- 积极补充证据：2026-08-31 观察到 0.50–0.52 秒间隔，且未出现 `provider_rate_limited`；这些观察支持进程内 pacing 行为较先前改善，但不等同 Provider 侧 QPS 证明；
+- 缺失证据：没有同期高德控制台 QPS/超限记录，因此无法正式证明 Provider 侧峰值符合边界；
+- 执行边界：用户已批准 F-007 不再执行新的真实 Provider UAT；本次只做文档收口，没有读取秘密、调用真实 Provider或停止/重启现有服务；
+- 后续入口：执行已批准的 Step 7 离线门禁与两层交付；Step 7 不得改写本结论。
+
+## F-007 Step 5A：状态文字对比度修正与 Step 5 收口
+
+- 日期：2026-08-30；结论：`PASS / OFFLINE LOOPBACK ONLY`。Step 5 的 accessibility finding 已关闭；未执行 Step 6 或真实 Provider UAT，不覆盖 `FAIL / AMAP_QPS_EXCEEDED`；
+- TDD：新增直接 CSS 对比度门禁，RED 精确记录 `4.203700573694173:1` 低于 4.5；最小 GREEN 只将 `--status-partial` 从 `#9b6716` 调整为 `#925d12`，并让 `.freshness--unknown_validity` 复用该专用 token；全局 `--amber`、背景、布局、公开 API、状态和交互不变；
+- 自动化：直接门禁通过，前端全量 `13 files / 132 tests` 通过；对 `--paper` 与 `--paper-raised` 的静态 WCAG AA 门禁均不低于 4.5；
+- 工具链说明：当前 shell 的裸 pnpm 使用 Node `24.19.0`，相对项目声明的 `22.16.0` 产生 engine warning；测试、Prettier、ESLint、TypeScript 与 Vite build 均通过，但本 Step 不把该结果冒充冻结 Node 门禁，固定运行时的统一全量门禁仍属于 Step 7；
+- 浏览器：隔离 18007/15177 上的 V4 canonical synthetic partial 结果，在 1440×1000 和 390×844 的 `.result-stamp--partial` 与 `.freshness--unknown_validity` 实际复合背景上均实测 `5.071:1`；两种视口均无横向溢出，390px 可见按钮小于 44px、broken descriptions、unlabeled controls 均为 0，live region=3；
+- network/console：28 条浏览器请求全部指向 `127.0.0.1:15177`，API 仅由 Vite 代理至隔离 18007；console 0 error/0 warning；没有非 loopback 业务访问或 Provider 调用；
+- 服务/范围：验收后只关闭本次隔离进程；用户 8000/PID 52516 与 5173/PID 77692 继续 HTTP 200。Step 5A 只修改 `frontend/src/styles.css`、一个直接前端测试及当前状态/evidence 文档；未修改 Schema/migration、依赖/lockfile，未读取秘密、执行 Git 交付或进入 Step 6；
+- 规模审计：Step 5A 为 2 个批准生产/测试文件、净新增 58 行；按已冻结归属复算，Stack 1 为 8 文件/净新增 755 行，Stack 2 为 6 文件/净新增 455 行，均低于各自 12/1000 与 18/1400 阈值；F-007 累计 14 文件/净新增 1210 行，低于任务 30/2200 阈值；
+- 下一入口：Step 6 真实高德 UAT 仍为 `TODO / DEFAULT_CLOSED`，必须等待用户单独明确批准。
+
+## F-007 Step 5：临时 SQLite、loopback 浏览器与独立隐私安全审查
+
+- 日期：2026-08-30；结论：`DONE_WITH_FINDING / BLOCKED`；未执行真实 Provider UAT，不覆盖 `FAIL / AMAP_QPS_EXCEEDED`；
+- 隔离：用户服务始终保持 8000/PID 52516、5173/PID 77692；验收使用 18007/15177 与 E 盘临时 SQLite，结束后只关闭验收进程；四个端点验收期间均 HTTP 200；
+- SQLite：V4 canonical synthetic 完成 POST、终态 partial、retry 到 attempt 2、reload 恢复及 DELETE；检查得到 `schema_migrations=[1,2]`、执行中 1 个 partial job、删除后 0 job。F-006 组合矩阵与 V2/V3/V4 SQLite API 集合 `40 passed in 59.29s`；
+- 浏览器：desktop 1440×1000 与 mobile 390×844 均无水平溢出；duplicate id、broken `aria-describedby`、unlabeled control 与可见按钮小于 44px 的结果均为 0；live region=2；skip link 首个 Tab 可达；DELETE 确认按钮自动获焦，Escape 后焦点回到触发按钮；
+- network/console：Playwright 记录 99 条请求，唯一 authority 为 `127.0.0.1:15177`；Vite proxy 后端日志仅 loopback；console 0 error/0 warning，只有 React DevTools info；无非 loopback 业务访问；
+- 独立审查：Codex Security diff scan `d34206c0-41f4-481a-8282-b00115238d76`，6/6 变更生产文件覆盖完整、0 finding；审查确认 limiter 不持有/记录 Key、URL、坐标、响应、错误 body 或请求数据，不进入 SQLite/API，跨 job 共享和 task cancel/drain 边界未发现可验证安全缺陷。TAC connector 未登录，仅影响可选状态可见性；
+- accessibility finding：结果状态 `partial` 与 freshness `unknown_validity` 的普通文本前景 `rgb(155,103,22)` 实测约 `4.2:1`，低于 WCAG AA `4.5:1`；装饰问号按非文本 3:1 可通过，但文字 finding 仍成立。Step 5 禁止前端修改，未修复；
+- 过程记录：首次 V2 探索的手工请求与固定 synthetic result summary 不匹配，SQLite Repository 以 `result_request_mismatch` fail closed；没有 Provider/Agent 调用，未作为 PASS。随后 V4 canonical 浏览器路径通过，V2 canonical 路径由 40 项自动化集合覆盖；
+- 范围：Step 5 仅新增被 Git ignore 的临时 config、日志、截图和 E 盘临时数据库，并同步当前状态/evidence 文档；未修改生产源码、测试、fixture、Schema/migration、依赖/lockfile，未执行 commit/push/PR/CI；
+- 下一入口：阻塞 Step 6；需用户另行批准最小 Step 5A 调整既有状态色并重新执行 desktop/390px contrast 与范围审计。
+
+## F-007 Step 4：离线稳定性、跨 job 竞争与兼容回归
+
+- 日期：2026-08-30；结论：`PASS / OFFLINE ONLY`；不覆盖 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`，不构成真实 Provider UAT；
+- 跨 job 证据：两个并发单城市 planning job 分别使用 public transit 与 walking；route concurrency 常量保持 2，共享 limiter 观察 8 次 route starts 为 `0.0/0.5/1.0/1.5/2.0/2.5/3.0/3.5`，相邻间隔 `>=0.5s`，任意 `[t,t+1)` 最多 2 次；此前 Amap geocode/POI、QWeather、DeepSeek 调用不推进该时间线；
+- MockTransport：Amap walking 首次 503、transit 首次带合法 Retry-After 的 429，两个 runtime 的 initial/retry 合并进入同一 limiter，各自仅额外尝试一次并最终成功；未修改 Amap adapter 生产代码；
+- retry 分类：timeout/server/合法 Retry-After 429 为 2 attempts；auth/schema/empty/unknown/无合法 Retry-After 429 为 1 attempt；额外预算只在获准 slot 后、HTTP 前预留；
+- deadline/stop：Step 2/4 fake-clock 集合覆盖 backoff→slot、deadline 等号允许、shortfall/oversleep 拒绝、terminal/cancel/budget 后零新 HTTP、零未启动 retry budget；waiter 与 active peer cancel/drain，一个 runtime 关闭不关闭共享 limiter；
+- exact 命令：`uv run --project backend --frozen pytest -q backend/tests/application/test_provider_planning_job_executor.py backend/tests/application/test_provider_attempt_runtime.py backend/tests/adapters/test_amap_route_adapter.py -k "two_concurrent_planning_jobs_share_one_paced_route_timeline_without_burst or route_retry_matrix_paces_only_approved_second_attempts or route_retry_backoff_precedes_shared_qps_slot or walking_and_transit_mock_transport_retries_share_paced_http_starts"` → `11 passed / 97 deselected`；
+- 相关集合：domain/limiter/runtime/bootstrap/provider executor/multiday/multicity/Amap adapter/governance/F-005 eval `299 passed in 7.79s`；
+- 后端：首次全量为 `1446 passed / 1 failed`，唯一失败是 F-006 runner `PreflightOnly` 因用户要求保持 8000 端口运行而按设计 fail closed；未停止服务。精确 deselect 后为 `1446 passed / 1 deselected`，runner 其余测试 `4 passed / 1 deselected`；
+- 前端/静态：前端 `12 files / 131 passed`；Prettier、ESLint、TypeScript、Vite build 通过；backend Ruff format/check 与 strict mypy 通过；
+- 范围：Step 4 只修改 3 个批准测试文件，净新增 289 行；任务累计 12 个生产/测试文件、净新增 1152 行，低于 Stack 1/2 与任务阈值；production planning service、Provider adapter、API、Repository、SQLite、frontend、Schema/migration、依赖/lockfile diff 为 0；
+- 外部与服务：全部新证据使用 fake monotonic clock、MockTransport、synthetic fixture 和默认网络阻断；8000/PID 52516 与 5173/PID 77692 未停止或重启；未读取秘密、创建数据库、调用 Provider、commit、push、PR、远程 CI 或进入 Step 5；
+- 下一入口：等待用户明确批准 Step 5 本地纵向与独立隐私安全审查。
+
+## F-007 Step 3：production bootstrap 单实例接线
+
+- 日期：2026-08-30；结论：`PASS / TDD RED→GREEN`；
+- RED 测试：在 `test_bootstrap.py` 新增完整配置四类 task runtime 共享 identity，以及缺配置零 limiter 构造测试；只使用 synthetic key/private key 与内存 Repository，无网络；
+- RED 命令：`uv run --project backend --frozen pytest -q backend/tests/test_bootstrap.py -k "route_limiter"`；
+- RED 结果：exit 1，`1 failed / 1 passed / 23 deselected`；完整配置的 legacy/V2/V3/V4 runtimes 当前 `_attempt_limiter is None`，exact shared-instance 断言失败；configuration-missing 路径零 limiter 构造已通过；
+- RED 边界：尚未修改 bootstrap 生产代码；未修改 planning service、Provider adapter、API、Repository、SQLite、frontend、Schema/migration、依赖/lockfile；未停止/重启服务、读取秘密、创建数据库、调用 Provider 或执行 Git 交付；
+- GREEN 实现：完整配置 Gate 通过后，`build_planning_job_executor()` 使用 domain exact policy、同一 `monotonic` 与 `asyncio.sleep` 创建一个 `PacedAttemptLimiter`；既有 factory 闭包把该实例注入每个 `ProviderAttemptRuntime`；configuration-missing 在构造前返回；
+- 共享证据：由同一 production factory 创建的 legacy/V2/V3/V4 runtimes limiter identity 完全相同；fake clock 下四次 route attempt starts 为 `0.0/0.5/1.0/1.5`；
+- 隔离证据：相同 runtimes 的 Amap `SEARCH_POIS`、QWeather forecast、DeepSeek generation 均不推进 fake clock；walking/public transit 在 application 中继续共用 `CALCULATE_ROUTES` operation；
+- budget/cancel：route concurrency=2、logical/HTTP attempt budgets、最大 180 秒 deadline、terminal/cancel/postflight/peer drain 由 Step 2 与 legacy/V2/V3/V4 集成回归保持；未新增后台 task、公开状态或持久化；
+- GREEN 验证：bootstrap exact `2 passed`；bootstrap、domain/limiter/runtime、provider executor、multiday、multicity 集合 `181 passed`；后端全量 `1408 passed in 75.56s`；Ruff format/check 和 strict mypy `150 source files` 通过；
+- 文档/diff：文档检查 17 required/29 Markdown、检查器单元测试 24 项、tracked 与两个 untracked 新文件 whitespace checks 全部通过；
+- 范围：Step 3 只修改 `bootstrap.py` 与 `test_bootstrap.py`，`+165/-0`；累计生产/测试 10 文件、`+901/-38`（净新增 863 行），未预期文件 0；planning services、Provider adapters、API、Repository、SQLite、frontend、Schema/migration、依赖/lockfile diff 为 0；
+- 服务/外部边界：后端 `/api/health` 与前端根页均 HTTP 200，listener 保持 8000/PID 52516、5173/PID 77692；全部测试使用 synthetic values、内存 Repository、fake clock/MockTransport 与默认网络阻断；未停止/重启服务、读取本地秘密、创建数据库、调用真实 Provider、commit、push、PR、远程 CI 或 Step 4；
+- 当前限制：production bootstrap 已接线但未经 Step 4 离线 burst 矩阵、Step 5 本地纵向或 Step 6 真实 UAT，不得宣称 F-007 已完成或真实 QPS 已 PASS；
+- 下一入口：等待用户明确批准 Step 4。
+
+## F-007 Step 2：纯 pacing policy、paced-slot limiter 与 runtime 注入
+
+- 日期：2026-08-30；结论：`PASS / TDD RED→GREEN`；
+- RED 范围：先只修改批准的 `test_resilience.py`、新增 `test_provider_attempt_rate_limiter.py` 和 `test_provider_attempt_runtime.py`，未修改生产源码；
+- RED 命令：`uv run --project backend --frozen pytest -q backend/tests/domain/test_resilience.py backend/tests/application/test_provider_attempt_rate_limiter.py backend/tests/application/test_provider_attempt_runtime.py`；
+- RED 结果：exit 1，3 个模块在 collection 阶段按预期失败；domain 缺少 `AttemptPacingPolicy` export，application tooling 缺少 `PacedAttemptLimiter` export；没有环境、网络或既有断言漂移；
+- RED 边界：未接 bootstrap、planning service、Amap adapter、API、Repository、SQLite 或前端；未停止/重启 8000/5173，未读取秘密、创建数据库、调用 Provider 或执行 Git 交付；
+- GREEN 实现：domain 新增 immutable `AttemptPacingPolicy` 和 exact lookup；application 新增仅持有枚举 scope、clock、sleeper、lock 与 `next_start_at` 的 `PacedAttemptLimiter`；task runtime 以可选协作者完成 preflight→slot→postflight/reserve→HTTP，未注入时保持既有行为；
+- pacing 证据：fake monotonic start 序列为 0/0.5/1.0/1.5/2.0，任意 `[t,t+1)` 最多 2 次；idle 后下一次可立即开始但不补发 token；walking/public transit 共用 operation，Amap geocode/POI、QWeather/DeepSeek bypass；
+- deadline/budget：`slot_at == latest_start_at` 允许，shortfall 与 oversleep 拒绝；slot 拒绝、runtime 在 slot wait 中关闭或 postflight 失败均零后续 HTTP、零未启动 retry budget；
+- cancellation：取消 waiter 不启动 attempt，limiter 可继续使用；task runtime close 取消/drain active peers，但不关闭共享 limiter；两个独立 runtime 共用时间线并可独立关闭；
+- GREEN 验证：定向 domain/limiter/runtime `102 passed`；相邻 provider executor、multiday、multicity、offline orchestrator、candidate resolution、Amap adapter `257 passed`；后端全量 `1406 passed in 77.19s`；Ruff format/check 通过，strict mypy `150 source files` 无问题；
+- 文档与 diff：文档检查 17 required/29 Markdown、检查器单元测试 24 项、tracked 及两个 untracked 新文件 whitespace check 均通过；
+- 范围：8 个批准生产/测试文件，`+736/-38`（净新增 698 行），未预期文件 0；production bootstrap、planning services、Provider adapters、API、Repository、SQLite、frontend、Schema/migration、依赖/lockfile diff 为 0；
+- 服务与外部边界：后端 `/api/health` 与前端根页均 HTTP 200，listener 仍为 8000/PID 52516、5173/PID 77692；未停止/重启服务，未读取秘密、创建数据库、调用 Provider、访问非 loopback 业务服务、commit、push、PR、远程 CI 或 Step 3；
+- 下一入口：等待用户明确批准 Step 3；当前 limiter 尚未由 production bootstrap 注入，因此本 Step 不宣称真实调用 QPS 已修复。
+
+## F-007 Step 1：process-shared paced-slot 可实现设计冻结
+
+- 日期：2026-08-30；结论：`PASS / DOCUMENTATION_ONLY`；
+- 现状核对：legacy/V2 的 `_lookup_route` 与 V3/V4 的 `_collect_routes` 均通过既有 `_governed_call` 进入 `ProviderAttemptRuntime.execute(provider=AMAP, operation=CALCULATE_ROUTES)`；walking/public transit 仅在 typed request mode 不同，现有 route concurrency 保持 2；
+- 所有权：完整配置的 `build_planning_job_executor()` 未来创建一个 process-scoped limiter，并通过 `attempt_runtime_factory` 闭包注入每个 task-scoped runtime；缺配置 executor 不创建；runtime close 不关闭 shared limiter；Amap adapter 不作为生产修改面；
+- 算法：exact Amap route scope、0.5 秒 monotonic paced slot、无 idle token 累积、相邻 starts 至少 0.5 秒、任意 `[t,t+1.0)` 半开窗口最多 2 次；`slot_at > latest_start_at` 零等待拒绝，等号允许；sleep/oversleep 计入 deadline；
+- 时序：initial/retry 共门禁；retry/backoff → preflight → slot → postflight deadline/terminal/cancel/budget 复核与 retry reservation → HTTP；未启动 attempt 不消费 retry budget，已授予 slot 在后续取消时保守不回收；
+- 取消：等待 lock/slot 与 active HTTP 都保留在现有 runtime active task 集合；close/异常 cancel 并 drain peers；取消一个 runtime 不影响其他 job 后续使用 limiter；
+- 测试矩阵：fake clock、MockTransport、scope/nonmatching、半开窗口、idle/no-burst、并发顺序、walking/transit 共线、initial/retry、deadline 边界/oversleep、budget、waiter/peer drain、跨 job singleton、bootstrap 缺配置和 legacy/V2/V3/V4/F-005/API/Repository/SQLite/UI exact regression；
+- 文档门禁：`check_docs.py` 通过 17 份 required/29 份 Markdown，检查器单元测试 `24 tests / OK`，`git diff --check` 通过；
+- 范围：diff 仍只有 7 份当前治理/权威文档；没有生产源码、测试、fixture、archive、Schema/migration、依赖/lockfile、数据库、秘密读取、Provider 调用、commit、push、PR 或远程 CI；
+- 服务：`/api/health` 与前端根页均 HTTP 200；listener 仍为 8000/PID 52516 和 5173/PID 77692，未停止或重启；
+- 下一入口：等待用户明确批准 Step 2；真实 Provider UAT 仍只允许在另行批准的 Step 6。
+
+## F-007 Step 0：QPS FAIL 证据、治理激活与基线复核
+
+- 日期：2026-08-30；结论：`PASS`（Step 0 治理）/ `FAIL / AMAP_QPS_EXCEEDED`（新增真实本地验收证据）；
+- Git/CI/PR：Step 0 开始前 `HEAD == main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`，工作区干净，无开放 PR；归档 main CI run `32692800113` 为 completed/success；
+- 真实现象：用户在本机单城市杭州行程验收中得到 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing` 安全终态；高德控制台同期显示“步行路径规划 2.0”接口 QPS 限制 3、最高 QPS 6、超限 3 次；月调用量未显示总额度耗尽；
+- 证据边界：该现象支持“路径规划请求发生 QPS 突发并触发限流”，不把控制台聚合数据冒充逐 attempt trace，也不推断 Key、完整 URL、坐标、原始响应、错误 body 或 infocode；
+- 历史隔离：本条是新的 F-007 真实验收 FAIL，不覆盖 Step 45M `FAIL`、Step 45T `PASS`，不改写 F-006 `LOCAL_ACCEPTANCE_PASS`，项目真实 Provider 就绪继续为 `PARTIAL`；
+- 治理：F-007、D-018、Step 0–8、两层 stacked PR、核心文件/受控相邻扩展和规模阈值已写入当前权威文档；首层本地分支为 `feat/f-007-amap-qps-policy-runtime`；
+- 范围：本 Step 只修改当前治理与权威文档；没有源码、测试、fixture、Schema/migration、依赖/lockfile、数据库、秘密读取、Provider 调用、commit、push、PR 或远程 CI；
+- 服务：Step 0 完成复核时用户现有 `127.0.0.1:8000` 与 `127.0.0.1:5173` listener 均保持运行，未停止或重启；
+- 下一入口：等待用户明确批准 F-007 Step 1；真实高德 UAT 仍默认关闭，只有 Step 6 可在独立批准后执行。
+
 ## F-006 Step 8：依序合并、main CI、归档与任务关闭
 
 - 日期：2026-08-24；结论：`PASS / DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`。用户明确批准 Step 8，PR #38/#39/#40/#41 已按批准顺序 squash merge；main commits 依次为 `22be214a`、`97dc949f`、`d70eb145`、`d82ca5c6`；
