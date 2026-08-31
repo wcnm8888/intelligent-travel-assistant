@@ -17,6 +17,12 @@ from intelligent_travel_assistant.application.tooling.governance import (
     multiday_task_timeout_seconds,
     multiday_tool_call_policies,
 )
+from intelligent_travel_assistant.application.tooling.rate_limiting import (
+    AttemptSlotOutcome,
+    PacedAttemptLimiter,
+    PacedAttemptLimiterError,
+    PacedAttemptLimiterErrorCode,
+)
 from intelligent_travel_assistant.application.tooling.resilience import (
     ProviderAttemptOutcome,
     ProviderAttemptRecord,
@@ -29,6 +35,7 @@ from intelligent_travel_assistant.application.tooling.resilience import (
 )
 
 __all__ = [
+    "AttemptSlotOutcome",
     "DEFAULT_TOOL_CALL_POLICIES",
     "ProviderAttemptOutcome",
     "ProviderAttemptRecord",
@@ -36,6 +43,9 @@ __all__ = [
     "ProviderAttemptRuntimeError",
     "ProviderAttemptRuntimeErrorCode",
     "ProviderAttemptSnapshot",
+    "PacedAttemptLimiter",
+    "PacedAttemptLimiterError",
+    "PacedAttemptLimiterErrorCode",
     "ROUTE_CONCURRENCY_LIMIT",
     "TASK_TIMEOUT_SECONDS",
     "ToolCallCapability",

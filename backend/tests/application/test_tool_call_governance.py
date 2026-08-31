@@ -264,6 +264,57 @@ def test_completion_reports_per_call_timeout_and_releases_route_slot() -> None:
     assert governor.snapshot().active_route_calls == 0
 
 
+def test_each_route_attempt_timeout_starts_after_its_external_admission_wait() -> None:
+    clock = ManualClock()
+    governor = ToolCallGovernor(clock=clock)
+    permit = governor.reserve(
+        ToolCallCapability.CALCULATE_ROUTES,
+        PlanningStatus.ENRICHING_ROUTES,
+    )
+    clock.advance(3.0)
+
+    governor.start_route_attempt_timeout_after_wait(permit)
+    clock.advance(5.0)
+    assert governor.finish_route_attempt(permit) is True
+    governor.start_route_attempt_timeout_after_wait(permit)
+    clock.advance(6.0)
+    assert governor.finish_route_attempt(permit) is True
+    governor.complete(permit)
+
+    assert permit.started_at == 0.0
+    assert governor.snapshot().active_route_calls == 0
+
+
+def test_route_attempt_reports_when_its_fixed_timeout_is_exceeded() -> None:
+    clock = ManualClock()
+    governor = ToolCallGovernor(clock=clock)
+    permit = governor.reserve(
+        ToolCallCapability.CALCULATE_ROUTES,
+        PlanningStatus.ENRICHING_ROUTES,
+    )
+    governor.start_route_attempt_timeout_after_wait(permit)
+    clock.advance(6.001)
+
+    assert governor.finish_route_attempt(permit) is False
+    governor.complete(permit)
+
+    assert governor.snapshot().active_route_calls == 0
+
+
+def test_route_attempt_timeout_cannot_be_started_for_a_completed_permit() -> None:
+    governor = ToolCallGovernor(clock=ManualClock())
+    permit = governor.reserve(
+        ToolCallCapability.CALCULATE_ROUTES,
+        PlanningStatus.ENRICHING_ROUTES,
+    )
+    governor.complete(permit)
+
+    with pytest.raises(ToolCallGovernanceError) as raised:
+        governor.start_route_attempt_timeout_after_wait(permit)
+
+    assert raised.value.code is ToolCallGovernanceErrorCode.PERMIT_INVALID
+
+
 def test_task_timeout_is_distinct_when_total_deadline_is_exceeded() -> None:
     clock = ManualClock()
     governor = ToolCallGovernor(clock=clock)
