@@ -166,7 +166,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-007：高德路径规划 QPS 节流与真实调用稳定性
 
-- 状态：`ACTIVE`；Step 0–5 `DONE / PASS`，Step 6 `DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，当前执行 Step 7；
+- 状态：`ACTIVE`；Step 0–5、Step 7 `DONE / PASS`，Step 6 `DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，Step 8 `TODO / BLOCKED_BY_APPROVAL`；
 - 触发证据：2026-08-30 真实本地验收显示高德步行路径规划 2.0 限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态包含 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing`；记录为新的 `FAIL / AMAP_QPS_EXCEEDED`；
 - 唯一目标：只为 `Provider.AMAP + ProviderOperation.CALCULATE_ROUTES` 增加单进程共享的 0.5 秒无突发 paced slot，使 walking/public transit 的初次 attempt 与 retry 合计最多 2 次/秒；
 - 不变量：不改变产品、Provider、URI/公开 shape、逻辑/HTTP attempt 预算、route concurrency=2、180 秒 deadline、Schema/migration、依赖/lockfile或隐私边界；
@@ -177,7 +177,8 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - Step 3 接线结果：完整配置 bootstrap 只创建一个 limiter 并由同一 factory 注入四版本 task runtimes；缺配置路径零构造/零调用。fake clock route starts 为 0/0.5/1.0/1.5，非路线 Provider 操作不受影响；后端全量 1408 项通过。
 - Step 4 回归结果：并发双 planning job 的 walking/public transit 共用 0.5 秒时间线，MockTransport 503/受控 429、timeout/5xx/不可重试、deadline/cancel/drain/budget 与全版本兼容矩阵通过；相关集合 299 项、后端 1446 项（端口保护精确 deselect 1 项）、前端 131 项通过。
 - Step 5/5A 验收结果：临时 schema v2 SQLite、loopback desktop/390px、network/console/accessibility 与独立安全审查通过，状态文字对比度 finding 已关闭；
-- Step 6 收口结果：`UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；当前入口为 Step 7 本地全量门禁、两层交付、独立 review 与逐层远程 CI，不 merge。
+- Step 6 收口结果：`UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；不再执行新的真实 Provider UAT。
+- Step 7 交付结果：提交 `c73cd7f`/`273231a`、Draft PR #43/#44、独立 review `FIXED`，逐层 Windows offline CI runs `33363974674`/`33364033165` success；累计 24 文件/净增 1963 行，所有规模和边界审计通过；当前等待用户批准 Step 8，不 merge。
 
 ## 外部服务就绪门禁
 

@@ -3,16 +3,24 @@
 ## 当前状态
 
 - 当前任务：`F-007 高德路径规划 QPS 节流与真实调用稳定性`（`ACTIVE`）
-- 当前 Step：`Step 7 - 本地全量门禁与两层交付`（`ACTIVE`）
-- Step 0–5：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
-- 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`；归档 main CI run `32692800113` success；无开放 PR
-- 当前分支：`feat/f-007-amap-qps-policy-runtime`；尚无 F-007 commit、push、PR 或远程 CI
+- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）
+- Step 0–5、Step 7：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
+- 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`；归档 main CI run `32692800113` success
+- 当前分支：`feat/f-007-amap-qps-integration-delivery`；Draft PR #43/#44 OPEN，尚未 merge
 - 真实验收：2026-08-30 新增 `FAIL / AMAP_QPS_EXCEEDED`；高德步行路径规划限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态为 `provider_rate_limited`、`route_primary_unavailable`、`data_missing`
 - 服务：Step 5A 完成后 `127.0.0.1:8000`（PID 52516）与 `127.0.0.1:5173`（PID 77692）仍 HTTP 200，未停止或重启
 - F-004C：Step 0–6 `DONE / DELIVERED / ARCHIVED`；PR #34/#35/#36 和归档 PR #37 已合并；最终 main CI run `32486428083` success
 - F-004B2：`BLOCKED / ARCHIVED`；不得恢复其 Provider 查询或 Step 2
 - F-006：`DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`；其本地验收结论不因 F-007 真实 Provider QPS FAIL 改写，项目真实 Provider 就绪继续为 `PARTIAL`
-- 下一入口：执行用户已批准的 Step 7；不 merge、不归档、不进入 F-008
+- 下一入口：等待用户单独批准 Step 8；不 merge、不归档、不进入 F-008
+
+## F-007 Step 7
+
+- 状态：`DONE / PASS`；Stack 1/2 提交 `c73cd7f`/`273231a` 已推送，Draft PR #43/#44 按两层依赖建立且保持 OPEN；
+- 本地：后端 `1424 passed`，前端 `132 passed`，format/lint/typecheck/build/docs 通过；受保护端口 8000 使唯一 runner preflight 按设计失败，未停止进程，其余文档/runner 28 项通过；
+- review/CI：独立只读复审最终 `FIXED`；#43/#44 Windows offline runs `33363974674`/`33364033165` success；
+- 范围：Stack 1 10 文件/净增 851 行，Stack 2 14 文件/净增 1112 行，累计 24 文件/净增 1963 行；Schema/migration、依赖/lockfile、公开 API 与 Provider/秘密边界无变化；
+- 下一入口：Step 8 `TODO / BLOCKED_BY_APPROVAL`；不得自动 merge、归档、关闭 F-007 或进入 F-008。
 
 ## F-007 Step 6
 
