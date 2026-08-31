@@ -111,7 +111,7 @@
 - 本地门禁：后端全量 `1424 passed`，前端 `13 files / 132 tests`，Ruff/Prettier/ESLint/mypy/TypeScript/build 与文档检查通过；统一入口唯一失败为受保护的 8000 端口 preflight，未停止现有进程，其余 28 项文档/runner 测试通过；
 - 独立 review：先后发现并关闭 pacing wait 侵占 attempt timeout、retry wait 误计旧 attempt、stale permit 和超过 6 秒 attempt 规范化问题；最终只读结论 `FIXED`；
 - 远程 CI：#43 run `33363974674`、#44 run `33364033165` 的 Windows offline verification 均 success；
-- 规模：Stack 1 为 10 文件/净新增 851 行，Stack 2 为 14 文件/净新增 1112 行，累计 24 文件/净新增 1963 行；全部低于 12/1000、18/1400、30/2200 阈值；
+- 规模：Stack 1 为 10 文件/净新增 851 行，Stack 2 为 14 文件/净新增 1147 行，累计 24 文件/净新增 1998 行；全部低于 12/1000、18/1400、30/2200 阈值；
 - 边界：Schema version 2、migration 1/2、依赖、lockfile、公开 API shape 和 Provider 数据边界未改变；未读取秘密、调用真实 Provider、创建数据库或停止/重启现有服务；
 - 下一入口：只能在用户单独批准后执行 Step 8；当前不得 merge、归档、关闭 F-007 或进入 F-008。
 

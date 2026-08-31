@@ -8,7 +8,7 @@
 - runner 环境事实：统一入口只有 `test_runner_preflight_uses_installed_offline_runtimes_without_starting_services` 因受保护的本机 8000 端口占用而按设计 fail closed，明确没有停止既有进程；其余文档/runner `28 tests / OK`；
 - 独立复审：初次发现 limiter admission wait 会侵占 6 秒 attempt timeout；后续继续发现 retry wait 误计已完成 attempt、stale permit 状态与超过 6 秒 attempt 规范化缺口。修复建立 governor-owned start/finish 生命周期、每 attempt 独立计时、取消原样传播和 TIMEOUT 规范化，最终只读复审结论 `FIXED`；
 - 远程 CI：PR #43 run `33363974674` / job `99400728962` success（5m28s）；PR #44 run `33364033165` / job `99400899510` success（5m37s）；均为 Windows offline verification；
-- 规模：Stack 1 为 10 文件、`+890/-39`、净新增 851 行；Stack 2 为 14 文件、`+1248/-136`、净新增 1112 行；任务累计 24 文件、净新增 1963 行，低于 12/1000、18/1400、30/2200 阈值；受控相邻扩展为 governance/planning timeout lifecycle 与直接回归，未预期生产/测试文件未超过 4；
+- 规模：Stack 1 为 10 文件、`+890/-39`、净新增 851 行；Stack 2 为 14 文件、`+1282/-135`、净新增 1147 行；任务累计 24 文件、净新增 1998 行，低于 12/1000、18/1400、30/2200 阈值；受控相邻扩展为 governance/planning timeout lifecycle 与直接回归，未预期生产/测试文件未超过 4；
 - 边界：SQLite schema version 2、migration 1/2、依赖、lockfile、公开 API shape、Provider/account/key/QPS/配额/计费和数据留存边界均未变化；未读取秘密、调用真实 Provider、创建数据库、停止/重启现有服务或访问非 loopback 业务网络；
 - 下一入口：Step 8 `TODO / BLOCKED_BY_APPROVAL`。必须等待用户单独批准后才可依序 merge、必要 clean-restack、最终 main CI、归档和关闭；不得进入 F-008。
 

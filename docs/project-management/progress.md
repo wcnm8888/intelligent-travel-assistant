@@ -19,7 +19,7 @@
 - 状态：`DONE / PASS`；Stack 1/2 提交 `c73cd7f`/`273231a` 已推送，Draft PR #43/#44 按两层依赖建立且保持 OPEN；
 - 本地：后端 `1424 passed`，前端 `132 passed`，format/lint/typecheck/build/docs 通过；受保护端口 8000 使唯一 runner preflight 按设计失败，未停止进程，其余文档/runner 28 项通过；
 - review/CI：独立只读复审最终 `FIXED`；#43/#44 Windows offline runs `33363974674`/`33364033165` success；
-- 范围：Stack 1 10 文件/净增 851 行，Stack 2 14 文件/净增 1112 行，累计 24 文件/净增 1963 行；Schema/migration、依赖/lockfile、公开 API 与 Provider/秘密边界无变化；
+- 范围：Stack 1 10 文件/净增 851 行，Stack 2 14 文件/净增 1147 行，累计 24 文件/净增 1998 行；Schema/migration、依赖/lockfile、公开 API 与 Provider/秘密边界无变化；
 - 下一入口：Step 8 `TODO / BLOCKED_BY_APPROVAL`；不得自动 merge、归档、关闭 F-007 或进入 F-008。
 
 ## F-007 Step 6

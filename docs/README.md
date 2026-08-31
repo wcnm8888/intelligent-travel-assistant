@@ -94,7 +94,7 @@ AGENTS.md
 ## 当前状态
 
 - 当前活动任务：F-007 高德路径规划 QPS 节流与真实调用稳定性；Step 0–5、Step 7 已完成，Step 6 已按 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 收口，当前等待用户批准 Step 8
-- F-007 Step 7 已完成：两层 Draft PR #43/#44 分别为 `main → policy-runtime → integration-delivery`；提交 `c73cd7f`/`273231a`，首次逐层 Windows offline CI runs `33363974674`/`33364033165` success；独立 review 最终 `FIXED`，累计 24 文件/净新增 1963 行，Schema/migration、依赖/lockfile 均未变化
+- F-007 Step 7 已完成：两层 Draft PR #43/#44 分别为 `main → policy-runtime → integration-delivery`；提交 `c73cd7f`/`273231a`，首次逐层 Windows offline CI runs `33363974674`/`33364033165` success；独立 review 最终 `FIXED`，累计 24 文件/净新增 1998 行，Schema/migration、依赖/lockfile 均未变化
 - F-007 Step 5A 已关闭 accessibility finding：`partial` 与 `unknown_validity` 状态文字改用专用 `#925d12`，实际渲染对比度为 `5.071:1`；前端 `132 passed`，desktop/390px 均无横向溢出，console 0 error/0 warning，28 条浏览器请求仅 loopback；原 Step 5 SQLite、浏览器和独立安全审查证据继续有效
 - F-007 Step 4 已完成：两个并发 planning job 的 walking/public transit 共用 process limiter，8 次 route starts 为 0–3.5 秒的连续 0.5 秒槽位；MockTransport 503/受控 429、timeout/5xx/不可重试矩阵、deadline/cancel/drain/budget 与全版本兼容通过；相关集合 299 项、后端 1446 项（因受保护服务占用端口精确 deselect 1 项）、前端 131 项通过
 - F-007 Step 3 已完成：完整配置 bootstrap 创建一个 process-shared limiter 并注入 legacy/V2/V3/V4 task runtimes，缺配置路径零 limiter/零调用；fake clock route starts 为 0/0.5/1.0/1.5，非路线操作不受影响；后端全量 1408 项通过

@@ -178,7 +178,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - Step 4 回归结果：并发双 planning job 的 walking/public transit 共用 0.5 秒时间线，MockTransport 503/受控 429、timeout/5xx/不可重试、deadline/cancel/drain/budget 与全版本兼容矩阵通过；相关集合 299 项、后端 1446 项（端口保护精确 deselect 1 项）、前端 131 项通过。
 - Step 5/5A 验收结果：临时 schema v2 SQLite、loopback desktop/390px、network/console/accessibility 与独立安全审查通过，状态文字对比度 finding 已关闭；
 - Step 6 收口结果：`UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；不再执行新的真实 Provider UAT。
-- Step 7 交付结果：提交 `c73cd7f`/`273231a`、Draft PR #43/#44、独立 review `FIXED`，逐层 Windows offline CI runs `33363974674`/`33364033165` success；累计 24 文件/净增 1963 行，所有规模和边界审计通过；当前等待用户批准 Step 8，不 merge。
+- Step 7 交付结果：提交 `c73cd7f`/`273231a`、Draft PR #43/#44、独立 review `FIXED`，逐层 Windows offline CI runs `33363974674`/`33364033165` success；累计 24 文件/净增 1998 行，所有规模和边界审计通过；当前等待用户批准 Step 8，不 merge。
 
 ## 外部服务就绪门禁
 
