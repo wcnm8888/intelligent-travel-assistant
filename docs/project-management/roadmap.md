@@ -15,7 +15,7 @@
 
 ## 当前阶段
 
-目标：B-000 至 F-006 的已选任务已完成归档，F-004B2 已以 `BLOCKED / ARCHIVED` 状态关闭；当前唯一活动任务为 F-007，用于修复真实本地验收已复现的高德路径规划 QPS 超限。
+目标：B-000 至 F-007 的已选任务已完成归档，F-004B2 保持 `BLOCKED / ARCHIVED`；当前没有活动任务，后续任务必须重新准入并获得单独批准。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
@@ -29,9 +29,9 @@
 | 7 | F-004B2 真实城际 Provider 与可信城际事实 | BLOCKED | 经正式书面授权 Gate 后，为相邻城市段提供来源和时效可信的同日直达 rail 参考事实 | D-015 Step 1：SQLite 持久化禁止且 rail 字段授权不足 |
 | 8 | F-004C 用户已购铁路段与车次信息 | DONE | 用户可录入已购票的相邻铁路段和车次事实，并继续按用户提供、未核验语义规划 | F-004B1、F-004B2 BLOCKED closure、D-016、归档任务卡 |
 | 9 | F-006 MVP 体验收口与本地验收 | DONE | 用户可稳定完成完整本地旅行决策流程，并获得可恢复、可本地运行、可离线验收的 MVP | F-001 至 F-005、F-004C、D-017、归档任务卡 |
-| 10 | F-007 高德路径规划 QPS 节流与真实调用稳定性 | ACTIVE | 路径规划 attempt 在高德 3 QPS 边界内稳定启动，避免真实体验因进程内突发而限流失败 | F-005 attempt runtime、F-006、D-018、2026-08-30 FAIL |
+| 10 | F-007 高德路径规划 QPS 节流与真实调用稳定性 | DONE | 路径规划 attempt 使用单进程共享 0.5 秒 paced slot；真实 UAT 仍为 INCONCLUSIVE，不宣称 QPS PASS | F-005 attempt runtime、F-006、D-018、2026-08-30 FAIL、归档任务卡 |
 
-B-000 至 F-006 的已选任务均已完成归档，F-004B2 保持阻塞归档。当前 `ACTIVE` 为 1、`CANDIDATE` 为 0；F-007 只能按已批准 Step 0–8 逐步执行。
+B-000 至 F-007 的已选任务均已完成归档，F-004B2 保持阻塞归档。当前 `ACTIVE` 为 0、`CANDIDATE` 为 0；F-008 与 F-009 均未激活。
 
 ## B-000：项目与工程基线
 
@@ -166,7 +166,7 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 
 ### F-007：高德路径规划 QPS 节流与真实调用稳定性
 
-- 状态：`ACTIVE`；Step 0–5、Step 7、Step 8A `DONE / PASS`，Step 6 `DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，Step 8 `TODO / BLOCKED_BY_APPROVAL`；
+- 状态：`DONE / ARCHIVED`；Step 0–5、Step 7、Step 8/8A `DONE / PASS`，Step 6 `DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；
 - 触发证据：2026-08-30 真实本地验收显示高德步行路径规划 2.0 限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态包含 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing`；记录为新的 `FAIL / AMAP_QPS_EXCEEDED`；
 - 唯一目标：只为 `Provider.AMAP + ProviderOperation.CALCULATE_ROUTES` 增加单进程共享的 0.5 秒无突发 paced slot，使 walking/public transit 的初次 attempt 与 retry 合计最多 2 次/秒；
 - 不变量：不改变产品、Provider、URI/公开 shape、逻辑/HTTP attempt 预算、route concurrency=2、180 秒 deadline、Schema/migration、依赖/lockfile或隐私边界；
@@ -178,8 +178,9 @@ F-001 的精确城市、日期限制、API 合约、调用预算、验收 case �
 - Step 4 回归结果：并发双 planning job 的 walking/public transit 共用 0.5 秒时间线，MockTransport 503/受控 429、timeout/5xx/不可重试、deadline/cancel/drain/budget 与全版本兼容矩阵通过；相关集合 299 项、后端 1446 项（端口保护精确 deselect 1 项）、前端 131 项通过。
 - Step 5/5A 验收结果：临时 schema v2 SQLite、loopback desktop/390px、network/console/accessibility 与独立安全审查通过，状态文字对比度 finding 已关闭；
 - Step 6 收口结果：`UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；不再执行新的真实 Provider UAT。
-- Step 7/8 clean-restack：#43 已 squash merge 为 origin/main `6252193b`，main CI `33365971491` success；#45 从该基线替代 #44，原 #44 保持 OPEN。
-- Step 8A 修复结果：提交 `f87332c7` 修复初次 limiter waiter 取消被治理超时覆盖；后端 1426、前端 132 项与静态/docs 门禁通过，独立 review `NO_P0_P1`，#45 CI `33375683517` success；累计 24 文件/净增 2154 行；当前等待重新批准 Step 8，不 merge。
+- Step 7/8 clean-restack：#43 squash merge commit `6252193b`、main CI `33365971491` success；#45 从该基线替代 #44，最终 squash merge commit `772e8262`、main CI `33382187643` success；#44 未合并并已关闭。
+- Step 8A 修复结果：提交 `f87332c7` 修复初次 limiter waiter 取消被治理超时覆盖；后端 1426、前端 132 项与静态/docs 门禁通过，独立 review `NO_P0_P1`，#45 最终 head CI `33376777202` success；累计 24 文件/净增 2154 行。
+- 归档结果：F-007 完整任务卡见 [F-007 archive](../archive/task-cards/F-007-amap-qps-policy-runtime.md)；Step 6 的 INCONCLUSIVE 与 2026-08-30 FAIL 均保持。
 
 ## 外部服务就绪门禁
 
@@ -247,7 +248,7 @@ F-004C 用户已购铁路段与车次信息（DONE / ARCHIVED）
   ↓
 F-006 MVP 收口（DONE / ARCHIVED）
   ↓
-F-007 高德路径规划 QPS 节流（ACTIVE）
+F-007 高德路径规划 QPS 节流（DONE / ARCHIVED）
 ```
 
 依赖图表达推荐顺序，不构成自动执行授权。用户可以调整候选任务、拆分范围或暂停项目。

@@ -1,5 +1,16 @@
 # 验收证据索引
 
+## F-007 Step 8：依序合并、完整功能 main CI 与归档
+
+- 日期：2026-08-31；结论：`DONE / PASS / ARCHIVED`。F-007 Step 6 仍为 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 保持有效，不得表述为 QPS UAT PASS；
+- 恢复准入：Step 0–5、Step 7 与 Step 8A 为 `DONE / PASS`；F-007 为唯一 ACTIVE；工作区干净；#45 head `47607b2090920e78ebb004bba6ac1aea1a3836ea` mergeable/clean 且 CI run `33376777202` success；最新 main `6252193b8d3f3ed07498ff318e09b02edaca4889` 的 CI run `33365971491` success；
+- 合并：#43 已先 squash merge 为 `6252193b8d3f3ed07498ff318e09b02edaca4889`；#45 作为 #44 的 clean-restack 替代 PR squash merge 为 `772e82628766e5e2659ae7c705ea9c6adade9abd`；merge 后 main tree 与 #45 最终 head tree 完全一致；
+- main CI：完整功能 main `772e82628766e5e2659ae7c705ea9c6adade9abd` 对应 Windows offline CI run `33382187643` / job `99456833291` success；
+- 替代关闭：#45 与 #44 均已记录替代、merge 和 CI 证据；#44 未合并并已关闭；功能 PR #43/#45 已合并，不再存在开放或未处置的 F-007 功能 PR；
+- 规模：最终 Stack 1 为 10 文件/净新增 851 行，Stack 2 为 16 文件/净新增 1303 行，任务累计 24 文件/净新增 2154 行，低于 12/1000、18/1400、30/2200 阈值；归档交付仅移动/收口治理文档，不增加生产、测试或 fixture 范围；
+- 边界：SQLite schema version 2、migration 1/2、依赖、lockfile、公开 API shape、Provider 数据边界均未变化；Step 8 没有读取秘密、调用真实 Provider、创建/修改数据库、停止/重启服务或进入 F-008/F-009；
+- 历史事实保持：F-001 `PARTIAL`；Step 45M `FAIL`；Step 45T `PASS`；unknown 不按 0；混合交通 fallback 只有离线证据；F-006 `LOCAL_ACCEPTANCE_PASS` 不等于真实 Provider ready；2026-08-31 补充证据不覆盖既有真实 UAT 事实。
+
 ## F-007 Step 8A：初次 limiter waiter 取消传播最小修复
 
 - 日期：2026-08-31；结论：`DONE / PASS / OFFLINE ONLY`。不改写 Step 6 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 或 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；
@@ -11,7 +22,7 @@
 - 范围：Step 8A 生产/测试为 4 文件、`+112/-1`、净新增 111 行；加治理文档后 Stack 2 为 16 文件/净新增 1303 行，任务累计 24 文件/净新增 2154 行，低于全部阈值；
 - 边界：Schema version 2、migration 1/2、依赖/lockfile、公开 API shape 与 Provider 数据边界无变化；没有读取秘密、调用真实 Provider、创建或修改项目数据库、merge、关闭 #44、归档或进入 F-008/F-009；
 - 服务偏差：准入时 8000/5173 已无监听，用户明确豁免条件 9；本步骤没有启动、停止或重启服务；
-- 下一入口：#44/#45 保持 OPEN，等待用户重新批准恢复 Step 8。
+- 当时下一入口：#44/#45 保持 OPEN，等待用户重新批准恢复 Step 8；用户随后已批准，最终结果见本文件顶部 Step 8 证据。
 
 ## F-007 Step 7：本地全量门禁、独立 review 与两层交付
 
@@ -23,7 +34,7 @@
 - 远程 CI：PR #43 run `33363974674` / job `99400728962` success（5m28s）；PR #44 run `33364033165` / job `99400899510` success（5m37s）；均为 Windows offline verification；
 - 规模：Stack 1 为 10 文件、`+890/-39`、净新增 851 行；Stack 2 为 14 文件、`+1282/-135`、净新增 1147 行；任务累计 24 文件、净新增 1998 行，低于 12/1000、18/1400、30/2200 阈值；受控相邻扩展为 governance/planning timeout lifecycle 与直接回归，未预期生产/测试文件未超过 4；
 - 边界：SQLite schema version 2、migration 1/2、依赖、lockfile、公开 API shape、Provider/account/key/QPS/配额/计费和数据留存边界均未变化；未读取秘密、调用真实 Provider、创建数据库、停止/重启现有服务或访问非 loopback 业务网络；
-- 下一入口：Step 8 `TODO / BLOCKED_BY_APPROVAL`。必须等待用户单独批准后才可依序 merge、必要 clean-restack、最终 main CI、归档和关闭；不得进入 F-008。
+- 当时下一入口：Step 8 为 `TODO / BLOCKED_BY_APPROVAL`；用户随后单独批准并已完成，最终结果见本文件顶部 Step 8 证据。
 
 ## F-007 Step 6：真实 UAT Gate 如实收口
 
