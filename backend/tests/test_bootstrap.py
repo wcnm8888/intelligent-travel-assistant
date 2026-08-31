@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import socket
 from ipaddress import IPv4Address
 from pathlib import Path
@@ -12,15 +13,27 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+import intelligent_travel_assistant.bootstrap as bootstrap_module
+from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
 from intelligent_travel_assistant.app import create_app
 from intelligent_travel_assistant.application.services import (
     ConfigurationMissingPlanningJobExecutor,
     ProviderPlanningJobExecutor,
 )
+from intelligent_travel_assistant.application.tooling import PacedAttemptLimiter
 from intelligent_travel_assistant.bootstrap import (
     ProviderActivationState,
     StartupConfigurationError,
+    build_planning_job_executor,
     build_provider_adapters,
+)
+from intelligent_travel_assistant.domain import (
+    Provider,
+    ProviderError,
+    ProviderErrorCategory,
+    ProviderOperation,
+    ProviderResult,
+    ProviderResultStatus,
 )
 from intelligent_travel_assistant.settings import (
     PROJECT_ROOT,
@@ -37,6 +50,17 @@ PROVIDER_ENVIRONMENT = (
     "QWEATHER_CREDENTIAL_ID",
     "QWEATHER_PRIVATE_KEY_PATH",
 )
+
+
+class _ManualClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
+
+    def advance(self, seconds: float) -> None:
+        self.value += seconds
 
 
 def _settings(**overrides: object) -> Settings:
@@ -157,6 +181,127 @@ def test_complete_configuration_builds_all_adapters_without_network(tmp_path: Pa
 
     application = create_app(settings=settings)
     assert isinstance(application.state.planning_job_executor, ProviderPlanningJobExecutor)
+
+
+def test_complete_composition_shares_one_amap_route_limiter_across_all_task_runtimes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    clock = _ManualClock()
+
+    async def advancing_sleep(delay: float) -> None:
+        clock.advance(delay)
+
+    monkeypatch.setattr(bootstrap_module, "monotonic", clock)
+    monkeypatch.setattr(bootstrap_module, "sleep", advancing_sleep)
+    monkeypatch.setattr(bootstrap_module, "uniform", lambda _start, _end: 0.0)
+    private_key_path = tmp_path / "qweather-shared-limiter.pem"
+    _write_private_key(private_key_path)
+    adapters = build_provider_adapters(
+        _settings(
+            deepseek_api_key="deepseek-local-test-value",
+            amap_api_key="amap-local-test-value",
+            qweather_api_host="example.qweatherapi.com",
+            qweather_project_id="project_test",
+            qweather_credential_id="credential_test",
+            qweather_private_key_path=private_key_path,
+        )
+    )
+    executor = build_planning_job_executor(InMemoryPlanningJobRepository(), adapters)
+
+    assert isinstance(executor, ProviderPlanningJobExecutor)
+    factory = executor._attempt_runtime_factory
+    assert factory is not None
+    legacy_runtime = factory(90.0)
+    v2_runtime = factory(120.0)
+    v3_runtime = factory(180.0)
+    v4_runtime = factory(180.0)
+    shared = legacy_runtime._attempt_limiter
+
+    assert isinstance(shared, PacedAttemptLimiter)
+    assert v2_runtime._attempt_limiter is shared
+    assert v3_runtime._attempt_limiter is shared
+    assert v4_runtime._attempt_limiter is shared
+
+    starts: list[float] = []
+
+    def unavailable(provider: Provider) -> ProviderResult[str]:
+        return ProviderResult(
+            ProviderResultStatus.UNAVAILABLE,
+            provider,
+            None,
+            None,
+            None,
+            (),
+            ProviderError(ProviderErrorCategory.AUTH),
+            (),
+        )
+
+    async def exercise_shared_timeline() -> None:
+        for runtime in (legacy_runtime, v2_runtime, v3_runtime, v4_runtime):
+
+            async def route_call() -> ProviderResult[str]:
+                starts.append(clock.value)
+                return unavailable(Provider.AMAP)
+
+            await runtime.execute(
+                provider=Provider.AMAP,
+                operation=ProviderOperation.CALCULATE_ROUTES,
+                call=route_call,
+            )
+
+        unpaced_start = clock.value
+        for runtime, provider, operation in (
+            (legacy_runtime, Provider.AMAP, ProviderOperation.SEARCH_POIS),
+            (
+                v2_runtime,
+                Provider.QWEATHER,
+                ProviderOperation.GET_WEATHER_FORECAST,
+            ),
+            (
+                v3_runtime,
+                Provider.DEEPSEEK,
+                ProviderOperation.GENERATE_PLAN_CANDIDATE,
+            ),
+        ):
+
+            async def unpaced_call(provider: Provider = provider) -> ProviderResult[str]:
+                return unavailable(provider)
+
+            await runtime.execute(
+                provider=provider,
+                operation=operation,
+                call=unpaced_call,
+            )
+            assert clock.value == unpaced_start
+
+    asyncio.run(exercise_shared_timeline())
+    assert starts == [0.0, 0.5, 1.0, 1.5]
+
+
+def test_configuration_missing_composition_creates_no_route_limiter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limiter_constructions = 0
+
+    def forbidden_limiter(**_kwargs: object) -> object:
+        nonlocal limiter_constructions
+        limiter_constructions += 1
+        raise AssertionError("configuration_missing_must_not_create_limiter")
+
+    monkeypatch.setattr(
+        bootstrap_module,
+        "PacedAttemptLimiter",
+        forbidden_limiter,
+        raising=False,
+    )
+    executor = build_planning_job_executor(
+        InMemoryPlanningJobRepository(),
+        build_provider_adapters(_settings()),
+    )
+
+    assert isinstance(executor, ConfigurationMissingPlanningJobExecutor)
+    assert limiter_constructions == 0
 
 
 @pytest.mark.parametrize(

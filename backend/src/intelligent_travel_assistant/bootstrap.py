@@ -39,12 +39,18 @@ from intelligent_travel_assistant.application.services import (
     ProviderPlanningJobExecutor,
 )
 from intelligent_travel_assistant.application.tooling import (
+    PacedAttemptLimiter,
     ProviderAttemptRuntime,
     ToolCallGovernor,
     multicity_task_timeout_seconds,
     multicity_tool_call_policies,
     multiday_task_timeout_seconds,
     multiday_tool_call_policies,
+)
+from intelligent_travel_assistant.domain import (
+    Provider,
+    ProviderOperation,
+    attempt_pacing_policy_for,
 )
 from intelligent_travel_assistant.settings import Settings, default_local_sqlite_database_path
 
@@ -167,6 +173,19 @@ def build_planning_job_executor(
 
     if adapters.amap is None or adapters.qweather is None or adapters.deepseek is None:
         return ConfigurationMissingPlanningJobExecutor(repository)
+    route_pacing_policy = attempt_pacing_policy_for(
+        Provider.AMAP,
+        ProviderOperation.CALCULATE_ROUTES,
+    )
+    if route_pacing_policy is None:
+        raise StartupConfigurationError("amap_route_pacing_policy_missing")
+    route_attempt_limiter = PacedAttemptLimiter(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        policy=route_pacing_policy,
+        clock=monotonic,
+        sleeper=sleep,
+    )
     orchestrator = OfflinePlanningOrchestrator(
         adapters.amap,
         adapters.qweather,
@@ -203,6 +222,7 @@ def build_planning_job_executor(
             sleeper=sleep,
             jitter=lambda: uniform(0.0, 0.2),
             task_timeout_seconds=timeout,
+            attempt_limiter=route_attempt_limiter,
         ),
     )
 

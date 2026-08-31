@@ -14,7 +14,7 @@
   --amber: #9b6716;
   --focus: #126f94;
   --status-ready: #157565;
-  --status-partial: #9b6716;
+  --status-partial: #925d12;
   --status-conflict: #bd3a2b;
   --status-failed: #8f2f25;
 }
@@ -1403,7 +1403,7 @@ input[type="checkbox"] {
 }
 
 .freshness--unknown_validity {
-  color: var(--amber);
+  color: var(--status-partial);
 }
 
 .source-notes {

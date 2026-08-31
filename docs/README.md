@@ -8,8 +8,10 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-006 已完成归档）
-- 最近关闭：F-006 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`；完整功能 main `d82ca5c6`、main CI run `32691778088` success
+- 当前任务：[current-task.md](./project-management/current-task.md)（F-007 `ACTIVE`；Step 0–5 `DONE / PASS`；Step 6 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`）
+- 当前 Step 7：`ACTIVE`；执行离线门禁、两层交付、独立 review 与逐层远程 CI，不 merge
+- 当前基线：main/origin/main `905a950fa2483f2e441eb520a20897dcc1daa722`，归档 main CI run `32692800113` success
+- 新增真实验收证据：2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；不覆盖 Step 45M/45T 或 F-006 本地验收
 - 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
@@ -91,7 +93,15 @@ AGENTS.md
 
 ## 当前状态
 
-- 当前活动任务：无
+- 当前活动任务：F-007 高德路径规划 QPS 节流与真实调用稳定性；Step 0–5 已完成，Step 6 已按 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 收口，当前执行 Step 7
+- F-007 Step 5A 已关闭 accessibility finding：`partial` 与 `unknown_validity` 状态文字改用专用 `#925d12`，实际渲染对比度为 `5.071:1`；前端 `132 passed`，desktop/390px 均无横向溢出，console 0 error/0 warning，28 条浏览器请求仅 loopback；原 Step 5 SQLite、浏览器和独立安全审查证据继续有效
+- F-007 Step 4 已完成：两个并发 planning job 的 walking/public transit 共用 process limiter，8 次 route starts 为 0–3.5 秒的连续 0.5 秒槽位；MockTransport 503/受控 429、timeout/5xx/不可重试矩阵、deadline/cancel/drain/budget 与全版本兼容通过；相关集合 299 项、后端 1446 项（因受保护服务占用端口精确 deselect 1 项）、前端 131 项通过
+- F-007 Step 3 已完成：完整配置 bootstrap 创建一个 process-shared limiter 并注入 legacy/V2/V3/V4 task runtimes，缺配置路径零 limiter/零调用；fake clock route starts 为 0/0.5/1.0/1.5，非路线操作不受影响；后端全量 1408 项通过
+- F-007 Step 2 已完成：exact Amap route policy、process-shareable 0.5 秒 paced limiter 和 task runtime 可选注入已按 TDD 实现；定向 102、相邻 257、后端全量 1406 项及 Ruff/mypy 通过；未接 bootstrap、planning service 或 Amap adapter
+- F-007 Step 1 已完成：exact Amap route 0.5 秒 policy、process-shared bootstrap 所有权、task runtime 注入、initial/retry 时序、deadline/terminal/cancel/budget/peer-drain、fake clock/MockTransport 测试矩阵及两层文件归属已冻结；Amap adapter 生产文件不在修改清单，尚未实现代码或测试
+- F-007 Step 0 已完成：main/origin/main、干净工作区、无开放 PR、CI run `32692800113` success 和 8000/5173 服务运行事实已复核；D-018、Step 0–8、两层 stack 与规模阈值已建立，当前分支为 `feat/f-007-amap-qps-policy-runtime`，无 commit/push/PR/远程 CI
+- 2026-08-30 高德真实本地验收新增 `FAIL / AMAP_QPS_EXCEEDED`：步行路径规划限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态包含 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing`；这不是月额度耗尽证据
+- 2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 仅为积极补充证据；缺少同期高德控制台 QPS/超限记录，不能记为 PASS；F-007 不再执行新的真实 Provider UAT
 - F-006 Step 0–8 已全部完成并归档：PR #38/#39/#40/#41 依序 squash merge，#39/#40/#41 以普通 merge clean-restack 且无 force-push；完整功能 main `d82ca5c6`、CI run `32691778088` success；任务结论为 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`，但项目真实 Provider 就绪继续为 `PARTIAL`
 - F-006 Step 6 已完成：临时 schema v2 SQLite 与 14 个组合 journey、F-005 固定 48-case eval、loopback desktop/390px、network/console/accessibility、干净检出 frozen/offline 启动和独立 Codex Security 审查均通过；安全扫描 21/21、0 finding，未调用真实 Provider，证据不等同真实 UAT
 - F-006 Step 5 已完成：唯一 `scripts/run-local.ps1` 固定校验运行时、loopback 端口和 strict health，缺依赖不安装、端口冲突不杀进程；Ctrl+C/失败只收口自身精确 Python/Node Process，SQLite/未知异常使用固定脱敏诊断；仅运行离线 self-test/preflight，未启动业务服务或进入 SQLite/browser 验收
