@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from itertools import pairwise
 from typing import cast
 from uuid import UUID
 
@@ -13,13 +15,19 @@ import pytest
 
 from intelligent_travel_assistant.adapters.providers.amap import AmapAdapter, AmapAdapterConfig
 from intelligent_travel_assistant.application.ports import RouteCalculationRequest
+from intelligent_travel_assistant.application.tooling import (
+    PacedAttemptLimiter,
+    ProviderAttemptRuntime,
+)
 from intelligent_travel_assistant.domain import (
     Coordinates,
     CoordinateSystem,
     Provider,
     ProviderErrorCategory,
+    ProviderOperation,
     ProviderResultStatus,
     RouteMode,
+    attempt_pacing_policy_for,
 )
 
 ORIGIN_ID = UUID("90000000-0000-4000-8000-000000000030")
@@ -37,6 +45,17 @@ DESTINATION = Coordinates(
     Decimal("30.252030"),
     CoordinateSystem.PROVIDER_NATIVE,
 )
+
+
+class _MonotonicClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
+
+    def advance(self, seconds: float) -> None:
+        self.value += seconds
 
 
 def _request(mode: RouteMode = RouteMode.WALKING) -> RouteCalculationRequest:
@@ -366,3 +385,81 @@ async def test_route_http_and_transport_failures_use_existing_safe_mapping() -> 
     assert second.error is not None
     assert second.error.category is ProviderErrorCategory.TIMEOUT
     assert "sensitive" not in repr((first, second))
+
+
+@pytest.mark.anyio
+async def test_walking_and_transit_mock_transport_retries_share_paced_http_starts() -> None:
+    clock = _MonotonicClock()
+    starts: list[tuple[float, str]] = []
+    path_counts: dict[str, int] = {}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        path = request.url.path
+        starts.append((clock.value, path))
+        path_counts[path] = path_counts.get(path, 0) + 1
+        if path_counts[path] == 1:
+            if path.endswith("/walking"):
+                return httpx2.Response(503, content=b"synthetic server failure")
+            return httpx2.Response(429, headers={"Retry-After": "1"})
+        if path.endswith("/walking"):
+            return httpx2.Response(200, json=_walking_response())
+        return httpx2.Response(200, json=_transit_response())
+
+    adapter = _adapter(httpx2.MockTransport(handler))
+
+    async def advancing_sleep(delay: float) -> None:
+        clock.advance(delay)
+        await asyncio.sleep(0)
+
+    policy = attempt_pacing_policy_for(
+        Provider.AMAP,
+        ProviderOperation.CALCULATE_ROUTES,
+    )
+    assert policy is not None
+    shared_limiter = PacedAttemptLimiter(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        policy=policy,
+        clock=clock,
+        sleeper=advancing_sleep,
+    )
+
+    def runtime() -> ProviderAttemptRuntime:
+        return ProviderAttemptRuntime(
+            clock=clock,
+            sleeper=advancing_sleep,
+            jitter=lambda: 0.0,
+            task_timeout_seconds=90.0,
+            attempt_limiter=shared_limiter,
+        )
+
+    walking_runtime = runtime()
+    transit_runtime = runtime()
+    walking, transit = await asyncio.gather(
+        walking_runtime.execute(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            call=lambda: adapter.calculate_routes(_request(RouteMode.WALKING)),
+        ),
+        transit_runtime.execute(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            call=lambda: adapter.calculate_routes(_request(RouteMode.PUBLIC_TRANSIT)),
+        ),
+    )
+
+    start_times = [started_at for started_at, _path in starts]
+    assert walking.result.status is ProviderResultStatus.OK
+    assert transit.result.status is ProviderResultStatus.OK
+    assert walking.attempts_started == 2
+    assert transit.attempts_started == 2
+    assert path_counts == {
+        "/v5/direction/walking": 2,
+        "/v5/direction/transit/integrated": 2,
+    }
+    assert start_times == sorted(start_times)
+    assert all(later - earlier >= 0.5 for earlier, later in pairwise(start_times))
+    for window_start in start_times:
+        assert (
+            sum(window_start <= started_at < window_start + 1.0 for started_at in start_times) <= 2
+        )

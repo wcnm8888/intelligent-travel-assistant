@@ -677,16 +677,42 @@ async def _governed_call[T](
             (),
         )
     result: ProviderResult[T] | None = None
+
+    async def operation_after_pacing_wait() -> ProviderResult[T]:
+        governor.start_route_attempt_timeout_after_wait(permit)
+        try:
+            attempt_result = await operation()
+        except BaseException:
+            governor.finish_route_attempt(permit)
+            raise
+        if governor.finish_route_attempt(permit):
+            return attempt_result
+        assert provider is not None
+        return ProviderResult(
+            ProviderResultStatus.UNAVAILABLE,
+            provider,
+            None,
+            None,
+            None,
+            (),
+            ProviderError(ProviderErrorCategory.TIMEOUT),
+            (),
+        )
+
     try:
         if attempt_runtime is None:
             result = await operation()
         else:
             if provider is None or provider_operation is None:
                 raise ValueError("provider_attempt_metadata_required")
+            paced_route = (
+                provider is Provider.AMAP
+                and provider_operation is ProviderOperation.CALCULATE_ROUTES
+            )
             outcome = await attempt_runtime.execute(
                 provider=provider,
                 operation=provider_operation,
-                call=operation,
+                call=operation_after_pacing_wait if paced_route else operation,
             )
             result = provider_result_from_attempt_outcome(outcome)
     finally:

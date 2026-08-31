@@ -704,3 +704,57 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 - PR #38/#39/#40/#41 已依序 squash merge；#39/#40/#41 以普通 merge clean-restack 且无 force-push，完整功能 main 为 `d82ca5c6`，CI run `32691778088` success；
 - 同 URI、同 shape、schema v2、旧版本兼容、V3/V4 replan 前置拒绝和默认非 loopback 网络阻断均保持；
 - F-006 本地验收通过不能提升历史或当前真实 Provider 证据，也不能解除 F-004B2 阻塞。
+
+## D-018：高德路径规划使用单进程共享、无突发的 paced-slot QPS limiter
+
+- 日期：2026-08-30
+- 状态：`APPROVED / STEP_6_UAT_INCONCLUSIVE / STEP_7_ACTIVE`
+- 适用：F-007；`Provider.AMAP + ProviderOperation.CALCULATE_ROUTES`
+
+### 背景与裁决
+
+- 真实本地验收显示高德步行路径规划 2.0 的限制为 3 QPS、最高达到 6 QPS、超限 3 次；同期任务以 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing` 安全失败；
+- 该证据独立记录为 `FAIL / AMAP_QPS_EXCEEDED`。月调用量没有显示总额度耗尽，因此 F-007 修复进程内 attempt 启动节奏，不修改账号、Key、配额、计费或 Provider；
+- F-007 不扩大产品、Provider、API、Schema 或数据范围。
+
+### Limiter policy 与所有权
+
+- walking 与 public transit 共用同一 limiter，初次 attempt 和 retry 都必须经过它；
+- 限速固定为最多 2 HTTP attempts/秒，以 0.5 秒 paced slot 实现；使用 monotonic clock、禁止 burst，时间窗口按半开区间计算；
+- limiter 由 production bootstrap 创建并在单进程内跨所有 planning job/runtime 共享；禁止模块全局、`contextvars`、SQLite、Redis 或跨进程协调；
+- 保持既有逻辑调用预算、HTTP attempt 预算、route concurrency=2 和最大 180 秒 deadline。
+
+### 时序、deadline 与取消
+
+- 固定顺序为 retry/backoff → QPS slot → deadline/terminal/cancel 复核 → HTTP attempt；
+- limiter wait 计入总 deadline；只有 remaining 至少覆盖等待时间与完整 attempt timeout 才允许启动；
+- terminal、取消、deadline、逻辑预算或 attempt 预算耗尽后不得等待或启动新请求；waiter 和 active peer 必须 cancel/drain。
+
+### 兼容、错误与隐私
+
+- 保持现有 POST/GET/retry/DELETE 和 replan URI、公开顶层 shape 与错误码；复用 `provider_rate_limited`、timeout/deadline 和安全 diagnostic；
+- 不保存 Key、完整 URL、坐标、原始响应、原始错误 body 或高德 infocode；limiter 状态不进入 SQLite；
+- 默认测试和 CI 阻断非 loopback 网络；Schema version 2、migration 1/2、依赖和 lockfile 保持不变。
+
+### 测试、真实 UAT 与交付
+
+- 先用 fake monotonic clock、MockTransport 和 synthetic fixture 验证节流、重试、deadline、cancel/drain、跨 job 竞争及 legacy/V2/V3/V4/F-005 兼容；
+- 真实高德 UAT 固定为独立 Step 6；用户已批准不再执行新的真实 Provider UAT。Step 6 以 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 收口，不能覆盖 Step 45M、Step 45T 或本次 F-007 FAIL；
+- 两层 stack：`feat/f-007-amap-qps-policy-runtime` → `feat/f-007-amap-qps-integration-delivery`；
+- 单 Step 超过 4 个未预期生产/测试文件、Stack 1 超过 12 文件或净新增 1000 行、Stack 2 超过 18 文件或净新增 1400 行、任务累计超过 30 文件或净新增 2200 行时停止并重新拆分。
+
+### Step 1 冻结细化
+
+- exact scope policy 位于 domain：只有 `(Provider.AMAP, ProviderOperation.CALCULATE_ROUTES)` 得到 0.5 秒 pacing；retry schedule 与所有其他 Provider/operation 不变；
+- application limiter 只接收枚举 scope、共享 monotonic clock、async sleeper 与 task runtime 计算的 `latest_start_at`；不得接触路线 mode、坐标、URL、请求/响应或秘密；
+- limiter 使用单一 async lock 和 `next_start_at`。`slot_at=max(now,next_start_at)`；空闲不积累 token；`slot_at > latest_start_at` 时不 sleep、不变更状态，等号允许；获准后按实际 monotonic start 设置下一 slot；
+- initial 与 retry 都在 task runtime 内过 limiter；retry backoff 先完成。runtime 在排队前预检，并在 slot 后、HTTP 前以 reservation lock 复核 terminal/cancel/deadline/provider+task retry budget；retry extra attempt 只在该 postflight 点预留；
+- limiter 等待和 active HTTP 都属于既有 runtime active task，可由 close/异常 cancel+drain；task runtime 关闭不得关闭 process limiter；已授予但未使用的 slot 不回收，以避免补发 burst；
+- production bootstrap 在完整 adapter 路径创建一个 limiter并由 runtime factory 闭包共享；缺配置路径不创建；禁止 adapter 内 limiter、module singleton、`contextvars`、持久化或跨进程协调；
+- Amap adapter 生产文件不在批准修改清单；实现若证明必须修改则停止并重新批准。
+
+### 后果
+
+- Step 0–5 已完成治理、设计、实现、离线矩阵及本地纵向验收；Step 6 已按实际证据收口，当前进入 Step 7 离线门禁与两层交付；
+- 2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 只作为积极补充证据；由于缺少同期高德控制台 QPS/超限记录，不能覆盖 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`，也不能宣称真实调用 QPS 已 PASS；
+- F-006 `LOCAL_ACCEPTANCE_PASS` 保持，项目真实 Provider 就绪继续为 `PARTIAL`；其他历史产品、UAT、unknown、fallback、Provider、Schema/migration 事实均不变。

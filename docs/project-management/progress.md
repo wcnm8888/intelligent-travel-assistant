@@ -2,15 +2,104 @@
 
 ## 当前状态
 
-- 当前任务：无
-- 最近关闭：`F-006 MVP 体验收口与本地验收`
-- 状态：`DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`
-- Step 0–8：全部 `DONE`
-- 完整功能 main：`d82ca5c65794749932be65724455aca146a7cbca`
-- 完整功能 main CI：run `32691778088`，`success`
+- 当前任务：`F-007 高德路径规划 QPS 节流与真实调用稳定性`（`ACTIVE`）
+- 当前 Step：`Step 7 - 本地全量门禁与两层交付`（`ACTIVE`）
+- Step 0–5：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
+- 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`；归档 main CI run `32692800113` success；无开放 PR
+- 当前分支：`feat/f-007-amap-qps-policy-runtime`；尚无 F-007 commit、push、PR 或远程 CI
+- 真实验收：2026-08-30 新增 `FAIL / AMAP_QPS_EXCEEDED`；高德步行路径规划限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态为 `provider_rate_limited`、`route_primary_unavailable`、`data_missing`
+- 服务：Step 5A 完成后 `127.0.0.1:8000`（PID 52516）与 `127.0.0.1:5173`（PID 77692）仍 HTTP 200，未停止或重启
 - F-004C：Step 0–6 `DONE / DELIVERED / ARCHIVED`；PR #34/#35/#36 和归档 PR #37 已合并；最终 main CI run `32486428083` success
 - F-004B2：`BLOCKED / ARCHIVED`；不得恢复其 Provider 查询或 Step 2
-- 下一入口：roadmap 当前没有新候选；后续任务或路线图变更须另行起草并批准
+- F-006：`DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`；其本地验收结论不因 F-007 真实 Provider QPS FAIL 改写，项目真实 Provider 就绪继续为 `PARTIAL`
+- 下一入口：执行用户已批准的 Step 7；不 merge、不归档、不进入 F-008
+
+## F-007 Step 6
+
+- 状态：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；用户已明确批准不再执行新的真实 Provider UAT；
+- 历史事实：保留 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`，不得由后续离线门禁或补充观察覆盖；
+- 补充证据：2026-08-31 观察到 0.50–0.52 秒间隔且未出现 `provider_rate_limited`，但缺少同期高德控制台 QPS/超限记录，因此只能作为积极补充证据，不能记为 PASS；
+- 边界：本次只完成文档收口，没有读取秘密、调用真实 Provider或停止/重启现有服务；
+- 下一入口：Step 7 本地全量离线门禁、规模/边界审计、两层交付、独立 review 与逐层远程 CI。
+
+## F-007 Step 5A
+
+- 状态：`DONE / PASS`；Step 5 的 accessibility finding 已关闭，未进入 Step 6；
+- TDD：直接 CSS 门禁先以 `4.203700573694173:1` RED 失败；最小 GREEN 只将 `--status-partial` 从 `#9b6716` 调整为 `#925d12`，并让 `unknown_validity` 复用该 token；全局 amber、背景、布局、API、状态与交互不变；
+- 验证：前端 `13 files / 132 tests`；desktop 1440×1000 与 390×844 实际渲染对比度均为 `5.071:1`，无横向溢出，390px 小于 44px 的可见按钮、broken descriptions、unlabeled controls 均为 0，console 0 error/0 warning；
+- 网络/服务：28 条请求全部为 `127.0.0.1:15177`，API 仅代理至隔离 18007；结束后只关闭隔离进程，用户 8000/PID 52516 与 5173/PID 77692 保持 HTTP 200；
+- 范围：只修改 `frontend/src/styles.css`、直接前端测试和当前状态/evidence 文档；Schema/migration、依赖/lockfile、Provider、秘密与 Git 交付均为 0；
+- 规模：Step 5A 为 2 个批准生产/测试文件、净新增 58 行；任务累计 14 个生产/测试文件、净新增 1210 行，低于 30 文件/2200 行任务阈值；
+- 后续入口已由已收口的 Step 6 和当前 Step 7 取代；本段保留 Step 5A 时点事实。
+
+## F-007 Step 5
+
+- 状态：`DONE / PASS`；隔离 loopback 与临时 SQLite、浏览器、network/console/accessibility 和独立隐私安全审查均已执行，原 finding 已由上方 Step 5A 关闭；
+- 纵向：V4 synthetic POST → partial → retry attempt 2 → reload 恢复 → DELETE；SQLite migration 只有 1/2，删除后 job=0；V2/V3/V4 组合临时 SQLite `40 passed`；
+- 浏览器：1440×1000 与 390×844 无横向溢出；label/description、live region、44px button、skip link、DELETE 两步确认及 Escape 焦点恢复通过；console 0 error/0 warning；99 条请求仅 `127.0.0.1:15177`；
+- 安全：Codex Security scan `d34206c0-41f4-481a-8282-b00115238d76` 完整覆盖 6 个变更生产文件、0 finding；未读取秘密或调用 Provider；
+- 原 finding：`partial` 状态章及 `unknown_validity` 普通文本对比度约 4.2:1，低于 WCAG AA 4.5:1；Step 5 当时未授权改前端，故正确阻塞，后由 Step 5A 关闭；
+- 过程偏差：首次 V2 手工输入与固定 synthetic 结果摘要不一致，Repository 以 `result_request_mismatch` fail closed；未联网、未作为通过证据，V2 canonical 纵向由自动化矩阵通过；
+- 服务/范围：验收仅用自有 18007/15177 与临时 E 盘数据库，结束后关闭隔离进程；用户 8000/5173 PID 未变；Schema/migration、依赖/lockfile、生产/测试源码均未在 Step 5 修改；
+- 下一入口：Step 5A 已关闭 finding；Step 6 仍须单独批准且默认关闭。
+
+## F-007 Step 4
+
+- 状态：`DONE / PASS`；只使用 fake monotonic clock、MockTransport 与 synthetic fixture 完成离线稳定性和兼容回归，没有修改生产实现；
+- 跨 job：两个并发 planning job 分别使用 public transit/walking，route concurrency 仍为 2；8 次 Amap route starts 为连续 0.5 秒槽位，任意半开 1 秒窗口最多 2 次；
+- retry：MockTransport 503 与合法 Retry-After 429 各只重试一次；runtime 矩阵确认 timeout/server/受控 429 可重试，auth/schema/empty/unknown/无合法 Retry-After 不重试，initial/retry 共用 limiter 且 backoff 先于 slot；
+- stop/drain：deadline 等号、shortfall、oversleep、terminal/cancel/budget 后零新 HTTP/零未启动 budget，waiter 与 active peer cancel-drain、单 runtime 关闭后共享 limiter 继续可用均通过；
+- 兼容：相关集合 `299 passed`；后端 `1446 passed / 1 deselected`，deselect 仅因必须保留 8000/5173 服务与 runner 空闲端口 preflight 互斥，runner 其余 `4 passed`；前端 `131 passed` 及全部静态/build 门禁通过；
+- 范围：Step 4 修改 3 个批准测试文件、净新增 289 行；累计 12 个生产/测试文件、净新增 1152 行；生产 adapter/planning/API/Repository/SQLite/frontend、Schema/migration、依赖/lockfile 零修改；
+- 边界：未停止/重启服务，未读取秘密、创建数据库、调用 Provider 或执行 Git 交付；真实 F-007 UAT 仍为 FAIL，不能由本 Step 离线 PASS 覆盖；
+- 下一入口：等待用户明确批准 Step 5 本地纵向与独立审查。
+
+## F-007 Step 3
+
+- 状态：`DONE / PASS`；以 TDD 将 Step 2 limiter 作为完整配置 production bootstrap 的单进程唯一实例，由既有 factory 注入 legacy/V2/V3/V4 task runtimes；
+- RED：完整配置的四个 runtime `_attempt_limiter is None`，共享 identity 断言失败；configuration-missing 零 limiter 构造已通过；
+- GREEN：完整配置四 runtime 共享同一 `PacedAttemptLimiter`；fake clock route starts 为 0/0.5/1.0/1.5，Amap POI、QWeather forecast 和 DeepSeek generation 不推进 limiter 时间线；
+- 缺配置：完整性 Gate 在 limiter 构造前返回 `ConfigurationMissingPlanningJobExecutor`，保持零 limiter、零 Provider/Agent/governor/attempt 调用；
+- 兼容：route concurrency=2、logical/HTTP attempt budget、最大 180 秒 deadline、terminal/cancel/peer drain 和公开 API/错误 shape 均由既有/Step 2 回归保持；
+- 验证：bootstrap exact `2 passed`；bootstrap+四版本+Step 2 `181 passed`；后端全量 `1408 passed`；Ruff format/check 与 strict mypy `150 source files` 通过；
+- 文档/服务：文档检查 17 required/29 Markdown、检查器 24 tests 和 whitespace checks 通过；后端/前端 HTTP 200，listener PID 保持 52516/77692；
+- 范围：Step 3 为 2 个批准生产/测试文件、净新增 165 行；任务累计 10 个生产/测试文件、净新增 863 行，未预期文件 0；
+- 边界：planning service、Provider adapters、API、Repository、SQLite、frontend、Schema/migration、依赖/lockfile 零修改；未读取秘密、创建数据库、调用 Provider、停止/重启服务或执行 Git 交付；
+- 下一入口：等待用户明确批准 Step 4 离线稳定性与兼容回归。
+
+## F-007 Step 2
+
+- 状态：`DONE / PASS`；先 RED 后最小 GREEN，实现 exact Amap route pacing policy、process-shareable paced-slot limiter 和 task runtime 可选注入；
+- RED：3 个定向模块按预期在 collection 阶段因缺少 `AttemptPacingPolicy`/`PacedAttemptLimiter` 失败，无环境或既有行为漂移；
+- GREEN：仅 `AMAP + CALCULATE_ROUTES` 使用 0.5 秒 monotonic timeline；无 burst/idle token、半开窗口、并发 waiter、nonmatching、initial/retry、backoff→slot、deadline equality/shortfall/oversleep、pre/postflight、未启动 budget 和 cancel/drain 均由 fake clock 锁定；
+- 验证：定向 `102 passed`，相邻 application/provider `257 passed`，后端全量 `1406 passed`；Ruff format/check 通过，strict mypy `150 source files` 通过；
+- 文档/服务：文档检查 17 required/29 Markdown、检查器 24 tests 和 whitespace checks 通过；后端/前端均 HTTP 200，listener PID 保持 52516/77692；
+- 范围：8 个批准生产/测试文件、净新增 698 行，未预期文件 0；Stack 1 当前低于 12 文件/1000 行阈值；
+- 边界：bootstrap、planning service、Amap adapter、API、Repository、SQLite、前端、Schema/migration、依赖/lockfile 均零修改；未读取秘密、创建数据库、调用 Provider 或执行 Git 交付；
+- 下一入口：等待用户明确批准 Step 3 的 bootstrap 单实例接线。
+
+## F-007 Step 1
+
+- 状态：`DONE / PASS`；只读核对现有 `ProviderAttemptRuntime`、bootstrap、legacy/V2/V3/V4 路径调用和测试入口后完成设计冻结，未修改生产源码、测试或 fixture；
+- 接线：walking/public transit 均以 `AMAP + CALCULATE_ROUTES` 进入同一 task runtime；process limiter 由完整配置的 production bootstrap 单实例持有并通过 factory 注入各 job runtime，不进入 Amap adapter；
+- policy：仅 exact Amap route 命中，0.5 秒 monotonic paced slot、无 token 累积、半开 1 秒窗口最多 2 starts；task runtime 与 limiter 使用同一 clock domain；
+- 顺序：retry/backoff → preflight → slot → postflight/deadline/terminal/cancel/budget 复核与 retry reservation → HTTP；deadline 等号允许，slot wait/oversleep 计入 deadline；
+- 取消：waiter 与 active peer 继续由 task runtime cancel/drain；关闭一个 runtime 不关闭 process limiter；post-slot 失败零 HTTP、零 retry budget 消耗，已授予 slot 不回收；
+- 测试：fake clock/MockTransport 矩阵覆盖 scope、无 burst、并发、跨 job、initial/retry、deadline、budget、cancel/drain、bootstrap singleton、route concurrency=2 与全版本/F-005/持久化/API/UI 兼容；
+- 文件：Stack 1 固定为 domain policy + 新 limiter + task runtime/exports/直接测试；Stack 2 固定为 bootstrap singleton + executor/multiday/multicity/adapter MockTransport 回归与验收交付；Amap adapter 生产文件不在批准清单；
+- 验证：文档检查 17 required/29 Markdown、检查器 24 tests、`git diff --check` 均通过；范围仍为 7 份文档，后端/前端 health 均 200，listener PID 仍为 52516/77692；
+- 边界：没有停止/重启 8000/5173，没有数据库、秘密、Provider 调用、Git 交付、Schema/migration、依赖/lockfile 或公开 shape 变化；
+- 下一入口：等待用户明确批准 Step 2 的 TDD 实现。
+
+## F-007 Step 0
+
+- 状态：`DONE / PASS`；Step 0 开始前 HEAD/main/origin/main 一致、工作区干净、无开放 PR、无活动任务，最新归档 main CI `32692800113` success；
+- 治理：F-007 已成为唯一 ACTIVE，current-task、roadmap、implementation-plan、D-018、两层 stack、核心文件和规模阈值已建立；
+- 证据：新增 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 当前证据，不覆盖 Step 45M `FAIL`、Step 45T `PASS` 或 F-006 `LOCAL_ACCEPTANCE_PASS`；
+- Git：从干净 main 创建 `feat/f-007-amap-qps-policy-runtime`，没有 commit、push、PR 或远程 CI；
+- 范围：只修改当前治理/权威文档；没有源码、测试、fixture、Schema/migration、依赖/lockfile、数据库或秘密变更，也没有 Provider 调用；
+- 服务：用户当前 8000/5173 服务保持运行，未停止或重启；
+- 下一入口：等待用户明确批准 Step 1 的 documentation-only 设计冻结。
 
 ## F-006 Step 8
 
