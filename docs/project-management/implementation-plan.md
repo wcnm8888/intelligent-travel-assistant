@@ -88,7 +88,7 @@ Step 5A 关闭：直接测试先记录 RED `4.203700573694173:1`；随后仅将�
 
 不得 merge、运行最终 main CI、归档或关闭任务。必须分别审计文件数、净新增行、Schema/migration、依赖/lockfile、秘密和网络边界。
 
-结果：两层提交 `c73cd7f`/`273231a` 已推送并形成 Draft PR #43/#44；本地后端 `1424 passed`、前端 `132 passed` 与全部静态/build/docs 门禁通过，受保护 8000 端口只导致 runner preflight 按设计 fail closed。独立复审最终 `FIXED`，首次逐层远程 CI runs `33363974674`/`33364033165` success。Stack 1 为 10 文件/净增 851 行，Stack 2 为 14 文件/净增 1112 行，累计 24 文件/净增 1963 行；所有边界和阈值通过。
+结果：两层提交 `c73cd7f`/`273231a` 已推送并形成 Draft PR #43/#44；本地后端 `1424 passed`、前端 `132 passed` 与全部静态/build/docs 门禁通过，受保护 8000 端口只导致 runner preflight 按设计 fail closed。独立复审最终 `FIXED`，首次逐层远程 CI runs `33363974674`/`33364033165` success。Stack 1 为 10 文件/净增 851 行，Stack 2 为 14 文件/净增 1147 行，累计 24 文件/净增 1998 行；所有边界和阈值通过。
 
 ## Step 8：依序合并与关闭（TODO / BLOCKED_BY_APPROVAL）
 
