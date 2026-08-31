@@ -1,5 +1,18 @@
 # 验收证据索引
 
+## F-007 Step 8A：初次 limiter waiter 取消传播最小修复
+
+- 日期：2026-08-31；结论：`DONE / PASS / OFFLINE ONLY`。不改写 Step 6 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 或 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；
+- 前置：#43 squash merge commit `6252193b8d3f3ed07498ff318e09b02edaca4889`，main CI `33365971491` success；#45 从该干净 main clean-restack 并替代仍 OPEN 的 #44；
+- TDD：RED `1 failed / 37 deselected`，原始 `CancelledError` 被 `ToolCallGovernor.complete()` 覆盖为 `TASK_TIMEOUT`；GREEN 将初次 route attempt timer 延后到真实 attempt start，并在已有业务/运行时异常时仅执行 permit 清理；
+- 语义：初次 limiter waiter 取消原样传播，HTTP attempt=0、retry budget=0、active runtime=0、active route calls=0；retry wait、实际 attempt timeout、deadline、non-route 与 0.5 秒无突发规则不变；
+- 本地：聚焦 `8 passed`、相关 `159 passed`、后端 `1426 passed`；Ruff format/check 与 strict mypy 150 文件通过；前端 `132 passed`，Prettier/ESLint/TypeScript/build 通过；文档检查和 checker `24 tests / OK`；
+- Git/review/CI：普通追加提交 `f87332c7f442429e03aac296f533517ec85721ad` 已推送并更新 #45 body；独立只读 review `NO_P0_P1`；Windows offline CI run `33375683517` / job `99436524161` success；
+- 范围：Step 8A 生产/测试为 4 文件、`+112/-1`、净新增 111 行；加治理文档后 Stack 2 为 16 文件/净新增 1303 行，任务累计 24 文件/净新增 2154 行，低于全部阈值；
+- 边界：Schema version 2、migration 1/2、依赖/lockfile、公开 API shape 与 Provider 数据边界无变化；没有读取秘密、调用真实 Provider、创建或修改项目数据库、merge、关闭 #44、归档或进入 F-008/F-009；
+- 服务偏差：准入时 8000/5173 已无监听，用户明确豁免条件 9；本步骤没有启动、停止或重启服务；
+- 下一入口：#44/#45 保持 OPEN，等待用户重新批准恢复 Step 8。
+
 ## F-007 Step 7：本地全量门禁、独立 review 与两层交付
 
 - 日期：2026-08-31；结论：`DONE / PASS / OFFLINE DELIVERY`。不改写 Step 6 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE` 或 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；

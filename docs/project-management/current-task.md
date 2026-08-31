@@ -3,11 +3,11 @@
 ## F-007：高德路径规划 QPS 节流与真实调用稳定性
 
 - 状态：`ACTIVE`
-- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）
-- Step 0–5、Step 7：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
-- 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`；归档 main CI run `32692800113` success；Step 0 开始前工作区干净
-- 当前分支：`feat/f-007-amap-qps-integration-delivery`；Stack 1/2 提交为 `c73cd7f`/`273231a`，Draft PR #43/#44 均 OPEN
-- 服务保护：Step 5 完成后 `127.0.0.1:8000`（PID 52516）与 `127.0.0.1:5173`（PID 77692）仍健康运行，期间未停止或重启
+- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）；Step 8A 已 `DONE / PASS`，恢复执行仍为 `BLOCKED_BY_APPROVAL`
+- Step 0–5、Step 7、Step 8A：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
+- 合并基线：PR #43 已 squash merge 为 origin/main `6252193b8d3f3ed07498ff318e09b02edaca4889`，main CI run `33365971491` success
+- 当前分支：`feat/f-007-amap-qps-integration-delivery-restack`；Draft PR #45 替代 #44，Step 8A head 为 `f87332c7f442429e03aac296f533517ec85721ad`
+- 服务事实：Step 8A 准入时 8000/5173 已无监听，用户明确豁免条件 9；本步骤没有启动、停止或重启服务
 
 ## 问题与证据
 
@@ -115,6 +115,17 @@
 - 边界：Schema version 2、migration 1/2、依赖、lockfile、公开 API shape 和 Provider 数据边界未改变；未读取秘密、调用真实 Provider、创建数据库或停止/重启现有服务；
 - 下一入口：只能在用户单独批准后执行 Step 8；当前不得 merge、归档、关闭 F-007 或进入 F-008。
 
+## Step 8A 最小修复结论
+
+- 状态：`DONE / PASS`。#43 合并后按批准规则从最新 origin/main 建立 #45 clean-restack；原 #44 保持 OPEN，#45 未 merge；
+- TDD：RED 证明初次 route waiter 在共享 limiter 等待中抛出的 `CancelledError` 会被 `ToolCallGovernor.complete()` 覆盖为 `TASK_TIMEOUT`；GREEN 将初次 attempt timer 延后到真实 attempt start，并保留已有业务/运行时异常；
+- 回归：取消原样传播，HTTP attempt=0、retry budget=0、active runtime=0、active route calls=0；初次/重试 pacing、实际 attempt timeout、deadline、non-route 与无突发语义保持；
+- 验证：聚焦 8 项、相关 159 项、后端全量 `1426 passed`、前端 `132 passed`，Ruff、strict mypy、Prettier、ESLint、TypeScript、build、文档检查与 24 个文档检查器测试通过；
+- Git/CI/review：追加提交 `f87332c7f442429e03aac296f533517ec85721ad` 已推送至 #45；独立只读 review 为 `NO_P0_P1`；Windows offline CI run `33375683517` success；
+- 规模：Step 8A 生产/测试为 4 文件、`+112/-1`、净新增 111 行；加治理文档后 Stack 2 为 16 文件/净新增 1303 行，任务累计 24 文件/净新增 2154 行，均未触发阈值；
+- 边界：Schema version 2、migration 1/2、依赖/lockfile、公开 API shape、Provider 数据边界均未变化；未读取秘密、调用真实 Provider、创建或修改项目数据库、merge、关闭 #44、归档或进入 F-008/F-009；
+- 下一入口：停止等待用户重新批准恢复 F-007 Step 8；不得自动 merge #45 或关闭/归档 F-007。
+
 ## Step 4 完成证据
 
 - 两个并发单城市 planning job 分别使用 walking/public transit，在 route concurrency=2 不变时共用同一 limiter；8 次 route attempt starts 为 `0.0/0.5/1.0/1.5/2.0/2.5/3.0/3.5`，相邻间隔不少于 0.5 秒，任意半开 1 秒窗口最多 2 次；
@@ -137,6 +148,7 @@
 | Step 6 | 按实际证据关闭真实高德 UAT Gate；缺少同期控制台证据时不得记为 PASS | DONE |
 | Step 7 | 运行本地全量门禁并完成两层 commit/push/PR、独立 review 与逐层远程 CI，不 merge | DONE |
 | Step 8 | 经单独批准后依序合并、必要 clean-restack、最终 main CI、归档与关闭 | TODO |
+| Step 8A | 修复初次 route limiter waiter 取消被治理超时覆盖的问题，更新 #45 并通过独立 review/CI，不 merge | DONE |
 
 ## 两层 stacked PR
 

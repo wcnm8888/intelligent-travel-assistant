@@ -3,11 +3,11 @@
 ## 当前状态
 
 - 当前任务：`F-007`，状态 `ACTIVE`；
-- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）；
-- Step 0–5、Step 7：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；
+- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）；Step 8A 已 `DONE / PASS`，恢复执行仍为 `BLOCKED_BY_APPROVAL`；
+- Step 0–5、Step 7、Step 8A：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；
 - Step 5A 已将 `partial` / `unknown_validity` 实际渲染对比度提升至 `5.071:1` 并关闭 finding；用户已批准不再执行新的真实 Provider UAT；
 - 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`，归档 main CI run `32692800113` success；
-- 当前本地分支：`feat/f-007-amap-qps-integration-delivery`；Stack 1/2 提交 `c73cd7f`/`273231a`，Draft PR #43/#44 OPEN；
+- 当前本地分支：`feat/f-007-amap-qps-integration-delivery-restack`；#43 已合并，Draft PR #45 替代仍 OPEN 的 #44，当前 head `f87332c7`；
 - 用户当前 `127.0.0.1:8000` 与 `127.0.0.1:5173` 服务必须保持运行，未经明确批准不得停止或重启。
 
 ## Step 0：激活治理与证据基线（DONE / PASS）
@@ -95,6 +95,16 @@ Step 5A 关闭：直接测试先记录 RED `4.203700573694173:1`；随后仅将�
 唯一目标：经用户单独批准后依序合并两层 PR，必要时 clean-restack，运行最终 main CI，归档任务卡并关闭 F-007。
 
 合并后必须确认 main==origin/main、工作区干净、无开放 PR、current-task 无活动任务，并保留所有历史 UAT 与 PARTIAL 事实。
+
+## Step 8A：初次 limiter waiter 取消传播最小修复（DONE / PASS）
+
+唯一目标：修复 #45 独立 review 发现的 P1，确保初次高德 route attempt 在共享 limiter 等待时取消不会被 governor completion timeout 覆盖。
+
+结果：RED 精确复现 `CancelledError → TASK_TIMEOUT`；GREEN 在进入 paced runtime 前将 route permit 标为尚未开始 attempt，并在已有业务/运行时异常传播时只完成 permit 清理。回归证明零 HTTP、零 retry budget、零 active runtime/route call，初次/重试 pacing、实际 attempt timeout、deadline、non-route 和无突发语义不变。
+
+交付：提交 `f87332c7f442429e03aac296f533517ec85721ad` 已更新 Draft PR #45；本地后端 `1426 passed`、前端 `132 passed` 与全部批准静态/docs 门禁通过；独立只读 review `NO_P0_P1`，CI run `33375683517` success。Step 8A 为 4 个生产/测试文件、净新增 111 行；未修改 Schema/migration、依赖/lockfile、API 或 Provider 边界。条件 9 已由用户明确豁免，步骤内未启动/停止/重启服务。
+
+下一入口：等待用户重新批准恢复 Step 8；不得 merge #45、关闭 #44、归档或进入 F-008/F-009。
 
 ## 两层 stacked PR 归属
 

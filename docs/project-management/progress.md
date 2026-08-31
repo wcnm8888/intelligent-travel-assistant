@@ -3,16 +3,24 @@
 ## 当前状态
 
 - 当前任务：`F-007 高德路径规划 QPS 节流与真实调用稳定性`（`ACTIVE`）
-- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）
-- Step 0–5、Step 7：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
-- 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`；归档 main CI run `32692800113` success
-- 当前分支：`feat/f-007-amap-qps-integration-delivery`；Draft PR #43/#44 OPEN，尚未 merge
+- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）；Step 8A 已 `DONE / PASS`，恢复执行仍为 `BLOCKED_BY_APPROVAL`
+- Step 0–5、Step 7、Step 8A：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
+- 合并基线：origin/main `6252193b8d3f3ed07498ff318e09b02edaca4889`，main CI run `33365971491` success
+- 当前分支：`feat/f-007-amap-qps-integration-delivery-restack`；Draft PR #45 替代仍 OPEN 的 #44，尚未 merge
 - 真实验收：2026-08-30 新增 `FAIL / AMAP_QPS_EXCEEDED`；高德步行路径规划限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态为 `provider_rate_limited`、`route_primary_unavailable`、`data_missing`
-- 服务：Step 5A 完成后 `127.0.0.1:8000`（PID 52516）与 `127.0.0.1:5173`（PID 77692）仍 HTTP 200，未停止或重启
+- 服务：Step 8A 准入时 8000/5173 已无监听，用户明确豁免条件 9；本步骤未启动、停止或重启服务
 - F-004C：Step 0–6 `DONE / DELIVERED / ARCHIVED`；PR #34/#35/#36 和归档 PR #37 已合并；最终 main CI run `32486428083` success
 - F-004B2：`BLOCKED / ARCHIVED`；不得恢复其 Provider 查询或 Step 2
 - F-006：`DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`；其本地验收结论不因 F-007 真实 Provider QPS FAIL 改写，项目真实 Provider 就绪继续为 `PARTIAL`
-- 下一入口：等待用户单独批准 Step 8；不 merge、不归档、不进入 F-008
+- 下一入口：等待用户重新批准恢复 Step 8；不 merge #45、不关闭 #44、不归档、不进入 F-008
+
+## F-007 Step 8A
+
+- 状态：`DONE / PASS`；RED 证明初次 limiter waiter 的 `CancelledError` 被 completion 覆盖为 `TASK_TIMEOUT`，GREEN 延后 attempt timer 并保留已有异常；
+- 验证：聚焦 8、相关 159、后端 `1426`、前端 `132` 项通过；全库 Ruff/mypy、前端静态/build、文档检查与 24 个 checker 测试通过；
+- 交付：提交 `f87332c7` 已更新 #45；独立只读 review `NO_P0_P1`；CI run `33375683517` success；
+- 范围：4 个生产/测试文件、净新增 111 行；加治理文档后 Stack 2 为 16 文件/净增 1303，任务累计 24 文件/净增 2154；Schema/migration、依赖/lockfile、API、Provider/秘密/网络边界无变化；
+- 停止：#44/#45 保持 OPEN，未 merge/归档；等待用户重新批准恢复 Step 8。
 
 ## F-007 Step 7
 
