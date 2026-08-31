@@ -85,6 +85,7 @@ from intelligent_travel_assistant.domain.replanning import (
     validate_change_set_scope,
 )
 from intelligent_travel_assistant.domain.resilience import (
+    AttemptPacingPolicy,
     FactCriticality,
     FactUse,
     FailureDisposition,
@@ -94,6 +95,7 @@ from intelligent_travel_assistant.domain.resilience import (
     ResilienceDiagnosticCode,
     RetryDecision,
     RetrySchedule,
+    attempt_pacing_policy_for,
     decide_freshness,
     decide_provider_failure,
     decide_retry,
@@ -120,6 +122,7 @@ from intelligent_travel_assistant.domain.trip_request import (
 __all__ = [
     "ActivityTimeSlot",
     "AdjustActivityTime",
+    "AttemptPacingPolicy",
     "BudgetAssessment",
     "BudgetCostItem",
     "BudgetSummaryResult",
@@ -199,6 +202,7 @@ __all__ = [
     "WeatherForecast",
     "UserProvidedIntercitySegment",
     "build_intercity_cost_item",
+    "attempt_pacing_policy_for",
     "build_plan_change_set",
     "calculate_multicity_lodging_costs",
     "calculate_multiday_lodging_cost",

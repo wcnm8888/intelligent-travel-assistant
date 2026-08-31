@@ -20,9 +20,12 @@ from intelligent_travel_assistant.domain import (
     ProviderResult,
     ProviderResultStatus,
     ResilienceDiagnosticCode,
+    RetrySchedule,
     decide_retry,
     retry_schedule_for,
 )
+
+from .rate_limiting import PacedAttemptLimiter
 
 
 class ProviderAttemptRuntimeErrorCode(StrEnum):
@@ -73,6 +76,7 @@ class ProviderAttemptRuntime:
     __slots__ = (
         "_active_tasks",
         "_amap_extra_attempts",
+        "_attempt_limiter",
         "_clock",
         "_closed",
         "_jitter",
@@ -93,6 +97,7 @@ class ProviderAttemptRuntime:
         sleeper: Callable[[float], Awaitable[None]],
         jitter: Callable[[], float],
         task_timeout_seconds: float,
+        attempt_limiter: PacedAttemptLimiter | None = None,
     ) -> None:
         if not callable(clock):
             raise ValueError("provider_attempt_clock_invalid")
@@ -111,6 +116,12 @@ class ProviderAttemptRuntime:
         self._sleeper = sleeper
         self._jitter = jitter
         self._task_timeout_seconds = float(task_timeout_seconds)
+        if attempt_limiter is not None and not isinstance(
+            attempt_limiter,
+            PacedAttemptLimiter,
+        ):
+            raise ValueError("provider_attempt_limiter_invalid")
+        self._attempt_limiter = attempt_limiter
         self._last_clock = self._read_initial_clock()
         self._started_at = self._last_clock
         self._records: list[ProviderAttemptRecord] = []
@@ -139,33 +150,80 @@ class ProviderAttemptRuntime:
         task = current  # narrow the invariant for mypy and the active-task set
         self._active_tasks.add(task)
         attempts_started = 0
-        try:
-            if self._remaining_seconds() < schedule.attempt_timeout_seconds:
-                return ProviderAttemptOutcome(
-                    ProviderResult(
-                        ProviderResultStatus.UNAVAILABLE,
-                        provider,
-                        None,
-                        None,
-                        None,
-                        (),
-                        ProviderError(ProviderErrorCategory.TIMEOUT),
-                        (),
-                    ),
-                    0,
-                    ResilienceDiagnosticCode.RETRY_DEADLINE_EXHAUSTED,
+        last_result: ProviderResult[T] | None = None
+        retry_pending = False
+
+        def stopped_outcome(
+            diagnostic_code: ResilienceDiagnosticCode,
+        ) -> ProviderAttemptOutcome[T]:
+            if last_result is None:
+                result = ProviderResult[T](
+                    ProviderResultStatus.UNAVAILABLE,
+                    provider,
+                    None,
+                    None,
+                    None,
+                    (),
+                    ProviderError(ProviderErrorCategory.TIMEOUT),
+                    (),
                 )
+            else:
+                result = last_result
+            return ProviderAttemptOutcome(
+                result,
+                attempts_started,
+                diagnostic_code,
+            )
+
+        try:
             while True:
                 if self._closed:
                     raise ProviderAttemptRuntimeError(
                         ProviderAttemptRuntimeErrorCode.RUNTIME_CLOSED
                     )
-                attempts_started += 1
+                if task.cancelling():
+                    raise asyncio.CancelledError
+                if self._remaining_seconds() < schedule.attempt_timeout_seconds:
+                    return stopped_outcome(ResilienceDiagnosticCode.RETRY_DEADLINE_EXHAUSTED)
+                if retry_pending:
+                    async with self._reservation_lock:
+                        if self._retry_budget_exhausted(provider, schedule):
+                            return stopped_outcome(ResilienceDiagnosticCode.RETRY_BUDGET_EXHAUSTED)
+
+                if self._attempt_limiter is not None:
+                    slot = await self._attempt_limiter.acquire(
+                        provider=provider,
+                        operation=operation,
+                        latest_start_at=(
+                            self._started_at
+                            + self._task_timeout_seconds
+                            - schedule.attempt_timeout_seconds
+                        ),
+                    )
+                    if not slot.granted:
+                        return stopped_outcome(ResilienceDiagnosticCode.RETRY_DEADLINE_EXHAUSTED)
+
+                async with self._reservation_lock:
+                    if self._closed:
+                        raise ProviderAttemptRuntimeError(
+                            ProviderAttemptRuntimeErrorCode.RUNTIME_CLOSED
+                        )
+                    if task.cancelling():
+                        raise asyncio.CancelledError
+                    if self._remaining_seconds() < schedule.attempt_timeout_seconds:
+                        return stopped_outcome(ResilienceDiagnosticCode.RETRY_DEADLINE_EXHAUSTED)
+                    if retry_pending:
+                        if self._retry_budget_exhausted(provider, schedule):
+                            return stopped_outcome(ResilienceDiagnosticCode.RETRY_BUDGET_EXHAUSTED)
+                        self._reserve_extra_attempt(provider)
+                    attempts_started += 1
+
                 result = await self._run_attempt(
                     provider=provider,
                     call=call,
                     timeout_seconds=schedule.attempt_timeout_seconds,
                 )
+                last_result = result
                 self._append_record(
                     provider=provider,
                     operation=operation,
@@ -210,28 +268,7 @@ class ProviderAttemptRuntime:
                     )
 
                 await self._sleeper(decision.delay_seconds)
-                async with self._reservation_lock:
-                    if self._closed:
-                        raise ProviderAttemptRuntimeError(
-                            ProviderAttemptRuntimeErrorCode.RUNTIME_CLOSED
-                        )
-                    if self._remaining_seconds() < schedule.attempt_timeout_seconds:
-                        return ProviderAttemptOutcome(
-                            result,
-                            attempts_started,
-                            ResilienceDiagnosticCode.RETRY_DEADLINE_EXHAUSTED,
-                        )
-                    if (
-                        self._provider_extra_attempts(provider)
-                        >= schedule.provider_extra_attempt_limit
-                        or self._task_extra_attempts >= schedule.task_extra_attempt_limit
-                    ):
-                        return ProviderAttemptOutcome(
-                            result,
-                            attempts_started,
-                            ResilienceDiagnosticCode.RETRY_BUDGET_EXHAUSTED,
-                        )
-                    self._reserve_extra_attempt(provider)
+                retry_pending = True
         except BaseException:
             await self._close_after_failure(exclude=task)
             raise
@@ -328,6 +365,12 @@ class ProviderAttemptRuntime:
         else:
             raise ProviderAttemptRuntimeError(ProviderAttemptRuntimeErrorCode.RESULT_INVALID)
         self._task_extra_attempts += 1
+
+    def _retry_budget_exhausted(self, provider: Provider, schedule: RetrySchedule) -> bool:
+        return (
+            self._provider_extra_attempts(provider) >= schedule.provider_extra_attempt_limit
+            or self._task_extra_attempts >= schedule.task_extra_attempt_limit
+        )
 
     def _remaining_seconds(self) -> float:
         return max(

@@ -13,6 +13,7 @@ from uuid import UUID
 import pytest
 
 from intelligent_travel_assistant.application.tooling import (
+    PacedAttemptLimiter,
     ProviderAttemptOutcome,
     ProviderAttemptRuntime,
     ProviderAttemptRuntimeError,
@@ -28,6 +29,7 @@ from intelligent_travel_assistant.domain import (
     ProviderResultStatus,
     ResilienceDiagnosticCode,
     SourceRecord,
+    attempt_pacing_policy_for,
 )
 
 NOW = datetime(2026, 8, 21, 8, 0, tzinfo=UTC)
@@ -90,6 +92,7 @@ def runtime(
     task_timeout_seconds: float = 90.0,
     jitter_seconds: float = 0.2,
     sleeps: list[float] | None = None,
+    attempt_limiter: PacedAttemptLimiter | None = None,
 ) -> ProviderAttemptRuntime:
     async def sleeper(delay: float) -> None:
         if sleeps is not None:
@@ -101,6 +104,27 @@ def runtime(
         sleeper=sleeper,
         jitter=lambda: jitter_seconds,
         task_timeout_seconds=task_timeout_seconds,
+        attempt_limiter=attempt_limiter,
+    )
+
+
+def route_limiter(clock: ManualClock, sleeps: list[float]) -> PacedAttemptLimiter:
+    policy = attempt_pacing_policy_for(
+        Provider.AMAP,
+        ProviderOperation.CALCULATE_ROUTES,
+    )
+    assert policy is not None
+
+    async def sleeper(delay: float) -> None:
+        sleeps.append(delay)
+        clock.advance(delay)
+
+    return PacedAttemptLimiter(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        policy=policy,
+        clock=clock,
+        sleeper=sleeper,
     )
 
 
@@ -403,6 +427,222 @@ async def test_exhausted_deadline_returns_safe_timeout_without_starting_http_att
     assert outcome.result.error.category is ProviderErrorCategory.TIMEOUT
     assert outcome.retry_diagnostic_code is ResilienceDiagnosticCode.RETRY_DEADLINE_EXHAUSTED
     assert attempt_runtime.snapshot().records == ()
+
+
+@pytest.mark.anyio
+async def test_two_task_runtimes_share_route_limiter_but_close_independently() -> None:
+    clock = ManualClock()
+    slot_sleeps: list[float] = []
+    shared = route_limiter(clock, slot_sleeps)
+    first_runtime = runtime(clock, attempt_limiter=shared)
+    second_runtime = runtime(clock, attempt_limiter=shared)
+    starts: list[float] = []
+
+    async def route_call() -> ProviderResult[str]:
+        starts.append(clock.value)
+        return ok(Provider.AMAP)
+
+    first = await first_runtime.execute(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        call=route_call,
+    )
+    await first_runtime.close()
+    second = await second_runtime.execute(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        call=route_call,
+    )
+
+    assert first.result.status is ProviderResultStatus.OK
+    assert second.result.status is ProviderResultStatus.OK
+    assert starts == [0.0, 0.5]
+    assert slot_sleeps == [0.5]
+    assert first_runtime.snapshot().closed is True
+    assert second_runtime.snapshot().closed is False
+
+
+@pytest.mark.anyio
+async def test_route_retry_backoff_precedes_shared_qps_slot() -> None:
+    clock = ManualClock()
+    retry_sleeps: list[float] = []
+    slot_sleeps: list[float] = []
+    shared = route_limiter(clock, slot_sleeps)
+    attempt_runtime = runtime(
+        clock,
+        jitter_seconds=0.2,
+        sleeps=retry_sleeps,
+        attempt_limiter=shared,
+    )
+    starts: list[float] = []
+    remaining = iter(
+        (
+            unavailable(Provider.AMAP, ProviderErrorCategory.TIMEOUT),
+            ok(Provider.AMAP),
+        )
+    )
+
+    async def route_call() -> ProviderResult[str]:
+        starts.append(clock.value)
+        return next(remaining)
+
+    outcome = await attempt_runtime.execute(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        call=route_call,
+    )
+
+    assert outcome.result.status is ProviderResultStatus.OK
+    assert starts == [0.0, 0.5]
+    assert retry_sleeps == [0.2]
+    assert slot_sleeps == [0.3]
+    assert attempt_runtime.snapshot().amap_extra_attempts == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("category", "retry_after_seconds", "expected_attempts"),
+    (
+        (ProviderErrorCategory.TIMEOUT, None, 2),
+        (ProviderErrorCategory.SERVER, None, 2),
+        (ProviderErrorCategory.RATE_LIMITED, 0.25, 2),
+        (ProviderErrorCategory.RATE_LIMITED, None, 1),
+        (ProviderErrorCategory.AUTH, None, 1),
+        (ProviderErrorCategory.SCHEMA, None, 1),
+        (ProviderErrorCategory.EMPTY_RESULT, None, 1),
+        (ProviderErrorCategory.UNKNOWN, None, 1),
+    ),
+)
+async def test_route_retry_matrix_paces_only_approved_second_attempts(
+    category: ProviderErrorCategory,
+    retry_after_seconds: float | None,
+    expected_attempts: int,
+) -> None:
+    clock = ManualClock()
+    retry_sleeps: list[float] = []
+    slot_sleeps: list[float] = []
+    shared = route_limiter(clock, slot_sleeps)
+    attempt_runtime = runtime(
+        clock,
+        jitter_seconds=0.0,
+        sleeps=retry_sleeps,
+        attempt_limiter=shared,
+    )
+    failure = unavailable(
+        Provider.AMAP,
+        category,
+        retry_after_seconds=retry_after_seconds,
+    )
+    call, observed = (
+        scripted_call(failure, ok(Provider.AMAP))
+        if expected_attempts == 2
+        else scripted_call(failure)
+    )
+
+    outcome = await attempt_runtime.execute(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        call=call,
+    )
+
+    assert outcome.attempts_started == expected_attempts
+    assert observed == list(range(1, expected_attempts + 1))
+    assert attempt_runtime.snapshot().task_extra_attempts == expected_attempts - 1
+    if expected_attempts == 2:
+        assert outcome.result.status is ProviderResultStatus.OK
+        assert clock.value >= 0.5
+    else:
+        assert outcome.result.status is ProviderResultStatus.UNAVAILABLE
+        assert slot_sleeps == []
+
+
+@pytest.mark.anyio
+async def test_route_slot_deadline_boundary_refuses_shortfall_without_http_or_budget() -> None:
+    clock = ManualClock()
+    slot_sleeps: list[float] = []
+    shared = route_limiter(clock, slot_sleeps)
+    seed_runtime = runtime(clock, attempt_limiter=shared)
+    seed_call, _ = scripted_call(ok(Provider.AMAP))
+    await seed_runtime.execute(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        call=seed_call,
+    )
+
+    short_runtime = runtime(
+        clock,
+        task_timeout_seconds=6.499999,
+        attempt_limiter=shared,
+    )
+    short_call, short_observed = scripted_call(ok(Provider.AMAP))
+    refused = await short_runtime.execute(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        call=short_call,
+    )
+    equality_runtime = runtime(
+        clock,
+        task_timeout_seconds=6.5,
+        attempt_limiter=shared,
+    )
+    equality_call, equality_observed = scripted_call(ok(Provider.AMAP))
+    allowed = await equality_runtime.execute(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        call=equality_call,
+    )
+
+    assert short_observed == []
+    assert refused.attempts_started == 0
+    assert refused.retry_diagnostic_code is ResilienceDiagnosticCode.RETRY_DEADLINE_EXHAUSTED
+    assert short_runtime.snapshot().task_extra_attempts == 0
+    assert equality_observed == [1]
+    assert allowed.result.status is ProviderResultStatus.OK
+    assert slot_sleeps == [0.5]
+
+
+@pytest.mark.anyio
+async def test_runtime_closed_during_slot_wait_starts_no_retry_and_consumes_no_budget() -> None:
+    clock = ManualClock()
+    holder: list[ProviderAttemptRuntime] = []
+
+    async def closing_slot_sleep(delay: float) -> None:
+        clock.advance(delay)
+        await holder[0].close()
+
+    policy = attempt_pacing_policy_for(
+        Provider.AMAP,
+        ProviderOperation.CALCULATE_ROUTES,
+    )
+    assert policy is not None
+    shared = PacedAttemptLimiter(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        policy=policy,
+        clock=clock,
+        sleeper=closing_slot_sleep,
+    )
+    attempt_runtime = runtime(
+        clock,
+        jitter_seconds=0.0,
+        attempt_limiter=shared,
+    )
+    holder.append(attempt_runtime)
+    call, observed = scripted_call(
+        unavailable(Provider.AMAP, ProviderErrorCategory.TIMEOUT),
+        ok(Provider.AMAP),
+    )
+
+    with pytest.raises(ProviderAttemptRuntimeError) as error:
+        await attempt_runtime.execute(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            call=call,
+        )
+
+    assert error.value.code is ProviderAttemptRuntimeErrorCode.RUNTIME_CLOSED
+    assert observed == [1]
+    assert attempt_runtime.snapshot().task_extra_attempts == 0
 
 
 @pytest.mark.anyio

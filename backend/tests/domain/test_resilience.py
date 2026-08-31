@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from intelligent_travel_assistant.domain import (
+    AttemptPacingPolicy,
     DataFreshness,
     DomainInvariantError,
     FactCriticality,
@@ -18,11 +19,33 @@ from intelligent_travel_assistant.domain import (
     ProviderOperation,
     ResilienceDiagnosticCode,
     RetryDecision,
+    attempt_pacing_policy_for,
     decide_freshness,
     decide_provider_failure,
     decide_retry,
     retry_schedule_for,
 )
+
+
+def test_attempt_pacing_policy_is_exactly_scoped_to_amap_routes() -> None:
+    assert attempt_pacing_policy_for(
+        Provider.AMAP,
+        ProviderOperation.CALCULATE_ROUTES,
+    ) == AttemptPacingPolicy(interval_seconds=0.5)
+
+    for provider, operation in (
+        (Provider.AMAP, ProviderOperation.RESOLVE_CITY),
+        (Provider.AMAP, ProviderOperation.SEARCH_POIS),
+        (Provider.QWEATHER, ProviderOperation.GET_WEATHER_FORECAST),
+        (Provider.DEEPSEEK, ProviderOperation.GENERATE_PLAN_CANDIDATE),
+    ):
+        assert attempt_pacing_policy_for(provider, operation) is None
+
+
+@pytest.mark.parametrize("interval", [0, -0.5, float("nan"), float("inf"), True])
+def test_attempt_pacing_policy_rejects_invalid_interval(interval: object) -> None:
+    with pytest.raises(DomainInvariantError, match="attempt_pacing_policy_invalid"):
+        AttemptPacingPolicy(interval_seconds=interval)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(

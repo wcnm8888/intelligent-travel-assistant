@@ -59,6 +59,24 @@ class ResilienceDiagnosticCode(StrEnum):
     WEATHER_ALERT_STALE = "weather_alert_stale"
 
 
+@dataclass(frozen=True, slots=True)
+class AttemptPacingPolicy:
+    interval_seconds: float
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.interval_seconds, int | float)
+            or isinstance(self.interval_seconds, bool)
+            or not isfinite(self.interval_seconds)
+            or self.interval_seconds <= 0
+        ):
+            raise DomainInvariantError(
+                "attempt_pacing_policy_invalid",
+                field="interval_seconds",
+            )
+        object.__setattr__(self, "interval_seconds", float(self.interval_seconds))
+
+
 _FRESHNESS_DECISION_COMBINATIONS: Final = frozenset(
     {
         (FactUse.USE, PlanDisposition.CONTINUE, None),
@@ -209,6 +227,11 @@ _RETRY_SCHEDULES: Final = MappingProxyType(
         ),
     }
 )
+_ATTEMPT_PACING_POLICIES: Final = MappingProxyType(
+    {
+        (Provider.AMAP, ProviderOperation.CALCULATE_ROUTES): AttemptPacingPolicy(0.5),
+    }
+)
 _LOCATION_OPERATIONS: Final = frozenset(
     {
         ProviderOperation.RESOLVE_CITY,
@@ -242,6 +265,17 @@ def retry_schedule_for(
     if schedule is None:
         raise DomainInvariantError("provider_operation_invalid", field="operation")
     return schedule
+
+
+def attempt_pacing_policy_for(
+    provider: Provider,
+    operation: ProviderOperation,
+) -> AttemptPacingPolicy | None:
+    if not isinstance(provider, Provider):
+        raise DomainInvariantError("attempt_pacing_scope_invalid", field="provider")
+    if not isinstance(operation, ProviderOperation):
+        raise DomainInvariantError("attempt_pacing_scope_invalid", field="operation")
+    return _ATTEMPT_PACING_POLICIES.get((provider, operation))
 
 
 def decide_retry(

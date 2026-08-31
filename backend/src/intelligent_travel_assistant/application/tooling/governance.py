@@ -209,7 +209,9 @@ class ToolCallSnapshot:
 
 class ToolCallGovernor:
     __slots__ = (
+        "_active_call_started_at",
         "_active_permits",
+        "_active_route_attempts",
         "_active_route_calls",
         "_clock",
         "_governor_id",
@@ -258,6 +260,8 @@ class ToolCallGovernor:
         self._governor_id = uuid4()
         self._records: list[ToolCallRecord] = []
         self._active_permits: set[UUID] = set()
+        self._active_call_started_at: dict[UUID, float | None] = {}
+        self._active_route_attempts: set[UUID] = set()
         self._active_route_calls = 0
 
     def reserve(
@@ -305,9 +309,48 @@ class ToolCallGovernor:
         )
         self._records.append(ToolCallRecord(sequence, capability, now, policy.timeout_seconds))
         self._active_permits.add(permit.permit_id)
+        self._active_call_started_at[permit.permit_id] = now
         if capability is ToolCallCapability.CALCULATE_ROUTES:
             self._active_route_calls += 1
         return permit
+
+    def start_route_attempt_timeout_after_wait(self, permit: ToolCallPermit) -> None:
+        """Start each route HTTP-attempt timeout after its external admission wait."""
+
+        capability = permit.capability if isinstance(permit, ToolCallPermit) else None
+        if not isinstance(permit, ToolCallPermit) or (
+            permit.governor_id != self._governor_id
+            or permit.permit_id not in self._active_permits
+            or permit.capability is not ToolCallCapability.CALCULATE_ROUTES
+            or permit.permit_id in self._active_route_attempts
+        ):
+            raise ToolCallGovernanceError(
+                ToolCallGovernanceErrorCode.PERMIT_INVALID,
+                capability,
+            )
+        self._active_call_started_at[permit.permit_id] = self._read_clock()
+        self._active_route_attempts.add(permit.permit_id)
+
+    def finish_route_attempt(self, permit: ToolCallPermit) -> bool:
+        """End a paced route attempt before any retry admission wait begins."""
+
+        capability = permit.capability if isinstance(permit, ToolCallPermit) else None
+        if not isinstance(permit, ToolCallPermit) or (
+            permit.governor_id != self._governor_id
+            or permit.permit_id not in self._active_permits
+            or permit.capability is not ToolCallCapability.CALCULATE_ROUTES
+            or permit.permit_id not in self._active_route_attempts
+        ):
+            raise ToolCallGovernanceError(
+                ToolCallGovernanceErrorCode.PERMIT_INVALID,
+                capability,
+            )
+        started_at = self._active_call_started_at[permit.permit_id]
+        assert started_at is not None
+        finished_at = self._read_clock()
+        self._active_route_attempts.remove(permit.permit_id)
+        self._active_call_started_at[permit.permit_id] = None
+        return finished_at - started_at <= permit.timeout_seconds
 
     def complete(self, permit: ToolCallPermit) -> None:
         capability = permit.capability if isinstance(permit, ToolCallPermit) else None
@@ -319,6 +362,8 @@ class ToolCallGovernor:
                 capability,
             )
         self._active_permits.remove(permit.permit_id)
+        call_started_at = self._active_call_started_at.pop(permit.permit_id)
+        self._active_route_attempts.discard(permit.permit_id)
         if permit.capability is ToolCallCapability.CALCULATE_ROUTES:
             self._active_route_calls -= 1
 
@@ -328,7 +373,7 @@ class ToolCallGovernor:
                 ToolCallGovernanceErrorCode.TASK_TIMEOUT,
                 permit.capability,
             )
-        if now - permit.started_at > permit.timeout_seconds:
+        if call_started_at is not None and now - call_started_at > permit.timeout_seconds:
             raise ToolCallGovernanceError(
                 ToolCallGovernanceErrorCode.CALL_TIMEOUT,
                 permit.capability,
