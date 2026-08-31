@@ -708,7 +708,7 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 ## D-018：高德路径规划使用单进程共享、无突发的 paced-slot QPS limiter
 
 - 日期：2026-08-30
-- 状态：`APPROVED / STEP_6_UAT_INCONCLUSIVE / STEP_7_ACTIVE`
+- 状态：`APPROVED / STEP_6_UAT_INCONCLUSIVE / STEP_7_DONE / STEP_8_BLOCKED_BY_APPROVAL`
 - 适用：F-007；`Provider.AMAP + ProviderOperation.CALCULATE_ROUTES`
 
 ### 背景与裁决
@@ -755,6 +755,6 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 
 ### 后果
 
-- Step 0–5 已完成治理、设计、实现、离线矩阵及本地纵向验收；Step 6 已按实际证据收口，当前进入 Step 7 离线门禁与两层交付；
+- Step 0–5 已完成治理、设计、实现、离线矩阵及本地纵向验收；Step 6 已按实际证据收口；Step 7 已完成两层 Draft PR、独立 review、规模/边界审计与逐层远程 CI，当前等待 Step 8 单独批准；
 - 2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 只作为积极补充证据；由于缺少同期高德控制台 QPS/超限记录，不能覆盖 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`，也不能宣称真实调用 QPS 已 PASS；
 - F-006 `LOCAL_ACCEPTANCE_PASS` 保持，项目真实 Provider 就绪继续为 `PARTIAL`；其他历史产品、UAT、unknown、fallback、Provider、Schema/migration 事实均不变。

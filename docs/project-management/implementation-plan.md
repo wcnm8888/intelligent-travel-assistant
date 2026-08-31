@@ -3,11 +3,11 @@
 ## 当前状态
 
 - 当前任务：`F-007`，状态 `ACTIVE`；
-- 当前 Step：`Step 7 - 本地全量门禁与两层交付`（`ACTIVE`）；
-- Step 0–5：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；
+- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）；
+- Step 0–5、Step 7：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；
 - Step 5A 已将 `partial` / `unknown_validity` 实际渲染对比度提升至 `5.071:1` 并关闭 finding；用户已批准不再执行新的真实 Provider UAT；
 - 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`，归档 main CI run `32692800113` success；
-- 当前本地分支：`feat/f-007-amap-qps-policy-runtime`，尚无 commit、push、PR 或远程 CI；
+- 当前本地分支：`feat/f-007-amap-qps-integration-delivery`；Stack 1/2 提交 `c73cd7f`/`273231a`，Draft PR #43/#44 OPEN；
 - 用户当前 `127.0.0.1:8000` 与 `127.0.0.1:5173` 服务必须保持运行，未经明确批准不得停止或重启。
 
 ## Step 0：激活治理与证据基线（DONE / PASS）
@@ -82,13 +82,15 @@ Step 5A 关闭：直接测试先记录 RED `4.203700573694173:1`；随后仅将�
 
 收口结论：保留 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 仅为积极补充证据。因缺少同期高德控制台 QPS/超限记录，正式状态为 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`。用户已批准不再执行新的真实 Provider UAT；本次收口不读取秘密、不调用 Provider、不停止或重启现有服务。
 
-## Step 7：本地全量门禁与两层交付（ACTIVE）
+## Step 7：本地全量门禁与两层交付（DONE / PASS）
 
 唯一目标：运行统一本地门禁，按两层拓扑 commit、push、创建 stacked PR，完成逐层独立 review 和远程 CI。
 
 不得 merge、运行最终 main CI、归档或关闭任务。必须分别审计文件数、净新增行、Schema/migration、依赖/lockfile、秘密和网络边界。
 
-## Step 8：依序合并与关闭（TODO）
+结果：两层提交 `c73cd7f`/`273231a` 已推送并形成 Draft PR #43/#44；本地后端 `1424 passed`、前端 `132 passed` 与全部静态/build/docs 门禁通过，受保护 8000 端口只导致 runner preflight 按设计 fail closed。独立复审最终 `FIXED`，首次逐层远程 CI runs `33363974674`/`33364033165` success。Stack 1 为 10 文件/净增 851 行，Stack 2 为 14 文件/净增 1112 行，累计 24 文件/净增 1963 行；所有边界和阈值通过。
+
+## Step 8：依序合并与关闭（TODO / BLOCKED_BY_APPROVAL）
 
 唯一目标：经用户单独批准后依序合并两层 PR，必要时 clean-restack，运行最终 main CI，归档任务卡并关闭 F-007。
 

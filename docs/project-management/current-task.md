@@ -3,10 +3,10 @@
 ## F-007：高德路径规划 QPS 节流与真实调用稳定性
 
 - 状态：`ACTIVE`
-- 当前 Step：`Step 7 - 本地全量门禁与两层交付`（`ACTIVE`）
-- Step 0–5：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
-- 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`；归档 main CI run `32692800113` success；无开放 PR；Step 0 开始前工作区干净
-- 当前分支：`feat/f-007-amap-qps-policy-runtime`；Step 7 开始时尚无 F-007 commit、push、PR 或远程 CI
+- 当前 Step：`Step 8 - 依序合并与关闭`（`TODO`）
+- Step 0–5、Step 7：`DONE / PASS`；Step 6：`DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`
+- 基线：`main == origin/main == 905a950fa2483f2e441eb520a20897dcc1daa722`；归档 main CI run `32692800113` success；Step 0 开始前工作区干净
+- 当前分支：`feat/f-007-amap-qps-integration-delivery`；Stack 1/2 提交为 `c73cd7f`/`273231a`，Draft PR #43/#44 均 OPEN
 - 服务保护：Step 5 完成后 `127.0.0.1:8000`（PID 52516）与 `127.0.0.1:5173`（PID 77692）仍健康运行，期间未停止或重启
 
 ## 问题与证据
@@ -102,7 +102,18 @@
 - 用户已明确批准不再执行新的真实 Provider UAT；本次收口没有读取秘密、调用真实 Provider或停止/重启现有服务；
 - 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 保持有效，不被后续离线门禁或补充观察覆盖；
 - 2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 是积极补充证据，但没有同期高德控制台 QPS/超限记录，不能证明 Provider 侧峰值符合边界；
-- Step 6 最终状态为 `DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，不得表述为 QPS PASS；当前已进入用户批准的 Step 7。
+- Step 6 最终状态为 `DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，不得表述为 QPS PASS；后续离线交付不得改写本结论。
+
+## Step 7 交付结论
+
+- 状态：`DONE / PASS`；两层 Draft PR #43/#44 已按 `main → feat/f-007-amap-qps-policy-runtime → feat/f-007-amap-qps-integration-delivery` 建立，未 merge；
+- 提交：Stack 1 `c73cd7f2de51d95c34e10b8f115032df851d2727`，Stack 2 `273231ad45a424e6b73894669e9041e915b3383f`；
+- 本地门禁：后端全量 `1424 passed`，前端 `13 files / 132 tests`，Ruff/Prettier/ESLint/mypy/TypeScript/build 与文档检查通过；统一入口唯一失败为受保护的 8000 端口 preflight，未停止现有进程，其余 28 项文档/runner 测试通过；
+- 独立 review：先后发现并关闭 pacing wait 侵占 attempt timeout、retry wait 误计旧 attempt、stale permit 和超过 6 秒 attempt 规范化问题；最终只读结论 `FIXED`；
+- 远程 CI：#43 run `33363974674`、#44 run `33364033165` 的 Windows offline verification 均 success；
+- 规模：Stack 1 为 10 文件/净新增 851 行，Stack 2 为 14 文件/净新增 1112 行，累计 24 文件/净新增 1963 行；全部低于 12/1000、18/1400、30/2200 阈值；
+- 边界：Schema version 2、migration 1/2、依赖、lockfile、公开 API shape 和 Provider 数据边界未改变；未读取秘密、调用真实 Provider、创建数据库或停止/重启现有服务；
+- 下一入口：只能在用户单独批准后执行 Step 8；当前不得 merge、归档、关闭 F-007 或进入 F-008。
 
 ## Step 4 完成证据
 
@@ -124,7 +135,7 @@
 | Step 4 | 用 fake clock/MockTransport 完成 burst、retry、deadline、cancel/drain 和兼容回归 | DONE |
 | Step 5 | 执行临时 SQLite、loopback 浏览器、network/console/accessibility 与独立隐私安全审查 | DONE |
 | Step 6 | 按实际证据关闭真实高德 UAT Gate；缺少同期控制台证据时不得记为 PASS | DONE |
-| Step 7 | 运行本地全量门禁并完成两层 commit/push/PR、独立 review 与逐层远程 CI，不 merge | ACTIVE |
+| Step 7 | 运行本地全量门禁并完成两层 commit/push/PR、独立 review 与逐层远程 CI，不 merge | DONE |
 | Step 8 | 经单独批准后依序合并、必要 clean-restack、最终 main CI、归档与关闭 | TODO |
 
 ## 两层 stacked PR
