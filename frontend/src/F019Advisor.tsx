@@ -9,6 +9,8 @@ interface Props {
   expanded: boolean;
   indices: ReadonlyMap<string, number>;
   selected: ReadonlySet<string>;
+  feedback?: { kind: "status" | "error"; message: string } | null;
+  pendingActionId?: string | null;
   onToggle(): void;
   onMessage(value: string): void;
   onSend(): void;
@@ -23,6 +25,8 @@ export function F019Advisor({
   expanded,
   indices,
   selected,
+  feedback,
+  pendingActionId,
   onToggle,
   onMessage,
   onSend,
@@ -96,6 +100,14 @@ export function F019Advisor({
           {expanded ? "与你一起选" : "打开顾问"}
         </button>
       </header>
+      {feedback && (
+        <p
+          className="f020-advisor-feedback"
+          role={feedback.kind === "error" ? "alert" : "status"}
+        >
+          {feedback.message}
+        </p>
+      )}
       {expanded && (
         <>
           <div id="f019-advisor-body" className="f019-advisor-scroll">
@@ -146,11 +158,13 @@ export function F019Advisor({
                         disabled={disabled}
                         onClick={() => onAction(suggestion, "accept")}
                       >
-                        {suggestion.kind === "poi"
-                          ? alreadySelected
-                            ? "确认已选"
-                            : "加入已选"
-                          : "确认偏好"}
+                        {pendingActionId === suggestion.suggestion_id
+                          ? "处理中…"
+                          : suggestion.kind === "poi"
+                            ? alreadySelected
+                              ? "确认已选"
+                              : "加入已选"
+                            : "确认偏好"}
                       </button>
                       {suggestion.location_id && (
                         <button

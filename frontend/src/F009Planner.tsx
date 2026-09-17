@@ -89,6 +89,16 @@ export function F009Planner({
   const [pendingSemantic, setPendingSemantic] = useState<PoiOptionDto | null>(
     null,
   );
+  const [anchorOptions, setAnchorOptions] = useState<PoiOptionDto[]>([]);
+  const [pendingAdvisorSuggestion, setPendingAdvisorSuggestion] =
+    useState<AdvisorSuggestionDto | null>(null);
+  const [advisorFeedback, setAdvisorFeedback] = useState<{
+    kind: "status" | "error";
+    message: string;
+  } | null>(null);
+  const [pendingAdvisorAction, setPendingAdvisorAction] = useState<
+    string | null
+  >(null);
   const [anchorSearchState, setAnchorSearchState] = useState<
     "searching" | "ready" | "empty" | null
   >(null);
@@ -139,14 +149,14 @@ export function F009Planner({
   const visibleVisitOptions = useMemo(
     () =>
       pendingSemantic
-        ? visits.filter(
+        ? anchorOptions.filter(
             (option) =>
               option.scope_kind === "point" &&
               option.confirmation_status === "verified" &&
               option.location_id !== pendingSemantic.location_id,
           )
         : visits,
-    [pendingSemantic, visits],
+    [pendingSemantic, visits, anchorOptions],
   );
   const optionRoles = useMemo(
     () =>
@@ -158,20 +168,27 @@ export function F009Planner({
       ]),
     [accommodations, visits],
   );
-  const run = useCallback(async (operation: () => Promise<void>) => {
-    if (operationInFlight.current) return;
-    operationInFlight.current = true;
-    setBusy(true);
-    setNotice(null);
-    try {
-      await operation();
-    } catch (error) {
-      setNotice(userFacingError(error));
-    } finally {
-      operationInFlight.current = false;
-      setBusy(false);
-    }
-  }, []);
+  const run = useCallback(
+    async (
+      operation: () => Promise<void>,
+      onFailure?: (message: string) => void,
+    ) => {
+      if (operationInFlight.current) return;
+      operationInFlight.current = true;
+      setBusy(true);
+      setNotice(null);
+      try {
+        await operation();
+      } catch (error) {
+        if (onFailure) onFailure(userFacingError(error));
+        else setNotice(userFacingError(error));
+      } finally {
+        operationInFlight.current = false;
+        setBusy(false);
+      }
+    },
+    [],
+  );
   const mapSelect = useCallback(
     (locationId: string) => {
       if (step === "selection") {
@@ -254,6 +271,13 @@ export function F009Planner({
             : result.items,
         );
         if (pendingSemantic) {
+          setAnchorOptions(
+            result.items.filter(
+              (item) =>
+                item.scope_kind === "point" &&
+                item.confirmation_status === "verified",
+            ),
+          );
           setAnchorSearchState(
             result.items.some(
               (item) =>
@@ -275,15 +299,19 @@ export function F009Planner({
 
   const chooseVisit = (option: PoiOptionDto) => {
     if (operationInFlight.current) return;
-    if (
-      intents.length >= 8 ||
-      intents.some((item) => item.location_id === option.location_id)
-    ) {
+    if (intents.length >= 8) {
+      setNotice("最多选择 8 个景点。请先移除一个，再加入新地点。");
       return;
     }
+    if (
+      !pendingSemantic &&
+      intents.some((item) => item.location_id === option.location_id)
+    )
+      return;
     if (option.confirmation_status === "representative_required") {
       const keywords = `${option.name} 入口`;
       setPendingSemantic(option);
+      setAnchorOptions([]);
       setAnchorSearchState("searching");
       setVisitQuery(keywords);
       if (!session) return;
@@ -299,6 +327,7 @@ export function F009Planner({
               item.scope_kind === "point" &&
               item.confirmation_status === "verified",
           );
+          setAnchorOptions(eligible);
           setVisits((current) =>
             uniqueOptions([...current, option, ...result.items]),
           );
@@ -315,34 +344,53 @@ export function F009Planner({
       });
       return;
     }
+    if (
+      pendingSemantic &&
+      !anchorOptions.some(
+        (item) =>
+          item.location_id === option.location_id &&
+          item.scope_kind === "point" &&
+          item.confirmation_status === "verified",
+      )
+    )
+      return;
     const semantic = pendingSemantic ?? option;
+    const newIntent: PoiIntentDto = {
+      location_id: semantic.location_id,
+      route_anchor_location_id: option.location_id,
+      importance: "must_visit",
+      either_or_group_id: null,
+      visit_group_id: null,
+      preferred_day: null,
+      expected_duration_minutes: 90,
+      omission_allowed: false,
+      source: "user_selected",
+    };
+    if (pendingAdvisorSuggestion) {
+      applyAdvisorSuggestion(pendingAdvisorSuggestion, "accept", [
+        ...intents,
+        newIntent,
+      ]);
+      return;
+    }
     setIntents((current) =>
       current.length >= 8 ||
       current.some((item) => item.location_id === semantic.location_id)
         ? current
-        : [
-            ...current,
-            {
-              location_id: semantic.location_id,
-              route_anchor_location_id: option.location_id,
-              importance: "must_visit",
-              either_or_group_id: null,
-              visit_group_id: null,
-              preferred_day: null,
-              expected_duration_minutes: 90,
-              omission_allowed: false,
-              source: "user_selected",
-            },
-          ],
+        : [...current, newIntent],
     );
     setPendingSemantic(null);
     setAnchorSearchState(null);
+    setAnchorOptions([]);
     setNotice(null);
   };
 
   const cancelAnchorSelection = () => {
     setPendingSemantic(null);
     setAnchorSearchState(null);
+    setAnchorOptions([]);
+    setPendingAdvisorSuggestion(null);
+    setAdvisorFeedback(null);
     setNotice(null);
   };
 
@@ -432,35 +480,81 @@ export function F009Planner({
   const applyAdvisorSuggestion = (
     suggestion: AdvisorSuggestionDto,
     action: "accept" | "ignore",
+    confirmedIntents?: PoiIntentDto[],
   ) => {
-    if (!session || !api.advisorAction) return;
+    if (!session || !api.advisorAction || operationInFlight.current) return;
+    setAdvisorFeedback(null);
     const selectionContext =
       suggestion.kind === "poi" && action === "accept"
-        ? selectionForAdvisorSuggestion(suggestion)
+        ? selectionForAdvisorSuggestion(suggestion, confirmedIntents)
         : null;
     if (suggestion.kind === "poi" && action === "accept" && !selectionContext)
       return;
-    void run(async () => {
-      const updatedAdvisor = await api.advisorAction?.(
-        session.session_id,
-        session.revision,
-        createClientRequestId(),
-        suggestion.suggestion_id,
-        action,
-        selectionContext,
-      );
-      if (updatedAdvisor) setAdvisor(updatedAdvisor);
-      if (action === "accept") {
-        const latest = await api.getSession(session.session_id);
-        syncLatestSession(latest);
-        setPreflight(null);
-        setMapPlan(null);
-      }
-    });
+    const option = visitCollection.catalog.find(
+      (item) => item.location_id === suggestion.location_id,
+    );
+    if (
+      action === "accept" &&
+      suggestion.kind === "poi" &&
+      !confirmedIntents &&
+      !intents.some((item) => item.location_id === suggestion.location_id) &&
+      option?.confirmation_status === "representative_required"
+    ) {
+      setPendingAdvisorSuggestion(suggestion);
+      chooseVisit(option);
+      setAdvisorFeedback({
+        kind: "status",
+        message: `请先在左侧为“${option.name}”确认具体入口，再完成加入。`,
+      });
+      return;
+    }
+    setPendingAdvisorAction(suggestion.suggestion_id);
+    void run(
+      async () => {
+        try {
+          const updatedAdvisor = await api.advisorAction?.(
+            session.session_id,
+            session.revision,
+            createClientRequestId(),
+            suggestion.suggestion_id,
+            action,
+            selectionContext,
+          );
+          if (updatedAdvisor) setAdvisor(updatedAdvisor);
+          if (action === "accept") {
+            const latest = await api.getSession(session.session_id);
+            if (suggestion.kind === "poi") syncLatestSession(latest);
+            else {
+              setSession(latest);
+              setTrip(latest.trip);
+            }
+            setPreflight(null);
+            setMapPlan(null);
+          }
+          if (
+            pendingAdvisorSuggestion?.suggestion_id === suggestion.suggestion_id
+          )
+            cancelAnchorSelection();
+          setAdvisorFeedback({
+            kind: "status",
+            message:
+              action === "ignore"
+                ? "已忽略这条建议，已选地点保持不变。"
+                : suggestion.kind === "poi"
+                  ? `已加入：${suggestion.location_name || suggestion.title}。`
+                  : "偏好已确认，已选地点保持不变。",
+          });
+        } finally {
+          setPendingAdvisorAction(null);
+        }
+      },
+      (message) => setAdvisorFeedback({ kind: "error", message }),
+    );
   };
 
   const selectionForAdvisorSuggestion = (
     suggestion: AdvisorSuggestionDto,
+    confirmedIntents?: PoiIntentDto[],
   ): PreplanningSelectionDto | null => {
     if (!session || !suggestion.location_id) return null;
     const accommodation = accommodationChoice(
@@ -471,27 +565,41 @@ export function F009Planner({
       accommodationQuery,
     );
     if (!accommodation) {
-      setNotice("景点建议已保留；请先确认住宿位置，再把它加入行程。");
+      setAdvisorFeedback({
+        kind: "error",
+        message: "景点建议已保留；请先确认住宿位置，再把它加入行程。",
+      });
       return null;
     }
-    const pois = intents.some(
-      (intent) => intent.location_id === suggestion.location_id,
-    )
-      ? intents
-      : [
-          ...intents,
-          {
-            location_id: suggestion.location_id,
-            route_anchor_location_id: suggestion.location_id,
-            importance: "must_visit" as const,
-            either_or_group_id: null,
-            visit_group_id: null,
-            preferred_day: null,
-            expected_duration_minutes: 90,
-            omission_allowed: false,
-            source: "user_selected" as const,
-          },
-        ];
+    if (
+      !confirmedIntents &&
+      intents.length >= 8 &&
+      !intents.some((item) => item.location_id === suggestion.location_id)
+    ) {
+      setAdvisorFeedback({
+        kind: "error",
+        message: "最多选择 8 个景点。请先移除一个，再加入新地点。",
+      });
+      return null;
+    }
+    const pois =
+      confirmedIntents ??
+      (intents.some((intent) => intent.location_id === suggestion.location_id)
+        ? intents
+        : [
+            ...intents,
+            {
+              location_id: suggestion.location_id,
+              route_anchor_location_id: suggestion.location_id,
+              importance: "must_visit" as const,
+              either_or_group_id: null,
+              visit_group_id: null,
+              preferred_day: null,
+              expected_duration_minutes: 90,
+              omission_allowed: false,
+              source: "user_selected" as const,
+            },
+          ]);
     return {
       accommodation,
       pois,
@@ -846,6 +954,102 @@ export function F009Planner({
           listFocus={listFocus}
           anchorPending={!!pendingSemantic}
           onChoose={chooseVisit}
+          onRemove={(locationId) => {
+            if (operationInFlight.current) return;
+            setIntents((current) =>
+              current
+                .filter((intent) => intent.location_id !== locationId)
+                .map((intent, _, remaining) => ({
+                  ...intent,
+                  either_or_group_id:
+                    intent.either_or_group_id &&
+                    remaining.filter(
+                      (item) =>
+                        item.either_or_group_id === intent.either_or_group_id,
+                    ).length >= 2
+                      ? intent.either_or_group_id
+                      : null,
+                  visit_group_id:
+                    intent.visit_group_id &&
+                    remaining.filter(
+                      (item) => item.visit_group_id === intent.visit_group_id,
+                    ).length >= 2
+                      ? intent.visit_group_id
+                      : null,
+                })),
+            );
+            setNotice(null);
+          }}
+          anchorTask={
+            pendingSemantic ? (
+              <section
+                className="f020-anchor-task"
+                aria-label="确认景区入口"
+                tabIndex={-1}
+              >
+                <h3>为“{pendingSemantic.name}”确认具体入口</h3>
+                <p>
+                  {anchorSearchState === "searching"
+                    ? "正在查找入口或子景点…"
+                    : "景区范围较大。请明确一个到达位置，地图仍可查看；确认前不会加入已选。"}
+                </p>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    search("visit");
+                  }}
+                >
+                  <input
+                    aria-label="景区入口搜索"
+                    value={visitQuery}
+                    onChange={(event) => setVisitQuery(event.target.value)}
+                    disabled={busy}
+                  />
+                  <button
+                    className="f019-button f019-secondary"
+                    type="submit"
+                    disabled={busy}
+                  >
+                    搜索入口
+                  </button>
+                </form>
+                {anchorSearchState === "empty" && (
+                  <p role="status">
+                    暂未找到可用入口，请修改关键词或取消选择。
+                  </p>
+                )}
+                {visibleVisitOptions.map((option) => (
+                  <article key={option.location_id}>
+                    <h4>{option.name}</h4>
+                    <button
+                      className="f019-button f019-primary"
+                      type="button"
+                      aria-label={`用作路线入口：${option.name}`}
+                      disabled={busy}
+                      onClick={() => chooseVisit(option)}
+                    >
+                      用作路线入口
+                    </button>
+                    <button
+                      className="f019-button f019-ghost"
+                      type="button"
+                      onClick={() => focusMap(option.location_id)}
+                    >
+                      地图查看
+                    </button>
+                  </article>
+                ))}
+                <button
+                  className="f019-button f019-secondary"
+                  type="button"
+                  onClick={cancelAnchorSelection}
+                  disabled={busy}
+                >
+                  取消选择
+                </button>
+              </section>
+            ) : null
+          }
           onView={focusMap}
           onDestination={() => setStep("destination")}
           onContinue={continueToDetails}
@@ -931,9 +1135,10 @@ export function F009Planner({
                         ? "用这个位置估算路线"
                         : "选择这家住宿"
                     }
-                    onChoose={(option) =>
-                      setAccommodationId(option.location_id)
-                    }
+                    onChoose={(option) => {
+                      setAccommodationId(option.location_id);
+                      focusMap(option.location_id);
+                    }}
                   />
                 )}
               </SearchPanel>
@@ -1039,6 +1244,8 @@ export function F009Planner({
             advisor ? (
               <F019Advisor
                 snapshot={advisor}
+                feedback={advisorFeedback}
+                pendingActionId={pendingAdvisorAction}
                 message={advisorMessage}
                 disabled={busy}
                 expanded={advisorOpen}

@@ -25,10 +25,44 @@ const fixture = fixtureJson as unknown as {
 };
 const [stay, first, second] = fixture.options;
 
-function harness(nativeMapFailure = false) {
+function harness(
+  nativeMapFailure = false,
+  scenario: { area?: boolean; preference?: boolean; many?: boolean } = {},
+) {
   let current = structuredClone(fixture.session);
   let advisor = structuredClone(fixture.advisor);
+  const options = structuredClone(fixture.options);
+  if (scenario.area) {
+    options[1].scope_kind = "area";
+    options[1].confirmation_status = "representative_required";
+    options.push({
+      ...second,
+      location_id: "70000000-0000-4000-8000-000000000005",
+      name: "合成景区东入口",
+    });
+  }
+  if (scenario.many)
+    for (let i = 5; i < 13; i++)
+      options.push({
+        ...second,
+        location_id: `70000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        name: `合成地点${i}`,
+      });
+  if (scenario.preference)
+    advisor.pending_suggestions.push({
+      ...advisor.pending_suggestions[0],
+      suggestion_id: "70000000-0000-4000-8000-000000000099",
+      kind: "preference_patch",
+      title: "少走路",
+      location_id: null,
+      location_name: null,
+      preference_patch: {
+        ...advisor.confirmed_preferences,
+        walking_tolerance: "low",
+      },
+    });
   const state = {
+    failActions: false,
     failTurns: false,
     turnReply: null as string | null,
     turnGate: null as Promise<void> | null,
@@ -66,16 +100,32 @@ function harness(nativeMapFailure = false) {
         page: 1,
         page_size: 20,
         has_more: false,
-        items: fixture.options.filter((item) => item.purpose === purpose),
+        items: options.filter(
+          (item) =>
+            item.purpose === purpose &&
+            (!scenario.area ||
+              !decodeURIComponent(url).includes("入口") ||
+              item.name === "合成景区东入口"),
+        ),
         calls: current.calls,
       };
     } else if (url.endsWith("/advisor-actions")) {
       state.actions.push(body);
+      if (state.failActions)
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "selection_invalid",
+              message: "synthetic invalid anchor",
+            },
+          }),
+          { status: 422 },
+        );
       if (body.action === "accept")
         current = {
           ...current,
           revision: current.revision + 1,
-          selection: body.selection_context,
+          selection: body.selection_context ?? current.selection,
         };
       advisor = {
         ...advisor,
@@ -155,6 +205,153 @@ const listCard = (name: string) =>
   within(list().getByRole("article", { name }));
 const adviceCard = (name: string) =>
   within(advice().getByRole("article", { name }));
+
+test("F020 lodging editing keeps the map interactive in the left panel", async () => {
+  harness();
+  const user = await reachSelection();
+  await user.click(screen.getByRole("button", { name: "更换住宿" }));
+  const editor = screen.getByRole("dialog", { name: "编辑住宿与地点" });
+  expect(editor).toHaveAttribute("aria-modal", "false");
+  expect(screen.getByRole("region", { name: "地点清单" })).toContainElement(
+    editor,
+  );
+  expect(screen.getByRole("region", { name: "地点地图" })).toBeVisible();
+});
+
+test("F020 add and remove a verified place directly without opening an editor", async () => {
+  const h = harness();
+  const user = await reachSelection();
+  await user.click(
+    listCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await user.click(listCard(first.name).getByRole("button", { name: "移除" }));
+  expect(screen.getByText(/已选景点\s+0/)).toBeVisible();
+  expect(h.state.actions).toHaveLength(0);
+});
+
+test("F020 area selection asks for an entrance inline, not in the lodging editor", async () => {
+  harness(false, { area: true });
+  const user = await reachSelection();
+  await user.click(
+    listCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  const task = within(
+    await screen.findByRole("region", { name: "确认景区入口" }),
+  );
+  await user.click(
+    await task.findByRole("button", { name: /用作路线入口.*合成景区东入口/ }),
+  );
+  expect(screen.getByText(/已选景点\s+1/)).toBeVisible();
+  expect(
+    screen.queryByRole("region", { name: "确认景区入口" }),
+  ).not.toBeInTheDocument();
+});
+
+test("F020 advisor area acceptance waits for a valid entrance and preserves local A", async () => {
+  const h = harness(false, { area: true });
+  const user = await reachSelection();
+  await user.click(
+    listCard(second.name).getByRole("button", { name: "加入已选" }),
+  );
+  await user.click(
+    adviceCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  expect(h.state.actions).toHaveLength(0);
+  const task = within(
+    await screen.findByRole("region", { name: "确认景区入口" }),
+  );
+  await user.click(
+    await task.findByRole("button", { name: /用作路线入口.*合成景区东入口/ }),
+  );
+  await waitFor(() => expect(h.state.actions).toHaveLength(1));
+  expect(
+    h.state.actions[0].selection_context?.pois.map((p) => [
+      p.location_id,
+      p.route_anchor_location_id,
+    ]),
+  ).toEqual([
+    [second.location_id, second.location_id],
+    [first.location_id, "70000000-0000-4000-8000-000000000005"],
+  ]);
+  await waitFor(() => expect(screen.getByText(/已选景点\s+2/)).toBeVisible());
+  expect(
+    advice().queryByRole("article", { name: first.name }),
+  ).not.toBeInTheDocument();
+});
+
+test("F020 advisor failures remain visible beside suggestions and keep pending", async () => {
+  const h = harness();
+  const user = await reachSelection();
+  h.state.failActions = true;
+  await user.click(
+    adviceCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  expect(await advice().findByRole("alert")).toHaveTextContent("未通过校验");
+  expect(
+    adviceCard(first.name).getByRole("button", { name: "加入已选" }),
+  ).toBeEnabled();
+  expect(screen.getByText(/已选景点\s+0/)).toBeVisible();
+});
+
+test("F020 preference acceptance preserves unsubmitted local places", async () => {
+  harness(false, { preference: true });
+  const user = await reachSelection();
+  await user.click(
+    adviceCard(second.name).getByRole("button", { name: "加入已选" }),
+  );
+  await waitFor(() => expect(screen.getByText(/已选景点\s+1/)).toBeVisible());
+  await user.click(
+    listCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  await user.click(advice().getByRole("button", { name: "确认偏好" }));
+  await waitFor(() =>
+    expect(
+      advice().queryByRole("button", { name: "确认偏好" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByText(/已选景点\s+2/)).toBeVisible();
+});
+
+test("F020 cancelling advisor entrance selection leaves suggestions and selection unchanged", async () => {
+  const h = harness(false, { area: true });
+  const user = await reachSelection();
+  await user.click(
+    adviceCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  const task = within(
+    await screen.findByRole("region", { name: "确认景区入口" }),
+  );
+  await waitFor(() =>
+    expect(task.getByRole("button", { name: "取消选择" })).toBeEnabled(),
+  );
+  await user.click(task.getByRole("button", { name: "取消选择" }));
+  expect(h.state.actions).toHaveLength(0);
+  expect(screen.getByText(/已选景点\s+0/)).toBeVisible();
+  expect(
+    adviceCard(first.name).getByRole("button", { name: "加入已选" }),
+  ).toBeEnabled();
+});
+
+test("F020 eight-place limit gives visible feedback for list and advisor", async () => {
+  const h = harness(false, { many: true });
+  const user = await reachSelection();
+  for (let i = 5; i < 13; i++)
+    await user.click(
+      listCard(`合成地点${i}`).getByRole("button", { name: "加入已选" }),
+    );
+  await user.click(
+    listCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  expect(list().getByRole("alert")).toHaveTextContent("最多选择 8 个景点");
+  await user.click(
+    adviceCard(first.name).getByRole("button", { name: "加入已选" }),
+  );
+  expect(advice().getByRole("alert")).toHaveTextContent("最多选择 8 个景点");
+  expect(h.state.actions).toHaveLength(0);
+  expect(screen.getByText(/已选景点\s+8/)).toBeVisible();
+});
 
 test("UI8 R1 map return reveals filtered target and repeats without selecting", async () => {
   const h = harness();
@@ -285,8 +482,8 @@ test("frozen normal state, mixed local/advisor selection and duplicate confirmat
   await waitFor(() => expect(screen.getByText("0 条建议待确认")).toBeVisible());
   expect(h.state.actions[1].selection_context?.pois).toHaveLength(2);
   expect(
-    listCard(first.name).getByRole("button", { name: "已加入" }),
-  ).toBeDisabled();
+    listCard(first.name).getByRole("button", { name: "移除" }),
+  ).toBeEnabled();
 });
 
 test("ignore and filtering preserve stable numbers without selecting; next stage is gated", async () => {
@@ -317,6 +514,12 @@ test("ignore and filtering preserve stable numbers without selecting; next stage
 test("map focus works in both directions, repeated focus resets zoom, fit restores positions", async () => {
   const h = harness();
   const user = await reachSelection();
+  await user.click(screen.getByRole("button", { name: "查看全部" }));
+  const startingSequence = Number(
+    screen
+      .getByRole("region", { name: "地点地图" })
+      .getAttribute("data-focus-sequence"),
+  );
   const marker = screen.getByRole("button", {
     name: `地图定位：${first.name}`,
   });
@@ -333,7 +536,7 @@ test("map focus works in both directions, repeated focus resets zoom, fit restor
   await waitFor(() => expect(marker).toHaveFocus());
   expect(screen.getByRole("region", { name: "地点地图" })).toHaveAttribute(
     "data-focus-sequence",
-    "2",
+    String(startingSequence + 2),
   );
   await user.click(marker);
   expect(list().getByRole("article", { name: first.name })).toHaveFocus();

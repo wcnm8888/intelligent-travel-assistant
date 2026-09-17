@@ -42,8 +42,9 @@
 | 20 | F-017 旅行顾问对话体验与上下文连续性 | DONE | 在地图旁通过有界对话、快捷回答和确认式建议协助旅客共同规划 | [任务卡](./f-017-advisor-conversation-experience.md)；`PASS / OFFLINE` |
 | 21 | F-018 推荐优先、路线锚点闭环与方案有效对比 | DONE | 用户可先获得景点推荐、明确完成区域锚点选择并真正看懂可行方案差异 | [任务卡](./f-018-advisor-discovery-anchor-option-clarity.md)；`PASS / OFFLINE` |
 | 22 | F-019 旅行顾问UI设计系统与核心旅程视觉重构 | DONE | 三栏选点与顾问、完整旅程状态及断点完成离线QA与最终确认 | [归档](../archive/task-cards/F-019-advisor-ui-design-system.md)；以本PR合并生效 |
+| 23 | F-020 地图选点操作修复 | ACTIVE | 本地修复及203项测试通过，待用户复查住宿/入口/移除/顾问操作 | [任务卡](./f-020-map-selection-interactions.md) |
 
-B-000 至 F-019已选任务的离线范围已收口；F-004B2保留原阻塞。当前无活动任务。
+B-000 至 F-019已选任务的离线范围已收口；F-004B2保留原阻塞。当前活动任务为F-020。
 
 ## 当前任务入口
 
@@ -122,3 +123,5 @@ F-009 地图选点与空间可行旅行规划（DONE / IMPLEMENTED / PASS / OFFL
 ```
 
 依赖图表达推荐顺序，不构成自动执行授权。用户可以调整候选任务、拆分范围或暂停项目。
+
+Git同步授权（2026-09-17）：用户要求“帮我最新的同步到git上面”。允许在fix/f020-map-selection-interactions精确提交本轮五源文件与六份任务文档，并推送origin同名分支；保留main与原工作区历史dirty，不强推、不创建PR或合并、不自动宣告视觉验收。提交和推送结果以远端分支为准，本机记录为output/f020/20260917-222621-git-sync/result.json。

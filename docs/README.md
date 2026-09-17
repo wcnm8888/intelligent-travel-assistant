@@ -8,7 +8,7 @@
 
 ## 当前工作入口
 
-- 当前活动任务：无
+- 当前活动任务：[F-020 地图选点操作修复](./project-management/f-020-map-selection-interactions.md)，本地修复已验证，待用户复查。
 - 最近完成：[F-019归档](./archive/task-cards/F-019-advisor-ui-design-system.md)，离线QA及最终确认完成，归档以对应PR合并生效。
 - 当前状态：[current-task](./project-management/current-task.md)；[计划](./project-management/implementation-plan.md)；[进度](./project-management/progress.md)。
 - 最终证据：[F-019交付报告](./delivery/f019-delivery.md)；[设计/运行图](./design/f019/README.md)。
@@ -97,3 +97,7 @@ AGENTS.md
 ## 当前任务导航
 
 当前无活动任务；F-019归档及交付状态见上述入口。后续真实UAT与新功能另起任务。
+
+当前 Step 1：F-020 用户交互复查；实现与离线核验已完成。
+
+Git同步授权（2026-09-17）：用户要求“帮我最新的同步到git上面”。允许在fix/f020-map-selection-interactions精确提交本轮五源文件与六份任务文档，并推送origin同名分支；保留main与原工作区历史dirty，不强推、不创建PR或合并、不自动宣告视觉验收。提交和推送结果以远端分支为准，本机记录为output/f020/20260917-222621-git-sync/result.json。
