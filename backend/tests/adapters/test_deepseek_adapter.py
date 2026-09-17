@@ -29,6 +29,7 @@ from intelligent_travel_assistant.application.ports import (
     PlanningToolName,
     PlanRepairBrief,
     PlanRepairLocation,
+    ReplanSelectionScope,
 )
 from intelligent_travel_assistant.domain import (
     Money,
@@ -49,6 +50,10 @@ ADAPTER_PATH = (
 FIXED_NOW = datetime(2026, 8, 14, 6, 0, tzinfo=UTC)
 FIXED_SOURCE_ID = UUID("70000000-0000-4000-8000-000000000028")
 TEST_AUTH_VALUE = "test-only-deepseek-key"
+LOCATION_ONE_ID = UUID("90000000-0000-4000-8000-000000000001")
+LOCATION_TWO_ID = UUID("90000000-0000-4000-8000-000000000002")
+REPLACEMENT_ID = UUID("90000000-0000-4000-8000-000000000003")
+TARGET_ACTIVITY_ID = UUID("90000000-0000-4000-8000-000000000010")
 
 
 def _context() -> PlanningContext:
@@ -64,7 +69,7 @@ def _context() -> PlanningContext:
         allowed_tools=(PlanningToolName.CALCULATE_ROUTES,),
         locations=(
             PlanningLocation(
-                UUID("90000000-0000-4000-8000-000000000001"),
+                LOCATION_ONE_ID,
                 "西湖湖滨 synthetic POI",
                 "scenic_area",
                 "330100",
@@ -84,8 +89,9 @@ def _context() -> PlanningContext:
 def _repair_brief(
     validation_code: CandidateValidationCode,
     time_failure: CandidateTimeFailureCode | None = None,
+    context: PlanningContext | None = None,
 ) -> PlanRepairBrief:
-    context = _context()
+    context = _context() if context is None else context
     return PlanRepairBrief(
         request_version=None,
         expected_dates=(context.start_date, context.end_date),
@@ -99,6 +105,25 @@ def _repair_brief(
         activity_source_ids=context.activity_source_ids,
         validation_code=validation_code,
         validation_time_failure=time_failure,
+        replan_selection_scope=context.replan_selection_scope,
+    )
+
+
+def _replan_context() -> PlanningContext:
+    return replace(
+        _context(),
+        locations=(
+            PlanningLocation(LOCATION_ONE_ID, "基线一", "scenic_area", "330100"),
+            PlanningLocation(LOCATION_TWO_ID, "基线二", "museum", "330100"),
+            PlanningLocation(REPLACEMENT_ID, "替换候选", "museum", "330100"),
+        ),
+        replan_selection_scope=ReplanSelectionScope(
+            target_activity_id=TARGET_ACTIVITY_ID,
+            target_local_date=date(2026, 8, 15),
+            target_selection_index=0,
+            baseline_location_ids_by_day=((LOCATION_ONE_ID,), (LOCATION_TWO_ID,)),
+            allowed_candidate_location_ids=(REPLACEMENT_ID,),
+        ),
     )
 
 
@@ -192,8 +217,36 @@ async def test_generation_uses_the_frozen_nonthinking_json_request() -> None:
     assert user_data["city_adcode"] == "330100"
     assert user_data["city_display_label"] == "city:330100"
     assert user_data["observations"][0]["display_label"] == "observation:weather"
+    assert "replan_selection_scope" not in user_data
     assert "tools" not in payload
     assert "temperature" not in payload
+
+
+@pytest.mark.anyio
+async def test_generation_accepts_canonical_model_for_frozen_legacy_alias() -> None:
+    response = {**_completion(), "model": "deepseek-flash"}
+
+    result = await _adapter(
+        httpx2.MockTransport(lambda request: httpx2.Response(200, json=response))
+    ).generate_plan_candidate(_context())
+
+    assert result.status is ProviderResultStatus.OK
+    assert result.data is not None
+    assert result.error is None
+
+
+@pytest.mark.anyio
+async def test_generation_still_rejects_unrelated_response_model() -> None:
+    response = {**_completion(), "model": "deepseek-v4-pro"}
+
+    result = await _adapter(
+        httpx2.MockTransport(lambda request: httpx2.Response(200, json=response))
+    ).generate_plan_candidate(_context())
+
+    assert result.status is ProviderResultStatus.UNAVAILABLE
+    assert result.error is not None
+    assert result.error.category is ProviderErrorCategory.SCHEMA
+    assert result.error.reason is ProviderErrorReason.MODEL_MISMATCH
 
 
 @pytest.mark.anyio
@@ -297,6 +350,7 @@ async def test_repair_keeps_invalid_output_out_of_the_system_message() -> None:
     repair_data = json.loads(messages[1]["content"])
     brief = repair_data["repair_brief"]
     assert brief["validation_code"] == "candidate_schema_invalid"
+    assert "replan_selection_scope" not in brief
     assert "validation_time_failure" not in brief
     assert "validation_hint" not in repair_data
     assert repair_data["proposal_rules"] == [
@@ -323,6 +377,49 @@ async def test_repair_keeps_invalid_output_out_of_the_system_message() -> None:
     assert invalid not in json.dumps(repair_data, ensure_ascii=False)
     assert brief["locations"][0]["display_label"] is None
     assert brief["locations"][0]["category"] is None
+
+
+@pytest.mark.anyio
+async def test_replan_scope_is_safely_identical_in_generation_and_repair_payloads() -> None:
+    observed_payloads: list[dict[str, object]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        observed_payloads.append(json.loads(request.content))
+        return httpx2.Response(200, json=_completion())
+
+    context = _replan_context()
+    adapter = _adapter(httpx2.MockTransport(handler))
+    await adapter.generate_plan_candidate(context)
+    await adapter.repair_plan_candidate(
+        _repair_brief(CandidateValidationCode.SCHEMA_INVALID, context=context)
+    )
+
+    generation_messages = observed_payloads[0]["messages"]
+    repair_messages = observed_payloads[1]["messages"]
+    assert isinstance(generation_messages, list) and isinstance(repair_messages, list)
+    generation = json.loads(generation_messages[1]["content"])
+    repair = json.loads(repair_messages[1]["content"])["repair_brief"]
+    expected = {
+        "target_activity_id": str(TARGET_ACTIVITY_ID),
+        "target_local_date": "2026-08-15",
+        "target_selection_index": 0,
+        "baseline_location_ids_by_day": [
+            [str(LOCATION_ONE_ID)],
+            [str(LOCATION_TWO_ID)],
+        ],
+        "allowed_candidate_location_ids": [str(REPLACEMENT_ID)],
+    }
+    assert generation["replan_selection_scope"] == expected
+    assert repair["replan_selection_scope"] == expected
+    assert set(expected) == {
+        "target_activity_id",
+        "target_local_date",
+        "target_selection_index",
+        "baseline_location_ids_by_day",
+        "allowed_candidate_location_ids",
+    }
+    assert "keep every non-target" in generation_messages[0]["content"]
+    assert "keep every non-target" in repair_messages[0]["content"]
 
 
 @pytest.mark.anyio

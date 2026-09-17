@@ -37,6 +37,71 @@ function jsonResponse(value: unknown, status: number): Response {
 }
 
 describe("tripPlanningApi", () => {
+  it.each(["read", "retry", "remove"] as const)(
+    "preserves the actual omitted-null error envelope in %s",
+    async (method) => {
+      const api = createTripPlanningApi(
+        vi.fn().mockResolvedValue(
+          jsonResponse(
+            {
+              error: {
+                code: "job_not_found",
+                message: "The planning job was not found.",
+                retryable: false,
+              },
+            },
+            404,
+          ),
+        ),
+      );
+      await expect(api[method](FIXED_JOB_ID)).rejects.toMatchObject({
+        code: "job_not_found",
+        retryable: false,
+      });
+    },
+  );
+
+  it.each([
+    { trace_id: "invalid" },
+    { unexpected: true },
+    { error: { code: "job_not_found", message: "missing retryable" } },
+    { error: { code: "unknown", message: "Not found", retryable: false } },
+    {
+      error: {
+        code: "job_not_found",
+        message: "Not found",
+        retryable: false,
+        extra: true,
+      },
+    },
+    {
+      error: {
+        code: "job_not_found",
+        message: "token=synthetic-redaction-marker",
+        retryable: false,
+      },
+    },
+  ])("still rejects malformed or unsafe error envelopes: %j", async (patch) => {
+    const api = createTripPlanningApi(
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            error: {
+              code: "job_not_found",
+              message: "Not found",
+              retryable: false,
+            },
+            ...patch,
+          },
+          404,
+        ),
+      ),
+    );
+    await expect(api.read(FIXED_JOB_ID)).rejects.toMatchObject({
+      code: "http_error",
+    });
+  });
+
   it("posts the exact DTO to the same-origin planning endpoint", async () => {
     const request = vi
       .fn()

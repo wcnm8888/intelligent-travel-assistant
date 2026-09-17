@@ -1,5 +1,1088 @@
 # 验收证据索引
 
+<a id="f008-playwright-evidence-boundary-diagnosis-20260912"></a>
+
+## F-008 Playwright证据输出边界诊断：PASS / OFFLINE（2026-09-12）
+
+- 独立诊断`1/1`已消费；本机CLI实现确认未配置`outputDir`时使用`cwd/.playwright-cli`，`open`内部导航会自动写页面快照。
+- 旧控制台文件仅作内存分类：唯一外部地址来自INFO级前端开发工具提示；Provider Host、凭证和Provider派生数据均未发现，两个旧文件哈希保持。
+- `PLAYWRIGHT_MCP_OUTPUT_DIR`可在daemon启动前收口全部自动产物；`PLAYWRIGHT_MCP_CONSOLE_LEVEL=warning`在日志追加前过滤本次INFO提示。CLI没有通用URL过滤器。
+- 七个version/help命令均退出0且旧输出清单哈希前后相同；本轮浏览器、服务、Provider、HTTP、planning、replan、SQLite和费用均0。
+- 结论：机制诊断通过，浏览器运行时收口仍为`UNVERIFIED`。当前`execution_status=PENDING_APPROVAL`，唯一下一项是待决策的browser-only产物收口验证，不自动执行或进入第四批真实UAT。
+- 完整证据：diagnosis report（本机历史证据：`output/diagnostics/20260912-playwright-evidence-boundary-diagnosis/report.md`）。
+
+
+## F-008 Step 13第三次真实Provider复验：FAIL（2026-09-12）
+
+- 本批3/3已消费且无第四批授权；结果为`FAIL`，停止点为`external_url_in_playwright_console_artifact_outside_authorized_root`。
+- 启动证据：后端18008与前端15173健康、PID归属及5173未监听均通过；SQLite=None。浏览器打开后，Playwright CLI在项目根`.playwright-cli`自动生成2个初始文件，超出本批授权证据目录，planning尚未提交即停止。
+- 泄漏判定：凭证、JWT、Provider Host、坐标和Provider派生数据命中均0；自动控制台文件含1个外部开发工具URL。原始失败证据保留，按显式规则判FAIL。
+- 实际额度：planning 0/1、replan 0/4；logical/HTTP三家均0；费用`UNKNOWN_NOT_MEASURED`。没有request_id、job_id或版本链。
+- 收口：`active_executions=0`、`drain_complete=true`；浏览器与前后端已关闭，15173/18008/5173监听0，本批已知进程残留0。
+- 状态：R5保持`PASS / OFFLINE`，Step 13保持`DONE / FAIL`，`execution_status=BLOCKED`，`live_provider_authorized=false`。唯一下一项是待决策的零真实调用浏览器证据边界诊断，不自动修复、重跑、申请第四批或进入Step 14。
+- 完整证据：round3 report（本机历史证据：`output/diagnostics/20260912-step13-live-uat-revalidation-round3/report.md`）。
+
+<a id="f008-test-private-symbol-import-order-repair-20260912"></a>
+
+## F-008 测试私有符号import排序支撑：PASS / OFFLINE
+
+- 独立import排序支撑`1/1`已消费；两个测试只按Ruff I001建议拆分公开`RouteLookupStage`和对应下划线私有函数的import，来源、别名、调用、monkeypatch及断言均不变。
+- Ruff format/check、两个直接定向测试、权威strict mypy 167文件及`git diff --check`全部通过；上一批两个`attr-defined`和两个I001均已消失，997项业务回归继续复用。
+- 两测试文件净增0行；70个生产Python文件哈希未变。Provider、HTTP、服务、浏览器、SQLite和费用均0。
+- F-008保持ACTIVE，R5保持`PASS / OFFLINE`，Step 13保持`DONE / FAIL`。当前无离线代码门禁阻塞，唯一下一项是独立决定是否新增一次Step 13真实Provider复验。完整报告（本机历史证据：`output/diagnostics/20260912-test-private-symbol-import-order-repair/report.md`）。
+
+<a id="f008-test-private-symbol-mypy-repair-20260912"></a>
+
+## F-008 测试私有符号mypy支撑：BLOCKED_BY_RUFF_IMPORT_ORDER
+
+- 独立测试支撑`1/1`已消费。权威RED检查167个源文件，正好复现`test_replan_facts.py`与`test_provider_replan_planner.py`的两个`attr-defined`。
+- 两个测试从`offline_planning`取得带类型的原始私有函数引用，原模块monkeypatch目标、观察内容和断言未改变；两个直接测试`2 passed`，Ruff format通过。
+- Ruff check在两个文件各报一个I001，要求把公开`RouteLookupStage`与下划线私有函数拆为独立import。按停止条件未进行第二次修改，修复后strict mypy及最终`git diff --check`未执行。
+- 两测试文件净增4行；70个生产Python文件哈希未变。Provider、HTTP、服务、浏览器、SQLite和费用均0。F-008、R5、Step 13及真实UAT2/2状态不变。完整报告（本机历史证据：`output/diagnostics/20260912-test-private-symbol-mypy-repair/report.md`）。
+
+<a id="f008-replan-facts-route-lookup-contract-repair-20260912"></a>
+
+## F-008 replan facts route lookup合同修复：BLOCKED_BY_STATIC_GATE
+
+- 范围扩展`1/1`及修复—复验第`2/2`轮已消费。`replan_facts.py`使用显式关键字补齐本地正整数序号和`RouteLookupStage.PRIMARY`；直接测试锁定当前构造合同，未改变fallback业务判断或公开合同。
+- 三项定向测试通过；完整相关回归facts 877、Planner 99、production replans 12、本地验收9，合计997项通过。Ruff format/check和git diff check通过。
+- strict mypy检查167个源文件时发现2个`attr-defined`：`test_replan_facts.py`和本轮只读的`test_provider_replan_planner.py`均通过模块别名访问未显式导出的私有符号。按停止条件未修改、未重跑，记录`NO_THIRD_REPAIR_AUTHORIZED`。
+- 本轮两个既有业务文件净增22行，新增业务文件0，当前规模52文件/+12677；四个只读回归文件哈希不变。Provider、外部HTTP、SQLite、服务、浏览器和费用均0。
+- F-008保持ACTIVE，R5保持`PASS / OFFLINE`，Step 13保持`DONE / FAIL`。当前不具备申请真实复验条件；唯一下一项是独立批准只修改两个测试文件的strict mypy引用修正。完整报告（本机历史证据：`output/diagnostics/20260912-replan-facts-route-lookup-contract-repair/report.md`）。
+
+<a id="f008-provider-replan-planner-change-scope-repair-20260912"></a>
+
+## F-008 ProviderReplanPlanner change-scope修复：BLOCKED_BY_SCOPE
+
+- 精确RED `1/1`复现：production recovery目标1项失败；一次根因取证`1/1`捕获Planner `_execute`内`TypeError`，静态核对确认两处`_lookup_route`调用漏传新增的`stage`与`requirement_index`。
+- 第一轮修复`1/2`补齐primary/fallback stage及稳定需求序号，增加直接合同测试；直接单测与精确恢复目标`2 passed`，三个授权Python文件Ruff format/check通过。
+- 完整相关回归`119 passed, 1 failed`；唯一失败揭示`replan_facts.py` fallback校验仍用旧的`_RouteLookup`构造参数。该文件本轮只读，按“需要第二个生产文件”停止；第2轮修复、完整复验、strict mypy与最终diff check未执行。
+- 两个既有业务文件净增29行，新增业务文件0，当前业务规模52文件/+12655。真实Provider、外部HTTP、SQLite、服务、浏览器和费用均0；观察器恢复且临时根清理。
+- F-008保持ACTIVE、R5保持`PASS / OFFLINE`、Step 13保持`DONE / FAIL`。当前不具备申请独立Step 13真实复验条件；唯一下一项是独立批准`replan_facts.py`的最小合同迁移和离线回归。完整报告（本机历史证据：`output/diagnostics/20260912-provider-replan-planner-change-scope-repair/report.md`）。
+
+<a id="f008-provider-planning-executor-isolated-conflict-safe-diagnostic-20260912"></a>
+
+## F-008 Provider planning executor隔离冲突安全诊断：CHANGE_SCOPE_CONFLICT
+
+- 批次`provider_planning_executor_isolated_conflict_safe_diagnostic=1/1`、动态运行`1/1`及预运行机械支撑修正`1/1`均已消费。相同隔离流程复现：initial planning为partial；首次replan为failed/provider_unavailable；第二次为conflict/replan_change_scope_conflict。
+- 第二次冲突的baseline plan version为1、replan aggregate version为4，expected/actual/repository job version均为7且plan_changed=false；因此不支持job-version conflict，也不是planless version_conflict。
+- 本轮已定位到change-scope类别，但同一安全码仍由ProviderReplanPlanner和ProviderNeutralReplanExecutor多个校验/异常子分支共用，具体修改点尚无唯一证据。
+- synthetic transport调用17次；真实Provider、外部HTTP、SQLite、服务、浏览器和费用均0，active executions最终0，任务自有临时根已清理。九个只读文件哈希一致，四份持久证据泄漏检查0命中。
+- R5保持`PASS / OFFLINE`，Step 13保持`DONE / FAIL`，`live_provider_authorized=false`。唯一下一项是待批准一次change-scope子分支诊断；不授权代码修复、真实Provider、第三个真实UAT或Step 14。完整报告（本机历史证据：`output/diagnostics/20260912-provider-planning-executor-isolated-conflict-safe-diagnostic/report.md`）。
+
+<a id="f008-provider-planning-executor-regression-reproduction-matrix-20260912"></a>
+
+## F-008 Provider planning executor三节点离线复现矩阵：ISOLATED_REPRODUCIBLE
+
+- 批次`provider_planning_executor_regression_reproduction_matrix=1/1`及pytest运行`3/3`已消费并完成。节点1隔离目标为1 failed；节点2指定前置顺序为1 passed/1 failed；节点3完整文件为42 passed/1 failed，三次目标都在恢复断言得到`conflict`而非`completed`。
+- 隔离新进程已经复现同一失败，因此指定前置测试和完整文件顺序不是必要条件。现有安全输出没有terminal error_code及planning job、baseline plan和两个replan aggregate动态版本链，仍不能在job-version与change-scope等分支间唯一选择。
+- 三份直接测试支撑运行前后SHA-256一致。生产代码、测试和脚本修改0；Provider/HTTP/SQLite/外部网络/服务/浏览器/费用均0；新证据凭证值、私钥块、JWT形状、Provider Host、URL及坐标形状扫描0命中。
+- R5保持`PASS / OFFLINE`，Step 13保持`DONE / FAIL`，`live_provider_authorized=false`。唯一下一项是待批准一次隔离安全诊断，只补充安全错误码和动态版本链；不授权代码修复、真实Provider、第三个真实UAT或Step 14。完整报告（本机历史证据：`output/diagnostics/20260912-provider-planning-executor-regression-reproduction-matrix/report.md`）。
+
+<a id="f008-provider-planning-executor-regression-diagnosis-20260912"></a>
+
+## F-008 provider planning executor完整回归失败只读归因：EVIDENCE_INSUFFICIENT
+
+- 批次`provider_planning_executor_regression_diagnosis=1/1`已消费并完成；未运行或收集测试，未修改生产代码、测试或脚本。
+- 现有日志只证明initial为ready/partial、故障replan为failed、恢复replan为conflict；没有terminal error_code、planning-job version、baseline plan version、replan aggregate history，无法在`job_version_conflict`与`replan_change_scope_conflict`等静态路径间唯一选择。
+- 安全reason、`RouteLookupDiagnostic`及`last_route_observation`在已检查replan路径中没有改变业务状态的读引用；但hash-only prestate无法重建关键文件的批次独占diff，因此不能证明本轮改动无关。
+- 清单内未发现目标测试前的共享app/repository/transport、未复位monkeypatch或module/session fixture；清单外app/bootstrap状态未扩大读取。最终分类为`EVIDENCE_INSUFFICIENT`。
+- Provider/HTTP/planning/replan/服务/浏览器/SQLite/外部网络/费用和代码修复均为0。唯一下一项是待批准三次、零改码的离线复现矩阵；不授权修复、真实Amap调用、第三个真实UAT或Step 14。完整报告（本机历史证据：`output/diagnostics/20260912-provider-planning-executor-regression-diagnosis/report.md`）。
+
+<a id="f008-step13-amap-route-observability-repair-20260912"></a>
+
+## F-008 Step 13 Amap路线安全可观测性：BLOCKED_BY_REGRESSION
+
+- 批次`amap_route_observability_repair=1/1`、修复—复验`2/2`均已消费。有效RED为7失败/18通过；第2轮目标GREEN 25通过，Amap adapter完整回归40通过。
+- 两条EMPTY_RESULT已由`route_business_no_result`和`route_count_zero`区分；内部终态观察只保留Provider/operation、mode、primary/fallback、匿名需求序号、safe reason和最终route diagnostic。对外仍为原`data_missing`合同。
+- provider planning executor完整回归为42通过/1失败，恢复replan得到`conflict`而非`completed`。按停止条件未继续route continuity、Ruff、strict mypy或文档检查，不能将本轮标为PASS，也不能进入真实Amap取证。
+- Provider/HTTP/外部网络/planning/replan/服务/浏览器/SQLite/费用均为0。测试日志中4处合成坐标已脱敏，最终敏感模式检查0命中。完整报告（本机历史证据：`output/diagnostics/20260912-step13-amap-route-observability-repair/report.md`）。
+
+<a id="f008-step13-schema-shape-capture-20260912"></a>
+
+## F-008 Step 13脱敏Schema形状取证：ROOT_CAUSES_CAPTURED
+
+- 批次：`schema_shape_capture=1/1`；QWeather current alerts与DeepSeek generation各logical/HTTP 1/1，合计2/2、重试0。费用上限0.50元；调用前保守上界0.2627元，实际人民币费用未由Provider响应提供，不作推测。
+- QWeather安全失败谓词：`metadata_attributions_invalid`。HTTP `2xx`、Content-Type `json`、117 bytes；顶层包含`metadata`对象和空`alerts`数组，`metadata`包含string `tag`与boolean `zeroResult`，缺少`attributions`。没有保存字段值。
+- DeepSeek安全失败谓词：`model_mismatch`。HTTP `2xx`、Content-Type `json`、1570 bytes；object、单choice、index、finish_reason、message role/tool_calls/reasoning_content及非空content均匹配现有约束，仅`model_expected_match=false`。没有保存实际model或模型内容。
+- 泄漏检查覆盖临时支撑与全部结果：私钥、Bearer值、Key前缀、JWT形状、URL、Provider Host和坐标形状均0命中。未启动前端、浏览器、15173/18008服务；未创建job、进入replan或调用Amap；活动execution及临时进程为0。
+- 结论：两个差异都已唯一确定，具备生成仅覆盖QWeather/DeepSeek适配器及其直接单元测试的最小修复Prompt的条件。本批不实施修复、不重跑真实UAT；R5保持`PASS / OFFLINE`，Step 13保持`FAIL`，`live_provider_authorized=false`。完整报告（本机历史证据：`output/diagnostics/20260912-step13-schema-shape-capture/report.md`）。
+
+<a id="f008-step13-schema-diagnosis-20260912"></a>
+
+## F-008 Step 13 Provider Schema离线诊断：BLOCKED_BY_DIAGNOSIS
+
+- 诊断额度：`offline_schema_diagnosis=1/1`已消费；测试、服务、浏览器、Provider调用及费用均为0，没有读取凭证、原始响应或数据库，也没有修改生产代码/测试。
+- QWeather：官方当前预警路径和主字段与本地适配器一致；本地HTTP、metadata、attribution、alerts容器及单条预警的多个严格分支统一映射`provider_schema_invalid`，本批未保存HTTP状态或失败谓词，精确分支无法唯一确定。
+- DeepSeek：当前`/chat/completions`、`deepseek-v4-flash`、非思考和JSON Output参数符合官方契约；公开错误确认发生在HTTP/响应外壳适配层而非本地计划候选Schema。官方允许的finish_reason `content_filter/tool_calls/insufficient_system_resource`超出本地接受集合，但本批未保存安全`ProviderErrorReason`，不能证明实际命中了哪一分支。
+- 结论：两个根因都未唯一确定，当前为`BLOCKED_BY_DIAGNOSIS`。唯一下一项是待独立批准的一次脱敏Schema形状取证，QWeather alerts与DeepSeek generation各最多1次，不启动完整UAT、不自动修复或进入Step14。当前证据：完整报告（本机历史证据：`output/diagnostics/20260912-step13-schema-diagnosis/report.md`）。
+
+<a id="f008-step13-live-uat-20260912"></a>
+
+## F-008 Step 13真实Provider UAT：FAIL
+
+- 唯一批次：`20260912-102437-step13-live-uat`；2026-09-12 10:27:49 +08:00启动、10:33:00 +08:00停止；动态日期2026-09-13/2026-09-14；授权已消费。
+- 结果：1次planning、0次replan；Amap 3/3均`ok`，QWeather预报`ok`但预警`provider_schema_invalid`，DeepSeek生成`provider_schema_invalid`；首次业务失败后停止。
+- 额度：1次planning、最多4次replan；logical Amap/QWeather/DeepSeek为60/10/10，HTTP为75/15/10；1200秒整场deadline、90秒单次deadline、10秒drain、总费用最多5元。
+- 收口：RunCallBudget为`business_failure`，drain完成；SQLite为None，15173/18008和本批残留进程为0；费用实际值未计量。当前证据：完整报告（本机历史证据：`output/diagnostics/20260912-102437-step13-live-uat/report.md`）。旧R5和四轮连接证据不覆盖。
+
+<a id="f008-r5-state-reverification-20260912"></a>
+
+## 2026-09-12 R5状态纠偏与目标复验：PASS / OFFLINE
+
+- 本轮核对发现目标两个未跟踪测试文件在2026-09-11 14:58–14:59已经包含按Amap `types`区分museum/scenic_area的独立候选及同一app/job连续替换回归；既有连续恢复报告（本机历史证据：`output/diagnostics/20260911-continuous-recovery-141047/report.md`）保留原RED和两轮修复证据，正式R5报告（本机历史证据：`output/diagnostics/20260911-formal-r5-160900/report.md`）已证明完整浏览器批次`PASS / OFFLINE`。本轮未伪造新RED，也未重复修改已正确代码。
+- 新安全进程定向运行连续museum→scenic_area场景1项通过；完整`test_production_replans_api.py`为12项通过，完整`test_f008_local_acceptance.py`为9项通过。两个目标文件Ruff format/check通过，权威strict mypy为167个源文件通过，`git diff --check`通过。
+- 两目标文件hash保持为`browser_f008_production_support.py=e225a6f7e8c400e3e4ec3386bfdbb74ff327480d3e911e37f796cfc3c6d60d7a`、`test_production_replans_api.py=d97940fc900b604c13e34d41d542f34377020e6eda029f2b401b6ce0ddcf810a`；本轮业务源码/测试修改0、修复轮次新增0，当前业务规模仍为52文件/+12533。
+- 任务卡陈旧表格已纠正为R5 `DONE / PASS / OFFLINE`、Step13/14均未开始；用户账号与费用输入只作为后续Step13依据，本轮未读取凭证、启动服务/浏览器、调用Provider、访问数据库或执行Git交付。
+
+<a id="f008-synthetic-connection-round4-20260912"></a>
+
+## 2026-09-12 纯合成本机连接第4轮：PASS / OFFLINE
+
+- 第4轮报告（本机历史证据：`output/diagnostics/20260911-synthetic-connection-181000/round4/report.md`）、进程归属（本机历史证据：`output/diagnostics/20260911-synthetic-connection-181000/round4/process-ownership.json`）、连接结果（本机历史证据：`output/diagnostics/20260911-synthetic-connection-181000/round4/connection-result.json`）、运行摘要（本机历史证据：`output/diagnostics/20260911-synthetic-connection-181000/round4/run-summary.json`）。旧round1/2/3及原报告未覆盖。
+- 合成根位于项目`output/f008-r5`白名单内；后端监听PID67140是启动器PID46364的直接子进程且命令属于本批，前端启动/监听PID均47996。
+- 15173代理健康通过，恰好一个planning execution返回；client request ID与job关联一致，终态partial。OfflineProviderTransport调用12次，SQLite为false，未载入或修改既有计划。
+- 停止后drain完成、active execution为0，前后端exit_ok；15173/18008和本批残留进程均0。无浏览器、真实Provider、真实凭证、既有数据库、外部服务或Git操作。
+- `uat_connection_support=4/4`已消费且不批准第5轮。真实Provider质量、账号限制/费用/QPS同期证据、浏览器流程、Step13真实UAT和Step14均未覆盖。
+
+<a id="f008-synthetic-connection-20260911"></a>
+
+## 2026-09-11 纯合成本机连接：第3轮在后端监听前BLOCKED
+
+- 报告（本机历史证据：`output/diagnostics/20260911-synthetic-connection-181000/report.md`）。前两轮15173/18008均启动但在PID归属门禁停止；追加第3轮在后端监听前因合成根不符合`_allowed_root`白名单而退出。
+- 第二轮明确记录启动PID27752、监听PID52620、前端PID/监听均8640；尚未在存活期核实后端直接父子关系，因此未接受或按端口终止。
+- 两轮`final.started.json`逻辑/HTTP/执行计数均0；未生成连接结果、最终/后端/前端摘要。两轮结束后端口监听均0，无真实Provider、SQLite或业务请求。
+- 第3轮后端PID16536报`r5_owned_output_path_required`；代码只允许Windows临时目录或项目`output/f008-r5`，本批误传E盘`.codex-temp`根。前端PID56356正常关闭；无健康/planning/PID归属/Provider调用，最终两端口监听0。
+- `uat_connection_support=3/3`到限，不进行第4轮。若继续须另批一轮，只改用`output/f008-r5`下的新专用根并执行原流程；旧三轮证据/计数不重置，不改生产代码，不进入真实UAT。
+
+<a id="f008-uat-frontend-config-20260911"></a>
+
+## 2026-09-11 前端uat模式配置：PASS / OFFLINE
+
+- 报告（本机历史证据：`output/diagnostics/20260911-uat-frontend-config-180158/report.md`）、下一项连接候选（本机历史证据：`output/diagnostics/20260911-uat-frontend-config-180158/connection-candidate.md`）。仅vite.config.ts按mode分支，uat为15173→18008，其他模式5173→8000保持。
+- RED（本机历史证据：`output/diagnostics/20260911-uat-frontend-config-180158/config-red.log`）仅uat不匹配；GREEN（本机历史证据：`output/diagnostics/20260911-uat-frontend-config-180158/config-green.log`）四种模式通过，网络/监听调用0，原test配置和React插件保持；同一config-probe.mjs加载实际配置。
+- format、全前端lint（零warning）和typecheck通过；本轮1/2一次通过，旧uat_runtime=7及历史失败保留。inventory重复统计一致：业务52文件/+12533，本轮配置+1行，helper452未变。
+- 本轮未启动服务/浏览器/Provider，实际代理连接未验证。下一项仅纯合成本机15173/18008连接观察待批准；不重复R5或调用真实服务。
+
+<a id="f008-step13-final-admission-20260911"></a>
+
+## 2026-09-11 Step13最终离线准入核对：完成，真实启动BLOCKED
+
+- 报告（本机历史证据：`output/diagnostics/20260911-step13-final-admission-175418/report.md`）、最新可审批候选（本机历史证据：`output/diagnostics/20260911-step13-final-admission-175418/candidate-plan.md`）、独立退出复核（本机历史证据：`output/diagnostics/20260911-step13-final-admission-175418/independent-exit-review.md`）。UAT-EXIT-1限定关闭，范围内无新高置信缺陷；不是人工或真实UAT验收。
+- 证据复用（本机历史证据：`output/diagnostics/20260911-step13-final-admission-175418/evidence-reuse.json`）：216个原后端/前端源文件hash无差异，helper和最新测试hash匹配；复用2566/50/8项对应结果，不重跑全量。
+- 前端代理8000、UAT后端18008的接线缺项已定位；下一项建议只改vite.config.ts的显式uat模式，15173→18008，保持默认模式，尚未实施或启动。
+- 候选纠正1200秒从预算实例创建计时；1+4执行、80逻辑/100HTTP为代码默认约束，5元不是已实现货币限额。真实业务范围/费用批准、账号硬限制或保守预留及同期观察摘要未齐。
+- 本轮只改七份授权文档及新证据，累计uat_runtime=7保留；无源码修改、测试重跑、浏览器、服务、真实Provider或Git交付。真实CLI启动失败非零不保证为协议替身测试的2。
+
+<a id="f008-uat-exit-lint-20260911"></a>
+
+## 2026-09-11 UAT退出测试静态修正：PASS / OFFLINE
+
+- 报告（本机历史证据：`output/diagnostics/20260911-uat-exit-lint-174924/report.md`）、提取等价检查（本机历史证据：`output/diagnostics/20260911-uat-exit-lint-174924/extraction-proof.json`）。仅测试辅助方法提取；五场景集合、场景体与其余测试AST保持，生产代码未改。
+- 定向（本机历史证据：`output/diagnostics/20260911-uat-exit-lint-174924/targeted.log`）8项通过/4.633秒，包含五场景；format/lint/严格类型通过，原10条B023关闭。首次types.log缺少被测脚本入口，纠正命令types-corrected.log通过；未加ignore或追加代码修复。
+- 本轮一次授权机械修正至累计uat_runtime=7，旧6及旧失败保留；不因达到7就把已通过闭环标为失败。仅一测试文件和七份文档，业务规模不变；原scripts50/后端2566/前端161按覆盖复用。
+- 下一项为最终准入核对及可审批候选：退出修复复核、前端连接、真实场景/费用/QPS及同期账号证据。无真实Provider、服务监听、浏览器、数据库或Git交付；不是完整真实UAT就绪证明。
+
+<a id="f008-uat-exit-20260911"></a>
+
+## 2026-09-11 UAT退出证据修复：行为通过，测试lint未通过
+
+- 报告（本机历史证据：`output/diagnostics/20260911-uat-exit-174127/report.md`）。实际Uvicorn LifespanOn协议驱动，Server.run仅替换为协议执行，不调用服务监听。四类证据/生命周期失败先错误exit0，修复后均exit2，正常exit0。
+- 目标RED（本机历史证据：`output/diagnostics/20260911-uat-exit-174127/exit-target-red.log`）4个失败子场景；全部脚本（本机历史证据：`output/diagnostics/20260911-uat-exit-174127/scripts-final.log`）50项通过/23.138秒（新增1个测试含5场景）。两文件format/严格mypy通过；lint（本机历史证据：`output/diagnostics/20260911-uat-exit-174127/lint.log`）10条B023未通过。
+- 首次支撑失败（本机历史证据：`output/diagnostics/20260911-uat-exit-174127/exit-red.log`）是Windows内部socketpair被bind守卫拦截，目标未到达；计第5轮修正守卫后目标RED成立，第6轮修复生产判定。原4保留，当前6/6停止；没有第7轮修改。
+- 后端业务与测试/前端未变，复用2566/161项；仅两个scripts和七份授权文档修改。下一项只提取测试辅助方法、追加一次机械修正待批准；不改生产代码，不加ignore。
+- 无真实Provider、服务监听、浏览器、既有数据库、依赖/API/schema或Git交付。本轮未做新的独立复审，真实UAT仍未就绪。以下历史结论按原时点保留。
+
+<a id="f008-uat-lifecycle-20260911"></a>
+
+## 2026-09-11 期限修复与UAT生命周期：离线验证通过，退出证据P2待修
+
+- 报告（本机历史证据：`output/diagnostics/20260911-uat-lifecycle-172147/report.md`）、独立复核（本机历史证据：`output/diagnostics/20260911-uat-lifecycle-172147/runtime-followup-review.md`）。RUNTIME-1限定关闭，UAT-EXIT-1静态确认OPEN，不宣称真实UAT就绪。
+- 原始RED（本机历史证据：`output/diagnostics/20260911-uat-lifecycle-172147/deadline-red.log`）两项显示吞取消/普通晚返回未抛超时；修复后相同场景通过。共享期限及HTTP接受、planning发布、replan返回前检查阻止过期结果。
+- 默认关闭helper接入原生产纯内存app，启动/停止/有界drain/终态证据接线；合成测试覆盖首次业务失败后停止且零新增调用、旧计划保留、启动失败留证和空闲期限退出通知。
+- 完整后端（本机历史证据：`output/diagnostics/20260911-uat-lifecycle-172147/backend-full.log`）2566项通过/205.66秒含固定eval；脚本（本机历史证据：`output/diagnostics/20260911-uat-lifecycle-172147/mechanism-full.log`）49项通过/21.031秒。定向229和生命周期7包含于上述全量；9文件format/lint/严格mypy通过；前端未改复用161项。
+- 首轮新测试import/具体对象层次/路由枚举假设错误保留，第二轮纠正后通过；旧uat_runtime=2→3→4，累计4/4停止。实际9个实现/测试文件，本轮业务+144至51文件/+12532，两个helper脚本本轮+254至357行另计。
+- 新P2：drain成功后最终证据写入失败，被当前Uvicorn生命周期吸收但CLI仍exit0；仅核实静态传播链，未故障注入。下一项仅两文件修复及追加最多2轮待批准，旧4不清零；真实范围/费用/QPS/同期账号证据和实际前端连接仍待核对。
+- 无真实Provider、浏览器、监听服务、既有数据库或Git交付；旧R5仅保留原指纹的OFFLINE结论。以下按时间保留历史快照，旧“当前/待批准”不覆盖本节及任务卡。
+
+<a id="f008-independent-review-20260911"></a>
+
+## 2026-09-11 独立AI评审与真实UAT准入：FINDINGS_OPEN
+
+- 报告（本机历史证据：`output/diagnostics/20260911-independent-review-170920/report.md`）、运行时独立评审（本机历史证据：`output/diagnostics/20260911-independent-review-170920/runtime-review.md`）、恢复独立评审（本机历史证据：`output/diagnostics/20260911-independent-review-170920/recovery-review.md`）。两路新上下文AI专项，不是人工或全项目验收。
+- 当前指纹匹配2562后端PASS证据，前端41文件未变；复用而未重跑。恢复/内存/隔离专项未确认阻塞缺陷。
+- 运行时P2条件性缺口已纯内存复现：deadline取消被吞后返回，remaining=0却returned/stopped=false；未证明真实Provider可达，后续admission仍拒绝。默认关闭helper的真实入口/停止/最终取证接线也未完成。
+- 只读阶段未改代码；下一项原10文件离线修复/接线提案及追加最多两轮额度在任务卡，尚待批准。真实场景/费用/QPS与账号同期证据仍缺，真实UAT不得启动。
+
+
+<a id="f008-test-isolation-20260911"></a>
+
+## 2026-09-11 两份测试隔离与完整回归：PASS / OFFLINE
+
+- 报告（本机历史证据：`output/diagnostics/20260911-test-isolation-170000/report.md`）：提前合法导入app复现5失败/4通过；保留原检查体并独立进程运行后，相同场景9通过。
+- 完整后端（本机历史证据：`output/diagnostics/20260911-test-isolation-170000/backend-full.log`）2562通过，229.55秒，包含固定eval；不再保留“固定eval未到达”为当前阻塞。
+- 两文件format/lint/严格mypy通过；首次类型命令遗漏src路径的14项错误和纠正记录保留，没有改规则/ignore。仅两测试净增48行，业务源码与前端未改，原修复计数不清零。
+- 下一项是独立评审与真实UAT准入核对；真实范围/费用/QPS及同期账号证据尚未齐，本轮无真实Provider、浏览器/监听服务或Git交付。
+
+
+<a id="f008-uat-runtime-20260911"></a>
+
+## 2026-09-11 Step13整场机制：直接回归通过，完整后端BLOCKED
+
+- 报告（本机历史证据：`output/diagnostics/20260911-uat-runtime-164000/report.md`）：授权10个实现/测试文件完成可选整场计数、预算前拒绝、停止/drain及白名单取证；默认生产组合+合成HTTP验证通过。
+- 定向225通过，scripts机制45通过（含helper3）；10文件format/lint/严格mypy通过。超时重复写终态的实际失败及两轮修复保留；uat_runtime=2，旧计数不变。
+- 全量最终（本机历史证据：`output/diagnostics/20260911-uat-runtime-164000/backend-full-final.log`）1102通过/1失败：test_replan_candidate.py:492全局sys.modules断言受其他测试导入影响，代码/禁用I/O区块已返回。原文件未改，清单外停止。facts同型断言只读发现但未运行至此；固定eval与剩余用例未覆盖。
+- 下一步仅申请两份candidate/facts测试隔离支撑及定向/一次全量复验；未授权真实Provider、服务或新正式批次。旧R5不作为新代码指纹的完整证明。
+
+
+
+<a id="f008-step13-preparation-20260911"></a>
+
+## 2026-09-11 Step13离线准入准备：准备完成，真实启动BLOCKED
+
+- 完整报告（本机历史证据：`output/diagnostics/20260911-step13-preparation-163000/report.md`）、候选场景与下一项技术闭环（本机历史证据：`output/diagnostics/20260911-step13-preparation-163000/candidate-plan.md`）、证据复用与静态取证缺口（本机历史证据：`output/diagnostics/20260911-step13-preparation-163000/readiness-audit.json`）。
+- 新全量前端13文件/161项通过，2 workers；后端全量265通过/1失败，test_sqlite_v4_replan_is_rejected_before_all_replan_writes在Settings构造阶段因临时DB位于项目内失败，未进入业务，原日志（本机历史证据：`output/diagnostics/20260911-step13-preparation-163000/backend-full.log`）保留，未修改校验/重跑。
+- 代码证据hash与既有R5匹配，4个build文件相同；R5批准范围PASS保持，不作为全量测试PASS。单次16 logical/20 HTTP及候选整场80/100的策略核算（本机历史证据：`output/diagnostics/20260911-step13-preparation-163000/policy-proof.json`）通过，只证明数值推导。
+- ToolCallGovernor/ProviderAttemptRuntime有内存snapshot，但planning/replan正式执行入口关闭runtime时未导出；整场关联、上限拒绝、停止/drain和白名单输出未有证据。R5采集器及测试诊断端点不能直接移用到真实UAT，合成计划hash/活动投影也不构成真实内容落盘授权。
+- 启动缺项：合规项目外合成临时DB全量验证、整场取证/限额机制、独立review、真实输入/费用批准及同期Provider控制台证据。候选费用是建议支出上限，不是价格/余额或已实现硬限额。
+- 本轮仅文档和独立离线证据/合成临时资源，无产品/工具源码变更、外部Provider、浏览器、监听服务、真实凭证或既有数据库访问。
+
+
+<a id="f008-formal-r5-20260911"></a>
+
+## 2026-09-11 正式R5本批收口：PASS / OFFLINE
+
+- 批次r5-candidate-20260911-155000，由已审阅候选后的用户继续执行指令授权；正式入口PreflightOnly通过后才创建。完整报告（本机历史证据：`output/diagnostics/20260911-formal-r5-160900/report.md`）及结构化断言（本机历史证据：`output/diagnostics/20260911-formal-r5-160900/journey-results.json`）。
+- 同一job 4668150b-0238-4e2f-b963-a52f92db38d1：canonical版本7，museum/scenic/delete/adjust/reorder依次推进至12；预期故障provider_unavailable且可重试，2次故障耗尽，原plan完整hash/版本不变；新ID恢复completed至13，旧失败终态hash不变。
+- R6取消保留版本13及完整plan；R7正常reload恢复同job，实际受控重启后404/job_not_found、pointer清除及行前设定焦点均通过。R2桌面/390px基本DOM、关键区域截图、键盘焦点和宽度检查通过；正常console零错误/警告，重启1条对应旧job的预期404。
+- R8依批准复用2项API/服务层证据，不宣称浏览器并发。当前候选fingerprint、来源证据hash及4个build文件一致；不重复跑旧业务测试。仅本机合成HTTP/纯内存，无真实Provider或数据库写入。
+- 两个本批服务PID和专用浏览器关闭，18008监听0。历史失败证据保留；本轮无产品/工具源码变更，修复计数不清零。任务文档同步前的一次Windows默认GBK读取失败已单列保留并显式UTF-8修正，发生于正式批次创建前。
+- F008整体仍ACTIVE，Step13真实UAT和Step14交付未完成；下一项为Step13离线准入准备，不自动调用外部服务。
+
+<a id="f008-command-readiness-20260911"></a>
+
+## 2026-09-11 完整命令准入修复通过
+
+本轮报告（本机历史证据：`output/diagnostics/20260911-command-readiness-155500/report.md`）：84/84候选命令通过，负例及MechanismOnly通过；复用未变代码对应的P0证据，未启动正式批次。
+
+
+<a id="f008-r5-admission-20260911"></a>
+
+## 2026-09-11 正式R5候选准入核对
+
+候选与缺项报告（本机历史证据：`output/diagnostics/20260911-r5-admission-155000/report.md`）：2项后端/42项前端补充检查通过；完整82条命令中22条被拒绝，未启动正式批次。前轮P0结论保留其范围。
+
+
+<a id="f008-cli-recovery-20260911"></a>
+
+## 2026-09-11 CLI兼容修复与动态预检通过
+
+本轮报告（本机历史证据：`output/diagnostics/20260911-cli-recovery-153500/report.md`）：17项合成测试、同一行程连续修改后的故障保护及新请求恢复通过；真实CLI证据及资源关闭齐备。仅独立合成P0，不是正式R5或真实Provider验收。
+
+
+<a id="f008-dynamic-preflight-20260911"></a>
+
+## 2026-09-11 独立动态预检
+
+本轮报告（本机历史证据：`output/diagnostics/20260911-dynamic-preflight-152200/report.md`）：canonical planning及只读诊断通过；实际采集器URL全局缺失失败，累计第2轮后停止。浏览器/服务已关闭，连续修改与故障恢复未运行；非正式R5批次。
+
+
+<a id="f008-capture-support-20260911"></a>
+
+## 2026-09-11 最小取证支撑
+
+本轮报告（本机历史证据：`output/diagnostics/20260911-capture-support-145617/report.md`）：诊断端点先404后通过；4项API、14项合成采集回归及静态检查通过。动态运行未授权，tool_runtime/diagnostic_capture保持PARTIAL；旧失败及计数保留。
+
+<a id="f008-r5-preparation-20260911"></a>
+
+## 2026-09-11 正式R5离线验收准备
+
+准备结果及启动条件（本机历史证据：`output/diagnostics/20260911-r5-preparation-144323/report.md`）；复用已核对的局部结果，动态和正式状态分别报告。
+
+<a id="f008-continuous-recovery-20260911"></a>
+
+## 2026-09-11 连续修改后的局部恢复
+
+本轮离线开发证据见报告（本机历史证据：`output/diagnostics/20260911-continuous-recovery-141047/report.md`）；原正式批次保留，不复跑或改写。
+
+<a id="f008-mechanism-closeout-20260911"></a>
+
+## 2026-09-11 活动任务卡与执行入口收尾
+
+本轮由用户在当前对话继续执行指令恢复；原失败记录和旧计数保留。验证与完成状态仅见本轮报告（本机历史证据：`output/diagnostics/20260911-mechanism-closeout-125000/report.md`）；包含起点、RED/GREEN、静态结果及未覆盖项。历史产品结果不冒充本轮运行。当前入口以任务卡声明的证据为准。
+
+
+<a id="f008-methodology-sync-20260907"></a>
+
+## 方法论接入与 R5 后续停止点补录（2026-09-07）
+
+- 本轮授权：仅将2026-09-07中央方法论接入本项目、纠正文档停点并生成下一步Prompt；不执行Prompt，不恢复R5运行/修复，不调用真实Provider、不读取秘密或既有数据库，不提交/推送/PR/CI/合并/归档。
+- 来源核对：先调用read_thread确认“5-综合案例-智能旅行助手-6”（任务ID `01a07500-38e6-7532-a4b8-2d6bc3e665a4`）；接口最新turn正文为空，因此只定位该指定会话的后续最终报告，并核对用户方案B授权及四份当前源码。下面的Batch结果属于既有执行报告，本轮未重跑。
+- 漂移原因：七份治理文档停留在首轮或R4，而后续四文件修复按专项规则在Batch B失败后禁止进入治理收口。故“R5未执行”“首轮后未修复”不能继续当作当前状态；本轮只更新当前入口，首轮及历史证据原文保留。
+- 已有后续动作：方案B精确批准两份R5支撑/测试及planner生产类型修复与其回归共四文件；已格式化并实施一次修复。当前源码确认存在transport候选映射、错配负例、稳定字段/updated_at分离检查及assessment现有枚举转换；不代表这些修复整体有效。
+- 后续报告：Batch A `92 passed / 0 warning`；Batch B `2 failed / 16 passed / 0 warning`，其中service文件14项通过。两项正式入口仍为conflict，旧时间戳整对象失败未再次报告；旧枚举warning在这两批未出现。没有完整R5、真实UAT或所有序列化路径已通过的证据。
+- 当前阻塞：四命令正式入口首个完成断言、retryable失败后新ID恢复仍未通过；修复后的终态准确error code、候选差异与command scope尚未闭合。上次候选映射诊断不能直接当本次根因；下一步应先做只读因果核对，缺少运行期证据则提出一次最小受控诊断方案，不无依据重跑完整验收。
+- 历史额度：原R5 focused失败1次，后续四文件修复1轮，Batch A/B各1次；B失败后没有继续修复或复跑。当前新增修复/正式批次/真实调用额度为0；中央默认2轮不解除该专项停止。浏览器、前端、后端全量、后续静态、固定eval、安全复核和独立review仍待完成。
+- 本轮只读规模：`git diff --numstat -- backend frontend scripts`加同范围untracked行数，代码/测试40唯一文件、相对HEAD净新增9950；原R5五文件相对R4起点为238/10/335/29/58，合计670。会话“约+58”是近似汇报，当前与首轮9895相比为+55；未重算剩余完整矩阵及各Stack最终预测，不以当前未超总上限保证完成。
+- Git准入：分支`feat/f-008-replan-error-recovery`，HEAD `3032d49c4f46167445650c71f7a570fc2c609f4a`，37 tracked/10 untracked/staged 0；既有工作全部保留。本轮仅修改AGENTS、文档地图、testing-strategy和current-task/implementation-plan/progress/roadmap/evidence八份文档，D-023–D-030与产品代码不改。
+- 方法论落点：[项目接入策略](../testing-strategy.md#方法论接入与失败处理)覆盖12项改进的中央权威路由，任务卡维护项目专项参数；路由、计划与进度纠正过期R5描述。未复制中央整套正文，未新增机器台账或第二套任务目录。
+- 文档验证：13处新增/更新链接及锚点通过；八文档均只有一个一级标题、无冲突标记，定向git diff --check通过。反向还原本轮声明修改后，八份原文SHA-256均匹配基线；范围外41份既有变更文件（含全部40份代码/测试及decisions）哈希不变。同步后39 tracked/10 untracked/staged 0，HEAD不变，新增两项tracked差异仅为AGENTS和testing-strategy；未运行产品测试、统一verify或全仓check_docs。
+
+### 四文件当前快照
+
+| 文件 | 行数 | SHA-256 |
+| --- | --- | --- |
+| `backend/tests/browser_f008_production_support.py` | 335 | `9CCD9162136263F842C94CD7A6D8CA5EC7FC70CA2C63AEFF5E8B0934E4B5A4EC` |
+| `backend/tests/api/test_production_replans_api.py` | 238 | `811761878ADF95974CC1AED32330565B2253B84F4DA1123233B1A45CECB716FD` |
+| `backend/src/intelligent_travel_assistant/application/services/provider_replan_planner.py` | 844 | `E610389C03D70CF2E8345753920A4F68A781C81DE606AAA2FD0DF46A82881634` |
+| `backend/tests/application/test_provider_replan_planner.py` | 982 | `58E6C4B0B681DDE75DC3EF36C033299C6F771EDDA80C7A2DE5D833F44B20882F` |
+
+<a id="f008-r5-blocked-20260907"></a>
+
+## F-008 R5 首次正式门禁失败与安全停止（2026-09-07）
+
+- 授权与准入：用户单独批准仅R5五文件正式组合入口全离线验收，不授权生产代码、真实Provider、Step13/14、F-009或Git交付。准入核验为分支`feat/f-008-replan-error-recovery`、HEAD `3032d49c4f46167445650c71f7a570fc2c609f4a`、37 tracked/8 untracked/staged 0；五文件起点为production API测试与production browser支撑不存在，test_replan_service.py 606行、test_f008_local_acceptance.py 124行、ReplanPanel.test.tsx 507行。完整估算760–930/1000，准入PASS。
+- 实施与规模：仅五个批准测试/验收文件变化，生产/fixture/eval/script及清单外文件为0。Ruff format对四个Python文件成功（2 reformatted/2 unchanged），Prettier对ReplanPanel.test.tsx成功；格式化后R5增量依次为+206/+10/+314/+29/+58，总计5/+617。当前代码/测试40唯一文件/+9895；Stack1 17/+8488、Stack2 5/+82、Stack3 18/+1325，当前实际未越界；剩余完整矩阵成本未在失败后重估，不能据此保证最终容纳。
+- 唯一正式验证命令在`backend`目录使用项目CPython 3.13.3，显式`APP_ENV=test`、`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`、空Provider/SQLite环境、`-B --noconftest -p tests.conftest -p anyio.pytest_plugin -p no:cacheprovider -p no:faulthandler -p no:logging -k "not trio"`，仅运行`tests/api/test_production_replans_api.py tests/application/test_replan_service.py`。结果为`3 failed / 14 passed / 1 warning in 10.46s`。
+- 失败1/2：四命令正式入口用例在首个replace活动旅程得到`conflict`而非`completed`；失败恢复用例首轮正确得到retryable failed且原计划不变，但新ID恢复仍得到`conflict`。当前输出未包含终态error code或候选差异，因此不能宣称生产缺陷已证明；静态线索优先指向新R5合成HTTP transport的DeepSeek候选与实际draft映射不一致，须另批只读诊断。
+- 失败3：竞争提交用例首个请求已`completed`、第二个确认正确返回409，但`planning GET == replan.result`整对象断言因`updated_at`相差59微秒失败；这是动态投影时间戳下的过严测试断言，不证明计划内容或版本错误。不得在本轮修正或复跑。
+- Warning：Pydantic报告预算`assessment`字段期望enum但收到字符串`budget_indeterminate`。该warning来自正式默认链的结果序列化，是需独立确认严重度和最小生产范围的潜在产品finding；R5要求正常warning为0，因此即使三项断言问题可校正，也不能忽略此warning或关闭R5。
+- 安全与停止：测试使用真实adapter边界后的`httpx2.MockTransport`，未观察到真实Provider、非loopback网络、SQLite连接、既有数据库访问或敏感输出；没有读取`.env.local`或Provider原始响应。失败后未修复、未复跑，未运行本地loopback/browser、frontend focused/full、backend full、Ruff check、strict mypy、固定eval、build、安全收口或独立review。新增两个文件后Git为37 tracked/10 untracked/staged 0，全部现场保留。
+- 结论：R5为`PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION`，R4及更早离线结果不变。下一动作须单独批准只读诊断与精确修复范围；Step13真实Provider UAT、Step14、F-009及Git交付均未进入。
+
+<a id="f008-r4-closure-20260907"></a>
+
+## F-008 R4 默认生产组合装配离线收口（2026-09-07）
+
+- 授权与范围：用户仅批准R4默认生产组合装配的剩余实施、离线验证及治理收口；生产/测试变更严格限`backend/src/intelligent_travel_assistant/app.py`、`backend/src/intelligent_travel_assistant/bootstrap.py`、`backend/tests/test_bootstrap.py`、`backend/tests/application/test_provider_planning_job_executor.py`，清单外0。本次最终恢复授权只运行两个独立安全pytest进程，生产、测试、fixture、eval和script修改为0；两批均通过后才最小同步七份既有治理文档。未进入R5、Step13/14、F-009或Git交付，未调用真实Provider、访问既有数据库、启动服务或读取秘密/Provider原始响应。
+- Git与文件快照：分支`feat/f-008-replan-error-recovery`，HEAD `3032d49c4f46167445650c71f7a570fc2c609f4a`；收口前后均为37个tracked修改、8个untracked、staged 0，全部既有差异保留且路径未漂移。四文件最终行数/SHA256依次为app.py 152/`284F6612F4F9DB246E92EF087141FDE5325FE90042B4FF9E7497F427E505D30F`、bootstrap.py 459/`4486BBE0BCA1ED2B516BCA1A1313609EDBD93B6FF0B355BA39EDCB05E2902C74`、test_bootstrap.py 889/`9A4A680B3C0166B929526B526C4BE039EDF4C06458642A7C215A31AFCCD92AC3`、test_provider_planning_job_executor.py 2414/`569A9A7B64975FE8F71E8C4C16E841742038658B4CA3E13A96014AB3D841CED1`；验证前后哈希不变，四文件`git diff --check`通过。
+- 安全事件保留：首轮基线命令遗漏`APP_ENV=test`等安全环境约束，结果`11 failed / 60 passed`，Settings间接读取`.env.local`。该事件不改写、不淡化；未输出秘密，未观察到真实Provider请求或数据库操作。后续所有pytest均显式设置`APP_ENV=test`、禁插件自动加载并加载`tests.conftest`；安全基线为`71 passed`。
+- RED、输入校正与生产修复：原R4选择先得到`6 failed / 28 deselected`；生产修复尝试1因planning executor代码位置错误为`2 failed / 4 passed`，修复尝试2为所选`6 passed`，附加2项通过，上一版focused为75 passed。恢复授权补充的6项先为`3 failed / 3 passed`：两项产品RED分别证明默认路由仍收到原`None` service和错配memory cohort未拒绝；另一项为测试输入非法状态迁移，校正后又发现legacy item字段假设错误，第二次诊断才单项通过。最小生产修复使路由使用已解析的默认service，并拒绝replan repository与planning persistence不属于同一memory cohort；所选6项GREEN，格式化后focused最终`80 passed`。
+- 静态门禁：首次精确静态运行中Ruff format通过，Ruff check有1项import ordering失败，strict mypy有5项Optional narrowing失败；按后续独立授权仅校正test_bootstrap的import顺序并引入局部窄化变量。最终Ruff `format --check --no-cache`、Ruff `check --no-cache`及mypy `--strict --no-incremental --cache-dir=nul --no-sqlite-cache --follow-imports=silent`全部通过；原失败记录保留。
+- 原组合回归：同一pytest进程收集R4相关文件与planner后得到`321 passed / 1 failed / 1 warning`；唯一失败为`test_provider_replan_planner.py::test_execution_has_no_file_environment_database_network_or_process_side_effects`。该进程已先由`test_bootstrap.py`导入app/bootstrap，与审计用例要求的未导入前置条件冲突；此结果保留为原始失败，未删除、跳过、xfail、放宽断言、patch `sys.modules`或业务factory，也不改写为从未发生。
+- 独立进程A：在`backend`目录由CPython 3.13.3项目虚拟环境启动全新pytest进程，只完整运行planner测试文件；命令逐项包含`APP_ENV=test`、`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`、`-B`、`--noconftest`、`-p tests.conftest`及禁cache/faulthandler/logging，不收集bootstrap/main相关文件。结果`92 passed in 4.41s`，完整R3矩阵及文件、环境、数据库、网络、进程副作用审计通过。
+
+  ```powershell
+  $env:APP_ENV='test'; $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD='1'; .\.venv\Scripts\python.exe -B -m pytest --noconftest -p tests.conftest -p no:cacheprovider -p no:faulthandler -p no:logging tests/application/test_provider_replan_planner.py
+  ```
+
+- 独立进程B：只在进程A通过后启动第二个全新pytest进程；同样使用安全参数，显式加载AnyIO插件并以`-k "not trio"`固定asyncio参数，仅排除Trio参数而不排除任何非Trio测试。结果`230 passed in 5.61s`，覆盖默认replan路由/自动service、同一memory cohort、共享route limiter、runtime/Governor隔离、取消/deadline/终态零新HTTP、peer drain与permit/waiter释放、配置/构造失败、module-level零配置装载、两个app隔离、OpenAPI/显式注入seam、legacy/V2及V3/V4前置拒绝和零SQLite。
+
+  ```powershell
+  $env:APP_ENV='test'; $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD='1'; .\.venv\Scripts\python.exe -B -m pytest --noconftest -p tests.conftest -p anyio.pytest_plugin -p no:cacheprovider -p no:faulthandler -p no:logging -k "not trio" tests/application/test_provider_replanning.py tests/application/test_replan_service.py tests/application/test_provider_attempt_runtime.py tests/application/test_provider_attempt_rate_limiter.py tests/application/test_tool_call_governance.py tests/api/test_replans_api.py tests/test_bootstrap.py tests/application/test_provider_planning_job_executor.py
+  ```
+
+- 进程隔离判定：A与B是两个分别记录的完整命令和全新进程，不能表示为一次组合运行PASS；拆批未修改测试或收窄业务矩阵，只恢复planner审计所声明的未导入前置条件。A/B均通过支持“原1项失败属于组合进程导入顺序冲突”，同时原`321 passed / 1 failed / 1 warning`仍是有效历史证据。
+- 安全与规模收口：显式只读检查得到`APP_ENV=test`且`SETTINGS_ENV_FILE=None`，`tests.conftest`在两进程实际加载；未观察到真实Provider请求、非loopback网络、既有数据库访问、Provider数据SQLite写入、敏感信息输出或项目外持久化业务数据。R4四文件相对开始基线分别净新增+21/+91/+203/+59，合计4/+374，低于普通900且清单外0；当前代码/测试38唯一文件/+9278，Stack1 16/+8272、Stack2 5/+82、Stack3 17/+924。完整保留R5 590–950后，任务预测40/+9868–10228，Stack1 18/+8562–8722、Stack2 5/+82、Stack3 18/+1224–1424，均低于68/+10600、30/+9100及两个24/+2200上限；未借用R3-C/R3-E额度或预记压缩收益。
+- 结论：R4达到`DONE / PASS / OFFLINE`。这只证明本地默认生产组合装配及相关离线回归，不是R5无业务替身正式入口纵向验收，也不是真实Provider UAT PASS。F-008仍唯一ACTIVE；R5保持`TODO / SEPARATE_APPROVAL_REQUIRED`，Step13/14及F-009未进入，本轮治理同步后立即停止。
+
+<a id="f008-r3-closure-20260906"></a>
+
+## F-008 R3 离线收口（2026-09-06）
+
+- 授权与范围：用户本轮仅恢复原R3两文件实施与验证；生产/测试修改严格限`backend/src/intelligent_travel_assistant/application/services/provider_replan_planner.py`和`backend/tests/application/test_provider_replan_planner.py`，清单外0。未进入R4/R5、Step13/14、F-009或Git交付，未修改adapter/resolver/executor/领域/公开API/Schema/migration/依赖/lockfile，未读取秘密/原始响应/数据库、调用真实Provider或操作服务。
+- Git准入与收口：分支`feat/f-008-replan-error-recovery`，HEAD `3032d49c4f46167445650c71f7a570fc2c609f4a`，37 tracked修改＋8 untracked＝45路径，暂存空；全部既有差异保留。R3开始303＋246＝549行，最终844＋980＝1824/2000，两文件`git diff --check`通过。
+- RED与修复顺序：本轮原样复现repair用例`2 failed / 69 passed`；修正合成repair响应的`repair_brief.activity_source_ids`层级后该组`2 passed`。随后按小批次先补失败测试，再最小修复required Provider/治理失败精确映射、候选实际成本与unknown预算、QWeather日期/独立调用/时效、历史诊断与hard constraint、logical/HTTP/retry/deadline/cancel/终态矩阵；中间失败均为本片RED或测试输入假设纠正，不改只读依赖或放宽既有守卫。
+- 最终行为：generation与一次repair均能返回typed正向；auth/schema/model-invalid/timeout/rate-limit/unavailable/cancel/deadline保持D-024既有状态、错误和恢复/停止语义；空公交仅在获准条件下walking fallback，结构错误/不可用不fallback；候选预算从实际活动/路线/fare/typed成本重算，unknown保持None并计数；fresh/stale/unknown、OK/PARTIAL/UNAVAILABLE、来源绑定/伪造/闭包、历史诊断前缀和安全追加均有正反覆盖；四命令legacy/V2、调用上限、active peer cancel/drain、输入不变及文件/环境/SQLite/外网/子进程/服务零副作用保持。
+- 最终门禁：项目`.venv`为CPython 3.13.3；禁第三方插件自动加载、`-B`、`--noconftest`及既有无I/O审计下，R3 focused `92 passed`。规定的直接选择在独立安全进程依次为facts 869、provider replanning 30、candidate 69、planning executor 39、预算/来源/scope/runtime/契约294、adapter/failure-matrix/非SQLite API 228，共1621 passed。Ruff format check显示两文件已格式化，Ruff check PASS；mypy `--strict --no-incremental --cache-dir=nul --no-sqlite-cache --follow-imports=silent` PASS。
+- 失败与诊断边界：一次相关大集合因禁自动插件后未显式加载AnyIO而在collection失败，不是测试执行；显式加载后产生`679 passed / 2 failed / 1627 errors`，其中pytest 9写`PYTEST_CURRENT_TEST`与既有`test_replan_facts.py`的`os.putenv`审计冲突导致teardown级联。进程内只读绕过pytest记账后facts独立869通过。另一次三文件组合在candidate的“app未导入”断言失败，因为前一模块已导入app；三个规定文件分别独立运行30/69/39全部通过。这些诊断不隐藏、不计作修复尝试，也不外推全仓PASS；暴露的是既有测试运行器/跨文件隔离问题，R3两文件无法且未获授权修复。
+- 规模：当前代码/测试38唯一文件/+8904；Stack1 16/+7898、Stack2 5/+82、Stack3 17/+924。保留全部R4 250–450与R5 590–950后，完整预测为Stack1 18/+8438–8798、Stack2 5/+82、Stack3 18/+1224–1424、任务40/+9744–10304；分别低于30/9100、24/2200、24/2200和68/10600，最小行余量为302/2118/776/296。未重复叠加R1/R2/R3-C/R3-E或预记压缩收益。
+- 结论：原R3达到`DONE / PASS / OFFLINE`；这是合成MockTransport与本地静态证据，不是默认生产装配、正式组合入口或真实Provider UAT证据。F-008仍唯一ACTIVE；R4/R5保持TODO并需独立批准，Step13/14及F-009未进入。本轮在R3收口与七治理文档最小同步后停止。
+
+<a id="f008-rectification-20260905"></a>
+
+## F-008 整改计划与规模处置（2026-09-05）
+
+- 授权来源：本轮用户明确批准“仅治理文档，不恢复开发”，仅将R3两文件1500→2000、R5五文件900→1000、Stack1净新增8500→9100、任务累计10000→10600；文件上限及其他边界不变。本条是批准沿革，唯一有效额度/文件范围维护于 [任务卡](./current-task.md#精确规模阈值与无条件停止条件)。R3-C/R3-E额度不得转借。
+- 本次只把已核实缺口纳入原R3验收项，更新原R3/R4/R5估算与依赖，不新增任务/切片/Gate，不修改D-023–D-030技术规则、四命令或文件归属。任务卡维护合同，plan维护依赖，本文件保留证据；README/progress/roadmap仅必要摘要或引用。语义复核发现decisions历史标题仍称旧额度“现已生效”，因此仅将该标题改为引用current-task，不新增裁决或改历史正文。
+- Git开始核验：分支 `feat/f-008-replan-error-recovery`；HEAD/main/本地origin/main均为 `3032d49c4f46167445650c71f7a570fc2c609f4a`；37 tracked修改＋8 untracked＝45路径，暂存空。保留全部既有差异，无fetch/远程CI查询，不能将历史main CI用于证明当前工作区。
+- 快照与验证边界：R3仍为303＋246＝549行，两个SHA256与下方治理纠偏证据相同；最近业务结果69 passed / 2 failed、Ruff83/mypy66项仍为历史记录，本次不重跑。R3-C/R3-E历史离线PASS不覆盖当前R3，也不证明生产入口已接通。
+
+### 已核实问题与原片验收归属
+
+以下路径相对项目根，行号对应本轮未修改的代码快照；推断不冒充运行结果。
+
+| 问题/源码证据 | 原片处置与验收边界 |
+| --- | --- |
+| `backend/tests/application/test_provider_replan_planner.py:129–135` 合成repair读取顶层activity_source_ids；`backend/src/intelligent_travel_assistant/adapters/providers/deepseek.py:194–205` 实际payload使用repair_brief | R3在原测试文件修正合成响应契约，生成与修复typed正向通过；adapter只读，不伪造实际调用证明 |
+| `backend/src/intelligent_travel_assistant/application/services/provider_replan_planner.py:64–65,86–100,130–135,155–169` 将治理异常/required缺data宽泛映射；对应测试214–227只做宽结果断言 | R3保留失败原因并精确断言D-024已有闭集、状态与恢复/停止；不能新增公开码或统一当成输入缺失 |
+| 同一planner `:195–210` 使用分析期budget_analysis.after；`replan_candidate.py:1–4,296` 表明分析预算不是候选报价；`replan_facts.py:556–583,831–893` 有unknown投影及最终guard | R3按候选实际成本复用预算规则并验证摘要自洽。现有guard可能安全拒绝，不能声称已提交错误计划；不改executor或领域来放宽校验 |
+| planner `:270–303` 诊断构造与 `replan_facts.py:1017–1055,1486–1512` 既有stale/来源闭集及多事件规则未完整对齐 | R3完成历史前缀、安全追加、时效、来源绑定的正反矩阵，不删除历史、不全计划放行、不恒失败 |
+| 当前R3矩阵静态展开71例：16正向、2repair、32required故障、20optional天气故障、1fallback；并非全部冻结矩阵 | R3补齐质量三态/显式时效/伪造与跨绑定/预算logical与attempt/deadline取消等完整矩阵，保留四命令/legacy-V2；标准格式化及严格类型成本计入估算，不用局部PASS替代完整验收 |
+| `app.py:93–100,127,131` 默认仅装配planning，`api/replans.py:412–416` 对空service拒绝；`bootstrap.py:192–206,227–285` 已有cohort但route limiter仍在planning构造局部；旧bootstrap测试251断言service为空 | R4原四文件完成默认装配、同cohort/limiter、执行隔离预算与零SQLite；R3不得提前装配生产服务 |
+| `backend/tests/browser_f008_support.py:227–236` 仍是业务替身注入；R5正式入口API测试与生产browser支撑新文件尚不存在 | R5原五文件按正式组合入口矩阵验收，不能拿Step12 synthetic或planning-only当新入口PASS；服务/内存层旧单元保护不等于正式链路证明 |
+
+- `docs/architecture.md:316` 默认SQLite旧表述登记为待限定纠正；本次不修改七文件之外文档，也不把该旧描述当法律/生产合同。
+- 原完整技术矩阵、D-023–D-030及历史UAT结论保持。旧“总体完成授权”的独立原始载体尚不能核实，不能据此自动恢复或跨片；旧失败运行/诊断复跑不统一改写为三次针对性修复，本次不改变停止规则。
+
+### 实际规模、历史预测与本次工程估算
+
+- 计数基线为上述HEAD；tracked使用Git新增减删除，untracked逐行全部计入；本片历史增量不归零。当前代码/测试30 tracked净新增1519＋8 untracked 6110＝38唯一文件/+7629。七治理文档按既有口径另计，不占生产/测试额度；开始时七文档新增3182/删除249/净新增2933，最终另行记录。无预记重构、压缩或删测试收益。
+- 已完成R1 1906、R2 792、R3-C 1862、R3-E 907均已包含在实际累计，不重复相加；R3-E已用满本片额度，不转借。原R3 1479–1719、R4 250、R5 590及其9399–9639任务预测保留在下方历史块，不再用于本次完整准入。
+- 本次工程估算采用先前只读核验的缺口清单：R3完工1500–1900（生产800–1000、测试700–900），相对当前549尚需951–1351；R4剩余250–450（生产100–150、测试150–300）；R5剩余590–950（S1后端290–450、S3浏览器/前端300–500）。分文件估算见任务卡，文件归属未变；这些区间包含标准格式化、严格类型和完整矩阵成本，未经新实现验证，不是保证或新增实施许可。
+
+| 归属 | 当前实际：文件/净新增 | 完整剩余方案：文件/净新增 | 按已批准上限的上沿余量 |
+| --- | --- | --- | --- |
+| Stack 1 | 16 / 6623 | 18 / 8114–8874 | 12文件 / 226行 |
+| Stack 2 | 5 / 82 | 5 / 82 | 19文件 / 2118行 |
+| Stack 3 | 17 / 924 | 18 / 1224–1424 | 6文件 / 776行 |
+| 任务累计唯一 | 38 / 7629 | 40 / 9420–10380 | 28文件 / 220行 |
+
+- 计算：S1=6623＋(R3完工−549)＋R4＋R5后端；任务=7629＋(R3完工−549)＋R4＋R5。`test_provider_planning_job_executor.py` 既有+20属S2，R4未来差异属S1；各层计文件、任务去重，因此18＋5＋18−1＝40；不挪移已有差异。
+- 边界敏感性：R3若用满本次专项、R4取预测上沿450、R5用满本次专项且其额外50全落S1，则S1预测9024、任务10530，仍有76/70行余量；这不是预批R4/R5实施或后续增长。R4超过估算或其他增量必须重新核算，不能拿局部额度代替累计准入。
+- 本次结论：按完整工程估算及上述敏感性，当前规模处置通过；余量有限，开始/格式化/收口仍须复核。R3实际验证未过且开发暂停，R4/R5、Step13/14仍未执行。Step13各场景、次数、费用、时段/服务归属与同期高德证据仍待独立确认。
+- 本轮限定文档验证PASS：已审阅check_docs.py，只调用check_required_documents、check_markdown、check_text_files、check_status_consistency；17份必需文档仅存在性检查，正文扫描限定七治理文档。Python -B及内存audit guard阻止文件/环境写、数据库、网络、子进程及秘密文件读取，无禁止事件；未运行业务测试、Ruff/mypy或全仓检查器。语义复核PASS：F-008唯一ACTIVE；R3部分实施/验证未过/暂停，R4/R5/Step13/14仍TODO；12张原表中10张技术/矩阵表原文不变，仅阶段状态表和文件估算表更新。旧evidence整体正文归一化换行后SHA256仍为 `DE77301889B44D6B8936C4F43ACC3BB949B1322E7E25847521E0CD7C6C9C23C4`。范围核对仅七治理文档hash变化，38个代码/测试文件及architecture.md hash不变，Git路径集合/分支/HEAD/本地refs/暂存空保持，git diff --check PASS。七治理文档最终新增3240/删除249/净新增2991（本轮相对开始净增58），与代码/测试规模另计；文档PASS不外推业务PASS。
+
+以下为本次整改规模批准前的治理纠偏历史，原文完整保留，旧额度/停止指针不覆盖任务卡现值。
+
+<a id="f008-governance-20260905"></a>
+
+## F-008 当前治理文档纠偏（2026-09-05）
+
+- 范围：用户仅批准既有七治理文档的事实/职责纠偏；不改设计或额度，不删历史，不恢复R3，不新增任务/分支或治理制度。F-008仍是唯一活动任务，当前状态与有效授权只查 [任务卡](./current-task.md#当前执行状态)。
+- 权威划分沿用既有规范：任务卡=当前合同/状态/额度；计划=依赖与验证入口；进度=最近摘要；roadmap=任务顺序；docs/README=文档地图；decisions=长期设计裁决；本文件=可复核的事实、验证和批准沿革。移出的逐轮正文在下方历史保留区，不是任务归档或历史删除。
+- 本次纠正：README旧R3零增量与旧额度；实施计划R3未开始及R3-E仍受规模阻塞；progress旧7500/9000与零增量；roadmap旧待规模批准/待R3-E链；decisions中旧执行指针。Step 0–12原结果、D-023–D-030技术规则、文件归属、完整矩阵及历史UAT不变。
+- 批准核对：已有用户明确批准记录支持R3两文件1500、R3-C四文件2000、R3-E两文件907（仅格式化/复验）、Stack1 30/8500、Stack2/3各24/2200、任务68/10000；这些是已有授权的证据摘要，现行台账只维护于任务卡。普通Step、R1、Step3、Step12与styles.css原专项边界保持，不从本次指令推断任何新豁免。
+- 当前Git只读核验：分支 `feat/f-008-replan-error-recovery`；HEAD、main、本地origin/main均为 `3032d49c4f46167445650c71f7a570fc2c609f4a`；37 tracked修改＋8 untracked＝45路径，暂存空。工作区不干净但既有差异保留，不要求清理。未fetch或查询远程PR/CI，Step0的CI run `33384090738` success仅为历史，不能验证当前未提交代码。
+- 当前规模重新实算：30个tracked代码/测试净新增1519＋8个untracked共6110＝38唯一代码/测试文件、净新增7629；七治理文档另计。R3两新文件303/246，SHA256分别为 `434EDEC45B058806AE745482677ABC5F0EABFB97B3C67391DC5DDEAE31616FBB` / `E2E3C7B5F2A4E175BEE50FD988A4F2126990178AEDC7ABB07A259FA0E66EA75B`，与最近R3检查点一致。
+- Stack实际沿用冻结归属核算：S1 16/+6623、S2 5/+82、S3 17/+924。上轮R3标准格式只读预览1069，完整剩余410–650，完整R3预计1479–1719；相对当前549尚需930–1170，另保留R4 250与R5 590（S1 290/S3 300）。算式复核后S1 18/+8093–8333、S2 5/+82、S3 18/+1224、任务40/+9399–9639。R3预测上沿超1500达219，层/累计预测未超；这不是本轮重新设计/实现估算或实际超限证明。
+- 最近R3业务证据仍为69 passed / 2 failed、Ruff83/mypy66项未通过；本次不重跑业务测试、静态或全量门禁。R3-E的968项与R3-C的561/630项均属各自历史离线验收，不能作为当前R3或正式生产入口PASS。
+- 失败计数纠正：原R3记录包含扩展矩阵复验、修正其他天气问题后的复验及诊断复跑，不等于三次针对模型repair问题的修复尝试。方法论“3次修复失败”与项目AGENTS“遇到相同失败3次”并非同一表述；本次不改规则、不判定自动解除停止，原记录保留。
+- 尚未解除：R3验证失败与完整规模预测阻塞；默认生产装配/完整正式入口分别待R4/R5；Step13的场景、次数、费用/配额、时间窗/服务归属与同期高德控制台证据仍需独立批准。没有把2026-08-31补充证据改成PASS，也未重新审查法律或实际Provider服务可用性。
+- 尚不能独立核实的批准：旧任务卡及历史evidence多次记载“总体完成F-008授权”，但本轮没有独立原始批准载体，不能用其推定当前自动恢复/跨片权限；原句与当时执行结果保留，不据此否定旧验收，也不撤销已核实的具体授权。当前用户暂停开发及仅治理纠偏指令优先。
+- 本轮验证：check_required_documents、check_markdown、check_status_consistency、check_text_files四项PASS。仅检查17份必需文档存在性及七份授权文档的结构/链接/状态/文本，未运行全仓collect_issues或会写临时项目的检查器单元测试。Python -B，内存限制扫描范围；audit hook禁止文件/环境写、数据库、网络和子进程；无禁止事件。
+- 语义与保留验证PASS：Step0–12与R1/R2/R3-C/R3-E原状态保持，R3部分实施/暂停，R4/R5与Step13/14未执行；roadmap精确一个ACTIVE且仅F-008；当前短文档无旧R3零增量/未开始及旧待扩额指针。11段冻结技术合同/矩阵逐段原文比较不变；原七文件全部非空文本行在现文或可逆历史保留区可找到。
+- 范围与差异验证PASS：仅七治理文档hash变化，38个既有非治理路径hash全部不变，Git状态路径集合/暂存空/分支/本地refs保持；git diff --check通过。README由255行缩至98，任务卡由1203行缩至572，progress由131行缩至10；移出正文集中保留，evidence增大是历史迁入，不是新业务证据。
+
+## 历史证据读取边界
+
+以下原F-008及更早任务记录按其发生时点解释。历史“当前”“待批准”“未开始”、旧尺度或当时的PASS不能覆盖任务卡现值；技术规则是否仍有效由decisions和冻结任务卡共同界定，不能从历史实施状态推断设计撤销。
+
+## R3 恢复实施检查点（2026-09-04历史，当前状态见任务卡）
+
+- 用户已明确恢复R3；当前为`APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE`，不是DONE/PASS。F-008唯一ACTIVE，R1/R2/R3-C/R3-E既有离线结果保持，R4/R5、Step13/14、F-009未进入。
+- 仅新增R3两文件，当前303+246=549行；Ruff标准格式化只读预览655+414=1069行，未应用。完整剩余修复/类型/矩阵410–650行，预计R3 1479–1719，上沿超过已批1500达219；不以未格式化549冒充完成规模，不调整任何上限。
+- 当前代码/测试38/+7629，Stack1 16/+6623；加完整剩余及R4 250/R5 590后，Stack1 18/+8093–8333，任务40/+9399–9639，在30/8500、68/10000内；Stack2 5/+82、Stack3 17/+924及各24/2200不变。
+- 最新完整本片测试69 passed / 2 failed；Ruff 83项、mypy 66项未通过。两项模型修复用例连续三轮失败触发项目停止规则，已停止生产/测试修改；定位为合成响应漏读repair_brief.activity_source_ids，尚未修复。测试和静态禁止副作用事件0。
+- R3限定两文件及1500、R3-E907、R3-C2000、Stack1 30/8500、Stack2/3各24/2200、任务68/10000保持。原runtime授权保留；下一步须确认失败处置并先证明完整R3在1500内或单独批准精确规模调整，不能缩矩阵、挪层或自动进入R4。
+
+### R3 本轮可复核记录（未通过）
+
+- 文档收口：check_required_documents/check_markdown/check_status_consistency三个安全检查0问题；七文档摘要、R3 ACTIVE但未完成、R4/R5/Step13/14 TODO、roadmap F-008 ACTIVE精确1及规模算式复核PASS，禁止验证事件0；git diff --check PASS。文档检查通过不改变业务测试/静态未通过结论。
+- Git开始/停止均为`feat/f-008-replan-error-recovery`，HEAD为`3032d49c4f46167445650c71f7a570fc2c609f4a`；本地main/origin/main沿用该基线，无fetch、commit或其他Git交付。开始43路径，停止45路径；原36代码/测试SHA256逐一不变，暂存为空；只新增本片两文件并同步七治理文档。
+- 新生产文件303行，SHA256 `434EDEC45B058806AE745482677ABC5F0EABFB97B3C67391DC5DDEAE31616FBB`；新测试文件246行，SHA256 `E2E3C7B5F2A4E175BEE50FD988A4F2126990178AEDC7ABB07A259FA0E66EA75B`。这不是格式化后文件，Ruff stdin只读预览分别655/414。
+- RED：首次新测试收集因planner模块不存在失败。初始删除命令2例通过；四命令legacy/V2共8例通过；扩展矩阵初验41 passed / 30 failed，其中28例为合成weatheralert路径错误；修正该本片transport后，最新完整本片69 passed / 2 failed。随后只读定位model repair为0 passed / 2 failed / 69 deselected，未修改实现或把选择性结果合并成完整PASS。
+- 两项剩余失败均为真实DeepSeek adapter＋既有resolver返回`model_output_invalid / candidate_schema_invalid`；合成repair响应未读取实际请求的repair_brief.activity_source_ids，来源数组为空。源文件定位：新测试约131–135行；既有deepseek.py约193–204行明确repair_brief包装。正向模型生成、四命令、天气缺省/省略、required auth/schema/timeout/429/5xx、取消/deadline及空公交fallback已有部分离线覆盖，不能等同完整R3矩阵。
+- 定向测试命令：后端固定`.venv/Scripts/python.exe -B`，进程内audit禁止SQLite、真实socket connect/bind/DNS、写文件/目录/环境/子进程及生产app/main/bootstrap导入；pytest `--noconftest -p no:cacheprovider -p no:faulthandler -p no:logging -s -q --tb=short tests/application/test_provider_replan_planner.py`，禁第三方插件自动装载。NoIOLoop仅替换Windows事件循环self-pipe，不替换planner/service/executor/resolver；真实Amap/DeepSeek/QWeather adapter仅用httpx2.MockTransport，合成JWT仅内存生成。
+- 静态：两文件`ruff check --no-cache`未通过（83项）；mypy `--no-incremental --cache-dir=nul --no-sqlite-cache --follow-imports=silent`未通过（66项）。测试/静态audit禁止事件均0；未写SQLite工具缓存，未导入配置生产app。未执行旧968项回归、全仓门禁或独立review；旧通过证据不代替新实现验收。
+- 规模：tracked旧代码/测试净增1519＋旧6个untracked5561＋本片549＝38唯一文件/+7629；Stack1 16/+6623、Stack2 5/+82、Stack3 17/+924。标准格式化＋完整剩余使R3上沿1719超过1500达219；保留R4 250/R5 590后，Stack1上沿8333、任务上沿9639，未超8500/10000。详细预测职责见current-task本轮节；不预记压缩节省、不挪层、不弱化矩阵。
+- 历史不变：F-001 PARTIAL、45M FAIL、45T PASS；unknown不按0、混合交通fallback仅离线；F-004A/F-004B1/F-004C/F-005/F-006无新增真实Provider UAT，F-004B1/F-004C城际logical call/HTTP attempt为0；F-004B2 BLOCKED / ARCHIVED；F-006 LOCAL_ACCEPTANCE_PASS不等于Provider ready；Schema2/migration1/2保持；F-007 DONE / ARCHIVED且Step6 UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE，2026-08-30 FAIL / AMAP_QPS_EXCEEDED及2026-08-31补充证据不构成PASS。未读取秘密/原始响应/既有数据库、调用真实Provider、操作服务、执行Git交付或进入后续阶段。
+
+## R3-E 收口与907行专项授权（R3恢复前历史，离线结果保持）
+
+- 用户明确批准仅R3-E净新增上限900→907，用于标准格式化与复验；其他普通Step900、R3两文件1500、R3-C四文件2000、Stack1 30/8500、Stack2/3各24/2200、任务68/10000及D-030/安全边界不变。
+- R3-E为DONE / PASS / OFFLINE。开始1304/2147行的本片基线不归零；最终facts1598、直接测试2760，净增294+613=907/907。此次只标准格式化直接测试+47，facts内容未改，两文件语法树前后完全相同，没有新增业务或测试场景。
+- 最新复验：三定向文件968 passed；两文件Ruff format/check、mypy PASS，禁止测试/静态副作用事件0。原RED24项及历史失败证据保留；这不是全仓门禁、独立review、生产默认装配或真实Provider UAT。
+- 实际Stack1 14/+6074、Stack2 5/+82、Stack3 17/+924，代码/测试36/+7080；保留全部R3 1020–1400、R4 250、R5 590后，最终Stack1 18/+7634–8014、任务40/+8940–9320，在8500/10000内；R3用满1500时8114/9420仍在界内，后续增长须重算。
+- F-008唯一ACTIVE；R1/R2/R3-C/R3-E离线完成。R3只读前置准入PASS / IMPLEMENTATION_NOT_STARTED：依赖与当前完整规模满足，原实施/runtime授权保留，本次不执行R3，等待明确恢复；R4/R5、Step13/14、F-009未进入。
+- 本轮范围仅标准格式化一个已授权测试文件及七治理文档；43路径现场、分支/HEAD/空暂存保持，其他35代码/测试路径hash不变。未读秘密/原始响应/数据库，未创建数据库或缓存、调用Provider、操作服务、执行Git交付或更改历史UAT结论。
+- R3-E本片余量0；任何后续R3-E实质修改仍须对应授权及完整规模核验，不能借其他片余量。默认生产replan装配及真实adapter执行矩阵仍分别待R4/R3，不把本片通过写成UAT ready。
+
+## R3-E 规模授权与实施停止点（907批准前历史，2026-09-04）
+
+- 用户已明确批准Stack1净新增7500→8500、F-008累计9000→10000，并批准重新准入后恢复R3-E；本轮已执行重新准入及两文件TDD，不撤回已有实施/runtime授权，不执行R3。
+- 有效上限：R3-E两文件/+900、R3两文件/+1500、R3-C四文件/+2000、Stack1 30/+8500、Stack2/3各24/+2200、任务68/+10000；清单外0、D-030与E-T1–E-T11保持。
+- 开始43路径SHA256与前次收口逐一相同，代码/测试36/+6173；完整预测7907/9213低于新8500/10000，重新准入PASS。实现仍仅facts及其直接测试，其他34代码/测试路径hash不变。
+- 当前R3-E为APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE：原开始1304/2147，当前1598/2713，两文件净增294+566=860；标准Ruff格式化只读预览再增47，最终预计907，超过本片900达7。停止生产/测试修改，未应用该最终格式化，不以无格式化行数绕过阈值。
+- 当前实算Stack1 14/+6027、Stack2 5/+82、Stack3 17/+924，代码/测试36/+7033；含完整R3-E格式化＋R3 1400＋R4 250＋R5 590，最终Stack1 18/+8014、任务40/+9320。R3用满1500时8114/9420，均在新总额度内；阻塞仅单片，不能借用stack余量。
+- RED为新增24项在旧实现失败；新增/历史诊断专项353 passed，三定向文件968 passed，mypy两文件PASS。当前Ruff仍10项E501、format未通过；标准格式化后的内存预览lint为PASS，但907行超限未写入。禁止审计事件0，不标DONE/PASS，不宣称全量门禁或UAT ready。
+- D-030字段引用仅机械更正为CityResolutionRequest(job.request.city)：R3-E先限定job.request为TripPlanRequest/V2；旧trip.city属于领域请求包装，不适用于此job。没有改变同城绑定语义或公开shape。
+- 未读取秘密/Provider原始响应/既有数据库，未创建数据库或缓存、调用Provider、操作服务或执行Git交付。R3只读结论BLOCKED_BY_R3_E_ACCEPTANCE；R4/R5、Step13/14、F-009未进入。
+- 剩余：需独立批准本片7行格式化超限（例如仅R3-E上限900→907）或获批并验证等价规模处置，然后重跑完整离线/静态/文档验证再收口。本轮不自动申请更大产品范围，不取消完整矩阵。
+
+## R3-E1/E2 内部证据覆盖设计 Gate（此前记录；D-030技术设计保持）
+
+- 本次仅获设计授权，Gate为DONE / DESIGN_ONLY；D-030冻结模型/城市来源归属及质量诊断，未实施代码。R3-E（E1/E2必要修复）为DESIGN_FROZEN / BLOCKED_BY_SIZE_AND_APPROVAL；R3为APPROVED / BLOCKED_BY_EVIDENCE_CONTRACT_AND_SIZE / IMPLEMENTATION_NOT_STARTED，原恢复、实施及runtime数值授权保留。
+- 最小待批修复仅Stack1既有replan_facts.py与test_replan_facts.py；不改executor/领域/公开DTO/adapter/resolver。新来源仅经typed证据绑定局部消费者，旧全局/历史provenance保护不解除；模型不是事实，未知有效期至少PARTIAL，不能通过删来源/诊断或全计划放行绕过。
+- 当前代码/测试36/+6173：Stack1 14/+5167、Stack2 5/+82、Stack3 17/+924；R3-C仍4/+1862且DONE / PASS / OFFLINE，R3仍0/0。必要修复590–800＋R3 1020–1400＋R4 250＋R5 590，完整上沿Stack1 18/+7907、任务40/+9213，分别超过7500/9000达407/213；不是准入PASS。
+- 上限原样保持：R3-E适用普通单片10文件/+900且精确生产/测试清单2文件、清单外0；R3两文件/+1500、R3-C四文件/+2000、Stack1 30/+7500、Stack2/3各24/+2200、任务68/+9000。治理七文档单列，不抵扣代码规模；不削矩阵、挪层、拆片或预记未经验证的节省。
+- 下一步先处置完整规模阻塞；解除后仍须单独批准R3-E两文件实施，完成后只读复核R3准入并停止，不自动恢复R3。F-008唯一ACTIVE，R1/R2/R3-C及历史UAT结论保持；R4/R5、Step13/14、F-009均未进入，本轮不运行业务测试或Provider程序。
+
+## R3-C 联合额度批准与实现收口（R3-C结果保持；R3准入结论已于顶部更正）
+
+- 用户明确批准仅调整：R3-C净新增1500→2000、Stack1 7000→7500、F-008累计8500→9000；文件上限仍四/30/68，R3专项1500、Stack2/3各24/2200及D-029完整矩阵、安全边界不变。
+- R3-C为DONE / PASS / OFFLINE：仅D-029四文件，原开始快照698/1040/163/376不归零，最终1304/2147/205/483，净新增1862/2000；本次恢复相对1366检查点净增496。仅四生产/测试＋七治理文档变化，其余32个生产/测试路径hash不变。
+- 验证：两定向文件561 passed；含R2候选回归630 passed；四文件Ruff format/check、mypy通过。安全审计禁止事件0；不是全量门禁、生产组合、独立review或真实Provider UAT。
+- 当前代码/测试36/+6173，Stack1 14/+5167、Stack2 5/+82、Stack3 17/+924。保留R3 880–1200、R4 250、R5 590完整预测，最终Stack1 18/+6587–6907、任务40/+7893–8213；R3用满1500时为7207/8513，仍在7500/9000内。治理单列，不挪层或抵扣。
+- F-008唯一ACTIVE；R3只读前置核验PASS / IMPLEMENTATION_NOT_STARTED，既有实施/runtime授权保留，本次不执行R3，等待用户明确恢复。R4/R5、Step13/14、F-009未进入；生产默认replan仍未装配，不能宣称UAT ready。
+- 下方1500有效、待数值批准、BLOCKED_BY_SIZE和失败检查点均为批准/修复前历史；当前结论以本节及任务卡/evidence收口为准。未读取秘密/数据库、调用Provider、创建数据库、操作服务或执行Git交付。
+
+## R3-C 完整规模处置方案（批准前历史，数值已于顶部明确批准）
+
+- 本次按“先规模处置、再完成R3-C、最后判断R3准入”的顺序进行；该指令未明确改变数值上限。当前有效仍为R3-C四文件/1500、Stack1 30/7000、Stack2/3各24/2200、任务68/8500，其他边界不变。
+- 只读复核43路径SHA256与最近实施收口逐一一致，代码/测试36/+5677，本片1366；完整剩余180–310未减少。要容纳原完整上沿1676，须先证明至少176行等价净减；本轮未做试验重构，不预记未经验证的节省。
+- 待批准建议仅三项净新增上限：R3-C 1500→2000、Stack1 7000→7500、任务8500→9000；不是已批准值，不授权新增文件、缩矩阵、移层、公开API/领域/Schema/依赖/法律变化。
+- 完整原预测R3-C1546–1676不因提议额度而上调；新本片2000比原上沿1676多324行余量。R3-C/R3分别用满候选2000/已批1500且R4/R5保留250/590时，Stack1=7345、任务=8651；对应候选上限余155/349。文件预测仍18/5/18、任务40唯一文件，R4/R5若增长仍须重算，不声称覆盖各自900同时用满。
+- 本轮仅同步治理方案及旧摘要，生产/测试零修改、不重跑业务测试。最近288 passed / 16 failed、Ruff10/mypy33项FAIL仍有效；R3-C保持PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE。数值明确批准且重新准入前不恢复实现，未完成R3-C前不作R3准入PASS、更不执行R3。
+
+## R3-C 1500 恢复实施检查点（批准及修复前历史）
+
+- 用户已明确恢复R3-C实施；现为APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE，不是DONE/PASS，不进入R3。额度仍为R3-C四文件/1500、Stack1 30/7000、Stack2/3各24/2200、任务68/8500；R3专项1500及D-029完整矩阵不变。
+- 开始准入PASS，保留43路径工作区及原1150开始快照；本轮只改facts及其直接测试，净新增224/281＝505。本片四文件累计582/669/29/86＝1366（不是把861归零），1500仅余134。
+- 当前实际Stack1 14/+4671、Stack2 5/+82、Stack3 17/+924、任务36/+5677。完整R3-C尚需180–310，预计1546–1676超过1500，格式化检查点停止生产/测试修改；旧1321上沿已失效，不预记任何未验证的重构节省。
+- 加R3 1200、R4 250、R5 590后，预计Stack1 18/+6591–6721、Stack3 18/+1224、任务40/+7897–8027；若R3用满独立1500，Stack1上沿7021也超7000，任务上沿8327低于8500。累计余量不能抵消单片/层超限。
+- 两定向测试文件288 passed / 16 failed；10个失败是新helper的unknown envelope缺warning，6个是地点source重绑与weather地点相等校验冲突，不能算完整GREEN。format PASS；Ruff FAIL（6处导入排序、4处变量命名），mypy FAIL（33条，含旧facts Protocol兼容）。完整矩阵仍有缺口，详见current-task/evidence本检查点。
+- 已停止实现，保留所有现场；原R3授权/runtime不撤销但依赖R3-C PASS。无秘密/既有数据库/真实Provider访问，无数据库创建、服务操作或Git交付；Step13/14/F-009未进入。以下1150和联合额度批准时的实现状态、估算、验证均为历史，不代替本检查点。
+
+## R3-C 1150 授权与恢复实施（数值调整前历史，当前以顶部批准为准）
+
+- 用户仅批准R3-C四文件净新增900→1150；D-029设计/归属/完整矩阵不变。R3专项1500、Stack1 30/6500、Stack2/3各24/2200、任务68/8000及全部安全边界不变；下文900上限及规模阻塞记录属于本授权前历史，不再作为当前准入结论。
+- 开始实际代码/测试36/+4311；完整预测上沿R3-C1095、R3 1200、R4 250、R5 590，最终Stack1 18/+6140、Stack2 5/+82、Stack3 18/+1224、任务40/+7446，准入PASS。两片用满1150/1500且R4/R5预测不变时Stack1 6495、任务7801；不保证后续余量，检查点继续重算。
+- 当前R3-C：`APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE`，不是DONE/PASS。原1150授权继续有效；格式化检查点实际861，完整剩余315–460，预计1176–1321超1150，停止继续生产/测试修改并保留现场。
+- 当前实际代码/测试36/+5172：Stack1 14/+4166、Stack2 5/+82、Stack3 17/+924；加本片剩余315–460、R3上沿1200、R4 250、R5 590，最终Stack1 18/+6221–6366、Stack2 5/+82、Stack3 18/+1224、任务40/+7527–7672。累计上沿未超，但不能抵消本片超限；预测不是硬上限或完成保证。
+- 验证：新天气矩阵RED为56 failed/111 passed，executor包装RED为1 failed；当前两测试文件248 passed（旧111＋新137），格式化检查PASS；Ruff lint FAIL（5处import排序），mypy FAIL（15条，含旧facts Protocol静态兼容），git diff --check PASS。这些局部GREEN不覆盖D-029完整矩阵。
+- 未完成：route fallback/非天气Provider降级及来源时效/预算与hard constraint闭集映射；新增证据路径的完整来源DROP/共享/历史诊断负向矩阵；嵌套别名、完成后过期、组合/重复事件及静态兼容修复。完整职责分解见current-task最新检查点；不以恒拒绝或减少矩阵冒充完成。
+- 只改变D-029四文件＋七治理文档，其余32个既有生产/测试路径hash不变；R1/R2和历史UAT结论不改。未执行数据库/真实Provider/生产app导入/服务操作/Git交付；R3授权/runtime保留但不进入R3–R5/Step13/14/F-009。恢复仍需先解决规模预测阻塞，且R3-C必须继续相对本次开始快照累计，不能归零。
+
+## F-008 R3-E 907专项格式化与最终复验（2026-09-04，当前验收）
+
+- 授权：仅R3-E净新增900→907，用于已存在两文件标准格式化与复验；不新增逻辑/场景、不扩大其他上限。原1304/2147本片开始快照保持，D-030及E-T1–E-T11边界不变。
+- 重新准入：facts/test hash分别匹配上轮62504DCA83CDB224B95B6B2243DE1BA3F5447ADFCA407B21AAB427307F4AF714、D0017DE47DCA9572DC6CB7C9213502ABF1523ABF1A15138CBE1210F07D58B828；分支、本地HEAD/main/origin/main=3032d49c4f46167445650c71f7a570fc2c609f4a、43路径及空暂存可解释。标准格式化预览907及全剩余8014/9320在新上限内，PASS。
+- 实际：Ruff仅重排test_replan_facts.py的标准格式，2713→2760（本轮+47）；replan_facts.py仍1598，hash未变。两文件AST dump（不含位置属性）格式化前后完全相同，未修改测试断言、语义或实现。
+- 最终本片：facts+294、直接测试+613，共2/+907，专项907用满；本轮其他35代码/测试路径hash不变。最终测试SHA256为31BA94D149E0E4DC0CA66BA9C11590BDD3E49044B8108BCC01C493B3C6806B7A。
+- GREEN复验：test_replan_facts.py、test_provider_replanning.py、test_replan_candidate.py合计968 passed，34.11s；原业务RED24项保持历史。沿用上节无I/O asyncio循环及audit guard，--noconftest、禁插件自动加载/cacheprovider/faulthandler/logging、-s及Python -B；无真实Provider配置或app导入，禁止测试事件0。
+- 静态：Ruff --no-cache format --check：2 files already formatted；Ruff check：All checks passed；mypy --no-incremental --cache-dir=nul --no-sqlite-cache --follow-imports=silent检查两文件PASS，禁止静态事件0。不创建SQLite或其他工具缓存。
+- 当前实算：tracked代码/测试净1519＋六untracked 5561＝7080；Stack1 14/+6074，Stack2 5/+82，Stack3 17/+924。全部剩余R3 1020–1400、R4 250、R5 590不减少；最终S1 18/+7634–8014、S2 5/+82、S3 18/+1224、任务40唯一/+8940–9320。R3用满1500时8114/9420；S1/任务分别尚余386/580，后续仍须重算，不能转借给已用满的R3-E。
+- R3-E结论：DONE / PASS / OFFLINE。当前仍为F-008唯一ACTIVE；R3只读前置准入PASS / IMPLEMENTATION_NOT_STARTED：R1/R2/R3-C/R3-E完成，D-030衔接前提与完整规模满足。原R3实施/runtime授权保留，R3两新文件不存在，本次不执行，等待明确恢复。
+- 验证边界：E-T10的真实adapter+MockTransport调用顺序、治理预算及deadline仍由R3验收；默认生产装配/同cohort/正式纵向由R4/R5验收。尚无本片新增真实UAT，不改写F-007 INCONCLUSIVE或2026-08-30 FAIL，未创建/修改数据库、触碰秘密、操作服务或执行Git交付。
+- 最终文档验证：check_required_documents/check_markdown/check_status_consistency为0 issues，七份当前摘要/阶段地图/有效阈值/完整预测一致，F-008 ACTIVE精确1、R3-E完成且R3未执行。git diff --check PASS；43路径、分支/HEAD/本地main refs和空暂存保持，其他35代码/测试hash不变，文档audit禁止事件0。
+
+## F-008 R3-E 实施与规模停止证据（907批准前历史，2026-09-04；已按顶部新授权解除）
+
+- 本次只调整Stack1净新增7500→8500、任务9000→10000；文件数30/68不变，R3-E900、R3 1500、R3-C2000及Stack2/3各24/2200不变。开始重新准入PASS后执行已批D-030两文件；当前APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE，不是DONE/PASS。
+- Git：feat/f-008-replan-error-recovery；HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a，暂存空；37 tracked modified＋6 untracked，共43路径。开始与上轮43路径hash逐一一致；实现检查点只有本片两文件及七治理文档不同，其余34代码/测试路径hash保持。未联网查询远程CI，不把旧main CI当未提交差异验收。
+- 精确生产/测试范围：application/services/replan_facts.py从1304到1598（+294），tests/application/test_replan_facts.py从2147到2713（+566）；合计860，原R1/R3-C累计不归零。未改executor、resolver、adapter、领域、API、Schema/migration、依赖/lockfile、fixture或其他生产/测试。
+- 当前SHA256：facts为62504DCA83CDB224B95B6B2243DE1BA3F5447ADFCA407B21AAB427307F4AF714；直接测试为D0017DE47DCA9572DC6CB7C9213502ABF1523ABF1A15138CBE1210F07D58B828。治理收尾后应再次确认代码hash保持。
+- 实现：EvidenceEvent增加闭集model_generate/model_repair/city和repair专用model_context；复用纯parser/repair brief、envelope/显式时效、精确候选来源及既有诊断；从采用的局部活动/路线和下游城市依赖计算消费者，仅替换新来源的无主provenance，保留旧全局来源及历史诊断。来源不得挪入POI/route/cost事实，模型标题不发布为事实；不宣称本地fingerprint认证外部调用。
+- D-030的城市字段笔误修正：PlanningJob.request在R3-E先限定TripPlanRequest/V2，实际字段为job.request.city；不是领域包装请求的job.request.trip.city。同城绑定要求和公开shape未变。
+- RED：24项generation/repair/city × legacy/V2 × 四命令正向用例在旧代码失败，其中city/model_generate被旧operation闭集拒绝，repair缺model_context。不是把测试构造失败或工具失败算业务RED。
+- GREEN检查点：新增/历史诊断专项353 passed；完整三定向文件test_replan_facts.py、test_provider_replanning.py、test_replan_candidate.py最终968 passed（42.42s），较此前630增加338项。包含旧executor接口/无fallback与R2候选回归，非生产app装配、全仓门禁或真实UAT。
+- E-T1–E-T4：生成/修复typed allowlist、legacy/V2四命令、fresh/PARTIAL/unknown及组合、city stale可用/model stale拒绝、不可用/缺数据/source/请求错绑、POI标题与模型文本隔离均有定向验证。E-T5–E-T6：同调用多实体/重复视图、城市下游匹配、跨日越界拒绝、来源身份碰撞/全局历史保护/实际origin；当前四命令只有同日合法roots，不以新增跨日消费者测试扩大授权。来源DROP旧回归保留。
+- E-T7–E-T9：历史重复/顺序、闭集诊断/精确去重、20/50/50容量边界及溢出、绑定及模型上下文/deepcopy、显式失效/未来时刻、新字段旧事件拒绝、输入不变及零I/O验证保留。E-T10的真实generation→一次repair/调用计数和E-T11的正式组合入口仍留给R3/R4/R5，未执行或声称通过。
+- 执行安全：Python -B；不加载conftest、不自动加载pytest外部插件，禁cacheprovider/faulthandler/logging，使用-s避免捕获临时文件；进程内空环境映射不读取继承秘密，audit hook拒绝秘密/数据库文件、SQLite、外部连接/DNS、文件/环境写及子进程，拒绝配置生产app导入。
+- 工具适配如实记录：初始pytest logging写入和mypy大写NUL缓存路径创建意图被audit先行拦截，无落盘；分别禁logging、按mypy源码使用精确小写os.devnull即nul解决。Windows默认asyncio socket自唤醒导致28项受guard阻塞（当次940 passed/28 failed），未记为产品失败或GREEN；随后仅临时测试进程改用无socket自唤醒、无I/O selector的标准任务循环，968项通过且禁止事件0，未替换业务service/executor/planner或操作任何已有服务。
+- 静态：mypy --no-incremental --cache-dir=nul --no-sqlite-cache --follow-imports=silent，对上述两文件PASS，audit禁止事件0。Ruff当前check为10项E501，format检查未通过。只读stdin标准格式化后两文件lint均PASS；未将预览写回或声明当前静态全绿。
+- 格式化停止点：此前808行检查点补完整绑定/容量矩阵并修正类型后，当前860。ruff format --no-cache --diff只读计算再增47，最终907，超过本片900达7；未执行该最终格式化。早期590–800估算低估了标准格式化后的完整测试矩阵，不能以未格式化行数或删测试规避。
+- 规模：tracked代码/测试净1519＋六untracked现5514＝7033。Stack1 14/+6027，Stack2 5/+82，Stack3 17/+924；标准格式化及全部剩余R3 1020–1400、R4 250、R5 590后，S1 18/+7634–8014，S2 5/+82，S3 18/+1224，任务40唯一/+8940–9320。R3用满1500时S1 8114、任务9420；新总上限够，但单片907/900仍阻塞。
+- 只读R3准入：BLOCKED_BY_R3_E_ACCEPTANCE。R3两新文件仍不存在；app.py:49/100仍只接收并保存可选replan_application_service，默认生产装配属于未执行R4，不能称生产replan或UAT ready。R3已有实施/runtime授权保留，不自动执行R3–R5/Step13/14/F-009。
+- 本次复盘：原估算没有充分计入参数化矩阵与标准格式化展开；以后应以格式化预览加完整剩余矩阵预测准入，避免只核对实际行数。不改全局规范或扩大授权；建议后续在任务级检查点延续这一已采用的只读预览方法。
+- 剩余解除条件：用户单独批准仅R3-E本片900→907以容纳当前标准格式化，或独立批准并验证完整等价减量；保留原两文件/矩阵/所有边界，重新准入后格式化与全套定向/静态/文档复验，再考虑本片收口。此次未申请一般Step或任何其他额度增加。
+- 文档收尾核验：check_required_documents、check_markdown、check_status_consistency为0 issues；七份当前摘要、已批额度、E-T1–E-T11及完整规模公式PASS；roadmap唯一ACTIVE为F-008，R1/R2/R3-C完成、R3-E/R3/R4/R5/Step13/14未完成状态一致，git diff --check PASS。只读验证禁止事件0；既有历史UAT、Schema version 2/migration 1/2与依赖边界不因本片改变。
+
+## F-008 R3-E 完整规模处置证据（2026-09-03批准前历史，现以顶部授权为准）
+
+- 用户已经批准D-030两文件实施，随后的准入只读停止；本轮“先完成完整规模处置”只形成方案，不授权提高上限或恢复代码。当前APPROVED / BLOCKED_BY_SIZE / IMPLEMENTATION_NOT_STARTED；不再把待实施批准列作缺口。
+- 开始43路径（37 tracked modified＋6 untracked）SHA256与设计Gate收口逐项一致，暂存空，分支feat/f-008-replan-error-recovery；HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a。代码/测试36/+6173：S1 14/+5167、S2 5/+82、S3 17/+924；治理原7/+2419另计。
+- 源码只读复核facts的bind/deepcopy、_envelope/_public_sources，resolver/_repair_brief/_with_proposal及既有weather_case/diagnostic_case；其复用已在590–800/1020–1400估算中，不能重复扣减。没有新的等价压缩或测试证据，额外可证实节省为0，不将下沿当可靠上界。
+- 原完整上沿保持：R3-E800＋R3 1400＋R4 250＋R5 590；S1=5167+800+1400+250+290=7907，任务=6173+800+1400+250+590=9213，现有7500/9000仍超407/213。现有额度扣除R4/R5后留给R3-E/R3的S1/任务分别1793/1987，低于二者上沿2200。
+- 唯一待批准建议仅Stack1 7500→8500、任务9000→10000；其他文件/单片/stack/安全上限不变。两片各用满现有900/1500且R4/R5预测保留时S1=8107、任务=9413，候选余393/587；原预测上沿则余593/787。不是任意后续增长保证，候选额度不是新需求或目标行数。
+- 文件预测仍18/5/18、任务40唯一文件，共享测试原有层归属不挪动；D-030、E-T1–E-T11、历史结果及runtime数值不改。只更新七治理文档记录已获实施授权、完整规模方案与停止点；不创建分支、不修改代码/测试，不读秘密/数据库，不执行Provider/服务/Git交付。
+- 状态PROPOSAL_READY / PENDING_NUMERIC_APPROVAL，未解除停止。任务卡含精确两项规模审批及“准入通过后恢复已批R3-E”的候选Prompt；R3-E完成后仅只读判断R3，不自动实施R3/R4/R5/Step13/14/F-009。
+- 收口验证：安全文档三项检查0 issues，七份当前状态、D-030/E-T1–E-T11保留、完整预测/压力公式及唯一ACTIVE检查PASS；git diff --check PASS，禁止审计事件0。43路径集合、分支及HEAD/main/origin/main本地refs、空暂存保持，36个生产/测试SHA256与开始逐项一致。本轮仅七治理文档净增134，治理累计2553；业务测试未运行，未执行任何Provider/数据库/服务或Git交付操作。有效上限仍7500/9000，候选8500/10000尚未批准。
+
+## F-008 R3-E1/E2 设计 Gate 证据（设计时记录，2026-09-03，DESIGN_ONLY）
+
+- 授权与结果：用户仅批准E1/E2设计；D-030及任务卡冻结最小两文件、typed模型/城市通道、精确来源ownership/质量与完整矩阵。设计Gate DONE / DESIGN_ONLY，不是实现PASS；R3-E为DESIGN_FROZEN / BLOCKED_BY_SIZE_AND_APPROVAL，R3仍未开始，原实施/恢复/runtime数值不变。
+- 只读源码依据：replan_facts.py:182为事件类型，459为旧全局provenance，798为新来源roots校验，813/1034为证据与诊断精确闭集，1090为旧非天气operation；新设计仅对经过证明的新模型/城市来源替换自动无主占位，旧全局/历史消费者不得解锁。上轮E1/E2纯计算拒绝对照是准入诊断，不改写为本轮TDD。
+- 最小范围依据：provider_replanning.py已透传完整EvidencedReplanResult/ReplanEvidence；candidate_resolution.py:193/280/349/957的ProposalResolution、resolver、repair brief及_with_proposal保留最终typed envelope元数据；R3自有文件可捕获实际typed请求以衔接，不需更改executor/resolver/adapter。真实生成→repair调用证明、同城解析与各Provider计数归R3，不由纯facts自证调用真实发生。
+- 内部契约：model_generate/model_repair/city闭集，精确request/result/provider/source_type/time、实际被采用消费者、绑定/deepcopy/显式时效；模型不成为事实，city上下文不覆盖旧destination/共享住宿；OK/PARTIAL/UNAVAILABLE与unknown/stale遵D-025，历史诊断前缀及固定安全追加遵D-029。全部字段只在内存，不增加公开API或持久化。
+- 最小实现预测：facts230–320、直接测试360–480，R3-E共590–800；R3原预测880–1200另加140–200的实际请求/城市视图衔接和完整测试，修订为1020–1400；R4 250、R5 590保持。任务卡列出上沿逐项成本与E-T1–E-T11，未删旧矩阵，未修改任何上限。
+- 当前实际36/+6173＝Stack1 14/+5167、Stack2 5/+82、Stack3 17/+924；新片及R3均0/0。最终上沿Stack1 18/+7907、Stack2 5/+82、Stack3 18/+1224、任务40/+9213，分别超7500/9000为407/213。R3用满1500时8007/9313，超507/313；修复同时用满900时8107/9413，超607/413。下沿未超不等于完整上沿准入；不预记压缩收益，不申请或自行批准新额度。
+- Git：分支feat/f-008-replan-error-recovery；HEAD/main/origin/main本地refs为3032d49c4f46167445650c71f7a570fc2c609f4a，43路径（37 tracked modified＋6 untracked）、暂存空。开始43路径SHA256与上轮逐一一致；用户重连后重新建立只读快照，仅治理编辑继续，未对源码/测试下达写入。未联网查询CI，旧CI不作为当前未提交差异验证。
+- 当前停止：完整规模阻塞需先独立处置，再单独批准R3-E两文件实施；任务卡保留有硬停止条件的精确实施Prompt，不让用户一句批准绕过当前已知超限。R3-E完成后仅只读复核R3准入；R4/R5、Step13/14/F-009未进入，所有历史UAT结论保持。
+
+- 收口验证：check_required_documents/check_markdown/check_status_consistency为0 issues；七份当前摘要、D-030、E-T1–E-T11、条件式实施Prompt、完整规模公式及F-008唯一ACTIVE核对PASS，git diff --check PASS，禁止审计事件0。附加核对脚本首次把源码定位符误限定于D-030正文，改为核对实际evidence引用后PASS，不计业务RED。代码实算tracked净1519＋六个untracked 4654＝6173；重连后36个生产/测试SHA256逐一不变，43路径集合/分支/本地refs/空暂存保持。本设计Gate仅七治理文档净增147，治理累计净2419；没有运行生产/测试/Provider/数据库/服务或Git交付。
+
+## F-008 R3恢复准入诊断（设计前历史，2026-09-03，非实施验收）
+
+- 用户已明确恢复R3，原两文件/1500及runtime授权保留。当前APPROVED / BLOCKED_BY_EVIDENCE_CONTRACT / IMPLEMENTATION_NOT_STARTED；只记录七治理文档，不新建R3生产/测试文件，不改现有守卫。R3-C DONE / PASS / OFFLINE保持；其561/630项为上轮证据，本轮没有R3 RED/GREEN/静态或Provider验收。
+- 只读快照：43路径（37 tracked modified＋6 untracked）SHA256与R3-C最终收口逐一相同；分支feat/f-008-replan-error-recovery、HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a，暂存空。未联网查询远程CI，不把旧CI写为本次验证。
+- E1源码链：DeepSeekAdapter._complete在deepseek.py:269–293构造新来源，valid_until=None（正常成功即unknown_validity）；D-025仍要求精确来源/unknown及至少PARTIAL。replan_facts.py:182–198没有PlanningContext/PlanRepairBrief等模型证据请求，1090闭集只接收route/fallback/location（budget/constraint另支、weather/alerts前支）；459–461把deepseek/system列为全局provenance，803拒绝新source无合法局部旧roots。故新模型来源/质量不能靠R3两文件任意追加。
+- E2源码链：同一EvidenceEvent没有CityResolutionRequest操作；route事件的city只有typed值，不是城市ProviderResult的质量/时效/来源证明。D-025的required城市/模型三态及unknown矩阵不能由仅POI/route/weather的诊断代替；需先冻结精确消费者和新来源规则。此处只指出覆盖缺口，不预批新增operation名或解锁global provenance。
+- 诊断运行方式：backend项目Python 3.13.3、python -B，stdin纯计算脚本；audit hook在导入项目前拒绝数据库、外部socket/DNS、子进程、文件/环境写、秘密或DB读取及app/main/bootstrap导入。只复用tests.application.test_replan_facts的weather_case/proved/PROJECTOR/NOW及现有typed领域对象，没有运行adapter或读取原始Provider响应。
+- 可复现输入：weather_case(index=1)作对照；构造source_id=UUID(int=31001)、provider=DEEPSEEK、source_type=model_plan_proposal（与现有adapter一致）、fetched_at=NOW、valid_until=None的合成typed来源及OK ModelTextOutput；新来源只加sources，或同时追加精确source_validity_unknown/受影响refs，或加探测用model EvidenceEvent。另构造CityResolutionRequest与AMAP PARTIAL CityResolution typed结果及匹配source的city事件。每个候选先project，再bind相同job/replan/command/candidate后changes，深复制比较前后。
+- 结果：原天气/替换正向PASS；new_model_source_without_event在_origins:803拒绝；model_unknown_diagnostic_without_event在_evidence:1034拒绝；model/city typed事件在_nonweather:1090拒绝。四个候选typed投影均通过，输入不变，禁止审计事件0。初次脚本city PARTIAL缺source导致构造失败，补齐后才取得以上结果；该脚本错误不是R3业务RED。
+- 排除规避：删除新source/安全诊断、用旧来源冒充本次模型、伪装成POI/weather事件、只做调时或令所有正常unknown模型失败、旁路/子类覆盖projector、扩大allowed到全计划均不接受。现有四文件并未变坏，而是R3集成前置覆盖不全；上一轮“只读前置PASS”过度外推，现更正，不重写历史实际测试结果。
+- 规模：本轮代码/测试0行；仍36/+6173（S1 14/+5167、S2 5/+82、S3 17/+924）。令未设计修复净增N：旧R3上沿1200下S1=6907+N、任务=8213+N；R3用满1500则7207+N/8513+N，净增余量分别593/293（受S1先约束）。不把N记0、不预批扩额；候选优先现有facts/直接测试两文件补内部契约，仍需设计证明及独立实施授权，executor额外修改尚未证明必要。
+- 下一动作：单独批准仅治理的R3内部证据覆盖设计Gate，冻结E1/E2最小文件、精确ownership/历史保留、完整正反向矩阵、generation/repair及城市/住宿数据流，核算修复＋R3＋R4/R5后再批准精确实现。原R3恢复/runtime数值不重复申请；不进入R4/R5、Step13/14或F-009。
+- 文档纠偏：同步七文档当前R3阻塞状态，并纠正progress残留1500/7000/8500与current-task尾部旧R3-C BLOCKED_BY_SIZE；旧失败记录仅作为标明的历史保存。没有改动任何生产/测试/fixture/Schema/依赖/lockfile或新增产品/法律决定。
+- 收口验证：安全文档check_required_documents/check_markdown/check_status_consistency为0 issues；七文档状态/授权/额度、完整规模公式、唯一ACTIVE=F-008、R3-C DONE及R3/后续TODO校验PASS，git diff --check PASS，禁止审计事件0。43路径集合不变，36个代码/测试hash逐一不变、暂存空、branch/本地refs未变；本轮仅七治理文档净增95，治理累计净2272，生产/测试0。未运行R3测试/静态、真实Provider或远程CI。
+
+## F-008 R3-C 最终实现与验证证据（2026-09-03，R3-C结果保持；R3准入已更正）
+
+- 结论：DONE / PASS / OFFLINE，仅D-029四文件；本次2000/7500/9000三项上限明确获批，原开始快照不归零。R3只读前置PASS，但R3 IMPLEMENTATION_NOT_STARTED；不把本片typed合成输入、executor单元注入或R2草稿回归当真实生产接通。
+- 行数：facts 698→1304（+606）、facts测试1040→2147（+1107）、executor163→205（+42）、executor测试376→483（+107），本片1862/2000。本次相对1280/1709/192/462净增496。代码/测试36/+6173、S1 14/+5167、S2 5/+82、S3 17/+924；完整R3/R4/R5后S1 18/+6907、任务40/+8213，R3用满1500时7207/8513；详见任务卡完整核算。
+- TDD可追溯：历史天气矩阵56 failed/111 passed、包装1 failed保留；上一检查点288 passed/16 failed及Ruff/mypy失败是实际未通过状态。先修正typed test helper的unknown envelope警告与输入别名，再修复地点仅source重绑校验及旧facts Protocol兼容，旧304项全部GREEN。补充weather-only保留source同ID偷改用例出现行为RED，新增旧source逐字段保护后GREEN；新闭集覆盖及其余负向直接GREEN，不声称每例独立RED。
+- 测试构造/静态修正单列：新历史diagnostic预期误丢原前缀、浅复制候选误改baseline、守卫插入位置错误导致NameError以及类型收窄/import排序/格式化失败均已修复；这些属于本片开发检查点，不伪称额外业务缺陷。最终完整矩阵不删减，fixture未变。
+- 实现：仅call-owned typed证据、深复制与规范化fingerprint；绑定job/replan/baseline/version/command/candidate，不接受调用者提供allowed集合。完成时一次显式clock同时评估before/after/envelope；新证据失败不退旧路径，只返回原ReplanCommit(result, change_set)或安全非提交结果，证据不进入Repository/日志/公开响应。
+- G1：逐日forecast先决定DTO是否能承载alerts，再按稳定事件类型/refs顺序处理；各事件内诊断按闭集code生成，新增精确去重、历史前缀不去重。typed请求/地点/日期/来源/字段与显式时效对应，old source逐字段不变，refresh使用新ID；只有来源所有实际消费者的旧roots都获准才有origin，计划级/历史消费者不放行。
+- G2：weather/alerts、POI、route/fallback、预算与hard constraint闭集复用现有领域/安全文案；required不可用、未知原因、预算/deadline等拒绝降级，known-over-budget和日程冲突不可提交。unknown不按零，旧PARTIAL/diagnostics保持；自由warning/URL、错误refs/source和容量溢出均拒绝。
+
+| D-029验收组 | 本次覆盖/测试定位（test_replan_facts.py，executor组在test_provider_replanning.py） |
+| --- | --- |
+| G1正向/四命令/legacy-V2 | test_evidenced_weather_changes_are_scoped_and_repeatable：None→有、有→None、刷新、fresh/PARTIAL/unknown/stale/无目标日期/UNAVAILABLE |
+| forecast/alerts独立组合 | test_alert_refresh_and_explicit_empty_preserve_forecast：forecast三态×alerts七态×四命令×两版本；新/同ID更新/明确空/失败省略，forecast省略时不伪造独立alerts，重复/逆序事件确定 |
+| G1负向与旧确认scope | test_evidence_rejects_forgery_scope_history_and_replay及原origin/guard测试：错绑定/城日地点/provider/envelope、越界day、旧impact不覆盖、source字段伪造、未来来源 |
+| 全消费者/DROP/origin | test_evidenced_source_drop_and_all_shared_consumers：weather-only合法DROP、day/location/cost/history/destination/provenance共享保留和同ID改写拒绝；新全局/循环/orphan来源拒绝 |
+| G2全部闭集正向 | test_closed_nonweather_diagnostics/test_scoped_location_evidence：route与fallback fresh/PARTIAL/unknown、POI fresh/PARTIAL/unknown/stale、unknown预算、未证明hard constraint；精确error/warning/uncertainty |
+| fallback允许/禁止 | test_structurally_invalid_primary_can_use_grounded_fallback及required_failures矩阵：primary empty/结构无效正向；auth/schema/timeout/rate-limit/server/未知/预算/deadline与可用primary不得降级 |
+| 历史/容量/硬冲突 | test_exact_historical_diagnostic_prefix：三类序列完整有序含重复、删/改/重排拒绝及20/50/50上限；test_new_evidence_cannot_bypass_catalog_or_hard_conflicts：超预算/日程/悬空历史/地点伪造等拒绝 |
+| 证据绑定/时刻/纯计算 | test_bound_evidence_deepcopy_and_completion_time、retry_after_is_finite、既有绑定与零I/O测试：嵌套alias、跨绑定重放、重复校验、完成后过期/未来、合法有限float、输入深比较不变 |
+| executor向后兼容 | test_evidence_executor_binding_and_no_legacy_fallback：正常包装、旧facts签名/旧seam/缺配对/缺proof/坏body/无plan/错record job/version均fail closed；原四参数、typed result/planless/outcome测试保持 |
+
+### 最终命令与边界
+
+- 两定向文件：项目Python 3.13.3运行pytest，561 passed（29.08s）。加既有test_replan_candidate.py：630 passed（32.91s），包含69项R2回归；不是全量后端/浏览器/Provider UAT。
+- Ruff：四文件check --no-cache PASS；format --no-cache --check显示4 files already formatted；mypy --no-sqlite-cache --no-incremental --cache-dir=nul --follow-imports=silent四文件PASS。不创建SQLite工具缓存。
+- pytest由python -B运行，--capture=sys、--disable-plugin-autoload、--confcutdir=tests/application、-p no:cacheprovider、-p no:logging；预先audit hook拒绝SQLite/外部socket/DNS/子进程/文件写/秘密或数据库读取/生产app与bootstrap导入。最终两次禁止审计事件均0；仅PYTEST进程内标记和Windows asyncio标准库socketpair自连接单列，不是外部Provider或用户服务。
+- Git保持feat/f-008-replan-error-recovery及3032d49c4f46167445650c71f7a570fc2c609f4a；43路径集合不变、暂存空。四生产/测试＋七治理文档有变化，其余32代码/测试hash不变；Schema/migration、依赖/lockfile、公开API/领域/adapter/fixture均无本片修改，未读秘密/既有数据库、未调用Provider、未操作服务或Git交付。
+- R3前置只读核验：R1/R2/R3-C PASS、原运行时/范围授权保持且完整规模可容纳；两个R3文件仍不存在。app.py的replan_application_service默认None并原样透传，bootstrap.py在planning factory内创建limiter；未装配生产replan，共享调用治理和正式入口仍由R3/R4/R5完成，Step13参数/同期高德证据及独立批准仍待满足。
+- 后续停止：本次R3-C完成后不执行R3，等待明确恢复；已有R3授权不撤回。没有新增法律/产品/API决定，不改写F-007 INCONCLUSIVE、2026-08-30 FAIL或任何历史UAT。
+- 文档收口：只运行check_required_documents/check_markdown/check_status_consistency，0 issues；七文档当前状态/2000-7500-9000额度、原快照与实际/完整剩余算术、唯一ACTIVE=F-008、R3-C DONE且后续TODO全部PASS，禁止审计事件0；git diff --check PASS。七治理文档本次净增132、相对main累计净2177，单列不抵扣代码；本次总计11个批准文件变化，核心清单外0，其余32代码/测试hash保留。
+
+## F-008 R3-C 完整规模处置方案证据（批准前历史）
+
+- 本轮用户要求先规模处置再完成R3-C并判断R3准入；未明确变更额度。只读比对43路径SHA256与上一实施收口完全一致，分支及HEAD/main/origin/main本地refs仍3032d49c4f46167445650c71f7a570fc2c609f4a，暂存空；保留全部dirty工作区，无清理/分支/提交/远程操作。
+- 原四文件1280/1709/192/462，原开始698/1040/163/376，R3-C1366；实际S1 14/4671、S2 5/82、S3 17/924、任务36/5677。读源码复核weather_case/diagnostic_case及非天气校验、旧Protocol缺口，未进行实验性重构或弱化矩阵，不将潜在去重记成实际节省。
+- 保留原完整剩余180–310，终值1546–1676超现行1500；联合候选仅R3-C2000、S1 7500、任务9000，PENDING_USER_APPROVAL。按R3-C/R3分别2000/1500及R4/R5原250/590，最终S1 7345、任务8651，候选余155/349；当前现行额度依然1500/7000/8500，规模Gate未解除。
+- 已修正progress及roadmap两处“本轮仅治理、等待恢复”的过时实施摘要：最近实施是288 passed / 16 failed，当前才是新一轮仅治理。本轮不重跑业务/静态，不把历史失败改为PASS；无生产/测试修改，未进入R3或真实UAT，不读取秘密/数据库、不调用Provider、不操作服务。
+
+- 本轮收口：三个安全文档检查0 issues，七文档候选待批准/有效阈值不变/完整剩余与两片压力算术PASS，唯一ACTIVE=F-008且R3-C未DONE；禁止审计事件0，git diff --check PASS。43路径与空暂存保持，36个生产/测试文件SHA256逐一不变；仅七治理文档净新增82行，治理累计2045行另计。本轮业务测试/代码静态NOT_RUN，未解除规模停止，不自动恢复实现或判断R3准入通过。
+
+## F-008 R3-C 1500 恢复实施证据（最近实施检查点，未完成）
+
+- 开始只读核验43路径与上一轮数值批准收口hash一致，F-008唯一ACTIVE；分支feat/f-008-replan-error-recovery，HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a，暂存空。使用原1150开始快照，不重置既有861。
+- TDD准备先暴露Coordinates参数顺序/必填字段、候选source先后绑定错误，均修正后才得到EvidenceEvent缺city规范化上下文的接口RED（2 failed / 224 passed，maxfail=2）；这些构造错误不是业务RED。随后实现D-029内部非天气分支，未执行R3。
+- 本轮新增56项参数化测试：route fresh/PARTIAL/unknown、fallback、预算unknown、硬约束×legacy/V2×四命令48项，location四状态×legacy/V2共8项。候选排序helper按原位置起点和各自时长构造可行日程，不更改fixture或旧R1 scope测试。
+- 停止后两定向测试文件全跑：288 passed / 16 failed（304 total），旧248全部保持通过，新增40通过；新增10项unknown构造缺warning、6项location source-only重绑被天气地点整体相等guard拒绝。前者不是业务失败证据，后者是待处理的本地契约冲突；完整未写矩阵见任务卡，绝不记为DONE/PASS。
+- 定向命令使用backend/.venv/Scripts/python.exe -B、pytest --disable-plugin-autoload --confcutdir=tests/application -p no:cacheprovider -p no:logging --capture=sys，只跑test_replan_facts.py/test_provider_replanning.py；进程审计禁止SQLite/文件写入/外部socket/子进程/环境变更/敏感文件与生产app导入，禁止事件0。Windows标准库socketpair内部loopback明确豁免，非Provider或服务操作。
+- Ruff format检查四文件PASS；ruff check --no-cache FAIL：6个I001与4个E741。mypy --no-sqlite-cache --no-incremental --cache-dir=nul --follow-imports=silent只检查四文件，33 errors in 3 files；包含旧facts Protocol、新测试union/tuple/None注解及生产request范围收窄。未创建SQLite工具缓存；无全量门禁/生产组合/真实UAT，禁止扩大这些部分证据。
+- 原四文件行数698/1040/163/376 → 当前1280/1709/192/462；R3-C1366。本轮相对1056/1428/192/462增505。格式化检查点剩余180–310预测使本片1546–1676超1500，已停止实现。完整任务/层/压力算术及精确剩余归属见current-task“1500检查点明细”。
+- 未修改后两executor文件或其他生产/测试/fixture、领域、公开API、Schema/migration、依赖/lockfile；不读取秘密、数据库或原始响应，不调用Provider、不操作服务、不执行Git交付；R3–R5/Step13/14/F-009未进入。保留既有dirty工作区，当前不是可交付GREEN状态。
+
+- 收口只读验证：check_required_documents/check_markdown/check_status_consistency均0 issues，七文档状态/原基线/完整规模算术PASS，F-008唯一ACTIVE且R3-C未标DONE；文档验证禁止审计事件0。git diff --check及四文件format --check PASS；43路径集合、分支/本地refs和空暂存保持。其余34个生产/测试文件（含两个executor文件）SHA256与本轮开始一致；本轮代码/测试505行，七治理文档另增39行、累计1963行，不抵扣代码额度。行为及静态FAIL保持，停止后未继续修复或进入R3。
+
+## F-008 R3-C 三项数值明确批准落地（历史，批准额度继续有效）
+
+- 用户对上一答复三项建议明确批准：仅R3-C净新增1150→1500、Stack1 6500→7000、任务8000→8500。文件上限四/30/68、R3专项1500、Stack2/3各24/2200及D-029全部技术/测试/安全边界不变；不把数值审批当生产修复完成。
+- 开始43路径SHA256与上一轮规模方案收口逐一一致，生产/测试36路径不变，R3-C861、S1 4166/S2 82/S3 924、任务5172；分支feat/f-008-replan-error-recovery及HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a不变，暂存空，无远程查询。
+- 完整剩余按既有上沿460＋1200＋250＋590＝2500；最终R3-C1321/1500余179，Stack1 6366/7000余634，任务7672/8500余828。保留两片均1500压力时S1 6845/7000余155、任务8151/8500余349；S2 5/82、S3最终18/1224分别符合24/2200，任务最终40唯一文件。
+- 规模治理DONE / PASS / GOVERNANCE_ONLY，R3-C为APPROVED / PARTIALLY_IMPLEMENTED / SIZE_GATE_PASS / AWAITING_RESUME。原1150开始快照与861累计不归零；业务248 passed和Ruff5处/mypy15条FAIL仅历史，未重跑，本轮不恢复实现或进入R3–R5。
+- 本轮仅七治理文档同步；没有读取秘密/Provider原始响应/数据库、创建数据库、调用Provider、导入app、操作服务或Git交付。文档与范围复核单列，不把规模PASS表述为实现/真实UAT PASS。
+
+- 收口验证：三个安全文档检查0 issues、七文档当前批准/完整算术/唯一ACTIVE/后续TODO检查PASS，禁止审计事件0；git diff --check PASS。36生产/测试文件与本轮开始hash逐一不变，分支/HEAD/43路径集合及空暂存保持；业务和代码静态本轮NOT_RUN，未创建SQLite工具缓存。
+
+## F-008 R3-C 完整规模处置只读复核（方案时历史，数值已于上节批准）
+
+- 范围：仅七治理文档；本轮未恢复生产/测试，既有861行不变。Git numstat＋6未跟踪文件完整行数独立复算：Stack1 14/+4166、Stack2 5/+82、Stack3 17/+924、任务36/+5172；开始治理7/+1798另计。43路径与上一轮SHA256一致，暂存空，分支和三个本地refs仍为原值。
+- 源码/AST只读核验确认_evidence仅处理天气/预警，非天气、预算及完整新增路径负向仍是原D-029必需工作；helper复用已经体现在861，未验证节省不计入预测。当前剩余315–460，完整1176–1321仍不能证明1150内可交付；未运行app或Provider。
+- 建议值1500/7000/8500分别仅对应R3-C/Stack1/任务净新增，均PENDING_USER_APPROVAL；有效值仍1150/6500/8000，文件上限及其他契约不变。不是批准通过、不伪造规模解锁。
+- 完整预测上沿：861＋460＝1321；当前任务5172＋460＋1200＋250＋590＝7672，S1 4166＋460＋1200＋250＋290＝6366。两片分别1500的压力：任务8151，S1 6845；建议值下余349/155。R4/R5保留250/590，不保证各普通上限同时用满。
+- 旧248 passed、Ruff5处/mypy15条FAIL原样保留，本轮不重跑业务/静态，不转记为当前实现验证。文档、算术与hash验证单列；无真实网络/Provider/服务/数据库/秘密/分支或Git交付动作。
+- 复盘落点为任务卡：以已格式化实际和完整未完成映射/断言/静态项估算；单片之外同时检查层、任务及已批R3额度压力，不能连续小幅加额、删测试或重置快照绕过停止条件。建议尚待用户数值批准，本轮停止。
+
+- 本轮文档验证：三个安全文档检查0 issues；七文档“有效1150/6500/8000不变、建议1500/7000/8500待批”、完整剩余/联合压力算术、唯一ACTIVE及后续TODO一致，PASS；审计禁止事件0，未导入生产app。git diff --check PASS，业务测试/代码静态本轮NOT_RUN。
+
+## F-008 R3-C 1150 授权后部分实施证据（历史，非本轮新验证）
+
+- 2026-09-03：先同步七治理文档1150授权，43路径/HEAD/唯一ACTIVE/剩余预测准入通过后开始TDD；无新文件/分支，仍37 tracked modified＋6 untracked，暂存为空。HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a；未联网复核CI，不把旧CI当本次修改的验证。
+- 实现事实：replan_facts.py的EvidenceEvent/ReplanEvidence/EvidencedReplanResult提供typed、call-owned、深复制/指纹绑定；changes先验证绑定再重算来源origin/scope；forecast/alerts逐项校验请求、地点/日期、envelope/source、显式时效及对应安全追加；executor配对解包，完成时刻取一次，无证据保留旧路径，有证据失败不回落。
+- 明确缺口：_evidence当前只处理forecast/alerts，其他D-029闭集正向尚未实现。weather未知时效用例不能替代非天气来源，旧source保护用例不能替代新证据DROP/共享完整矩阵；候选known-over-budget拒绝、深复制/完成后过期等仍需验收。不会将本片声明为完整闭环或生产ready。
+- TDD：天气新矩阵RED为56 failed/111 passed（缺ReplanEvidence接口），实现后167 passed；executor包装RED缺包装plan访问，接线后176 passed；补充负向及alert矩阵后248 passed。最后248＝旧111＋新137（forecast7状态×legacy/V2×4命令56、alerts6状态×legacy/V2×4命令48、forgery/history/binding24、executor9）。后补负向用例直接GREEN，不声称每项都有独立RED。
+- 输入辅助修正：只在批准test文件内构造typed坐标、独立消费者refs及原子加入source/weather；原fixture未改。独立测试预期不调用新_evidence/_origins闭集生成器。重构本次新增helper减少38行仍248通过，不删既有测试或压缩排版。
+- 运行边界：项目Python 3.13.3，python -B；禁用pytest插件自动加载/cacheprovider/logging、capture=sys、confcutdir=tests/application。审计hook在pytest导入前拒绝SQLite、外部socket/DNS、子进程、文件写、秘密/数据库读取、环境写及production app/bootstrap导入；仅pytest进程内PYTEST_VERSION/PYTEST_CURRENT_TEST标记及Windows asyncio标准库socketpair自连接单列允许。它们不是Provider、服务监听或用户环境配置修改。
+- 初始pytest启动中默认临时捕获/日志/标记被审计guard拦截，修正为上述配置；这类启动错误不是业务RED，未成功写文件。完成测试禁止事件0，未导入生产app；没有读取.env或真实配置。
+- 静态：四文件ruff format --check --no-cache PASS；ruff check --no-cache FAIL，5处I001导入排序。项目python -B -m mypy --no-sqlite-cache --no-incremental --cache-dir=nul --follow-imports=silent限定四文件，FAIL共15条（两test文件），含SpyFacts旧签名与新增evidence可选参数的Protocol不兼容。运行时旧测试通过不代表静态兼容已完成；规模停止后未继续修代码。
+- 实际：四文件本片358＋388＋29＋86＝861，格式化检查点先为899，正常helper复用后861。任务代码/测试36/+5172，Stack1 14/+4166、Stack2 5/+82、Stack3 17/+924；其余32生产/测试文件与开始SHA256一致，七治理文档另计。
+- 规模停止：完整剩余315–460，R3-C完整1176–1321超1150；保留R3/R4/R5全部预测后最终Stack1 6221–6366、任务7527–7672，文件18/40。逐项依据、压力情景与复盘见current-task当前检查点；不是宣称测得最小行数，不私自改阈值。停止状态APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE。
+- 以下为四文件不可归零的开始快照（SHA256；完整行数见任务卡），仅代码元数据，不包含Provider/用户数据：
+
+| 文件 | 开始SHA256 |
+| --- | --- |
+| backend/src/intelligent_travel_assistant/application/services/provider_replanning.py | 2C1F74F6415DA4602E7FD55D05B92D5D96CC898FF0A4EC44955467B11F3FAEE4 |
+| backend/tests/application/test_provider_replanning.py | 6B358AC84AAE99181679669A87C824874229F85511EC04F8ECCE39F80C898355 |
+| backend/src/intelligent_travel_assistant/application/services/replan_facts.py | D27AEB67127C85425C3A1FFD13226FE4020FE4B8F003409ABF5F404E49A73C34 |
+| backend/tests/application/test_replan_facts.py | D5D3992B99ADD64D6EEA4E22AFBE25BA55E654FEFCCC5B7A46609347EFF94FE8 |
+
+- 历史R1/R2与Step0–12保持；本次没有真实Provider/UAT、数据库/Schema/migration/依赖/lockfile/API变更、服务操作或Git交付；R3–R5/Step13/14/F-009未进入。本轮安全文档/范围复核见下方最终检查记录，不复用历史UAT结论为新PASS。
+
+### 本轮最终只读验证
+
+- 安全文档check_required_documents/check_markdown/check_status_consistency通过，0 issues；七文档当前状态/1150授权/实际861/完整剩余315–460算术一致，唯一ACTIVE为F-008，R1/R2保持DONE，R3-C及下游未标DONE。文档验证审计禁止事件0，未导入生产app。
+- 最终同配置定向复跑248 passed（5.25秒）、禁止审计事件0；ruff四文件format check通过，lint5处与mypy15条仍FAIL，未因局部GREEN宣称完成。git diff --check通过，暂存空、43路径集合不变。
+- 本轮无远程访问、Provider、数据库或服务动作；全量后端、前端、正式生产入口和真实UAT均NOT_RUN。完整实际与剩余核算见任务卡1150检查点，未以文档验证替代生产/测试验收。
+
+## F-008 R3-C 四文件实施准入停止（900上限时历史，非当前）
+
+
+- 日期2026-09-03；结论`APPROVED / BLOCKED_BY_SIZE / IMPLEMENTATION_NOT_STARTED`。用户已独立批准四文件实施，不再是BLOCKED_BY_APPROVAL；按“预计超限立即停止”，本轮在写RED测试之前停止，未实施任何生产或测试修改。D-029设计/矩阵和R3原授权/runtime保留，后续阶段均未进入。
+- 开始快照：分支feat/f-008-replan-error-recovery；HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a；37 tracked modified +6 untracked，共43路径，暂存空。逐路径SHA256/行数保存在本次工具内存中，四文件文本另留内存基线；不新增审计文件，不清理现有工作区，不查询远程。
+- 源码只读证据：replan_facts.py:238的catalog、:395的source_actions、:501的changes、:540的origins、:622的guards仍为R1实现；provider_replanning.py:41的port与:102的execute没有内部证据包装分支。缺少绑定不可变证据、独立forecast/alert验证、闭集诊断重算和新诊断局部消费者闭环，不能只放松比较或恒拒绝正向。
+- 复用核验：provider_planning_jobs.py:1034的safe error mapper与:110起issue文案可复用；:884的天气投影不验证局部请求/来源/获准impact，:955的sources新增计划级来源且使用max评估时刻，不可直接充当本片局部校验。ports/models.py提供typed forecast/alert/request，domain/provider_result.py提供包络/显式时效；这些结构不自动证明与候选的精确对应关系。
+- 重估（工程预测，不是测得行数或最小下界）：facts390–480（绑定/深复制75–90，天气/预警130–160，闭集诊断110–135，消费者/origin/guards75–95）；直接测试360–430（typed辅助70–85，G1/来源140–165，G2正反向95–115，绑定/确定性/零I/O55–65）；executor45–65，直接测试90–120；合计885–1095。旧580–800低估了独立职责与完整矩阵，保留历史但不再作为准入承诺。现有helper/参数化已纳入估算，不删除历史测试、不缩矩阵或以排版压缩规避。
+- 本片上沿1095−900=195，触发停止。R3专项1500不得用于R3-C；累计余量也不解除单片上限。待完整≤900的可复核方案或用户单独调整本片上限后重新准入；本次不增加任何获批额度，也不宣称已证明900内不可能。
+- Git numstat加6个未跟踪文件行数：Stack1 14/+3305、Stack2 5/+82、Stack3 17/+924，任务36/+4311；本片生产/测试0文件/+0。加R3-C 885–1095、R3 880–1200、R4 250、R5 590，完整剩余2605–3135；最终Stack1 18/+5610–6140、Stack2 5/+82、Stack3 18/+1224、任务40/+6916–7446；上沿余360/2118/976/554行。文件归属、R4共享测试旧20与新30分层、任务唯一文件去重口径不变。
+- RED/GREEN、定向行为测试、Ruff/mypy/格式化：NOT_RUN（规模准入未通过，不开始实施）；不存在“本轮测试失败”或新的离线PASS。R3集成与R4/R5正式入口矩阵原样保留NOT_RUN，历史R1/R2/Step0–12及UAT结论不变。
+- 本轮仅七治理文档状态/证据同步；未读取秘密、Provider原始响应或既有数据库；未创建数据库/调用Provider/导入生产app/操作服务/执行Git交付。安全文档验证与最终工作区复核见下方收口记录。
+- 估算复盘：本轮沿用设计时按标题拆分的粗估，未在授权前充分展开证据校验及完整测试辅助，导致再次准入停止。以后应先做职责到源码/用例的完整工作分解、单片及全部剩余上沿核算，再给出实施规模承诺；建议落点为任务卡规模核算，不改全局规则、不靠连续小幅加额替代核算。
+- 收口验证：安全文档check_required_documents/check_markdown/check_status_consistency与七文档状态/阈值/完整预测算术PASS，唯一ACTIVE=F-008、R1/R2 DONE、R3-C阻塞及后续TODO一致，git diff --check PASS。初次文档检查发现本轮docs/README的“当前Step13”空格不符合既有解析器，恢复“当前 Step 13”后通过，未改检查器。验证进程写入/数据库/网络/服务相关禁止审计事件0、未导入生产app；43路径集合不变，36个生产/测试文件SHA256逐一不变，暂存空、分支/本地refs不变。本轮仅七治理文档净新增31行、治理累计1669行另计；行为测试/代码静态仍NOT_RUN，无R3-C实现PASS。
+
+## F-008 R3 规模处置（此前预测历史）
+
+- 结论：DONE / PASS / GOVERNANCE_ONLY；用户明确批准R3净新增900→1500（仅R3）、Stack1 4500→6500（文件30）、任务累计6500→8000（唯一文件68）。R3-C保持D-029四文件/900，其他Step/stack/归属/矩阵/安全边界不变；仅解除当前完整预测下的规模阻塞。
+- 只读准入：分支feat/f-008-replan-error-recovery；HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a，37 tracked modified +6 untracked，共43路径，暂存空。记录逐文件SHA256/行数；全部既有工作区保留，无新分支/提交/清理或远程查询。
+- Git numstat加6个未跟踪文件实际行数重算：Stack1 14/+3305、Stack2 5/+82、Stack3 17/+924，任务36/+4311。七治理文档另计，不抵扣代码；R1历史1906/R2 792不改写，新增修复增量单列。
+- 完整剩余仍为R3-C 580–800、R3 880–1200、R4 250、R5 590，共2300–2840。上沿最终Stack1 18/+5845对30/6500余12文件/655行、Stack2 5/+82对24/2200余19/2118、Stack3 18/+1224对24/2200余6/976、任务唯一40/+7151对68/8000余28/849；R3 1200/1500余300，R3-C 800/900余100。文件归属不变，共享测试旧20行仍Stack2、未来30行仍Stack1、任务去重一次。
+- 压力核算：若R3-C/R3分别用满900/1500并保留R4/R5全部预测，Stack1=3305+900+1500+250+290=6245（余255），任务=4311+900+1500+250+590=7551（余449）。这不是R4/R5增长保证；每片开始/验证检查点/收口仍按实际＋全部剩余预测检查，预计超任一有效上限即停。
+- 当前R3-C为TODO / BLOCKED_BY_APPROVAL，R3原实施/runtime授权保留但依赖修复PASS，两片均IMPLEMENTATION_NOT_STARTED。D-029完整设计和矩阵、R1/R2/Step0–12及历史UAT结论保持；Step13/14与F-009未进入。未运行行为测试或Provider/生产组合，不把旧270 passed记为本轮验证。
+- 本轮不读取秘密/原始响应/既有数据库，不创建数据库、调用Provider、操作服务或Git交付；仅七治理文档同步，完成后停止等待单独批准R3-C四文件实施。
+- 收口验证：check_required_documents/check_markdown/check_status_consistency安全子集0 issues；七文档新额度、唯一ACTIVE=F-008、R1/R2 DONE、R3-C待批准/R3待前置、R4/R5/Step13/14 TODO、runtime原值及完整预测/压力算术均PASS；git diff --check PASS。验证进程写入/数据库/网络/服务相关禁止审计事件0、未导入生产app。43路径集合不变、36个代码/测试文件SHA256不变，暂存空、分支及本地refs不变；本轮仅七治理文档净新增26行，治理累计净新增1638行，单列不抵扣代码。无行为测试或远程CI，本记录不是生产或UAT验收。
+
+## F-008 R3 内部契约衔接处置设计 Gate（规模批准前历史）
+
+- 日期：2026-09-03；结论：`DONE / DESIGN_ONLY`。仅设计 G1/G2 并同步七治理文档；D-029 冻结技术设计，R3-C/R3 均 IMPLEMENTATION_NOT_STARTED。R3 原实施授权及精确 runtime 数值保留；当前实施阻塞为 `BLOCKED_BY_SIZE_AND_REPAIR_APPROVAL`，不把设计 PASS 等同生产可用。
+- 只读基线：feat/f-008-replan-error-recovery，HEAD/main/origin/main 本地 refs 同为3032d49c4f46167445650c71f7a570fc2c609f4a；37 tracked modified +6 untracked，共43路径，暂存空。逐路径记录 SHA256/行数，保留全部既有差异；无新增 R3 文件、分支、远程查询、提交或清理。
+- G1 源码定位：application/services/replan_facts.py:270–276 将 weather/alert 归属于 day schedule，:631–678 的 guards 拒绝省略/事实变化；:401 起 source_actions 尚未显式纳入 weather day 义务。设计限定获准 day、对应 typed envelope、显式时刻及 scope；共享源保留、新源精确 ancestry，最终无保留消费者才可 DROP，不能把允许 schedule 等同整日放行。
+- G2 源码定位：同文件:631–638 全字段相等/uncertainty 通道；:285–295 把历史 uncertainty 视作计划级消费者且保护 provenance。application/repositories/models.py:658 起约束 READY/PARTIAL 形态；contracts/trip_planning.py:408 的公开 uncertainty 没有内部 schedule 类型。设计保留历史有序前缀，新增闭集诊断必须带单次 typed 依据，公开 refs 仍是实际实体，旧全局消费者不能统一改成局部。
+- 最小四文件依据：provider_replanning.py:39–42 的 port 只返回 PlanningJobResult/ReplanOutcome，:118–123 的 facts.changes 仅接收候选与 clock；结果里没有独立的 weather/alert 请求结果或新增 warning 成因，单纯两文件放松相等检查无法证明这些对应关系。拟在 facts/直接测试定义/核验仅内存证据，并在 executor/直接测试加入兼容传递；无证据仍严格，错绑定不回落，不扩公开 DTO/领域/Repository。
+- 映射复用证据：provider_planning_jobs.py:110–152 的既有 issue/error/fallback 文案、:1035–1059 的 safe Provider error 映射；domain/provider_result.py:151 起 PARTIAL 要求 typed data+error+warning。只复用这些安全 enum/规则，不回显 upstream 文案；旧 _freshness_errors 的 max(evaluated_at, fetched_at) 不得用于掩盖未来时刻。当前设计未执行或修改这些代码。
+- 最小修复 R3-C 4文件/580–800：facts180–240、直接测试260–350、executor40–60、直接测试100–150，全部Stack1。R3重估2文件/880–1200（生产400–550、测试480–650）；R4原250、R5原590（Stack1 290/Stack3 300）和全测试矩阵保留。详细上沿工作分解、正反向矩阵和批准点见current-task；估算不是实际行数或保证。
+- 实际代码/测试36/+4311：Stack1 14/+3305、Stack2 5/+82、Stack3 17/+924。完整剩余2300–2840；最终Stack1 18/+5305–5845、Stack2 5/+82、Stack3 18/+1224、任务唯一40/+6611–7151。上沿R3超普通900达300、Stack1超4500达1345、任务超6500达651；硬阈值全部不变。修复虽单片800内，也因完整累计预计超限而不能开始。
+- 计数口径：新增修复使用已计入的四路径；全部剩余15个去重路径、4个新文件。共享test_provider_planning_job_executor旧20行仍Stack2、R4的30仍Stack1，不搬运差异。R1历史1906保持，新增修复单列而不沿用R1专项；R3不拆片避900、不压测试或移层。旧570/4415/5721保留为历史，不能继续作为准入承诺。
+- 本次未运行行为测试、MockTransport矩阵、生产组合或真实UAT；未把上一轮探针或R2的270 passed记为本轮验证。未读秘密、Provider原始响应或既有数据库，未创建数据库/调用Provider/操作服务或Git交付；Step13/14及F-009未进入，历史UAT事实不改。
+- 退出：G1/G2设计完成；等待用户明确规模处置及R3-C四文件实施批准。若硬阈值保持且不能证明完整方案可容纳，则继续停止，不能用单片授权越过累计规模。修复实施后仍须停止，R3恢复前另做完整准入；R4/R5、UAT与交付各自独立批准。
+- 收口验证：仅运行check_required_documents/check_markdown/check_status_consistency安全子集，0 issues；自定义R1/R2 DONE、R3-C/R3/R4/R5/Step13/14 TODO、唯一ACTIVE=F-008、runtime保留、完整规模算术均PASS；git diff --check PASS。校验进程禁止写入/数据库/网络/服务相关审计事件0，未导入生产app。43路径集合不变，36个生产/测试差异文件SHA256逐一相同；本轮七治理文档净新增115行，治理累计净新增1612行，另计不抵扣代码；暂存空、分支/本地refs未变。本次是文档验证，不是行为测试、独立review或生产准入PASS。
+
+## F-008 R3 准入：运行时数值已批准，内部契约衔接阻塞（设计前历史）
+
+- 当前结论：APPROVED / RUNTIME_BUDGET_CONFIRMED / BLOCKED_BY_CONTRACT_GAP / IMPLEMENTATION_NOT_STARTED。用户明确确认上一轮七项具体数值，不能继续描述为预算未授权；但不因此越过生产两文件范围、修改 R1/R2 或执行真实 UAT。
+- 已批准单次上限：总90s含等待/重试；logical Amap12（resolve1/search3/route8）、QWeather2（forecast1/alert1）、DeepSeek2（generation1/repair1）；每logical HTTP 2/2/1，额外重试3/1/总4，理论总20；HTTP timeout 6/6/35s。源码依据 application/tooling/governance.py:16、:40 和 domain/resilience.py:198，均只读；没有改 runtime 或验证新 R3 runtime 实现。
+- Git 准入：feat/f-008-replan-error-recovery；HEAD/main/origin/main 本地 refs 均3032d49c4f46167445650c71f7a570fc2c609f4a；37 tracked modified +6 untracked，共43路径，暂存空；全部既有 F-008 工作区保留，没有新增 R3 两文件、分支、提交或远程操作。
+- G1 天气边界：D-025（decisions.md 的质量/时效条款）要求 optional UNAVAILABLE/stale weather/alert 省略且 PARTIAL；application/services/replan_facts.py:655–678 要求 changed weather 两侧非None、天气非source/alerts字段一致，alerts除source/issued_at外一致。任务卡 D-028 B3 只冻结天气时效变化；不能由 R3 自行把“获准日级 schedule”解释为任意天气删除/更新权。
+- G2 诊断边界：同文件:631–634 对 resolved_destination/errors/warnings/violations/retryable 强制相等；新增安全降级 warning 被拒绝。虽有新增 uncertainty 的 scoped refs 通道，但 D-025 required PARTIAL/fallback 的既有诊断怎样保留/追加尚未冻结为 R3 可直接实施契约，不能随意换通道或清空旧诊断。
+- 可复核纯内存诊断：backend 的 `.venv/Scripts/python.exe -B -`，读取 tests.application.test_replan_facts 中 baseline()/adjusted()/commands()/NOW/PROJECTOR，只构造 synthetic typed对象。commands(job)[2] 的 impact 与 adjusted(job) 为 positive control；确认目标 day schedule ID 在 facts.allowed(command) 中，正常 changes 接受。分别将候选受影响日 weather 改为None、仅 condition_day 改为合成新值、result.warnings 追加合成降级标记；三个候选的 projector.project 均接受，但 changes 均返回 DomainInvariantError/replan_facts_invalid。没有伪造 provider返回、修改源码或把诊断称为R3测试PASS。
+- 探针安全：运行前注册 audit hook 禁止 sqlite3.connect、socket.bind/connect、subprocess.Popen、os.system；禁止事件0，app导入0，baseline深比较不变；无需 loopback 白名单，没有 Provider/数据库/服务操作。未读取秘密、真实原始响应或既有数据库；仅合成测试辅助数据。
+- 复用核验：offline_planning.py:642 的 _governed_call 和:968 的 _lookup_route 可提供治理/attempt/route grounding；provider_planning_jobs.py:691 的 _plan 按位置生成全部 activity IDs，:847 重生成route IDs，:955 加入整份计划user/system来源，因此不能直接当局部结果发布器，更不能调用会写 job 的 execute。R2 draft 仍缺最终route/source/budget等验证；不能借重建全计划绕过G1/G2。
+- 规模重新核算：本轮生产/测试0文件/+0；Stack1 14/+3305、Stack2 5/+82、Stack3 17/+924、任务唯一36/+4311。按原R3 570、R4 250、R5 590，最终仍Stack1 18/+4415、Stack3 18/+1224、任务40/+5721；但未计契约修复，不能声称新方案准入。保留R4/R5的Stack1 540后，4500−3305−540=655可供R3及必要修复使用，旧预测余85；修复尚未设计，不杜撰可靠上界、不自行增额度。
+- 最小解除条件：单独批准内部契约衔接处置设计，冻结获准日期weather/alert省略/刷新、历史诊断保留与安全追加、精确source consumer/origin/allowed refs；优先评估 replan_facts.py/test_replan_facts.py 最小独立修复，若涉及其他文件须列明证据。设计时完整估算修复＋R3矩阵＋R4/R5，超限先报告；设计本身不实施、不扩公开API/领域/法律范围。R3实施及runtime数值授权保留，R1/R2历史PASS不改写。
+- 本次未运行R3 TDD、Provider MockTransport矩阵或生产组合测试，不声称新的270 passed；既有R2证据在下节保留。七份治理文档记录批准/阻塞，之后停止等待设计Gate，不进入R4/R5/Step13/14/F-009。
+- 收口验证：安全文档 required_documents/markdown/status_consistency 子集0 issues；自定义 runtime已确认/R3契约阻塞且两文件不存在、R1/R2 DONE、R4/R5/Step13/14 TODO、唯一ACTIVE与规模算术PASS，git diff --check PASS。相对本次准入快照仅七治理文档变更，净新增39行单列，既有36个生产/测试差异文件SHA256全部相同；43路径数量不变，无新/缺失文件，暂存空、分支/本地refs不变。
+
+## F-008 R2 四命令局部候选：DONE / PASS / OFFLINE
+
+- 授权与准入：用户单独批准 R2；R1 DONE / PASS / OFFLINE，F-008 唯一 ACTIVE。开始分支 feat/f-008-replan-error-recovery，HEAD/main/origin/main 本地 refs 均 3032d49c4f46167445650c71f7a570fc2c609f4a；37 tracked modified +4 untracked，代码/测试 34/+3519。加当时 R2–R5 1810 预测得 Stack 1 4023/4500、任务 5329/6500，准入通过；没有提交、清理或远程查询。
+- 实现仅新建 application/services/replan_candidate.py 与 tests/application/test_replan_candidate.py。typed ActivityReplacement 输入、四命令局部活动变换、activity 身份级 route requirements/origin、未影响事实/类型保留；使用既有 R1 projector/budget 与领域时间窗口校验。RouteRequirement 在 main 已存在，本片没有依赖 Stack 2 修改的 scheduler 标题行为。
+- 草稿不是 PlanningJobResult、没有 READY/commit：新路线或相同 ID 的地点事实变化保留 route=None，不套用旧时长/距离；未知成本为 None，budget_analysis 不是最终报价；旧来源暂不 DROP。R3 必须完成 schedule/route/source/budget/scope 后才能交既有 change-set/service 边界，R2 未启用生产路径。
+- TDD：可导入 stub 上初始 53 failed/1 passed，后实现；补充同 ID 地点更新误用旧路线测量的行为 RED 后修复。测试输入纠正：真实窗口起点为 09:00 而非 08:00；重排重叠输入重新按各自时长核对；DTO 本来 frozen，别名攻击改用显式 object.__setattr__ 测深复制；CostConfidence 使用公开 DTO 对应枚举消除测试构造警告。这些不修改 fixture、领域规则或删除断言，不把构造错误当业务缺陷。
+- GREEN：backend 目录 `.venv/Scripts/python.exe -B -m pytest -p no:cacheprovider tests/application/test_replan_candidate.py -q --tb=short` 对应最终 69 项；带下述只读回归的受保护同进程执行最终 **270 passed**。包括四命令 legacy/V2、非法/交叉目标、空替换、缺/重排序、窗口与重叠、删除路线重连、同地点不同 activity、来源/成本身份碰撞、未知/已知费用、类型、确定性、输入不变和零 I/O。
+- 回归精确清单：R2 测试，加 tests/application/test_replan_facts.py、test_provider_replanning.py；tests/domain/test_replanning_impact.py、test_replanning_commands.py、test_replanning_change_set.py、test_replanning_budget_sources.py、test_budget_rules.py、test_schedule_time_rules.py、test_multiday_schedule.py。仅只读上述现有文件；不运行全量/浏览器/API/默认 app 或真实配置。
+- 安全门禁：pytest 进程 audit hook 阻断 sqlite3.connect、socket.bind/connect、subprocess.Popen、os.system，仅放行实际 CPython socketpair 栈的 loopback 自唤醒。最终禁止数据库/外部网络/子进程事件 **0**，标准库内部 loopback **80** 单列，app 未导入。纯变换测试额外阻断文件、环境读取入口、socket 和 SQLite；没有读取秘密/原始响应/既有数据库或操作服务。
+- 静态：两新文件 `ruff format --check --no-cache`、`ruff check --no-cache` PASS；`mypy --no-sqlite-cache --no-incremental --cache-dir=nul --follow-imports=silent` PASS（2 source files）。初期格式前长行及类型检查报告经两文件内修正，最终无警告；不升级依赖、不生成 SQLite cache，不称为全项目静态验收。
+- 规模：生产 300 +测试 492 = **792**（2 文件、清单外 0），普通 900 余 108。当前 Stack 1 14/+3305、Stack 2 5/+82、Stack 3 17/+924、任务唯一 36/+4311；R3–R5 剩余 Stack 1 1110、Stack 3 300，共 1410。最终预测 Stack 1 18/+4415（4500 余 85）、Stack 2 5/+82、Stack 3 18/+1224、任务 40/+5721（6500 余 779）。共享路径仍逐层按原差异归属、任务去重；不挪层或以治理抵扣代码。
+- 范围核对：R2 新增两文件；开始既有 34 个生产/测试差异文件（含 R1 四文件）SHA256 全部未变。无公开 API、领域、Schema/migration、fixture、依赖/lockfile、Provider 或服务修改；没有 branch/commit/push/PR/CI/merge/archive。不改历史 UAT，R3–R5/Step 13–14/F-009 NOT_RUN。独立正式入口 review/验收仍属 R5，不把本片单元回归当其替代。
+- 剩余风险：Stack 1 计入全部剩余预测仅余 85 行，R3 开始必须按实际合同和全矩阵重估；runtime policy、分 Provider logical call、HTTP attempt、deadline 未获本次批准。R2 收口后停止，不自行套用 planning 数值为 replan/UAT 配额。
+- 最终治理验证：七文档本轮净新增 33 行单列；required_documents/markdown/status_consistency 安全子集 0 issues，补充 R2 DONE、R3–R5/Step 13–14 TODO、历史 Step 0–12 DONE、唯一 ACTIVE=F-008 与规模算术 PASS，git diff --check PASS。最终 37 tracked modified +6 untracked，共 43 路径；相对本轮开始仅新增 R2 两文件并同步七文档，既有 34 个代码/测试路径 SHA256 不变，暂存为空，分支/HEAD/main/origin/main 本地 refs 不变；没有远程 CI，本轮证据不借用旧 main CI。
+
+## F-008 R1 四文件实施完成：DONE / PASS / OFFLINE
+
+- 授权及准入：用户明确批准仅 R1 净新增 2000、Stack 1 4500（30 文件不变），其余阈值/四文件范围不变；开始实际 33/+2011，加完整预测 R1 1900/Stack 1 4017/任务 5323 未超新上限。分支 feat/f-008-replan-error-recovery，HEAD/main/origin/main 本地 refs 保持 3032d49c4f46167445650c71f7a570fc2c609f4a；未查询远程、提交或清理。
+- 实现：纯 typed catalog/成本 owner/预算 unknown/完整来源消费者/显式 freshness/五类稳定快照/精确 origin 与 allowed refs；复用既有领域规则。四命令 legacy/V2 均有正向及 fail-closed 断言；所有 fingerprint 仅调用内存。executor 新 keyword-only facts/clock 成对配置保留旧四参数路径，新路径错误不回落；候选完成后取一次 clock，同次 before/after 同时刻，不装配 app。
+- RED 轨迹：最初 75 项投影用例实际运行并失败；executor 新接口 6 failed/既有 9 passed；调时来源重绑、SourceRecord.reference_url 完整字段支持分别补查 1 failed 后修复。测试构造错误亦保留说明：合成 fetched_at 晚于原 NOW、替换候选误重建不受影响末段、record operation 未同步、空 uncertainty 无法测试删除；均在批准测试文件修正，不修改 fixture、不删断言。
+- GREEN 命令（backend 目录）：`.venv/Scripts/python.exe -B -m pytest -p no:cacheprovider tests/application/test_replan_facts.py tests/application/test_provider_replanning.py -q --tb=short`，最终 **111 passed**（96 facts +15 executor）。另加 tests/domain/test_replanning_impact.py、test_replanning_commands.py、test_replanning_change_set.py、test_replanning_budget_sources.py、test_budget_rules.py，最终 **168 passed**；只读领域测试未修改，不运行全量/浏览器/生产 app。
+- 静态：上述四文件 `ruff format --check --no-cache`、`ruff check --no-cache` PASS；`mypy --no-sqlite-cache --no-incremental --cache-dir=nul --follow-imports=silent` PASS（4 source files；只对四文件报告）。首个 `--cache-dir=NUL` 调用为工具 INTERNAL ERROR，不记通过；改用明确关闭 SQLite、增量与缓存的参数，未升级依赖或修改环境。
+- 安全复验：在 pytest 进程注册 audit hook，禁止 sqlite3.connect、socket.bind/connect、subprocess.Popen、os.system；仅允许经核实的 CPython socket._fallback_socketpair 栈内 loopback 自唤醒连接。最终 **168 passed，禁止事件 0，标准库内部 loopback 80**，app 模块未导入。先前过宽 hook 把 Windows asyncio 自唤醒误拦，13 failed/151 passed，修正验证工具范围而非业务断言；该失败不隐瞒，也不宣称整个测试进程网络事件为 0。四命令纯投影另由测试阻断文件/环境入口/网络/SQLite/子进程 I/O。
+- 规模实测：R1 698+1040+40+128=**1906**（4 文件、清单外 0；含旧 398，本轮净新增 1508），低于 2000 余 94。Stack 1 实际 12/+2513、Stack 2 5/+82、Stack 3 17/+924，任务实际 34/+3519；加 R2–R5 剩余 1810 后，Stack 1 18/+4023（4500 余 477）、Stack 3 18/+1224、任务唯一 40/+5329（6500 余 1171）。共享路径按原层计算，治理单列；没有挪层、删用例或借 Step 12 例外。
+- 范围/风险：源码与测试仅批准四文件变化，其余 30 个既有代码/测试差异路径 SHA256 不变；无领域/Schema/migration/依赖/lockfile/fixture/公开 API 改动。未读取秘密、Provider 原始响应或既有数据库，未创建数据库/调用 Provider/操作服务/Git 交付。新证据只证明 R1；R2–R5、Step 13/14 未执行，生产接通/真实 UAT 仍未具备，F-009 未进入。R1 收口后停止等待单独批准 R2。
+- 最终治理验证：七文档本轮净新增 29 行另计；required_documents/markdown/status_consistency 子集 0 issues，补充 R1 DONE、R2–R5/Step 13–14 TODO、唯一 ACTIVE=F-008、实测/剩余规模与有效 2000/4500 上限断言 PASS；git diff --check PASS。最终差异 37 tracked modified +4 untracked，共 41 路径（相对本轮开始只新增 facts 模块），暂存为空、分支及 HEAD/main/origin/main 本地 refs 不变；无新远程 CI，不把旧 main CI 当本轮实现验证。
+
+## F-008 R1 规模处置复核：方案形成，数值待批
+
+- 本轮只读检查并同步七份治理文档；R1 四文件授权有效，但用户未明确替换 900/3000 的数值停止阈值，故不自动扩大额度，不恢复实现。当前仍 PARTIAL / BLOCKED_BY_SIZE，既有缺模块 RED 不重跑、不改写为 GREEN。
+- Git：feat/f-008-replan-error-recovery，HEAD/main/origin/main 本地 refs 均 3032d49c4f46167445650c71f7a570fc2c609f4a；40 个既有差异路径、37 tracked modified +3 untracked，暂存为空。代码/测试实际 33/+2011，Stack 1 11/+1005、Stack 2 5/+82、Stack 3 17/+924。R1 仍 398 行测试，无实现模块。
+- 复用核验：domain/replanning.py 的 context/classify/source/budget/diff/scope helper 可复用规则，但不提供完整计划级消费者、成本 owner 和新实体 origin 证明；旧 executor 无 projector/clock 分支。此前 928 仅对部分测试重估，不能当可靠上限。本轮按已有 398 行和冻结完整矩阵逐项核算，未通过削减断言、挪层或扩大产品范围求准入。
+- 最新估算区间（不是测量或保证）：facts 650–850、facts tests 600–750、executor 70–110、executor tests 130–190，R1 1450–1900。上沿 1900 含已有 398，故 R1 剩余 1502；R2–R5 1810 不重复计量，共剩余 3312，最终 Stack 1 18/+4017、Stack 2 5/+82、Stack 3 18/+1224、任务唯一 40/+5323。原 928/3045/4351 作为下节历史保留。
+- 候选仅 R1 专项 2000、Stack 1 4500（文件 30 不变）；须用户明确数值批准，当前有效 900/3000 不变。候选下 R1 上沿余 100、Stack 1 余 483、任务 6500 余 1177；若 R1 用满 2000，Stack 1 4117/任务 5423 仍可容纳原剩余预测，但不保证 R2–R5 实际不增。所有硬停止条件、四文件、其他 Step/stack/累计边界不变。
+- 只读命令中的目录 glob/不存在的文件路径查询未命中，改用已存在目录及精确文件完成检索；无测试失败重试或环境修复。未读取秘密/数据库/原始响应、调用 Provider、操作服务或 Git 交付；未进入 R2–R5/Step 13–14/F-009。
+- 收口验证：仅文档 required_documents/markdown/status_consistency 子集 0 issues，补充唯一 ACTIVE/R1 阻塞/后续阶段 TODO/实际与预测算术/有效上限未改断言 PASS；git diff --check PASS。相对本轮基线，七文档净新增 34 行另计，既有 33 个代码/测试文件 SHA256 全部不变，新增或缺失路径均为 0；未运行行为测试或声称新 GREEN。
+
+## F-008 R1 四文件实施：初始 RED 后规模停止
+
+- 授权：用户已批准四文件实施、Stack 1 行数上限 2800→3000（文件仍 30）；其他阈值不变。当前结果 `PARTIAL / BLOCKED_BY_SIZE / TEST_SCAFFOLD_ONLY`，不是范围未获批或新的生产缺陷。
+- 开始核验：F-008 唯一 ACTIVE；分支 feat/f-008-replan-error-recovery，HEAD/main/origin/main 本地 refs 同为 3032d49c4f46167445650c71f7a570fc2c609f4a；37 tracked + 2 untracked、39 路径与上轮哈希一致。原预测 Stack 1 2877/3000 准入通过，保留工作区，不查询远程或清理。
+- 实际仅新建 `backend/tests/application/test_replan_facts.py`；在 backend 执行 `.venv/Scripts/python.exe -B -m pytest -p no:cacheprovider tests/application/test_replan_facts.py -q`，collection 因 ReplanFactProjector 所在模块不存在失败，退出码 2。此为初始缺模块 RED，0 个行为用例执行；不是完整矩阵已验证。GREEN/lint/mypy NOT_RUN，未创建 replan_facts.py、未修改两个既有 executor 文件。
+- 对新测试执行 Ruff format 后为 398 行。已写用例范围为 legacy/V2 四命令、计划级 unknown、畸形引用、显式时效、共享来源、schedule scope 与零 I/O；所有用例尚待实现后运行，不能据用例名声称覆盖通过。
+- 剩余矩阵预测：局部成本正向约 30、来源消费者删除/完整来源约 30、五类快照变化/新增实体 origin/桥接/碰撞约 55、同地点与 I/O 完整边界约 15，共 130。保留生产模块 300、executor 40、其测试 60 原预测，R1 全部 398+130+300+40+60=928，超普通 Step 900 上限 28；未继续写实现或补测试，不减少断言、不挪层。
+- 当前实际：R1 1/+398；Stack 1 11/+1005，Stack 2 5/+82，Stack 3 17/+924；任务 33/+2011。R1 剩余 530、R2–R5 剩余 1810；最终 Stack 1 18/+3045（超新上限 45），Stack 2 5/+82、Stack 3 18/+1224、任务 40/+4351。预测不保证实现不会继续增长，未把原 760 行当成硬凑的目标。
+- 复盘：代理在前两轮设计中低估了完整矩阵及辅助代码，格式化后的实际体量暴露差距；不是新增生产问题或用户未授权。后续需先完成全矩阵和格式化规模核算，再提出整体可容纳方案，不继续依赖小幅增额、压缩断言或反复申请相同授权。记录仅落在项目任务卡/evidence，不修改全局规则。
+- 安全：定向测试入口 conftest 已只读确认；仅 test 配置/网络拒绝，无生产 app 启动、数据库或 Provider 调用。未读取秘密/原始响应/既有数据库，未操作服务、分支或 Git 交付；Step 13/14、F-009 未进入。保留未完成测试，不删除或清理。
+- 收口验证：文档检查器仅 required_documents/markdown/status_consistency 子集 0 issues；补充 R1 状态、唯一 ACTIVE、R2–R5/Step 13–14 未进入及规模算术断言 PASS；新测试 Ruff format --check --no-cache PASS，git diff --check PASS。相对本轮只读基线，仅新测试和七份治理文档变化，既有 32 个生产/测试文件 SHA256 全部相同，缺失路径 0；本轮治理文档净新增 27 行另计，不抵扣代码。工作区 37 tracked modified + 3 untracked，分支及 HEAD/main/origin/main 本地 refs 不变，暂存差异为空；未查询远程，历史 CI 不作为新测试验证。
+
+## F-008 R1 内部契约缺口处置设计 Gate
+
+- 日期：2026-09-03；结果：`DONE / DESIGN_ONLY / IMPLEMENTATION_BLOCKED`。仅七份治理文档；技术设计已冻结，R1 为 TODO / BLOCKED_BY_SIZE_AND_SCOPE_APPROVAL，尚无生产/测试实现。原两文件授权保留，不自动覆盖四文件修订或规模调整。
+- 只读复核：分支 `feat/f-008-replan-error-recovery`，HEAD/main/origin/main 本地 refs 为 `3032d49c4f46167445650c71f7a570fc2c609f4a`；37 tracked 修改 + 2 untracked，均与上一轮收口哈希相同。R1 两个新文件仍不存在；不读取秘密/数据库或原始响应，不查询远程或执行 Git 交付。
+- B1 设计：成本唯一归属与集合级依赖分开，真实生产同型的计划级 ticket unknown/local transport 估算可进行保守分析；未来金额未知不是无对应关系的借口，既有预算 helper 复用、不分摊、不按零、关系非法拒绝，分析期占位不进入最终结果。
+- B2 设计：完整 typed 消费者图覆盖计划级费用/地点/天气/uncertainty/provenance，不向无关活动塞 source；DROP 需证明无保留消费者，共享刷新不改写范围外事实；显式 evaluated_at，缓存 freshness 不作当前事实。
+- B3 设计：完整 result snapshot、稳定 schedule UUID5、完整 source 字段、唯一 origin 与精确 owned/dependent refs，另锁定五类快照外的 invariant guard。仍复用领域 diff/scope 校验，不放行全 plan，不通过同 ID 复用伪造 schedule，也不用隐藏 sources cache。
+- 范围结论：两文件可做未接线 helper，无法直接让旧 executor 使用完整来源与作用域。选择新增 facts/直接测试，并修改 provider_replanning/其直接测试的四文件方案；可选 typed projector 路径保留旧四参数 seam，新路径出错不回落。领域模型、contracts、app/bootstrap、生产装配和 Repository 均不修改；实现须独立批准。
+- 预测依据：facts 300（catalog/归属约 90、预算/来源适配及类型约 90、快照/guard 约 120），新测试 360（setup 90、参数化矩阵 210、纯计算/不变性 60），executor 40、其测试 60，R1 合计 760。R3 原 30 行事实接线工作已计入修订 R1，剩余 planner 260/测试 310=570；并非删掉测试或把改动挪层。
+- 全量规模预测：当前代码/测试 32/+1613，Stack 1 10/+607、Stack 2 5/+82、Stack 3 17/+924；未来增量 R1 760、R2 400、R3 570、R4 250、R5 590，共 2570。最终任务 40/+4183；Stack 1 18/+2877、Stack 2 5/+82、Stack 3 18/+1224。Stack 1 超原上限 77，必须在实现前停止；单片 4/+760 未超 10/900 不构成豁免，原上限未改变。
+- 文件计数校正：`test_provider_planning_job_executor.py` 既有 +20 属 Stack 2，原批准 R4 的 +30 属 Stack 1，逐层各计该路径一次、任务只计一次；原预测漏计 Stack 1 的这个路径，现修正为最终 18（不是移动已有差异）。未来触及 17 个路径，其中任务新增唯一 8；逐层文件数之和不能冒充任务去重数。
+- 证据边界：本次是源码约束下的设计，不是实现验证/独立 review/生产接通/真实 UAT；不重跑上轮纯领域探针、R1 TDD、业务全量、浏览器或 Provider 测试。完整测试矩阵已冻结但未执行，后续实现仍可能使预测增长，届时也须停止。
+- 退出条件：技术设计已完成，规模超限及新增范围待用户决定；不自行把 760 压成上限可容纳的 683，不取消来源/预算/guard 用例，不调整归属或阈值。Step 13/14、F-009 未进入，所有既有 UAT/法律事实保持。
+- 收口验证：check_required_documents/check_markdown/check_status_consistency 三项安全文档检查 0 issue；唯一 ACTIVE、R1 规模/范围阻塞、R2–R5 TODO、两实现文件不存在和全预测算术断言均 PASS；git diff --check PASS。39 个既有变更路径集合不变、32 个代码/测试文件 SHA256 不变；本轮仅七份治理文档净增 85 行，治理累计净增 1335 行。分支/HEAD/main/origin/main 本地 refs 未变；没有新增文件、数据库、服务或外部调用。
+
+## F-008 R1 实施前核验：内部契约阻塞
+
+- 日期：2026-09-03；状态：`BLOCKED / CONTRACT_GAP / IMPLEMENTATION_NOT_STARTED`。用户已批准 R1 两文件实现，不是缺少 R1 实施授权；本次没有创建两文件，仅同步七份治理文档的状态与证据。
+- 准入：计划修订 Gate 完成、F-008 唯一 ACTIVE、R1 文件均不存在；分支 `feat/f-008-replan-error-recovery`，HEAD/main/origin/main 本地 refs 同为 `3032d49c4f46167445650c71f7a570fc2c609f4a`。开始时 37 tracked 修改和 2 untracked 验收文件均属既有 F-008，逐文件记录 SHA256；不 stash/提交/清理。没有查询远程或运行 CI，旧 main CI 不证明当前未提交差异。
+- B1 源码证据：`application/services/provider_planning_jobs.py:395–412` 的 meal/ticket 是计划级成本，`:691–794` 的 legacy/V2 projection 没有向 activity 写入 cost_items；`offline_planning.py:1283–1320` 汇总全部路线得到一个 local_transport 成本。CostItem DTO 没有 owner 字段。不能依据 cost category 臆造局部归属；替换/删除/重排后的准确预算与缺失对应关系的安全输出需要明确内部政策和既有规则复用入口。此为源码分析，不宣称真实 Provider 运行失败。
+- B2 源码证据：`domain/replanning.py:249` 的 context 仅有 activities/routes/sources，无计划级消费者映射；`:490–499` 只用剩余 activity 和 route 判断 DROP。纯内存构造“目标活动引用 S，S 同时仍被计划级成本使用”的输入，既有分类结果为 `drop`；外部消费者不能直接传入当前 context。不得把全局 source 填入无关活动来使测试通过。
+- B3 源码证据：`provider_replanning.py:44/93–104` 的 snapshot 仅接收 TripPlan；完整 sources 位于 `PlanningJobResult`（`application/repositories/models.py:418`），不在 TripPlan（`contracts/trip_planning.py:422`）。`:98` 的 allowed refs 只取 impact direct/transitive/route；`domain/replanning.py:470` 的 transitive 是 route/住宿，不含独立 schedule/cost/source。snapshot 输入、稳定实体身份与所有权范围尚须联动设计，不能只散列 source ID 或开放全部 refs。
+- 可复现纯内存诊断：从后端目录以 `.venv/Scripts/python.exe -B -c` 导入既有纯 domain，构造同一目标 activity/相邻 route 的 impact；分别变更独立 SCHEDULE、COST、SOURCE 快照并调用 build_plan_change_set/validate_change_set_scope，三项均得 `change_set_scope_exceeded`；把 ACTIVITY 与 SCHEDULE 复用一个 UUID 则得 `change_snapshot_duplicate`。AST 检查现有 snapshot 参数确为 `self, plan: TripPlan`；断言生产 app 未进入 sys.modules。退出码 0；未调用 Repository、数据库、Provider 或服务。
+- 测试状态：R1 TDD RED/GREEN `NOT_RUN`，Ruff/mypy `NOT_RUN`（尚无实现文件）；上述诊断不是新功能 PASS，也不是完整 R1 测试矩阵。未执行全量离线、浏览器或真实 UAT；不会把构造对象或旧测试证据称为生产接通。
+- 当前代码/测试规模：32 唯一文件、+1707/-94、净 +1613；Stack 1 10/+607、Stack 2 5/+82、Stack 3 17/+924。本次 R1 0 文件/+0；既有生产/测试/fixture/Schema/migration/依赖/lockfile 不修改，治理单列。
+- 原预测复核：R1 +460；剩余 R2 +400、R3 +600、R4 +250、R5 Stack 1 +290/Stack 3 +300。按原归属最终 Stack 1 17/+2607、Stack 2 5/+82、Stack 3 18/+1224、任务 40/+3913，未超原硬阈值；Stack 1 余量 193。缺口处置未获批准，增量尚未确定；此原预测不是处置后规模承诺，不缩减测试、不挪层或扩阈值。
+- 收口验证：仅 check_required_documents/check_markdown/check_status_consistency 三项安全文档检查，0 issue；补充断言 roadmap ACTIVE 精确为 1 且为 F-008、R1 BLOCKED/未实现、R2–R5 TODO，均 PASS；git diff --check PASS。开始/结束 39 个变更路径集合相同，32 个既有代码/测试 SHA256 均不变；本轮仅七份治理文档净增 31 行，治理累计净增 1250 行。分支与 HEAD/main/origin/main 本地 refs 未变，未创建任何新文件。
+- 停止与解除条件：先批准内部契约缺口处置设计，明确计划级/局部预算、完整 source 消费者、snapshot 输入/身份及精确变更范围；评估是否仍可只在 R1 两文件实现，若必须调整现有领域/executor，则提出精确文件及测试归属、重新核算全 stack/任务并独立请求实施批准。任何公开 API/Schema/依赖/法律边界变化仍立即停止，不因本记录自动批准。
+- 未读取秘密、Provider 原始响应或既有数据库；未创建/修改数据库、操作服务、调用真实 Provider、创建分支、commit/push/PR/CI/merge/archive；Step 13/14 和 F-009 未进入，历史 UAT 结论不变。
+
+## F-008 生产重规划接通计划修订 Gate
+
+- 日期：2026-09-03；范围：`GOVERNANCE_ONLY`。用户本次只批准计划修订，未批准 R1–R5 实施、真实 UAT 或交付；Step 0–12 历史记录原样保留，Step 13/14 均 NOT_RUN。
+- 只读基线：分支 `feat/f-008-replan-error-recovery`；HEAD/main/origin/main 本地 refs 同为 `3032d49c4f46167445650c71f7a570fc2c609f4a`。37 tracked 修改与 2 untracked 验收文件（`browser_f008_support.py` 287 行、`test_f008_local_acceptance.py` 124 行）均与 Step 12 最终证据一致；无提交或清理。未查询远程，旧 CI 不作为当前未提交差异的 CI 证明。
+- 缺口复核：正式 runner→main→module-level create_app；`app.py:49/100/127` 默认 replan service 为 None，`api/replans.py:140/412` 的 require-service 返回既有 internal_error；`test_bootstrap.py:251` 当前明确期望 None。`provider_replanning.py:30–56` 所需 context/budget/planner/snapshot 尚无生产实现与自动装配；只读检索未发现生产构造 ReplanApplicationService 的位置。行号固定为本 Gate 修改前快照。
+- 证据局限：`browser_f008_support.py:227–236` 显式注入 synthetic planning、BrowserReplanExecutor 和 service；只能证明受控组合，不能替代默认生产入口。既有 memory commit/并发/错误恢复能力可复用；不把 F-007 review、1459/154 测试通过或 planning 成功称为生产 replan ready。
+- 治理修订：任务卡与阶段图插入 R1–R5，全部 TODO / BLOCKED_BY_APPROVAL；Step 13 主地图指针只是待准入，下一实际批准为 R1。roadmap 依赖图旧 Step 5/6 指针已修正；D-023 状态补充限定已有实现证明，新增 D-027，D-024–D-026 及历史 UAT 结论不变。
+- 文件/规模计划：16 个未来实施文件，其中 8 个新唯一文件，分片 2/+460、2/+400、3/+600、4/+250、5/+590。Stack 1 增量 +2000、Stack 2 +0、Stack 3 +300，预测累计 17/+2607、5/+82、18/+1224，总计 40/+3913。每片前重估剩余工作，Stack 1 预测余量 193 行；不扩大任何既有硬阈值，不继承 Step 12 格式化/404 例外。
+- UAT 待决：明确分开 job、replan 首次/恢复/合计、用户 retry、Provider logical call、HTTP attempt、deadline、费用、服务/时段与同期控制台证据；没有本轮批准数字就标待确认。R3 runtime policy、R5 资源/404 判定亦须独立批准。未批准继续恢复时首次明确失败即停止；不通过 planning-only 或受控故障注入绕过完整 UAT。
+- 本轮验证：`backend/.venv/Scripts/python.exe -B` 以 runpy 加载 `scripts/check_docs.py`，只运行 `check_required_documents`、`check_markdown`、`check_status_consistency`，3 类检查/0 issue；不执行全量 collect_issues、会创建临时文件的检查器自测或业务测试。`git diff --check` 通过；另行解析 R 表验证 5 个 TODO、唯一 ACTIVE=1、逐文件规划 16 个/新增 8 个/+2300，逐片/分层算术一致；不把旧 1459/154 重述为本次运行结果。
+- 本轮范围审计：仅七份批准治理文档变化、无新增路径；开始/结束 SHA-256 对照中 32 个既有代码/测试文件完全不变，Schema/migration、Provider adapter、公开 contracts、依赖/lockfile/CI 的 git diff 仍为 0。任务实际代码仍 32 文件/+1613；治理本轮净新增 173 行，累计净新增 1219 行，独立于未来修复预测。本 Gate 最终 `DONE / PASS / GOVERNANCE_ONLY`，R1–R5 未实施。
+- 边界：本次只允许 docs/README、current-task、implementation-plan、progress、roadmap、evidence、decisions 七文件；不读取秘密/既有数据库/Provider 原始响应，不调用 Provider，不操作服务或 Git 交付，不新增分支或其他文件。
+
+## F-008 Step 12：批准后收口复验
+
+- 日期：2026-09-03；结论：`DONE / PASS / OFFLINE`。用户明确批准预期且已处理的 404 单列、3 个列明文件仅跨层机械格式化、对应范围豁免和 Step 12 文件上限 11；本次只收口 Step 12，未进入 Step 13/14，F-008 整体尚未完成。
+- 本轮代码差异仅为 `backend/src/intelligent_travel_assistant/application/replanning/service.py`（+1/-3）、`backend/tests/api/test_replans_api.py`（+2/-6）、`backend/tests/application/test_multicity_provider_planning.py`（+7/-14）。固定文件列表执行 `.venv/Scripts/python.exe -m ruff format`；逐文件格式化前后 `ast.dump(ast.parse(...), include_attributes=False)` 完全相等；合计 +10/-23、净减少 13 行，没有逻辑/接口/测试断言变化。
+- 后端重新验证（backend 目录）：`.venv/Scripts/python.exe -m ruff format --check src tests` 为 `152 files already formatted`；`-m ruff check src tests` 通过；`-m mypy src tests` 为 152 文件通过；`-m pytest -q` 为 `1459 passed in 91.55s`，包括双模式重启/恢复/删除及零 live SQLite 的 8 项 F-008 验收。无跳过、无改变超时或弱化断言。
+- 前端重新验证（frontend 目录）：Node 22.16.0、Corepack pnpm 11.19.0；`corepack pnpm exec vitest run --maxWorkers=2` 为 `13 files / 154 passed in 58.31s`，包括 omitted-null 404 的 API/read/retry/delete 与 pointer 清理/焦点回归；`format:check`（全前端）、`lint`、`typecheck`、`build` 均通过。
+- console 的批准后判定：原 memory restart 记录仍为 1 条预期 HTTP 404 resource error、0 warning；这条已被正确处理的 404 按本次批准单列，其他错误/警告为 0。复核 ignored `output/playwright/f008-step12/.playwright-cli/console-2026-09-03T04-49-58-029Z.log` 与 `memory-expired-desktop.png`，截图显示不可恢复提示和已聚焦的新建表单。没有隐藏日志、改变 HTTP 状态或把原始总错误数写成 0。
+- 浏览器证据复用边界：本轮没有启动浏览器/UAT 服务；仅代码格式化和治理文档变更。既有前端/404 解析代码逐文件 SHA-256 与本轮开始时完全相同，Vite build 仍为 `index-CLDfXZTm.js` / `index-SeyZNB8n.css`；先前双模式 desktop/390px、network/console/accessibility/privacy 浏览器证据继续有效，fresh 后端/前端回归已重跑，未声称本轮新跑浏览器旅程。
+- Step 12 最终规模：11 个生产/测试文件，按阶段增量合计 +549/-33、净新增 516；原 8 文件净新增 529，加本次 3 文件净减少 13。清单外 App/两个支撑为 3，另 3 个跨层文件只有本次明确机械格式化例外；styles +2 行/替换 0%，净新增 900 行和 stack/累计上限未放宽。
+- 任务累计生产/测试：32 个唯一文件、净新增 1613；按文件原属层计算 Stack 1 为 10/607、Stack 2 为 5/82、Stack 3 为 17/924；格式化 -6/-7 分别归原 Stack 1/2，Step 12 工作量同时列为跨层例外，不重复累计文件/行数。仍低于 30/2800、24/2200、24/2200 和任务 68/6500。
+- 最终审计：文档检查为 17 required / 30 Markdown，检查器 24 tests OK，`git diff --check` 通过；唯一 ACTIVE 任务为 F-008，Step 12 DONE、Step 13/14 TODO。SHA-256 对比确认本轮只修改 3 个获批代码/测试文件与 7 个治理文档，其他 29 个既有任务文件不变、无新增文件；治理累计 +1068/-22、净新增 1046（本轮净新增 24）。测试端口 8018/8019 无监听；39 个任务文件仍未提交，其中既有 2 个验收文件未跟踪。
+- 安全/交付边界：HEAD/main/origin/main 本地 refs 仍为 `3032d49c4f46167445650c71f7a570fc2c609f4a`，分支仍 `feat/f-008-replan-error-recovery`；Schema/migration、Provider adapters、公开 contracts、依赖/lockfile/CI 没有 diff。没有读取秘密/真实数据库/Provider 原始响应、调用真实 Provider、改动用户服务或远程写入；SQLite 仅离线测试临时路径。没有 commit/push/PR/CI/merge/archive；没有新增任务文件。
+- 剩余边界：Step 13/14 为 TODO / 独立批准；治理的 Step 13 指针只代表下一待批准入口，未进入执行。production concrete replan planner 自动装配仍缺失，受控显式注入不能当作真实 Provider replan ready；高德 SQLite Gate 仍 BLOCKED。所有既有 F-001/F-007 等历史 UAT 结论不变。
+
+## F-008 Step 12：初验与边界停止（历史记录）
+
+- 日期：2026-09-03；结论：`PARTIAL / ACCEPTANCE_CLARIFICATION_REQUIRED`，不是 Step 12 PASS 或真实 Provider UAT。
+- 环境：CPython 3.13.3、Node 22.16.0、Corepack pnpm 11.19.0、已安装 Playwright CLI 0.1.13 / Edge 临时会话；仅 127.0.0.1:8018/8019，自建 synthetic-only app，静态页面来自本次 Vite build。
+- 新支撑：`backend/tests/browser_f008_support.py` 与 `test_f008_local_acceptance.py` 使用既有 synthetic 杭州 fixtures（只调整验收日期，历史来源时间保留，不冒充当前 Provider 事实）、actual application/API/repository、显式 fake executor。memory 为 app-owned cohort，SQLite 为本次临时文件；没有控制 API、真实 Provider 或 production runner 改造。
+- API 矩阵：memory/SQLite 各验证首轮 timeout 失败旧计划完整保留、新 request ID/确认后计划时间实际变为 10:30、旧失败记录永久终态；needs_input/conflict/stop 各两模式保留旧计划。重建 app 后 memory GET 404，SQLite 保留当前计划/replan、单任务 DELETE 正常，schema migration 仅 1/2。8 项通过。
+- 后端命令（backend 目录）：`.venv/Scripts/python.exe -m pytest tests/test_f008_local_acceptance.py tests/test_f006_local_acceptance.py tests/test_bootstrap.py tests/api/test_sqlite_replans_api.py -q` 为 `58 passed`；`-m pytest -q` 为 `1459 passed in 76.71s`；`-m ruff check src tests` 通过；`-m mypy src tests` 为 152 文件通过。
+- 三个 RED/GREEN 修复：新建 terminal 缺失焦点；activity/day replan 按钮仅 20–26px；actual backend `exclude_none=True` 错误 envelope 省略 trace_id/field/provider，前端错误地要求 nullable 键齐全。分别追加焦点、44px 和实际 omitted-null 404 回归；仅在 error envelope 补缺失 nullable 默认值，未知字段/错误码/不安全文本继续拒绝，后端/公开 shape 不改。
+- 前端命令（frontend 目录）：`corepack pnpm exec vitest run --maxWorkers=2` 为 `13 files / 154 passed in 55.08s`；`exec prettier --check src`、`lint`、`typecheck`、`build` 全通过；无 skip、超时延长或依赖更换。
+- 浏览器 memory：桌面创建→调整分析→确认→timeout→旧时间 10:00 保留→键盘新 ID 重试→再次确认→completed/10:30；同进程 reload 恢复；仅重启自建测试进程后旧 pointer GET 404。修复后清除 ID、返回新建并聚焦“行前设定”，不自动重建。
+- 浏览器 SQLite：390px 新建终态标题焦点、取消 composer 焦点返回原按钮；重启自建 SQLite 测试进程后同 job/计划恢复；通过 inline 确认删除单个 synthetic 任务，pointer 清空、表单获得焦点。两次删除旅程均只影响本次自建任务。
+- 可访问性：1440/390px content width 分别等于 viewport，无横向溢出；修复后所有可见按钮至少 44px 高，调整控件宽高至少 44；单 polite live region，impact/error/change-set 标题焦点与 Tab/Enter 路径已观测。source trust/time/freshness 实际 computed-style 对比度为 13.77/5.89/最低 5.21:1；既有 partial token 对比度回归通过。
+- 隐私/网络：localStorage 只含 canonical UUID，sessionStorage 空、IndexedDB/CacheStorage/service worker 数量 0；已观测业务请求仅 loopback，没有点开 Provider 来源链接。测试进程阻止 non-loopback socket.connect，memory lifecycle patch 证明 sqlite3.connect 尝试为 0，memory 数据库文件不存在，fake adapters.calls 为 0。
+- console 准确记录：正常 create/replan/recover/delete 旅程为 0 error/0 warning；最终 memory restart/404 场景为 1 error/0 warning，内容是浏览器 HTTP 404 resource error，无未处理 JS 异常。冻结要求同时包含 404 和 console 绝对为 0，因此未宣称 PASS，未隐藏日志、改 HTTP status、修改测试判定或自动豁免；需用户确认此一条预期且已处理的 404 是否可单列，非预期错误/警告仍必须为 0。
+- 观测工具复盘：CLI 两次把单次 204 DELETE 列为两条，而浏览器 Resource Timing 在相同完整旅程显示 POST 202、GET 200、DELETE 204 各一条；不能把 CLI 列表长度直接当 HTTP attempt 数。后续遇到无 body 响应计数应交叉核对 Resource Timing/受控服务证据，不修改生产代码掩盖工具重复记录。
+- 最终 format 非 PASS：`ruff format --check src tests` 为 3 个先前 Step 文件需格式化、149 个已合规；具体是 `application/replanning/service.py`、`tests/api/test_replans_api.py`、`tests/application/test_multicity_provider_planning.py`。这与 Ruff lint/mypy PASS 不矛盾；未修改，因本轮会扩至 11 文件并跨层，需范围例外或独立收口批准。
+- Step 12 文件归属均记 Stack 3：`App.tsx`、`localJobRecovery.test.tsx`、`styles.css`、`styles.accessibility.test.ts`、`tripPlanningApi.ts`、`tripPlanningApi.test.ts` 及上述两个 backend 验收支撑。实际 `8 files / +539/-10 / net +529`；local recovery 扣除 Step 11 既有 +11/-2，新增文件按全文 287/124 行计入。清单外 App/两个支撑共 3，未越线；styles +2/0、替换 0%。
+- 任务累计生产/测试：32 个唯一文件，净新增 1626；Stack 1 为 10/613，Stack 2 为 5/89，Stack 3 为 17/924，均未超过 30/2800、24/2200、24/2200、任务 68/6500。治理文档另计，不用文档抵扣代码规模。
+- 最终治理审计：文档检查 `17 required / 30 Markdown`、检查器 `24 tests OK`、`git diff --check` 通过；roadmap 唯一 ACTIVE 为 F-008，当前指针均为 Step 12 PARTIAL，Step 13/14 TODO。治理累计 7 文件 `+1044/-22`、净新增 1022（本 Step 更新其中 6 文件、净新增 43）；累计工作区 39 个任务文件，其中 2 个新验收文件未跟踪，其他为已解释的 F-008 未提交修改。
+- Git：当前 `feat/f-008-replan-error-recovery`，HEAD/main/origin/main 本地 refs 仍为 `3032d49c4f46167445650c71f7a570fc2c609f4a`；差异均未提交，新增两个验收文件；本轮没有访问远程，旧 CI 不作为当前未提交差异的 CI 证明。
+- 测试结束：只关闭自建 Playwright 会话和本轮确切 Python 进程（8018/8019），最终无这两个端口监听；没有停止/重启用户服务。仅通过 UI 删除自建 synthetic 任务记录，无法通过产品恢复；没有删除文件，临时 SQLite 文件和 ignored `output/playwright/f008-step12` synthetic 截图/快照保留。
+- 边界：未读取秘密/真实数据库/Provider raw response，未调用真实 Provider；Schema/migration、Provider adapters、公开 contracts、依赖/lockfile/CI diff 为 0；无 commit/push/PR/远程 CI/merge/archive。production concrete replan planner 自动装配缺失继续明确保留，不能据显式测试注入称实际 Provider replan ready；Step 13/14 尚未开始。
+
+## F-008 Step 11：UX 恢复、生命周期披露与事实可信度
+
+- 日期：2026-09-03；结论：`DONE / PASS / OFFLINE`。只修改既有前端组件/hook 与直接测试，没有新增 API/依赖/样式框架或后端实现；
+- RED/GREEN：最初披露/恢复/404 文案缺失的 RED 已转绿；本次增加 7 类恢复动作与实际 planning GET/focus 测试，暴露终态不聚焦及“刷新”只关闭弹层；新增创建响应丢失测试暴露“原计划保持不变”的无证据断言，均已修复；
+- 恢复行为：失败/cancel 新 request ID；输入错误回到结构化编辑；版本/过期冲突实际 GET 当前 plan；unknown/config/auth/schema 停止；未核实的创建响应不新建调整，未核实的确认响应继续同 replan 轮询；
+- 生命周期/事实：提交前与单城/多城结果均有 memory 披露；READY 仅称规则通过；来源显示 Provider 未交叉核验、AI 非事实来源、user 未核验、system 固定估算；unknown/stale 保留；duration-rule uncertainty 显示 affected refs/source count；pointer 404 与 ID-only localStorage 保持；
+- 运行时：系统 Node `22.16.0`、`corepack pnpm` `11.19.0`；未使用 Codex 捆绑 Node 24/裸 pnpm 作为验收环境；
+- 全量：frontend 目录执行 `corepack pnpm exec vitest run --maxWorkers=2`，`13 files / 142 passed`；未跳过测试、未延长单用例超时；随后 `corepack pnpm format:check`、`lint`、`typecheck`、`build` 通过；
+- 保留非 PASS 观测：默认并发运行曾为 `136 passed / 6 failed`，其中表单 5 秒 timeout 后出现输入串扰；降低并发完整重跑通过，不改项目配置、不删除/弱化测试，不宣称默认并发稳定性已经解决；
+- 规模：Step 11 最终 10 文件，`+444/-49`、净新增 395；提交前披露断言由独立 form 测试集中到 local recovery 集成测试，既有测试保留；清单外直接相关 `TripRequestForm.tsx`、`multicityPlanning.red.test.tsx` 共 2 个；styles diff 0，满足 10/+900/清单外 3 的停止阈值；
+- 治理校正：current-task/plan/progress/roadmap/README 统一到 Step 12 TODO；修正旧 Step 5/6 roadmap 指针及“尚未实现”残留，保留历史 Gate 和每阶段证据；总体目标授权只覆盖安全本地工作，不绕过 Step 13/14 独立批准；
+- 边界：本 Step 未访问秘密、Provider、既有数据库或业务服务，未停止/重启服务、commit/push/PR/CI/merge/archive；未修改 Schema/migration、依赖/lockfile、Provider adapter 或公开 API；
+- 剩余：Step 12 双模式浏览器验收未运行；production replan 仍依赖显式受控注入，不能据此前端 PASS 宣称实际 Provider replan ready；Step 13/14 尚需独立批准。
+- 最终审计：文档检查 `17 required / 30 Markdown` 与检查器 `24 passed`、`git diff --check` 通过；唯一 ACTIVE 为 F-008，Step 11 DONE、Step 12 TODO；分支与 HEAD/main/origin/main 基线不变，无未跟踪文件。累计生产/测试 25 文件净新增 1097 行（Stack 1：10/613，Stack 2：5/89，Stack 3：10/395），治理 7 文件 `+1001/-22`、净新增 979 行；各规模阈值未触发。
+
+## F-008 Step 10：UX 可信度、纯内存生命周期与真实 UAT 协议冻结
+
+- 日期：2026-09-03；结论：`DONE / PASS / DESIGN_ONLY`。D-026 已建立；前端、后端、测试、fixture、Schema/migration、依赖/lockfile diff 相对 Step 9 为 0；
+- 生命周期：提交前条件式披露、结果页短版披露、pointer 404 清理与“服务重启后真实结果无法恢复”语义已冻结；localStorage 不保存计划内容；
+- 事实标签：Amap/QWeather 为 Provider 提供未交叉核验，DeepSeek 只做候选选择，user 未核验，system 为固定估算；unknown validity/amount 不得升级为当前有效或 0；
+- 恢复：planning 沿用 attempt/retryable；replan 只从既有 status/error 推导 retry-new-request/modify-input/refresh-plan/stop，非 completed 永远保留原计划；
+- UAT：Step 13 的独立批准、次数/停止条件、同期控制台、零写盘、秘密边界和 PASS/FAIL/INCONCLUSIVE 已冻结；本 Step 未执行真实 Provider UAT；
+- 下一入口：用户总体完成授权允许 Step 11 前端 TDD；仍禁止 Step 12、真实 Provider、远程交付或 F-009。
+
+## F-008 Step 9：四版本、SQLite、Provider failure matrix 与固定 eval 离线回归
+
+- 日期：2026-09-03；结论：`DONE / PASS / OFFLINE`。本 Step 只执行冻结离线验收，没有修改生产、测试、fixture、eval 或 cases；
+- 验证：legacy/V2/V3/V4 application、四类临时 schema v2 SQLite API、Provider transport failure matrix、terminal result contracts 与 F-005 eval 合计 `163 passed in 15.65s`；
+- 固定 eval：`f005-v1` 仍为 48 case、legacy/V2/V3/F-003 各 12；连续两次确定性一致；加权分 `100.0`；prompt injection、source forgery、tool overreach、budget overrun、fake ready 均 0 failure；cases/runner/models/application diff 为 0；
+- 同 head 全量：Step 8 后端 `1451 passed`、Ruff 与 mypy 150 文件通过；`git diff --check` 通过；
+- 边界：SQLite 仅使用 pytest 临时路径，Schema version 2、migration 1/2 不变；Provider 为 fake/MockTransport，非 loopback 网络阻断；不构成真实 Provider/模型 UAT；
+- 下一入口：用户总体完成授权允许 Step 10 UX/UAT 协议设计冻结；仍禁止 Step 11、真实 Provider、远程交付或 F-009。
+
+## F-008 Step 8：计划事实 grounding 与 Provider 质量判断
+
+- 日期：2026-09-03；结论：`DONE / PASS`。只实现 D-025 的已识别缺口；没有修改 Provider adapter/request/parse、公开 contracts、Schema/migration、依赖/lockfile 或路线阈值；
+- RED：单城模型标题、多城模型标题和 V3/V4 unknown duration uncertainty 共 3 项均按预期失败，分别证明模型文本直达公开 itinerary 与 unknown 静默 120 分钟；
+- GREEN：scheduler 和 multicity builder 从所选 typed POI 重建规范化标题；V3/V4 unknown duration 继续使用既有 120 分钟规则，但增加 `activity_duration_estimated_rule`、精确 activity ref、system estimation source 并参与 PARTIAL 仲裁；
+- 验证：3 个 RED 转 GREEN；grounding/quality 相关集合 `267 passed`；后端全量 `1451 passed in 82.36s`；Ruff 全量通过；mypy `150 source files` 通过；`git diff --check` 通过；
+- 规模：Step 8 修改 5 个批准生产/测试文件，`+97/-8`、净新增 89 行，低于 10/+900 阈值；Provider adapters、public contracts、Repository、SQLite schema/migrations、依赖/lockfile/frontend diff 为 0；
+- 下一入口：用户总体完成授权允许 Step 9 离线兼容回归；仍禁止 Step 10、真实 Provider、远程交付或 F-009。
+
+## F-008 Step 7：计划事实 grounding 与 Provider 质量契约冻结
+
+- 日期：2026-09-03；结论：`DONE / PASS / DESIGN_ONLY`。D-025 已建立；生产、测试、fixture、eval、Schema/migration、依赖/lockfile、Provider adapter 与公开 contracts diff 为 0；
+- 代码事实：现有 typed ProviderResult、source/freshness 和 final validation 足以承载闭集，但模型 `selection.title` 当前可直达公开 itinerary，且 V3/V4 `duration_class=unknown` 当前静默映射 120 分钟而没有对应 uncertainty；两者已固定为 Step 8 RED，不把当前行为误写为通过；
+- grounding：模型只做 location/order/kind/duration-class 选择；公开城市/POI/route/weather/cost 必须由对应本地校验后的 typed result 重建并引用同结果 sources；悬空、借用和上下文不匹配 fail closed；
+- quality/freshness：required/optional、OK/PARTIAL/UNAVAILABLE、fresh/stale/unknown-validity 及 `CONFLICT > FAILED/NEEDS_INPUT > PARTIAL > READY` 已冻结；Provider OK 不等于交叉核验，unknown validity 不得成为 READY；
+- unknown/fallback：unknown 不按 0；V3/V4 固定 duration 规则必须 system estimate + uncertainty；fallback 仅限用户所选模式内 empty/结构无效 primary，不能掩盖 auth/schema/transient/stale/deadline/budget/坐标缺失，且采用后至少 PARTIAL；没有批准路线数值阈值；
+- 下一入口：用户总体完成授权允许 Step 8 本地 TDD；仍禁止 Step 9、真实 Provider、远程交付或 F-009。
+
+## F-008 Step 6：全离线 replan 纵向验收
+
+- 日期：2026-09-03；结论：`DONE / PASS / OFFLINE`。使用 fake planner 和同进程 application/repository/API 组合，Provider logical call/HTTP attempt 为 0；本证据不是 production replan 自动装配或真实 Provider UAT；
+- 纵向行为：首个 replan 以 `provider_timeout` 终止且普通 planning GET 保留原计划；使用新的 request ID 和当前 baseline 再请求后成功，旧失败 replan 永久保持原终态；
+- RED finding：成功 replan 曾只更新 `InMemoryReplanRepository` 的内部 job version，配对 `InMemoryPlanningJobRepository` 未更新，导致 replan 为 completed 而普通 GET 仍显示旧计划；该事实分叉由新增纵向测试稳定复现；
+- 修复：live memory cohort 将 replan Repository 与 planning Repository 配对；commit 在 planning lock 下校验 expected version、READY/PARTIAL 和 result/request 一致性，再原子替换当前 typed result/status/version；not-found/version 冲突映射为既有 job-version conflict，其他校验失败映射为既有 commit-invalid；Repository Protocol 与公开 API 不变；
+- 验证：replan/bootstrap 相关集合 `135 passed`；后端全量 `1449 passed in 82.31s`；Ruff 全量通过；mypy `150 source files` 通过；
+- 规模：Step 6 增量为 3 个批准生产/测试文件，`+104/-2`、净新增 102 行，低于 10/+900 阈值；Schema/migration、依赖/lockfile、Provider adapters、公开 contracts 和 frontend diff 为 0；
+- 文档验证：17 required / 30 Markdown 检查通过，文档检查器 `24 passed`，`git diff --check` 通过；Step 6 收口后治理文档累计 `802 insertions / 22 deletions / net +780`；
+- 限制：production `create_app()` 继续保留 F-003 的显式 replan service 注入边界，仓库仍无可安全自动装配的 production replan planner；本 Step 不虚构 production replan ready；
+- 下一入口：用户总体完成授权允许 Step 7 设计冻结；仍禁止 Step 8、真实 Provider、远程交付或 F-009。
+
+## F-008 Step 5：replan 失败恢复与错误传播
+
+- 日期：2026-09-02；结论：`DONE / PASS`。只实现 D-024；没有进入 Step 6、真实 Provider 或公开 API 扩张；
+- RED：新增 planless safe error、terminal projection、原计划保留和 lock cleanup 测试后为 `15 failed / 23 passed`，精确暴露原 error 丢失、generic projection 和 lock 不清理；
+- GREEN：planless result 保留首个 validated ApiErrorCode 并分类为 NEEDS_INPUT/CONFLICT/REJECTED/FAILED；terminal response 使用既有 code/retryable/diagnostic_code/fixed message；unknown safe code internal fail closed 且不回显；
+- 并发：service 增加 per-replan waiter count，同一 replan executor 仍最多一次；最后使用者退出后 lock/count 清理，cancel/exception 路径同样进入 finally；
+- 原计划：API 表驱动用 GET 当前 planning job 深入断言每种 failure 后 plan ID 不变；既有 memory/SQLite commit、两个并发 replan 最多一个版本和 transaction rollback 测试继续通过；
+- 验证：核心 application/API `39 passed`；domain/application/memory/SQLite/API/contracts replan 集合 `102 passed`；后端全量 `1448 passed in 79.40s`；Ruff 全量通过；mypy `150 source files` 通过；
+- 规模：Step 5 修改 6 个批准生产/测试文件，`+268/-17`、净新增 251 行，低于 10/+900 阈值；Repository Protocol、memory/SQLite repository、schema/migration、Provider adapters、contracts、依赖/lockfile/frontend diff 为 0；
+- 限制：production app 继续保留 F-003 的显式 replan service 注入边界；仓库不存在可安全自动装配的 production replan planner，本 Step 不以恒失败替身伪装该能力。Step 6 必须如实验收受控纵向组合；
+- 文档验证与累计治理规模：由最新 Step 6 证据统一复核；
+- 下一入口：Step 6 已完成，历史入口已关闭。
+
+## F-008 Step 4：replan 错误恢复契约冻结
+
+- 日期：2026-09-02；结论：`DONE / PASS / DESIGN_ONLY`。用户总体授权完成 F-008；本 Step 只冻结设计，没有修改 Step 5 生产代码或测试；
+- 代码事实：现有 `ReplanOutcome` 已持有 safe `error_code`，public `ApiError` 已有 code/retryable/diagnostic_code，`ReplanApplicationService` 只在 commit 成功后替换 planning result；当前 API 对多数 terminal failure 仍投影 generic `internal_error`；
+- 恢复闭集：transient/cancel→`RETRY_NEW_REQUEST`，input/budget missing→`MODIFY_INPUT`，version/baseline/change-scope/expiry→`REFRESH_PLAN`，scope/config/auth/schema/model/unknown internal→`STOP`；旧 replan 永不重置；
+- 原计划不变量：非 COMPLETED outcome 的 result/change_set/result_plan_version 为空；analysis/confirmation/execution/projection/commit 前错误与取消零 plan write；跨 replan 竞争最多一个 commit，失败者 job-version conflict；
+- 幂等/并发：same request ID+same payload 返回同一资源且不重执行；different payload conflict；same decision 幂等、opposite conflict、exact expiry terminal；同 replan executor 最多一次且终态清理 lock；
+- API/安全：不新增 endpoint/status/shape；使用现有 errors[] 和安全 diagnostic_code/fixed message；不转发异常、Provider body、URL、坐标、请求或凭证；不自动 retry Provider；
+- Step 5 矩阵：closed mapping、无 plan PlanningJobResult、exception/cancel/invalid result、原计划深比较、同 ID/decision、并发 execute/commit、memory/SQLite contract、OpenAPI 与零 Provider 调用均已冻结；
+- 文档验证：17 required / 30 Markdown 检查通过，文档检查器 `24 passed`，`git diff --check` 通过；治理累计为 `749 insertions / 22 deletions / net +727`，相对 Step 3 增加 88 行；生产/测试/fixture/Schema/migration/依赖/lockfile diff 相对 Step 3 均为 0；
+- 下一入口：用户总体完成授权允许 Step 5 本地 TDD；仍禁止 Step 6、真实 Provider UAT、commit/push/PR/CI/merge/archive 或 F-009。
+
+## F-008 Step 3：production 真实 Provider 纯内存隔离
+
+- 日期：2026-09-02；结论：`DONE / PASS`。只执行 Step 3；没有进入 Step 4、启用 replan service、改变公开 API 或调用真实 Provider；
+- RED：先在 `test_bootstrap.py` 加入 live memory cohort、SQLite 零 lifecycle、混合注入、fail-closed、兼容和 OpenAPI 断言；当前代码因不存在 `PlanningStorageMode` 在测试收集阶段按预期失败；
+- GREEN：`create_app()` 先解析 adapters 再选择 persistence；完整 DeepSeek/Amap/QWeather 自动建立一个 app-owned `InMemoryPlanningJobRepository` + `InMemoryReplanRepository` cohort，mode 为 `LIVE_MEMORY_ONLY`，maintenance/database/database_path 全为空；
+- 零 SQLite 证明：即使完整配置同时提供临时 SQLite 路径，lifespan 前后目录均不存在，spy 证明 `SqliteDatabase.open/close` 与 `MigrationRunner.run` 调用均为 0；live persistence 不执行 cleanup 或 SQL；
+- fail-closed：完整 adapters + 显式 `SqlitePlanningJobRepository` 在文件打开前以 `live_provider_persistence_must_be_memory` 拒绝；memory cohort 构造异常使用同一码且不泄露内部内容；显式内存 Repository 且无 executor 的测试 seam 保持不自动执行；
+- 生命周期/API：完整 Provider 组合配合零调用 test executor 时，同进程 POST/GET/delete 保持既有 contract；删除后和新 app 对旧 job 均返回 404；`/api/health` 及完整 OpenAPI 文档与安全模式完全一致；replan service/HTTP 行为未启用或改变；
+- 兼容：零/有效但不完整配置在显式临时 SQLite 下继续 `SAFE_UNAVAILABLE_SQLITE` + `configuration_missing` 零 Provider 调用；无显式 SQLite 的 test-only 组合继续进程内隔离；legacy/V2/V3/V4 Provider executor、SQLite API 与 replan API 定向回归通过；
+- 定向验证：`backend/.venv/Scripts/python.exe -m pytest tests/test_bootstrap.py tests/api/test_configuration_missing_trip_plans_api.py tests/api/test_sqlite_trip_plans_api.py tests/application/test_provider_planning_job_executor.py tests/api/test_replans_api.py -q` 为 `90 passed in 5.63s`；
+- 全量验证：`backend/.venv/Scripts/python.exe -m pytest -q` 为 `1433 passed in 72.60s`；`ruff check src tests` 通过；`mypy` 为 `Success: no issues found in 150 source files`；
+- 文档/Git：`backend/.venv/Scripts/python.exe scripts/check_docs.py` 通过（17 required / 30 Markdown）；文档检查器 `24 passed`；`git diff --check` 通过；F-008 仍为唯一 ACTIVE，Step 0–14 共 15 行；
+- 规模：Step 3 只修改 3 个批准生产/测试文件，`+268/-8`、净新增 260 行，低于 12 文件/+1200 行专项阈值；未预期文件为 0；累计治理文档为 `661 insertions / 22 deletions / net +639`，单独报告且不计生产/测试阈值；
+- 边界：Repository Protocol、memory Repository 实现、SQLite repository/schema/migration、Provider adapters、依赖、lockfile 和 frontend diff 均为 0；schema version 2、migration 1/2 保持；
+- 安全/交付：测试仅使用生成的临时私钥、fake/no-op、临时路径和默认非 loopback 网络阻断；没有读取 `.env.local`、Key、Token、Cookie、Authorization、Provider 原始响应或既有数据库，没有停止/重启服务、commit、push、PR、CI、merge、archive 或 F-009；
+- 下一入口：Step 4 `TODO / BLOCKED_BY_APPROVAL`。单独批准后只允许冻结 replan 错误分类、恢复、幂等、并发和原计划保留契约，不得进入 Step 5。
+
+## F-008 Step 2：真实 Provider 纯内存隔离契约冻结
+
+- 日期：2026-09-02；结论：`DONE / PASS / DESIGN_ONLY`。用户只批准 Step 2 设计冻结；没有修改生产代码、测试或 fixture，没有进入 Step 3；
+- 只读代码依据：当前 `create_app()` 在解析 Provider 前调用 `build_planning_persistence()`；production 默认 SQLite；`PlanningPersistence.start()` 会建目录、open、migration 与 cleanup；现有 `InMemoryPlanningJobRepository`/`InMemoryReplanRepository` 都不跨重启；`ReplanApplicationService` 分别依赖 planning/replan Repository。因此真实 Provider 的安全组合必须先判定 adapters，再一次性拥有同进程 memory cohort；
+- 模式冻结：完整 DeepSeek/Amap/QWeather 为 `LIVE_MEMORY_ONLY`；零/有效但不完整组合为 `SAFE_UNAVAILABLE_SQLITE` + 既有 `configuration_missing` 零 Provider 调用；非法 adapter 配置沿用安全启动错误，不回退 SQLite；
+- cohort 冻结：live `PlanningPersistence` 同时持有 planning/replan 内存 Repository，maintenance/database/database_path 全为空；启动/关闭的 SQLite directory/open/close/migration/cleanup/SQL 为 0。Step 3 不提前启用 replan service，Step 5 接线时必须复用同一 cohort；
+- 防绕过：无 live→SQLite 设置或环境开关；完整 adapters + 显式非内存 Repository、或 live cohort 构造失败，固定以 `live_provider_persistence_must_be_memory` fail closed；显式 Repository/executor/service 只保留为测试 seam，module-level production app 不使用注入；
+- 数据/生命周期：live 请求、状态、计划、POI/坐标/路线、source/freshness/diagnostic、摘要/hash 与 replan aggregate 全部仅当前 app 进程可用；重启后旧 ID 返回既有 404；API/OpenAPI 不变，UI 固定披露在 Step 11 实现；
+- Step 3 RED/GREEN：已冻结完整 adapters 内存 cohort、SQLite lifecycle/write 零调用、legacy/V2/V3/V4 fake/MockTransport、同进程 retry/delete、重启 404、零/不完整配置安全 SQLite、非法/混合组合 fail closed、显式注入兼容、API/OpenAPI/replan 行为零差异；
+- 文档验证：`python scripts/check_docs.py` 通过（17 required documents / 30 Markdown files）；`backend/.venv/Scripts/python.exe -m pytest scripts/tests/test_check_docs.py -q` 为 `24 passed`；`git diff --check` 通过；
+- 范围：累计工作区仍只包含 7 份治理文档，规模为 `630 insertions / 22 deletions / net +608`；相对上一计划修订基线增加 74 行治理记录；生产代码、测试、fixture、Schema、migration、依赖、lockfile 和数据库改动均为 0；
+- 禁止项：没有读取 `.env.local`、Key、Token、Cookie、Authorization 或 Provider 原始响应；没有调用 Provider、停止/重启服务、commit、push、PR、CI、merge、archive 或进入 F-009；
+- 下一入口：Step 3 `TODO / BLOCKED_BY_APPROVAL`。单独批准后才允许在 Stack 1 冻结范围和 12 文件/+1200 行专项阈值内以 TDD 实现；不得自动进入 Step 4。
+
+## F-008 纯内存隔离计划修订 Gate
+
+- 日期：2026-09-02；结论：`DONE / PASS / GOVERNANCE_ONLY`。只修订 Step 地图、文件归属、测试矩阵和规模阈值；没有进入 Step 2；
+- 地图：Step 0–12 修订为 Step 0–14；新增 Step 2 纯内存隔离契约冻结与 Step 3 TDD 实现；原 Step 2–12 顺延为 4–14；真实 Provider UAT 为 Step 13，交付/merge/archive 为 Step 14；
+- Stack 1：扩展为 Step 2–6，允许 `app.py`、`bootstrap.py`、必要时最小修改 memory Repository，并加入 bootstrap/configuration-missing/SQLite-zero-write/provider/replan 直接测试；settings、Repository Protocol、SQLite repository/schema、migration、Provider adapters 和公开 contracts 默认只读；
+- Stack 2/3：Stack 2 改为 Step 7–9且原文件归属不变；Stack 3 改为 Step 10–13，增加纯内存生命周期披露与 recovery/browser 验证；Step 14 仅在另行批准时加入交付治理；
+- 组合矩阵：完整 Provider 组合必须使用内存 planning/replan Repository且 SQLite open/migration/write 为 0；零/不完整配置保持 SQLite + `configuration_missing` 零 Provider 调用；显式测试注入兼容；
+- 生命周期矩阵：legacy/V2/V3/V4 同进程 GET/retry/replan/delete；新 app 对旧 live job 返回既有 404；pointer 清理返回新建；offline/user/system-only SQLite 仍保留 schema v2、migration 1/2、30 天维护和重启恢复；
+- UX/安全矩阵：desktop/390px 必须披露“真实结果仅本次运行可用”；默认测试阻断非 loopback 网络，只用 fake/synthetic/MockTransport，不读取秘密、真实数据库或 Provider 响应；
+- 阈值：一般 Step 10 文件/900 行/清单外 3 文件；Step 3 专项 12/1200；Stack 1 为 30/2800、Stack 2 为 24/2200、Stack 3 为 24/2200、任务累计 68/6500；CSS 400 行/25% 不变；
+- 停止项：Schema/migration、依赖/lockfile、公开 API、Provider request/parse/account/Key/QPS/quota/billing、偏离 D-020/D-021、既有数据库读取/迁移/删除、F-004B2 或 F-009；
+- 范围：累计工作区仍只包含 7 份治理文档，规模为 `556 insertions / 22 deletions / net +534`；生产代码、测试、fixture、Schema、migration、依赖、lockfile 和数据库改动均为 0；
+- Git/外部边界：分支和 HEAD 未变化；没有读取 `.env.local`/秘密/真实数据库，没有调用 Provider、停止/重启服务、commit、push、PR、CI、merge、archive 或 F-009；
+- 下一入口：Step 2 `TODO / BLOCKED_BY_APPROVAL`。单独批准后只冻结契约，不修改代码或测试，也不进入 Step 3。
+
+## F-008 Step 1 恢复架构 Gate：纯内存或更小字段集
+
+- 日期：2026-09-02；结论：`DONE / MEMORY_ONLY_DIRECTION_APPROVED / PLAN_AMENDMENT_REQUIRED`。用户授权不能替代高德书面许可，D-020 的 SQLite `BLOCKED` 保持；
+- 用户授权：用户明确希望取得高德正式书面授权，并批准执行纯内存/更小字段集的产品与架构 Gate；本次没有登录账号、提交工单或产生外部写入；
+- SQLite 事实：schema v2 的 `plan_versions.plan_json` 保存完整 typed plan，`source_records` 保存 Provider、record ID、获取/有效时间、freshness、reference URL、attribution 和 warning；plan 含 POI 名称/地址/类型/坐标及路线距离/时长/方式，因此当前 production SQLite 不能满足零 Provider 数据持久化；
+- 组合事实：`build_planning_persistence()` 仅在 test 且无 SQLite 路径时选择 `InMemoryPlanningJobRepository`，其他 production 路径默认 SQLite；已有 planning/replan 内存 Repository 遵守同一 Protocol 且不跨进程持久化，证明纯内存方向技术可行；
+- 字段集判定：“更小字段集”被否决。官方证据没有为任何高德派生字段提供类别级 SQLite 许可，安全下界只能是 Provider 派生数据持久化为 0；
+- 选择方向：启用真实 Provider 的整个 planning job/replan aggregate 必须端到端使用内存 Repository；SQLite 只用于完全不含真实 Provider 派生内容的任务，不保存计划、POI、坐标、路线、来源、时效、诊断、摘要或 hash；
+- 产品影响：真实 Provider job 仅在当前进程内支持读取、retry、replan/delete，进程退出后不恢复；下次 canonical pointer 404 按现有逻辑清理并返回新建，UI 必须提前披露该差异；
+- 计划阻塞：实现至少涉及 bootstrap、可能的 settings/app、planning/replan Repository 一致性、前端恢复披露与直接测试，超出当前三层冻结文件归属并改变 F-006 重启恢复语义；现有 Step 2–3 不能在不破坏单目标规则的情况下吸收；
+- 数据处置：没有读取、扫描、迁移或删除既有本地数据库；历史数据库是否含 Provider 派生内容保持未知，后续处置必须单独批准；
+- 边界：没有修改生产代码、测试、fixture、Schema、migration、依赖、lockfile 或公开 API；没有读取秘密、调用 Provider、创建数据库、停止/重启服务、commit、push、PR、CI、merge、archive 或 F-009；
+- 下一入口：先批准精确计划修订，增加纯内存隔离的独立设计/实现步骤、文件归属、测试矩阵和规模阈值；Step 2 当前 `TODO / BLOCKED_BY_PLAN_AMENDMENT`。
+
+## F-008 Step 1：高德数据持久化法律/数据 Gate
+
+- 日期：2026-09-02；结论：`DONE / BLOCKED`。这不是高德数据落盘、纯内存、部分字段、Schema/API 变化、Step 2 或真实 Provider UAT 授权；
+- 官方协议：[高德地图开放平台服务协议](https://developer.amap.com/pages/terms/) 标注更新时间 2025-12-03。第 2.2 条把 POI、坐标经纬度、地址和路线规划等纳入“相关内容”；第 3.5 条限制直接存储、缓存，脱离服务使用需工单评估；第 3.8、7.2、7.3 条要求未明示权利取得明确书面许可，并限制存储、缓存和派生使用；
+- 数据库边界：同一协议第 4.12.7 条明确限制未经许可生成衍生品，包括用于数据库；因此规范化或只保存选中结果不能自动绕过授权要求；
+- 附加许可：[高德地图开放平台技术服务使用许可协议](https://lbs.amap.com/pages/authorization/) 将许可限定在审核确认的使用场景，不自动提供服务数据持久化权利；
+- 既有书面回复：F-004B2 归档高德官方回复只允许程序运行期间内存临时保存，并明确禁止长期存储或持久化到本地 SQLite；截至本次审核没有新的更宽书面授权；
+- 类别矩阵：规范化 POI 名称/地址/类型、经纬度、路线距离/时长/方式、路线摘要、polyline、来源/查询时间/时效/诊断全部为 `BLOCKED`；公开协议/回复均未逐类授权 SQLite，polyline、摘要和诊断尤其没有类别级许可；
+- 生命周期：没有明确的本地 SQLite 保留期限、离线使用、删除或导出授权；attribution 与“仅供参考”展示要求可以作为展示义务，但不能推导持久化权利；
+- PASS 条件：七项条件中，数据类别允许、SQLite/保留期限、attribution/删除/导出可实现、无需额外授权、用户可批准合规架构均未全部满足；命中官方限制持久化及缺少可审计授权两个 BLOCKED 条件；
+- 安全边界：只读取官方公开页面和仓库已归档治理证据；没有登录高德、读取账号/控制台/Key/Token/Cookie/Authorization/Provider 原始响应、调用 Provider、创建数据库、停止或重启服务；
+- 代码与交付：生产代码、测试、fixture、Schema、migration、依赖、lockfile、公开 API shape 均未修改；截至恢复架构 Gate 收口时只含 7 份治理文档，`453 insertions / 22 deletions / net +431`；后续计划修订规模见本文件顶部；没有 commit、push、PR、CI、merge、archive 或 F-009；
+- 恢复入口：取得逐项覆盖必要数据类别、本地 SQLite、保留期限、attribution、删除与导出的正式书面授权后重跑 Step 1；或者由用户另行批准纯内存/更小字段集的产品与架构变更 Gate。Step 2 当前为 `TODO / BLOCKED_BY_STEP_1`。
+
+## F-008 Step 0：重建任务卡与治理基线
+
+- 日期：2026-09-02；结论：`DONE / PASS`。F-008 为唯一 `ACTIVE`，Step 1 为 `TODO / BLOCKED_BY_APPROVAL`；本证据不构成 Step 1、生产实现或真实 Provider UAT 授权；
+- 任务卡完整性：用户明确批准本次“重建任务卡”替代已删除的旧任务卡；批准范围、Step 0–12 单一目标、三层 stack、文件归属、精确规模阈值、Step 1 法律/数据 Gate、Step 11 独立真实 UAT Gate 均已完整写入权威治理文档；
+- F-007 准入：F-007 已完成 Step 0–8/8A 并 `DONE / ARCHIVED`；Step 6 保持 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 保持；2026-08-31 补充证据不构成 PASS；
+- Git 准入：开始时工作区干净且位于 main；`HEAD == main == origin/main == 3032d49c4f46167445650c71f7a570fc2c609f4a`；没有开放 PR、其他 ACTIVE 任务或同名 F-008 本地/远程分支；
+- CI 准入：最新 main Windows offline CI run `33384090738` 对应 `3032d49c4f46167445650c71f7a570fc2c609f4a` 且为 success；
+- 分支：从该基线创建本地 `feat/f-008-replan-error-recovery`；创建和文档修改后 HEAD 未变化，main/origin/main 仍相等；
+- 状态一致性：roadmap 的 ACTIVE 行精确为 1 且只属于 F-008；F-007 不再是当前 ACTIVE；current-task、implementation-plan、progress、roadmap、evidence 与 docs/README 对 Step 0/1 状态一致；
+- 文档验证：使用已安装的 backend venv 执行 `scripts/check_docs.py --root .`，17 份必需文档、30 份 Markdown、CI、状态和安全契约全部通过；该 checker 只读取项目文本/Git/CI 配置，不创建数据库、不访问 Provider、不读取被排除的本地 `.env`；
+- Git 验证：`git diff --check` 通过；修改仅为 7 份批准的治理文档；规模为 `296 insertions / 22 deletions / net +274`，不计入后续生产/测试 stack 阈值但单独报告；
+- 禁止项：没有修改生产代码、测试、fixture、Schema、migration、依赖或 lockfile；没有创建/修改数据库、读取秘密、调用真实 Provider、停止/重启服务、commit、push、创建 PR、触发 CI、merge、archive 或进入 F-009；
+- 下一入口：只允许在用户单独批准后执行 Step 1 高德数据持久化法律/数据 Gate；目前所有持久化、纯内存、部分字段、Schema/API、路线阈值和真实 UAT 候选均未批准。
+
 ## F-007 Step 8：依序合并、完整功能 main CI 与归档
 
 - 日期：2026-08-31；结论：`DONE / PASS / ARCHIVED`。F-007 Step 6 仍为 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 保持有效，不得表述为 QPS UAT PASS；
@@ -1289,3 +2372,1569 @@ B-000 不调用 DeepSeek、高德或和风天气，因此本任务不会产生�
 - 真实个人行程、联系方式和支付信息；
 - 完整终端日志、浏览器网络导出和大体积构建产物；
 - 未经验证的“应该通过”“看起来正常”或假成功结论。
+
+
+<a id="f008-governance-history"></a>
+
+## 治理纠偏历史保留区（非当前执行依据）
+
+本区仅保留2026-09-05纠偏时从原七文件移出的正文；同文重复副本合并列出原位置，已有证据正文不重复复制。原句中的相对路径以所列原文件目录为基准；以折叠原文形式保留，不执行历史Prompt、不把其中旧状态/额度当成现值。无文件删除、任务归档或历史UAT改写。
+
+<details id="f008-preserved-overall-approval">
+<summary>旧任务卡总体授权原句（本轮未独立核实原始批准，不作当前执行依据）</summary>
+<pre>
+原阶段基线要求 Step 2–12 分阶段批准；用户随后明确授予完成 F-008 的总体权限，允许按地图顺序执行安全本地工作，但仍每次只收口一个 Step。该总体权限不绕过 Step 13 真实 Provider UAT、Step 14 远程交付/merge/archive 的独立批准或任何规模、法律、秘密和环境停止条件。
+</pre>
+</details>
+
+<details id="f008-preserved-1">
+<summary>f008-preserved-1：docs/README.md：原顶部逐轮检查点（历史）；docs/project-management/implementation-plan.md：原顶部逐轮检查点（历史）；docs/project-management/progress.md：原顶部逐轮检查点（历史）；docs/project-management/roadmap.md：原顶部逐轮检查点（历史）；docs/decisions.md：原顶部逐轮检查点（历史）</summary>
+<pre>
+&#35;# R3 恢复实施检查点（当前有效，2026-09-04）
+
+- 用户已明确恢复R3；当前为`APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE`，不是DONE/PASS。F-008唯一ACTIVE，R1/R2/R3-C/R3-E既有离线结果保持，R4/R5、Step13/14、F-009未进入。
+- 仅新增R3两文件，当前303+246=549行；Ruff标准格式化只读预览655+414=1069行，未应用。完整剩余修复/类型/矩阵410–650行，预计R3 1479–1719，上沿超过已批1500达219；不以未格式化549冒充完成规模，不调整任何上限。
+- 当前代码/测试38/+7629，Stack1 16/+6623；加完整剩余及R4 250/R5 590后，Stack1 18/+8093–8333，任务40/+9399–9639，在30/8500、68/10000内；Stack2 5/+82、Stack3 17/+924及各24/2200不变。
+- 最新完整本片测试69 passed / 2 failed；Ruff 83项、mypy 66项未通过。两项模型修复用例连续三轮失败触发项目停止规则，已停止生产/测试修改；定位为合成响应漏读repair_brief.activity_source_ids，尚未修复。测试和静态禁止副作用事件0。
+- R3限定两文件及1500、R3-E907、R3-C2000、Stack1 30/8500、Stack2/3各24/2200、任务68/10000保持。原runtime授权保留；下一步须确认失败处置并先证明完整R3在1500内或单独批准精确规模调整，不能缩矩阵、挪层或自动进入R4。
+
+&#35;# R3-E 收口与907行专项授权（R3恢复前历史，离线结果保持）
+
+- 用户明确批准仅R3-E净新增上限900→907，用于标准格式化与复验；其他普通Step900、R3两文件1500、R3-C四文件2000、Stack1 30/8500、Stack2/3各24/2200、任务68/10000及D-030/安全边界不变。
+- R3-E为DONE / PASS / OFFLINE。开始1304/2147行的本片基线不归零；最终facts1598、直接测试2760，净增294+613=907/907。此次只标准格式化直接测试+47，facts内容未改，两文件语法树前后完全相同，没有新增业务或测试场景。
+- 最新复验：三定向文件968 passed；两文件Ruff format/check、mypy PASS，禁止测试/静态副作用事件0。原RED24项及历史失败证据保留；这不是全仓门禁、独立review、生产默认装配或真实Provider UAT。
+- 实际Stack1 14/+6074、Stack2 5/+82、Stack3 17/+924，代码/测试36/+7080；保留全部R3 1020–1400、R4 250、R5 590后，最终Stack1 18/+7634–8014、任务40/+8940–9320，在8500/10000内；R3用满1500时8114/9420仍在界内，后续增长须重算。
+- F-008唯一ACTIVE；R1/R2/R3-C/R3-E离线完成。R3只读前置准入PASS / IMPLEMENTATION_NOT_STARTED：依赖与当前完整规模满足，原实施/runtime授权保留，本次不执行R3，等待明确恢复；R4/R5、Step13/14、F-009未进入。
+- 本轮范围仅标准格式化一个已授权测试文件及七治理文档；43路径现场、分支/HEAD/空暂存保持，其他35代码/测试路径hash不变。未读秘密/原始响应/数据库，未创建数据库或缓存、调用Provider、操作服务、执行Git交付或更改历史UAT结论。
+- R3-E本片余量0；任何后续R3-E实质修改仍须对应授权及完整规模核验，不能借其他片余量。默认生产replan装配及真实adapter执行矩阵仍分别待R4/R3，不把本片通过写成UAT ready。
+
+&#35;# R3-E 规模授权与实施停止点（907批准前历史，2026-09-04）
+
+- 用户已明确批准Stack1净新增7500→8500、F-008累计9000→10000，并批准重新准入后恢复R3-E；本轮已执行重新准入及两文件TDD，不撤回已有实施/runtime授权，不执行R3。
+- 有效上限：R3-E两文件/+900、R3两文件/+1500、R3-C四文件/+2000、Stack1 30/+8500、Stack2/3各24/+2200、任务68/+10000；清单外0、D-030与E-T1–E-T11保持。
+- 开始43路径SHA256与前次收口逐一相同，代码/测试36/+6173；完整预测7907/9213低于新8500/10000，重新准入PASS。实现仍仅facts及其直接测试，其他34代码/测试路径hash不变。
+- 当前R3-E为APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE：原开始1304/2147，当前1598/2713，两文件净增294+566=860；标准Ruff格式化只读预览再增47，最终预计907，超过本片900达7。停止生产/测试修改，未应用该最终格式化，不以无格式化行数绕过阈值。
+- 当前实算Stack1 14/+6027、Stack2 5/+82、Stack3 17/+924，代码/测试36/+7033；含完整R3-E格式化＋R3 1400＋R4 250＋R5 590，最终Stack1 18/+8014、任务40/+9320。R3用满1500时8114/9420，均在新总额度内；阻塞仅单片，不能借用stack余量。
+- RED为新增24项在旧实现失败；新增/历史诊断专项353 passed，三定向文件968 passed，mypy两文件PASS。当前Ruff仍10项E501、format未通过；标准格式化后的内存预览lint为PASS，但907行超限未写入。禁止审计事件0，不标DONE/PASS，不宣称全量门禁或UAT ready。
+- D-030字段引用仅机械更正为CityResolutionRequest(job.request.city)：R3-E先限定job.request为TripPlanRequest/V2；旧trip.city属于领域请求包装，不适用于此job。没有改变同城绑定语义或公开shape。
+- 未读取秘密/Provider原始响应/既有数据库，未创建数据库或缓存、调用Provider、操作服务或执行Git交付。R3只读结论BLOCKED_BY_R3_E_ACCEPTANCE；R4/R5、Step13/14、F-009未进入。
+- 剩余：需独立批准本片7行格式化超限（例如仅R3-E上限900→907）或获批并验证等价规模处置，然后重跑完整离线/静态/文档验证再收口。本轮不自动申请更大产品范围，不取消完整矩阵。
+
+&#35;# R3-E1/E2 内部证据覆盖设计 Gate（此前记录；D-030技术设计保持）
+
+- 本次仅获设计授权，Gate为DONE / DESIGN_ONLY；D-030冻结模型/城市来源归属及质量诊断，未实施代码。R3-E（E1/E2必要修复）为DESIGN_FROZEN / BLOCKED_BY_SIZE_AND_APPROVAL；R3为APPROVED / BLOCKED_BY_EVIDENCE_CONTRACT_AND_SIZE / IMPLEMENTATION_NOT_STARTED，原恢复、实施及runtime数值授权保留。
+- 最小待批修复仅Stack1既有replan_facts.py与test_replan_facts.py；不改executor/领域/公开DTO/adapter/resolver。新来源仅经typed证据绑定局部消费者，旧全局/历史provenance保护不解除；模型不是事实，未知有效期至少PARTIAL，不能通过删来源/诊断或全计划放行绕过。
+- 当前代码/测试36/+6173：Stack1 14/+5167、Stack2 5/+82、Stack3 17/+924；R3-C仍4/+1862且DONE / PASS / OFFLINE，R3仍0/0。必要修复590–800＋R3 1020–1400＋R4 250＋R5 590，完整上沿Stack1 18/+7907、任务40/+9213，分别超过7500/9000达407/213；不是准入PASS。
+- 上限原样保持：R3-E适用普通单片10文件/+900且精确生产/测试清单2文件、清单外0；R3两文件/+1500、R3-C四文件/+2000、Stack1 30/+7500、Stack2/3各24/+2200、任务68/+9000。治理七文档单列，不抵扣代码规模；不削矩阵、挪层、拆片或预记未经验证的节省。
+- 下一步先处置完整规模阻塞；解除后仍须单独批准R3-E两文件实施，完成后只读复核R3准入并停止，不自动恢复R3。F-008唯一ACTIVE，R1/R2/R3-C及历史UAT结论保持；R4/R5、Step13/14、F-009均未进入，本轮不运行业务测试或Provider程序。
+
+&#35;# R3-C 联合额度批准与实现收口（R3-C结果保持；R3准入结论已于顶部更正）
+
+- 用户明确批准仅调整：R3-C净新增1500→2000、Stack1 7000→7500、F-008累计8500→9000；文件上限仍四/30/68，R3专项1500、Stack2/3各24/2200及D-029完整矩阵、安全边界不变。
+- R3-C为DONE / PASS / OFFLINE：仅D-029四文件，原开始快照698/1040/163/376不归零，最终1304/2147/205/483，净新增1862/2000；本次恢复相对1366检查点净增496。仅四生产/测试＋七治理文档变化，其余32个生产/测试路径hash不变。
+- 验证：两定向文件561 passed；含R2候选回归630 passed；四文件Ruff format/check、mypy通过。安全审计禁止事件0；不是全量门禁、生产组合、独立review或真实Provider UAT。
+- 当前代码/测试36/+6173，Stack1 14/+5167、Stack2 5/+82、Stack3 17/+924。保留R3 880–1200、R4 250、R5 590完整预测，最终Stack1 18/+6587–6907、任务40/+7893–8213；R3用满1500时为7207/8513，仍在7500/9000内。治理单列，不挪层或抵扣。
+- F-008唯一ACTIVE；R3只读前置核验PASS / IMPLEMENTATION_NOT_STARTED，既有实施/runtime授权保留，本次不执行R3，等待用户明确恢复。R4/R5、Step13/14、F-009未进入；生产默认replan仍未装配，不能宣称UAT ready。
+- 下方1500有效、待数值批准、BLOCKED_BY_SIZE和失败检查点均为批准/修复前历史；当前结论以本节及任务卡/evidence收口为准。未读取秘密/数据库、调用Provider、创建数据库、操作服务或执行Git交付。
+
+&#35;# R3-C 完整规模处置方案（批准前历史，数值已于顶部明确批准）
+
+- 本次按“先规模处置、再完成R3-C、最后判断R3准入”的顺序进行；该指令未明确改变数值上限。当前有效仍为R3-C四文件/1500、Stack1 30/7000、Stack2/3各24/2200、任务68/8500，其他边界不变。
+- 只读复核43路径SHA256与最近实施收口逐一一致，代码/测试36/+5677，本片1366；完整剩余180–310未减少。要容纳原完整上沿1676，须先证明至少176行等价净减；本轮未做试验重构，不预记未经验证的节省。
+- 待批准建议仅三项净新增上限：R3-C 1500→2000、Stack1 7000→7500、任务8500→9000；不是已批准值，不授权新增文件、缩矩阵、移层、公开API/领域/Schema/依赖/法律变化。
+- 完整原预测R3-C1546–1676不因提议额度而上调；新本片2000比原上沿1676多324行余量。R3-C/R3分别用满候选2000/已批1500且R4/R5保留250/590时，Stack1=7345、任务=8651；对应候选上限余155/349。文件预测仍18/5/18、任务40唯一文件，R4/R5若增长仍须重算，不声称覆盖各自900同时用满。
+- 本轮仅同步治理方案及旧摘要，生产/测试零修改、不重跑业务测试。最近288 passed / 16 failed、Ruff10/mypy33项FAIL仍有效；R3-C保持PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE。数值明确批准且重新准入前不恢复实现，未完成R3-C前不作R3准入PASS、更不执行R3。
+
+&#35;# R3-C 1500 恢复实施检查点（批准及修复前历史）
+
+- 用户已明确恢复R3-C实施；现为APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE，不是DONE/PASS，不进入R3。额度仍为R3-C四文件/1500、Stack1 30/7000、Stack2/3各24/2200、任务68/8500；R3专项1500及D-029完整矩阵不变。
+- 开始准入PASS，保留43路径工作区及原1150开始快照；本轮只改facts及其直接测试，净新增224/281＝505。本片四文件累计582/669/29/86＝1366（不是把861归零），1500仅余134。
+- 当前实际Stack1 14/+4671、Stack2 5/+82、Stack3 17/+924、任务36/+5677。完整R3-C尚需180–310，预计1546–1676超过1500，格式化检查点停止生产/测试修改；旧1321上沿已失效，不预记任何未验证的重构节省。
+- 加R3 1200、R4 250、R5 590后，预计Stack1 18/+6591–6721、Stack3 18/+1224、任务40/+7897–8027；若R3用满独立1500，Stack1上沿7021也超7000，任务上沿8327低于8500。累计余量不能抵消单片/层超限。
+- 两定向测试文件288 passed / 16 failed；10个失败是新helper的unknown envelope缺warning，6个是地点source重绑与weather地点相等校验冲突，不能算完整GREEN。format PASS；Ruff FAIL（6处导入排序、4处变量命名），mypy FAIL（33条，含旧facts Protocol兼容）。完整矩阵仍有缺口，详见current-task/evidence本检查点。
+- 已停止实现，保留所有现场；原R3授权/runtime不撤销但依赖R3-C PASS。无秘密/既有数据库/真实Provider访问，无数据库创建、服务操作或Git交付；Step13/14/F-009未进入。以下1150和联合额度批准时的实现状态、估算、验证均为历史，不代替本检查点。
+
+&#35;# R3-C 1150 授权与恢复实施（数值调整前历史，当前以顶部批准为准）
+
+- 用户仅批准R3-C四文件净新增900→1150；D-029设计/归属/完整矩阵不变。R3专项1500、Stack1 30/6500、Stack2/3各24/2200、任务68/8000及全部安全边界不变；下文900上限及规模阻塞记录属于本授权前历史，不再作为当前准入结论。
+- 开始实际代码/测试36/+4311；完整预测上沿R3-C1095、R3 1200、R4 250、R5 590，最终Stack1 18/+6140、Stack2 5/+82、Stack3 18/+1224、任务40/+7446，准入PASS。两片用满1150/1500且R4/R5预测不变时Stack1 6495、任务7801；不保证后续余量，检查点继续重算。
+- 当前R3-C：`APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE`，不是DONE/PASS。原1150授权继续有效；格式化检查点实际861，完整剩余315–460，预计1176–1321超1150，停止继续生产/测试修改并保留现场。
+- 当前实际代码/测试36/+5172：Stack1 14/+4166、Stack2 5/+82、Stack3 17/+924；加本片剩余315–460、R3上沿1200、R4 250、R5 590，最终Stack1 18/+6221–6366、Stack2 5/+82、Stack3 18/+1224、任务40/+7527–7672。累计上沿未超，但不能抵消本片超限；预测不是硬上限或完成保证。
+- 验证：新天气矩阵RED为56 failed/111 passed，executor包装RED为1 failed；当前两测试文件248 passed（旧111＋新137），格式化检查PASS；Ruff lint FAIL（5处import排序），mypy FAIL（15条，含旧facts Protocol静态兼容），git diff --check PASS。这些局部GREEN不覆盖D-029完整矩阵。
+- 未完成：route fallback/非天气Provider降级及来源时效/预算与hard constraint闭集映射；新增证据路径的完整来源DROP/共享/历史诊断负向矩阵；嵌套别名、完成后过期、组合/重复事件及静态兼容修复。完整职责分解见current-task最新检查点；不以恒拒绝或减少矩阵冒充完成。
+- 只改变D-029四文件＋七治理文档，其余32个既有生产/测试路径hash不变；R1/R2和历史UAT结论不改。未执行数据库/真实Provider/生产app导入/服务操作/Git交付；R3授权/runtime保留但不进入R3–R5/Step13/14/F-009。恢复仍需先解决规模预测阻塞，且R3-C必须继续相对本次开始快照累计，不能归零。
+</pre>
+</details>
+
+<details id="f008-preserved-2">
+<summary>f008-preserved-2：docs/project-management/current-task.md：原第3–98行历史/旧状态</summary>
+<pre>
+&#35;# R3 恢复实施检查点（当前有效，2026-09-04）
+
+- 用户已明确恢复R3；当前为`APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE`，不是DONE/PASS。F-008唯一ACTIVE，R1/R2/R3-C/R3-E既有离线结果保持，R4/R5、Step13/14、F-009未进入。
+- 仅新增R3两文件，当前303+246=549行；Ruff标准格式化只读预览655+414=1069行，未应用。完整剩余修复/类型/矩阵410–650行，预计R3 1479–1719，上沿超过已批1500达219；不以未格式化549冒充完成规模，不调整任何上限。
+- 当前代码/测试38/+7629，Stack1 16/+6623；加完整剩余及R4 250/R5 590后，Stack1 18/+8093–8333，任务40/+9399–9639，在30/8500、68/10000内；Stack2 5/+82、Stack3 17/+924及各24/2200不变。
+- 最新完整本片测试69 passed / 2 failed；Ruff 83项、mypy 66项未通过。两项模型修复用例连续三轮失败触发项目停止规则，已停止生产/测试修改；定位为合成响应漏读repair_brief.activity_source_ids，尚未修复。测试和静态禁止副作用事件0。
+- R3限定两文件及1500、R3-E907、R3-C2000、Stack1 30/8500、Stack2/3各24/2200、任务68/10000保持。原runtime授权保留；下一步须确认失败处置并先证明完整R3在1500内或单独批准精确规模调整，不能缩矩阵、挪层或自动进入R4。
+
+&#35;## R3 当前未完成项与恢复条件
+
+- 精确文件仍为Stack1新建`backend/src/intelligent_travel_assistant/application/services/provider_replan_planner.py`与`backend/tests/application/test_provider_replan_planner.py`，清单外0；七治理文档另计。开始两文件均不存在，当前增量549，不归零重算。
+- 验证停止原因：模型修复两例在扩展矩阵、修正天气transport路径后的完整复验、只读诊断复验中连续失败。合成生成请求从顶层取activity_source_ids正确；合成修复请求却应取repair_brief.activity_source_ids。目前读为空数组，引发candidate_schema_invalid；这是本片测试响应构造缺陷，不是高德QPS或真实Provider故障。未改resolver、adapter或D-030校验器。
+- 剩余实现120–200行预测：修复上述合成响应层级；完善天气/地点/路线时效及旧来源安全保留/合法移除、质量诊断顺序与stale闭集错误；复核局部费用/fare归属与unknown、hard constraint边界、缺配置/畸形输入安全终态。不能靠删历史诊断、全计划放行或全命令恒失败解决。
+- 剩余测试220–350行预测：模型一次真实repair成功及禁止第二次repair；Provider PARTIAL/STALE/UNKNOWN、伪造来源/越界/跨绑定；重复输入确定性、完整历史前缀、局部成本与超预算；无fallback授权、恢复及并发共享limiter；各logical call/HTTP attempt/extra预算、deadline/取消/终态后零新增请求。已实现71项均保留，补齐任务卡/D-029/D-030 R3矩阵，不宣称覆盖R4正式入口或R5旅程。
+- 类型及标准静态收口70–100行预测：补全内部函数/transport/helper类型、None收窄、公开/领域enum转换、循环绑定、未用导入；不使用全局Any/ignore关闭检查或改mypy配置。三项合计410–650，为尚未验证的工作估算，不是数学下界，也不是新增批准额度。
+- 规模算式：当前549＋标准格式化520＋完整剩余410–650＝1479–1719；旧1020–1400预测已失效。完整上沿超过单片1500达219，其他层/任务预测未超。先提出并证明保持矩阵的两文件等价方案能在1500内，或用户另行批准精确单片调整；不能从本轮“明确恢复R3”推断上限豁免。
+- 重复失败复盘：本轮合成响应初版没有逐字段对齐既有adapter envelope/repair payload，诊断复验仍重复计入相同失败。以后先逐项核对已有请求/解析契约，首次失败保留脱敏诊断并定向验证；只读诊断复跑同样计入停止阈值。规则记录在本任务卡，不修改全局AGENTS。
+- 当前仅保留部分实现，不可接入生产或标UAT ready。恢复需用户确认失败处置及完整规模重新准入；保留原runtime授权，不再索取90秒及既有调用预算的重复批准。
+
+&#35;# R3-E 收口与907行专项授权（R3恢复前历史，离线结果保持）
+
+- 用户明确批准仅R3-E净新增上限900→907，用于标准格式化与复验；其他普通Step900、R3两文件1500、R3-C四文件2000、Stack1 30/8500、Stack2/3各24/2200、任务68/10000及D-030/安全边界不变。
+- R3-E为DONE / PASS / OFFLINE。开始1304/2147行的本片基线不归零；最终facts1598、直接测试2760，净增294+613=907/907。此次只标准格式化直接测试+47，facts内容未改，两文件语法树前后完全相同，没有新增业务或测试场景。
+- 最新复验：三定向文件968 passed；两文件Ruff format/check、mypy PASS，禁止测试/静态副作用事件0。原RED24项及历史失败证据保留；这不是全仓门禁、独立review、生产默认装配或真实Provider UAT。
+- 实际Stack1 14/+6074、Stack2 5/+82、Stack3 17/+924，代码/测试36/+7080；保留全部R3 1020–1400、R4 250、R5 590后，最终Stack1 18/+7634–8014、任务40/+8940–9320，在8500/10000内；R3用满1500时8114/9420仍在界内，后续增长须重算。
+- F-008唯一ACTIVE；R1/R2/R3-C/R3-E离线完成。R3只读前置准入PASS / IMPLEMENTATION_NOT_STARTED：依赖与当前完整规模满足，原实施/runtime授权保留，本次不执行R3，等待明确恢复；R4/R5、Step13/14、F-009未进入。
+- 本轮范围仅标准格式化一个已授权测试文件及七治理文档；43路径现场、分支/HEAD/空暂存保持，其他35代码/测试路径hash不变。未读秘密/原始响应/数据库，未创建数据库或缓存、调用Provider、操作服务、执行Git交付或更改历史UAT结论。
+- R3-E本片余量0；任何后续R3-E实质修改仍须对应授权及完整规模核验，不能借其他片余量。默认生产replan装配及真实adapter执行矩阵仍分别待R4/R3，不把本片通过写成UAT ready。
+
+&#35;# R3-E 规模授权与实施停止点（907批准前历史，2026-09-04）
+
+- 用户已明确批准Stack1净新增7500→8500、F-008累计9000→10000，并批准重新准入后恢复R3-E；本轮已执行重新准入及两文件TDD，不撤回已有实施/runtime授权，不执行R3。
+- 有效上限：R3-E两文件/+900、R3两文件/+1500、R3-C四文件/+2000、Stack1 30/+8500、Stack2/3各24/+2200、任务68/+10000；清单外0、D-030与E-T1–E-T11保持。
+- 开始43路径SHA256与前次收口逐一相同，代码/测试36/+6173；完整预测7907/9213低于新8500/10000，重新准入PASS。实现仍仅facts及其直接测试，其他34代码/测试路径hash不变。
+- 当前R3-E为APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE：原开始1304/2147，当前1598/2713，两文件净增294+566=860；标准Ruff格式化只读预览再增47，最终预计907，超过本片900达7。停止生产/测试修改，未应用该最终格式化，不以无格式化行数绕过阈值。
+- 当前实算Stack1 14/+6027、Stack2 5/+82、Stack3 17/+924，代码/测试36/+7033；含完整R3-E格式化＋R3 1400＋R4 250＋R5 590，最终Stack1 18/+8014、任务40/+9320。R3用满1500时8114/9420，均在新总额度内；阻塞仅单片，不能借用stack余量。
+- RED为新增24项在旧实现失败；新增/历史诊断专项353 passed，三定向文件968 passed，mypy两文件PASS。当前Ruff仍10项E501、format未通过；标准格式化后的内存预览lint为PASS，但907行超限未写入。禁止审计事件0，不标DONE/PASS，不宣称全量门禁或UAT ready。
+- D-030字段引用仅机械更正为CityResolutionRequest(job.request.city)：R3-E先限定job.request为TripPlanRequest/V2；旧trip.city属于领域请求包装，不适用于此job。没有改变同城绑定语义或公开shape。
+- 未读取秘密/Provider原始响应/既有数据库，未创建数据库或缓存、调用Provider、操作服务或执行Git交付。R3只读结论BLOCKED_BY_R3_E_ACCEPTANCE；R4/R5、Step13/14、F-009未进入。
+- 剩余：需独立批准本片7行格式化超限（例如仅R3-E上限900→907）或获批并验证等价规模处置，然后重跑完整离线/静态/文档验证再收口。本轮不自动申请更大产品范围，不取消完整矩阵。
+
+&#35;# R3-E1/E2 内部证据覆盖设计 Gate（此前记录；D-030技术设计保持）
+
+- 本次仅获设计授权，Gate为DONE / DESIGN_ONLY；D-030冻结模型/城市来源归属及质量诊断，未实施代码。R3-E（E1/E2必要修复）为DESIGN_FROZEN / BLOCKED_BY_SIZE_AND_APPROVAL；R3为APPROVED / BLOCKED_BY_EVIDENCE_CONTRACT_AND_SIZE / IMPLEMENTATION_NOT_STARTED，原恢复、实施及runtime数值授权保留。
+- 最小待批修复仅Stack1既有replan_facts.py与test_replan_facts.py；不改executor/领域/公开DTO/adapter/resolver。新来源仅经typed证据绑定局部消费者，旧全局/历史provenance保护不解除；模型不是事实，未知有效期至少PARTIAL，不能通过删来源/诊断或全计划放行绕过。
+- 当前代码/测试36/+6173：Stack1 14/+5167、Stack2 5/+82、Stack3 17/+924；R3-C仍4/+1862且DONE / PASS / OFFLINE，R3仍0/0。必要修复590–800＋R3 1020–1400＋R4 250＋R5 590，完整上沿Stack1 18/+7907、任务40/+9213，分别超过7500/9000达407/213；不是准入PASS。
+- 上限原样保持：R3-E适用普通单片10文件/+900且精确生产/测试清单2文件、清单外0；R3两文件/+1500、R3-C四文件/+2000、Stack1 30/+7500、Stack2/3各24/+2200、任务68/+9000。治理七文档单列，不抵扣代码规模；不削矩阵、挪层、拆片或预记未经验证的节省。
+- 下一步先处置完整规模阻塞；解除后仍须单独批准R3-E两文件实施，完成后只读复核R3准入并停止，不自动恢复R3。F-008唯一ACTIVE，R1/R2/R3-C及历史UAT结论保持；R4/R5、Step13/14、F-009均未进入，本轮不运行业务测试或Provider程序。
+
+&#35;# R3-C 联合额度批准与实现收口（R3-C结果保持；R3准入结论已于顶部更正）
+
+- 用户明确批准仅调整：R3-C净新增1500→2000、Stack1 7000→7500、F-008累计8500→9000；文件上限仍四/30/68，R3专项1500、Stack2/3各24/2200及D-029完整矩阵、安全边界不变。
+- R3-C为DONE / PASS / OFFLINE：仅D-029四文件，原开始快照698/1040/163/376不归零，最终1304/2147/205/483，净新增1862/2000；本次恢复相对1366检查点净增496。仅四生产/测试＋七治理文档变化，其余32个生产/测试路径hash不变。
+- 验证：两定向文件561 passed；含R2候选回归630 passed；四文件Ruff format/check、mypy通过。安全审计禁止事件0；不是全量门禁、生产组合、独立review或真实Provider UAT。
+- 当前代码/测试36/+6173，Stack1 14/+5167、Stack2 5/+82、Stack3 17/+924。保留R3 880–1200、R4 250、R5 590完整预测，最终Stack1 18/+6587–6907、任务40/+7893–8213；R3用满1500时为7207/8513，仍在7500/9000内。治理单列，不挪层或抵扣。
+- F-008唯一ACTIVE；R3只读前置核验PASS / IMPLEMENTATION_NOT_STARTED，既有实施/runtime授权保留，本次不执行R3，等待用户明确恢复。R4/R5、Step13/14、F-009未进入；生产默认replan仍未装配，不能宣称UAT ready。
+- 下方1500有效、待数值批准、BLOCKED_BY_SIZE和失败检查点均为批准/修复前历史；当前结论以本节及任务卡/evidence收口为准。未读取秘密/数据库、调用Provider、创建数据库、操作服务或执行Git交付。
+
+&#35;# R3-C 完整规模处置方案（批准前历史，数值已于顶部明确批准）
+
+- 本次按“先规模处置、再完成R3-C、最后判断R3准入”的顺序进行；该指令未明确改变数值上限。当前有效仍为R3-C四文件/1500、Stack1 30/7000、Stack2/3各24/2200、任务68/8500，其他边界不变。
+- 只读复核43路径SHA256与最近实施收口逐一一致，代码/测试36/+5677，本片1366；完整剩余180–310未减少。要容纳原完整上沿1676，须先证明至少176行等价净减；本轮未做试验重构，不预记未经验证的节省。
+- 待批准建议仅三项净新增上限：R3-C 1500→2000、Stack1 7000→7500、任务8500→9000；不是已批准值，不授权新增文件、缩矩阵、移层、公开API/领域/Schema/依赖/法律变化。
+- 完整原预测R3-C1546–1676不因提议额度而上调；新本片2000比原上沿1676多324行余量。R3-C/R3分别用满候选2000/已批1500且R4/R5保留250/590时，Stack1=7345、任务=8651；对应候选上限余155/349。文件预测仍18/5/18、任务40唯一文件，R4/R5若增长仍须重算，不声称覆盖各自900同时用满。
+- 本轮仅同步治理方案及旧摘要，生产/测试零修改、不重跑业务测试。最近288 passed / 16 failed、Ruff10/mypy33项FAIL仍有效；R3-C保持PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE。数值明确批准且重新准入前不恢复实现，未完成R3-C前不作R3准入PASS、更不执行R3。
+
+&#35;# R3-C 1500 恢复实施检查点（批准及修复前历史）
+
+- 用户已明确恢复R3-C实施；现为APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE，不是DONE/PASS，不进入R3。额度仍为R3-C四文件/1500、Stack1 30/7000、Stack2/3各24/2200、任务68/8500；R3专项1500及D-029完整矩阵不变。
+- 开始准入PASS，保留43路径工作区及原1150开始快照；本轮只改facts及其直接测试，净新增224/281＝505。本片四文件累计582/669/29/86＝1366（不是把861归零），1500仅余134。
+- 当前实际Stack1 14/+4671、Stack2 5/+82、Stack3 17/+924、任务36/+5677。完整R3-C尚需180–310，预计1546–1676超过1500，格式化检查点停止生产/测试修改；旧1321上沿已失效，不预记任何未验证的重构节省。
+- 加R3 1200、R4 250、R5 590后，预计Stack1 18/+6591–6721、Stack3 18/+1224、任务40/+7897–8027；若R3用满独立1500，Stack1上沿7021也超7000，任务上沿8327低于8500。累计余量不能抵消单片/层超限。
+- 两定向测试文件288 passed / 16 failed；10个失败是新helper的unknown envelope缺warning，6个是地点source重绑与weather地点相等校验冲突，不能算完整GREEN。format PASS；Ruff FAIL（6处导入排序、4处变量命名），mypy FAIL（33条，含旧facts Protocol兼容）。完整矩阵仍有缺口，详见current-task/evidence本检查点。
+- 已停止实现，保留所有现场；原R3授权/runtime不撤销但依赖R3-C PASS。无秘密/既有数据库/真实Provider访问，无数据库创建、服务操作或Git交付；Step13/14/F-009未进入。以下1150和联合额度批准时的实现状态、估算、验证均为历史，不代替本检查点。
+
+&#35;# R3-C 1150 授权与恢复实施（数值调整前历史，当前以顶部批准为准）
+
+- 用户仅批准R3-C四文件净新增900→1150；D-029设计/归属/完整矩阵不变。R3专项1500、Stack1 30/6500、Stack2/3各24/2200、任务68/8000及全部安全边界不变；下文900上限及规模阻塞记录属于本授权前历史，不再作为当前准入结论。
+- 开始实际代码/测试36/+4311；完整预测上沿R3-C1095、R3 1200、R4 250、R5 590，最终Stack1 18/+6140、Stack2 5/+82、Stack3 18/+1224、任务40/+7446，准入PASS。两片用满1150/1500且R4/R5预测不变时Stack1 6495、任务7801；不保证后续余量，检查点继续重算。
+- 当前R3-C：`APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE`，不是DONE/PASS。原1150授权继续有效；格式化检查点实际861，完整剩余315–460，预计1176–1321超1150，停止继续生产/测试修改并保留现场。
+- 当前实际代码/测试36/+5172：Stack1 14/+4166、Stack2 5/+82、Stack3 17/+924；加本片剩余315–460、R3上沿1200、R4 250、R5 590，最终Stack1 18/+6221–6366、Stack2 5/+82、Stack3 18/+1224、任务40/+7527–7672。累计上沿未超，但不能抵消本片超限；预测不是硬上限或完成保证。
+- 验证：新天气矩阵RED为56 failed/111 passed，executor包装RED为1 failed；当前两测试文件248 passed（旧111＋新137），格式化检查PASS；Ruff lint FAIL（5处import排序），mypy FAIL（15条，含旧facts Protocol静态兼容），git diff --check PASS。这些局部GREEN不覆盖D-029完整矩阵。
+- 未完成：route fallback/非天气Provider降级及来源时效/预算与hard constraint闭集映射；新增证据路径的完整来源DROP/共享/历史诊断负向矩阵；嵌套别名、完成后过期、组合/重复事件及静态兼容修复。完整职责分解见current-task最新检查点；不以恒拒绝或减少矩阵冒充完成。
+- 只改变D-029四文件＋七治理文档，其余32个既有生产/测试路径hash不变；R1/R2和历史UAT结论不改。未执行数据库/真实Provider/生产app导入/服务操作/Git交付；R3授权/runtime保留但不进入R3–R5/Step13/14/F-009。恢复仍需先解决规模预测阻塞，且R3-C必须继续相对本次开始快照累计，不能归零。
+
+&#35;# F-008：真实 UAT 缺陷收口与计划事实可信度
+
+- 状态：`ACTIVE / R3_BLOCKED_BY_VALIDATION_AND_SIZE`
+- 当前唯一活动任务：F-008
+- 当前分支：`feat/f-008-replan-error-recovery`
+- 当前 Step：`Step 13 - 真实 Provider 用户 UAT`（`TODO / BLOCKED_BY_PREREQUISITES_AND_APPROVAL`；主地图待准入指针，不代表已执行）
+- 当前执行单元：R3 `APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE`；已恢复两文件实施，69 passed / 2 failed，静态未通过；先处置重复失败与完整规模。R3-E既有离线PASS保持，不进入R4/R5。
+- Step 0 基线 main：`3032d49c4f46167445650c71f7a570fc2c609f4a`，对应 Windows offline CI run `33384090738` success
+- 任务卡来源：用户于 2026-09-02 明确批准的“重建任务卡”；它替代已删除且无法恢复的旧 F-008 任务卡，作为本任务新的权威执行基线
+- 当前批准边界：R3已明确恢复，仅两文件1500；一般Step900、R3-E907、R3-C2000、Stack1 30/8500、Stack2/3各24/2200、任务68/10000不变。现已触发验证及完整预测停止条件。
+</pre>
+</details>
+
+<details id="f008-preserved-3">
+<summary>f008-preserved-3：docs/project-management/current-task.md：原第150–204行历史/旧状态</summary>
+<pre>
+&#35;# R3-E 完整规模处置方案（批准前历史；8500/10000现已生效）
+
+用户已单独批准D-030两文件实施，随后要求先处置完整规模；实施授权保留，不再重复索取。当前只完成处置方案PROPOSAL_READY / PENDING_NUMERIC_APPROVAL，实际额度尚未变化。不能把“批准实施”或“处置规模”解释为提高任何数值。
+
+&#35;## 现有上限内方案的核验
+
+- 现有Stack1余量7500−5167=2333；扣除R4 250和R5在Stack1的290，只余1793给R3-E＋R3。二者完整上沿800+1400=2200，须证明至少407行额外等价净减；任务9000−6173−250−590=1987，二者上沿另超213。两个约束须同时满足。
+- 已查复用：replan_facts.py:201/236的绑定/deepcopy封装、246/277的envelope/source校验；candidate_resolution.py:280/349/957的resolver/安全repair brief/typed结果元数据；test_replan_facts.py:1279/1490的现有helper。这些已经是D-030估算采用的基础，不能再作为新节省重复扣减。
+- typed字段与城市/模型专属校验、精确消费者/阶段绑定、完整正反向矩阵和真实adapter集成仍是新增义务。两文件修复不改executor/resolver已计入最小范围；进一步跨层抽取、放松守卫、删矩阵、压成难审查短行或新增子片都不是合规规模处置。
+- 本轮无代码压缩试验、无新增测试证明，不能声称在现有上限内数学上不可能，也不能取下沿或把800/1400直接改小来宣称PASS。现有预测590–800/1020–1400/250/590原样保留，未证实节省计0。
+
+&#35;## 唯一建议：仅调整两项累计净新增上限（待批准）
+
+| 字段 | 当前有效 | 待批准候选 | 保持不变 |
+| --- | --- | --- | --- |
+| Stack1净新增 | 7500 | 8500 | 文件上限30、原文件归属 |
+| F-008任务累计净新增 | 9000 | 10000 | 唯一文件上限68、全部任务范围 |
+| R3-E / R3 / R3-C | 900 / 1500 / 2000 | 不调整 | 精确2 / 2 / 4生产测试文件，清单外0 |
+| Stack2 / Stack3 | 各24文件 / 2200 | 不调整 | 原拓扑与文件归属 |
+| 其他规则 | 原批准值 | 不调整 | 普通Step、R1、Step12独立例外、API/Schema/依赖/法律及UAT Gate |
+
+候选为审核余量，不是新的实现目标：不因上限提高而增加需求或增写代码，不改变800/1400/250/590原完整预测。选择8500/10000，是在R3-E与R3均用满各自现有额度时仍留393/587用于后续已冻结范围的不确定性；不是只把上限贴在7907/9213预测线上。两项候选需用户明确批准，当前仍按7500/9000停止。
+
+| 情景（R4/R5均保留完整250/590） | Stack1最终净增 | 任务最终净增 | 相对当前7500/9000 | 相对候选8500/10000 |
+| --- | --- | --- | --- | --- |
+| 原完整预测上沿：R3-E800、R3 1400 | 5167+800+1400+250+290=7907 | 6173+800+1400+250+590=9213 | 超407 / 213 | 余593 / 787 |
+| R3用满1500，R3-E仍800 | 8007 | 9313 | 超507 / 313 | 余493 / 687 |
+| R3-E及R3均用满900/1500 | 8107 | 9413 | 超607 / 413 | 余393 / 587 |
+
+文件仍预测Stack1 18、Stack2 5、Stack3 18、任务40唯一文件；R4共享测试在任务去重，层归属不挪动。Stack2实际82不变，Stack3预计924+300=1224；治理七文档单列、不抵扣代码。R4/R5没有任意增长保证；在最后一行压力情景下，后续新增的Stack1增量最多393、任务总增量最多587，且仍需同时满足各片/各层/文件上限，不能把剩余额度当新范围授权。
+
+&#35;## 批准与恢复顺序
+
+1. 用户明确批准上述两项数值，其他上限保持；在七文档登记精确授权。
+2. 只读核验HEAD/分支/全部差异与D-030，重算实际＋全部剩余，预计任一获批上限超出则停止。
+3. 若用户在同一审批中明确要求恢复、且准入通过，沿用已收到的R3-E两文件实施授权完成TDD与验证；无需重复批准技术范围。只有规模批准而没有恢复指令时，仅收口规模处置。
+4. R3-E完成后只读判断R3准入并停止；R3–R5/Step13/14/F-009均不自动执行。
+
+可复制的下一条审批Prompt（以下尚未生效）：
+
+```text
+批准F-008完整规模处置，仅将Stack1净新增上限7500调整为8500，
+任务累计净新增上限9000调整为10000；文件上限仍30/68。
+R3-E两文件900、R3两文件1500、R3-C四文件2000、
+Stack2/3各24文件/2200及其他全部边界不变。
+先同步七治理文档中的精确授权，重算实际＋完整R3-E/R3/R4/R5。
+准入通过后恢复此前已批准的R3-E两文件实施与验证，
+严格保持D-030和完整矩阵；预计超限立即停止。
+完成后仅只读判断R3准入并停止，不执行R3–R5、Step13/14或F-009。
+不读取秘密或既有数据库、不调用Provider、不操作服务或执行Git交付。
+```
+
+本轮复盘：连续停在同一规模Gate的原因是实施授权与数值授权是两个独立条件；完整预测还必须包含后来发现的契约修复及集成测试，不能沿用缺项旧估算。后续以本节同一张“实际＋所有剩余＋压力情景”表核验，避免再次只批准实施却仍卡在已知规模前提；不修改全局AGENTS规则。
+</pre>
+</details>
+
+<details id="f008-preserved-4">
+<summary>f008-preserved-4：docs/project-management/current-task.md：原第242–490行历史/旧状态</summary>
+<pre>
+&#35;## 必要修复加全部剩余的规模核算
+
+| 范围 | 当前实际（文件/净增） | 全部剩余净增预测 | 最终预测（文件/净增） | 现有硬上限 | 结论 |
+| --- | --- | --- | --- | --- | --- |
+| R3-E | 0 / 0 | 590–800 | 2 / 590–800 | 精确2文件；普通+900 | 单片预测内，尚未实施 |
+| R3 | 0 / 0 | 1020–1400 | 2 / 1020–1400 | 2 / 1500 | 单片预测内；依赖修复 |
+| Stack 1 | 14 / 5167 | R3-E＋R3＋R4 250＋R5 290＝2150–2740 | 18 / 7317–7907 | 30 / 7500 | 上沿超407，停止 |
+| Stack 2 | 5 / 82 | 0 | 5 / 82 | 24 / 2200 | 不变 |
+| Stack 3 | 17 / 924 | R5 300 | 18 / 1224 | 24 / 2200 | 预测内 |
+| 任务 | 36 / 6173 | R3-E＋R3＋R4 250＋R5 590＝2450–3040 | 40 / 8623–9213 | 68 / 9000 | 上沿超213，停止 |
+
+R4仍250＝app30/bootstrap70/test_bootstrap120/test_provider_planning_job_executor30；R5仍590＝Stack1 250+40及Stack3 120+120+60，不删除任何场景。R3-E两个路径均已计入Stack1；R4共享测试原+20仍Stack2，新增预测+30仍Stack1，任务去重只计一次；最终18+5+18的层路径数之和41，不是任务唯一文件40。治理七文档另计，不抵扣、不重分配既有差异。
+
+压力检查：保持R3-E800、R4/R5预测且R3用满已批1500时，Stack1=5167+800+1500+250+290=8007，任务=6173+800+1500+250+590=9313；分别超507/313。R3-E若也用满普通900则为8107/9413，超607/413。此为敏感性分析而非申请新上限；R4/R5尚未实现，后续增长仍需重算。
+
+规模结论：设计可冻结，实施准入不通过。旧6907/8213预测没有E1/E2修复及R3接线测试成本，不能再用作完整方案保证。需先提供同范围、完整矩阵且可复核的削减方案（不得预记节省），或用户另行明确批准规模调整；本次两者均未发生，所有原硬上限保持。
+
+&#35;## 独立实施批准点与停止条件
+
+先解除完整规模阻塞，再单独批准R3-E两文件TDD；开始记录两文件当时行数/hash、保留原R1/R3-C累计，不把历史增量归零。本片相对开始快照单列，Stack/任务始终包含全部既有diff；开始、格式化检查点、收口重算本片＋R3/R4/R5完整预测，任一超限立即停止。
+
+实施仅运行审查后确认无SQLite/Provider/环境写的定向facts、旧executor及R2回归、无缓存静态检查与安全文档验证；不执行生产app/真实Provider/服务/Git交付。若需第三文件、公开code/shape、领域/Schema/migration/依赖/法律变化或放宽source ownership，停止另批。收口后只读核验R3准入，不自动进入R3–R5/Step13/14/F-009。
+
+&#35;## R3-E精确实施审批Prompt（规模阻塞解除后才可使用）
+
+以下Prompt不授权调整任何上限；当前7907/9213预测仍超限，直接提交它也必须在只读准入停止，不能先做一部分实现。
+
+```text
+批准执行F-008 R3-E：模型/城市内部证据覆盖修复。
+项目：E:\Agent\comprehensive-cases\13-intelligent-travel-assistant
+
+只执行current-task与D-030冻结的E1/E2修复。
+先只读核验：F-008唯一ACTIVE；D-030设计Gate完成；完整规模
+阻塞已由独立、可核验的处置解除；当前分支/HEAD和全部差异可解释。
+保留工作区，不提交或清理。重算当前实际＋完整R3-E/R3/R4/R5，
+任一获批上限预计超出则停止，不修改生产/测试，不擅自调整上限。
+
+生产/测试仅限：
+1. backend/src/intelligent_travel_assistant/application/services/replan_facts.py
+2. backend/tests/application/test_replan_facts.py
+允许同步既有七治理文档。不得改executor、resolver、adapter、
+领域、公开API、Schema/migration、fixture、依赖或lockfile。
+
+按TDD完成D-030及任务卡E-T1–E-T9中归属本片的完整矩阵：
+生成/修复typed请求与实际阶段对应、城市上下文依赖、精确消费者与
+origin/allowed refs、旧全局来源/完整历史诊断、三态及显式时效、
+四命令/legacy-V2、确定性、输入不变、旧接口和零I/O。
+不伪造调用证明，不将模型当事实，不全计划放行，不恒失败代替正向。
+E-T10/E-T11保留给R3/R4/R5，不提前执行或声称通过。
+
+本片普通净新增上限900、精确两文件清单外0；
+R3两文件1500、R3-C四文件2000、Stack1 30/7500、
+Stack2/3各24/2200、任务68/9000保持；若此前另有明确规模授权，
+只按其精确字段更新，不从本Prompt推断豁免。
+开始、格式化检查点、收口重算实际＋全部剩余；本片增量相对开始
+快照，历史累计不归零，不缩矩阵、挪层或拆片规避。
+
+仅运行确认无SQLite缓存、Provider或环境写入的定向测试、
+静态检查和文档验证；不导入配置生产app，不读取秘密/原始响应/
+既有数据库，不创建数据库、调用Provider、操作服务或执行Git交付。
+输出RED/GREEN、范围/规模审计、验证边界及剩余风险。
+完成后只读判断R3准入并停止，不执行R3–R5、Step13/14或F-009。
+```
+
+&#35;# R3恢复准入缺口与待批准处置（设计前历史，2026-09-03）
+
+本轮唯一目标原为恢复R3两文件实施；原43路径hash与R3-C收口逐项一致，HEAD/main/origin/main本地refs均3032d49c4f46167445650c71f7a570fc2c609f4a、暂存空，F-008唯一ACTIVE。没有新增代码，R3两个目标文件仍不存在。因以下契约缺口先停止，不把实现授权等同修改现有守卫的权限。
+
+| 编号 | 已核实缺口 | 精确证据 | 为什么R3两文件不能直接绕过 |
+| --- | --- | --- | --- |
+| R3-E1 | 新模型来源与unknown/PARTIAL诊断没有获批提交通道 | deepseek.py:269–293成功envelope使用新SourceRecord且valid_until=None；replan_facts.py:182–198没有模型请求类型，1090闭集不含model；459–461为deepseek/system保留全局provenance，803拒绝无局部旧root的新source | 丢掉新source/unknown诊断、引用旧调用来源、伪装POI/weather事件、子类替换projector或放行全计划都违背D-025/D-029；也不能把正常unknown模型一律终态失败当完整正向 |
+| R3-E2 | 城市解析等required上下文的实际typed envelope及质量追加缺映射 | D-025要求required城市/模型的PARTIAL/时效被保留；EvidenceEvent只有route的CityResolution上下文，没有CityResolutionRequest对应operation/envelope校验；1090拒绝city事件 | route里的city值不等于保留城市调用envelope/安全error/unknown来源；不能把它们并入不对应的POI来源或省略完整required矩阵 |
+
+- 复现（纯计算，不是R3 TDD或Provider验收）：使用现有weather_case(index=1)构造有证据替换正向，changes通过；增加新DeepSeek source但无新诊断在_origins:803拒绝；追加精确source_validity_unknown在_evidence:1034拒绝；探测model/city typed事件均在_nonweather:1090拒绝。四变体先经typed projector通过，输入深比较不变、禁止审计事件0。初次脚本的合成city PARTIAL漏source被领域构造拒绝，补齐后才记录上述结果，不计业务RED。
+- 不扩大结论：这证明现有内部契约不覆盖R3完整新调用证据，不代表真实Provider已失败，也不是R3-C已批准G1/G2回归失败。R3-C561/630项为上轮证据，本轮未重跑或冒称R3 PASS；上轮只读准入未检查required模型/城市到提交守卫的路径，结论过宽，已明确纠正。
+- 候选最小设计范围（未批准为实施决定）：优先仅补replan_facts.py与test_replan_facts.py两个既有Stack1文件的闭集typed证据、精确新增消费者/ownership及正反向测试；原R3两文件负责真实adapter/MockTransport集成。现有executor已传完整证据，暂未证明必须修改；如设计证明还需其他文件，先列明并另批。
+- 设计必须保持：旧全局/历史provenance逐字段保护；新调用来源只能有明确、受命令限制的消费者，不开放全计划。冻结模型选择非事实、generation/repair绑定、城市/住宿复用与刷新证据、OK/PARTIAL/UNAVAILABLE及fresh/stale/unknown、closed diagnostics、四命令/legacy-V2、旧接口和零SQLite。不能借当前请求直接选择新产品/架构/法律政策。
+- 完整规模：现有代码/测试36/+6173，S1 14/+5167、S2 5/+82、S3 17/+924；旧R3 880–1200＋R4 250＋R5 590预测不含新修复。令必要修复净增N，则R3按1200时S1=6907+N、任务=8213+N；按R3硬上限1500时S1=7207+N、任务=8513+N。对应新增修复余量分别为min(593,787)=593和min(293,487)=293。N及完整测试成本尚待设计核算，不能预记为0或先承诺通过；当前所有硬上限不变，不立即申请再次加额度。
+- 下一批准点：只批准“R3内部证据覆盖设计Gate”以冻结E1/E2技术契约、最小文件/矩阵和必要修复＋R3/R4/R5完整规模；设计完成后再明确批准精确实施。原R3两文件及runtime恢复授权保留，尚不授权修改既有facts/领域/API/Schema/依赖或真实调用。
+- 本轮仅七治理文档记录授权、诊断与停止，并纠正progress旧上限及current-task旧停止尾段；不新增分支、不提交/清理、不读取秘密/数据库、不调用Provider、不操作服务，R4/R5/Step13/14/F-009均未进入。
+
+&#35;# R3-C 最终规模与当时R3只读前置核验（历史；R3-C结果保持，准入结论已更正）
+
+R3-C：DONE / PASS / OFFLINE。授权2000/7500/9000已记录；只有D-029四文件和既有七治理文档改变，旧工作区保留，未新增文件或分支。当前分支feat/f-008-replan-error-recovery；HEAD/main/origin/main本地refs均为3032d49c4f46167445650c71f7a570fc2c609f4a，暂存空，37 tracked modified＋6 untracked。没有联网复核远程CI，旧main CI不是当前未提交差异的验证。
+
+| D-029四文件（均Stack 1；精确路径见下方清单） | 原开始行数 | 本次恢复前 | 最终行数 | 本片累计净增 | 本次恢复净增 |
+| --- | --- | --- | --- | --- | --- |
+| replan_facts.py | 698 | 1280 | 1304 | 606 | 24 |
+| test_replan_facts.py | 1040 | 1709 | 2147 | 1107 | 438 |
+| provider_replanning.py | 163 | 192 | 205 | 42 | 13 |
+| test_provider_replanning.py | 376 | 462 | 483 | 107 | 21 |
+| 合计 | 2277 | 3643 | 4139 | 1862 | 496 |
+
+| 核算范围 | 当前实际 | 完整剩余（R3取上沿1200） | 最终预测 | 硬上限 | 预测余量 |
+| --- | --- | --- | --- | --- | --- |
+| R3-C | 4 / 1862 | 0 | 4 / 1862 | 4 / 2000 | 138行 |
+| R3 | 0 / 0 | 2 / 1200 | 2 / 1200 | 2 / 1500 | 300行 |
+| Stack 1 | 14 / 5167 | R3 1200＋R4 250＋R5 290；4新路径 | 18 / 6907 | 30 / 7500 | 593行 |
+| Stack 2 | 5 / 82 | 0 | 5 / 82 | 24 / 2200 | 2118行 |
+| Stack 3 | 17 / 924 | R5 300；1新路径 | 18 / 1224 | 24 / 2200 | 976行 |
+| F-008代码/测试 | 36 / 6173 | 2040；4唯一新路径 | 40 / 8213 | 68 / 9000 | 787行 |
+
+- 原始Git核算：tracked代码/测试+1617/-98，六个既有untracked代码/测试文件4654行，净6173。层归属仍按原清单；test_provider_planning_job_executor.py已有20行属Stack2，未来R4的30行属Stack1，唯一文件只计一次。七治理文档另计，不抵扣代码。
+- 格式化检查点为1863；随后移除仅内部未使用参数1行，最终1862。完整矩阵和旧测试保留，不靠删测试/压排版/挪层节省。R3取880–1200时S1终值6587–6907、任务7893–8213；R3取硬上限1500时为7207/8513。两片均用满2000/1500且R4/R5原预测保持时为7345/8651，不是允许R4/R5增长的保证。
+- 估算复盘：本次初估剩余180–310低于实际496，原因是完整来源消费者、历史容量和组合天气/诊断独立预期的测试成本仍被低估。本次在已批准额度内完成；后续先计入完整矩阵、格式化和静态修复成本，再给上沿，不能把中间GREEN当完整完成。记录仅限任务治理，不改全局规则。
+- 验证：两文件561 passed，追加既有R2候选回归共630 passed；四文件Ruff format/check和mypy PASS。D-029正反向及兼容矩阵证据详见evidence；不是生产组合、全量、真实Provider或独立review验收。
+
+| R3只读准入项 | 结果 | 证据/边界 |
+| --- | --- | --- |
+| R1/R2及D-029前置 | PASS | R1/R2历史保持；R3-C完整定向+R2回归通过，G1/G2缺口解除 |
+| 授权/runtime/文件归属 | PASS | 原R3实施和90s、logical/attempt/timeout数值继续有效；仅原planner及直接测试两文件，专项1500；本次不执行 |
+| Git/唯一ACTIVE/既有差异 | PASS | 43路径集合不变；其余32代码/测试hash与开始快照相同；F-008唯一ACTIVE、暂存空、不清理 |
+| 完整规模 | PASS | 上表纳入R3/R4/R5；开始新片仍重算，不预授权新增范围 |
+| R3实现是否已开始 | NOT_STARTED | provider_replan_planner.py与test_provider_replan_planner.py均不存在，未创建替身或提前装配 |
+| 生产/UAT是否就绪 | NOT_READY | app.py默认replan_application_service=None且仅透传到state；bootstrap.py的route limiter仍在planning factory内创建；R4/R5默认装配及纵向矩阵未执行 |
+
+本次停止点：R3-C已完成，R3只读前置通过，等待用户明确恢复R3；不重复索取原runtime数值批准。实施中若需要第五修复文件、领域/公开API/Schema/依赖/Provider边界变化或超限，仍须停止请求精确处置，不能根据本次PASS推定两文件实现必然可行。Step13的整场参数、费用、服务归属、同期高德控制台证据仍须独立批准；R3已有单次runtime上限不构成真实UAT授权。
+
+&#35;## 完整方案候选额度核算（批准前历史，不是当前上限）
+
+| 约束 | 现行硬上限 | 待批准候选 | 当前实际 | 完整预测上沿（R3按1200） | 两片额度压力（R3-C2000、R3 1500） |
+| --- | --- | --- | --- | --- | --- |
+| R3-C | 4 / 1500 | 4 / 2000 | 4 / 1366 | 4 / 1676 | 4 / 2000 |
+| R3 | 2 / 1500 | 不变 | 0 / 0 | 2 / 1200 | 2 / 1500 |
+| Stack1 | 30 / 7000 | 30 / 7500 | 14 / 4671 | 18 / 6721 | 18 / 7345 |
+| Stack2 | 24 / 2200 | 不变 | 5 / 82 | 5 / 82 | 5 / 82 |
+| Stack3 | 24 / 2200 | 不变 | 17 / 924 | 18 / 1224 | 18 / 1224 |
+| F-008 | 68 / 8500 | 68 / 9000 | 36 / 5677 | 40 / 8027 | 40 / 8651 |
+
+- 算术：候选R3-C剩余额度2000−1366=634，既有完整剩余上沿310，余324；Stack1压力4671＋634＋1500＋250＋290=7345；任务压力5677＋634＋1500＋250＋590=8651。任务不重复计算跨层共享文件，治理另计。
+- 未调整预测以制造通过：实际与180–310完整剩余分解原样保持。当前1546–1676仍超有效1500；R3按1500而R3-C按原预测上沿1676时，Stack1=7021&gt;7000，不能只处理本片而忽视累计。
+- 2000/7500/9000是有余量的联合候选，不是保证可完成的最小行数。当前没有已验证的完整≤1500减量方案；提取测试helper可能减少重复，但未证明净节省176，不允许先扣行、压缩排版、删断言、改预期或把诊断逻辑挪到R3。
+- 本片仍只准D-029四文件，R3-C/R3不互借额度，R1专项2000和其他Step/文件/测试/运行时/安全边界不变；R4/R5的250/590是完整工程预测而非新的硬上限。它们或其余层增长时重新核算，不能据此自动放宽。
+- 等待用户逐项明确批准新数值；批准后先仅同步七文档的有效授权并重算实际＋全部剩余，准入通过才能恢复R3-C四文件TDD、无SQLite缓存静态及安全文档验证。完成后只读判断R3前置，不执行R3；不能将额度批准或历史测试通过当作R3-C DONE/PASS。
+
+&#35;# R3-C 1500 检查点明细与完整剩余（修复前历史）
+
+| 四文件 | 原1150开始行数 | 本轮开始行数 | 当前行数 | 本片累计净新增 | 完整剩余预测 |
+| --- | --- | --- | --- | --- | --- |
+| replan_facts.py | 698 | 1056 | 1280 | 582 | 40–70 |
+| test_replan_facts.py | 1040 | 1428 | 1709 | 669 | 110–190 |
+| provider_replanning.py | 163 | 192 | 192 | 29 | 10–20 |
+| test_provider_replanning.py | 376 | 462 | 462 | 86 | 20–30 |
+| 合计 | 2277 | 3138 | 3643 | 1366 | 180–310 |
+
+- 本轮新增224＋281＝505，仅两个文件；后两文件未改，旧兼容缺口仍在。未新增文件/切片，全部属于Stack1；治理文档单列，不抵扣代码额度。
+- 已增加但未完整验收：非天气typed事件、city规范化请求上下文、路线/POI来源对应、合法fallback复用、预算unknown/硬约束安全追加，以及既有DailyRoutePlan时间可行性校验。没有装配concrete planner或生产服务；不得称生产接通。
+- 剩余facts40–70：地点合法source重绑与weather地点身份/坐标保护分离；预算refs、非天气精确消费者、绑定/失效/终态拒绝闭环；修正类型收窄。city仍是D-029内部规范化请求上下文，不是外部事实交叉核验或授权证明。
+- 剩余直接测试110–190：修复unknown ProviderResult必须带安全warning的构造与静态注解；补forecast省略+alerts组合/同ID更新、weather-only合法DROP/另一日/费用/地点/历史共享、历史重复前缀/容量/删除所指实体、fallback合法结构无效及auth/schema/timeout/rate/5xx/预算/deadline等禁止降级、错source/ref/原始自由文本、别名/完成后过期/绑定/unknown非零/已知超预算/结构冲突。已有旧测试和本轮正向全部保留，不把旧R1矩阵当作新证据路径覆盖。
+- 剩余executor10–20、直接测试20–30：保留旧ReplanFactsPort.changes无evidence接口的静态兼容；新包装缺依赖、planless/损坏/错绑定只允许安全非提交，补对应无fallback/同一完成时刻/深比较断言。不得只改旧SpyFacts签名掩盖兼容问题。
+- 以上是剩余工程预测，不是数学最小值或批准加额；不预记重构节省。1366＋180–310＝1546–1676&gt;1500；任务5677＋180–310＋1200＋250＋590＝7897–8027，Stack1 4671＋180–310＋1200＋250＋290＝6591–6721。R3按已批准1500压力时分别8197–8327与6891–7021；后者上沿也超过7000。
+- 复盘：连续估算低估了已格式化typed构造、完整反向矩阵及旧Protocol兼容的体积；本轮先修复测试准备的坐标字段/来源引用，未将这些失败冒充行为RED。今后恢复前以完整格式化测试构造、逐项未覆盖断言和静态修复共同估算；未验证的helper抽取不得先扣行。规则落点为本任务卡，不扩全局偏好。
+- 当前停止原因是完整预测超限且验收未通过；不重复申请已有1500/7000/8500或恢复授权。下一动作只能是完整规模处置或经验证的等价减量设计，不继续实现、缩测试或进入R3。
+
+&#35;# 联合额度批准与当时预测（1500/7000/8500批准历史，已由顶部新额度替代）
+
+&#35;## 批准前1150内方案判断（保留处置依据）
+
+- 本轮仅治理规划，不修改四生产/测试文件、不恢复实施。43既有差异路径SHA256与上一轮收口逐一一致，分支/HEAD/暂存状态不变；代码/测试36/+5172，治理本轮开始累计1798另计。
+- 四文件实际仍358/388/29/86，R3-C净861；1150仅余289。下面既有完整剩余分解仍315–460，完整1176–1321。闭集映射与负向矩阵均须保留，不能只计下一小段实现。
+- 源码事实：replan_facts.py:834只接受forecast/alerts；_evidence共185行，_envelope29、_public_sources19，通用包络/来源/固定文案已经复用。weather_case158行、change_weather7、proved6；上轮正常复用已节省38行且已包含在861，不能再次减去。
+- 不批准压缩排版、删断言、跳过用例、移动旧差异/测试到其他片、全计划放行或把未知当0。提取测试构造/参数化仅是可能的优化，未经完整实现和等价矩阵验证不得预记为节省；本轮未做试验实现、未证明可再净省171行。
+- 因而当前没有可审计的完整≤1150方案；这不是数学证明1150内绝无可能。1176–1321仍是工程预测而非最小行数或保证，原885–1095/580–800保留为失效历史估算。
+- 剩余职责/精确四文件/每项测试保持下一节1150实施检查点的完整表：facts145–210、直接测试150–210、executor10–15、直接测试10–25。静态兼容与缺失断言均已纳入，不另开片、不修改D-029技术契约。
+
+&#35;## 用户当时明确批准的联合额度（历史）
+
+| 约束 | 原有效 | 本次批准后有效 | 理由 |
+| --- | --- | --- | --- |
+| R3-C净新增 | 1150，仅四文件 | 1500，仅同四文件 | 完整预测1321外保留179行实现/格式化/静态余量，额度不是增长目标 |
+| Stack1净新增 | 6500，30文件 | 7000，仍30文件 | 同时保留R3独立1500能力，覆盖下表6845压力场景并余155 |
+| F-008净新增 | 8000，68唯一文件 | 8500，仍68唯一文件 | 覆盖8151压力场景并余349，不以总余量抵消单片/层上限 |
+
+- R3仍两文件/1500，Stack2/3仍各24/2200，普通Step、R1及其他例外保持。用户仅批准这三项净新增额度，不授权新产品、领域/API/Schema/migration/依赖/fixture、法律或Provider边界变化。
+- 选择1500而不是继续按26/171行缺口紧贴加额，是已批准预算余量而非新估算：R3-C可用剩余639＝已列剩余上沿460＋179余量。该余量仍需逐项记录消耗，不能替代测试或兜底不受控增长。
+- 单独只将R3-C提到1350，在R3按当前1200预测时可用，但R3取已批1500时Stack1=6695&gt;6500，任务=8001&gt;8000。它不是逻辑上不能实施，却不能覆盖本次要求核查的联合压力；因此不推荐继续仅小幅加本片。
+- 联合批准不是缩减原R3授权为1200，也不将R3-C未完逻辑迁入R3以隐藏本片净新增。
+
+&#35;## 当时实际＋全部剩余＋联合压力核算（历史）
+
+| 范围 | 当前实际 | 原完整剩余上沿完成后 | 两片分别用满1500的压力完成后 | 批准上限 | 压力余量 |
+| --- | --- | --- | --- | --- | --- |
+| R3-C | 4 / 861 | 4 / 1321 | 4 / 1500 | 4 / 1500 | 0行；不得超限 |
+| R3 | 0 / 0 | 2 / 1200 | 2 / 1500 | 2 / 1500（未调整） | 0行 |
+| Stack1 | 14 / 4166 | 18 / 6366 | 18 / 6845 | 30 / 7000 | 12文件 / 155行 |
+| Stack2 | 5 / 82 | 5 / 82 | 5 / 82 | 24 / 2200（未调整） | 19文件 / 2118行 |
+| Stack3 | 17 / 924 | 18 / 1224 | 18 / 1224 | 24 / 2200（未调整） | 6文件 / 976行 |
+| F-008 | 36 / 5172 | 40 / 7672 | 40 / 8151 | 68 / 8500 | 28文件 / 349行 |
+
+- 实际＋完整剩余：R3-C460＋R3 1200＋R4 250＋R5 590＝2500，任务5172＋2500＝7672；Stack1增加460＋1200＋250＋290＝2200，4166＋2200＝6366。
+- 两片用满压力：R3-C尚639＋R3 1500＋R4 250＋R5 590＝2979，任务5172＋2979＝8151；Stack1增加639＋1500＋250＋290＝2679，4166＋2679＝6845。
+- 文件归属不变；未来test_provider_planning_job_executor.py旧20行仍S2、新30行仍S1，任务唯一文件只计一次，不能从另一层净减抵消。代码/测试额度不扣治理文档，治理单列实际。
+- 压力场景仍使用R4完整250与R5完整590预测，不声称覆盖它们各自普通Step900上限同时用满。R4/R5或其他残余在S1增长超过155，或任务增长超过349，仍须停止；预算从来不是可交付保证。
+
+&#35;## 当时的解除与恢复条件（历史，已完成）
+
+1. 用户已明确批准R3-C1500、Stack1 7000、任务8500，文件上限四/30/68及其余边界不变；原PENDING_USER_APPROVAL关闭，不重复申请相同数值。
+2. 七治理文档已同步，实际861/5172与完整预测1321/6366/7672、压力6845/8151重新核算符合新上限，SIZE_GATE_PASS；未来仍在每个检查点重算并预计超限即停。
+3. 恢复仍仅D-029四文件及原完整矩阵；相对原1150授权开始快照计量，不将已有861归零，不增文件、不借R3额度、不改变技术设计，不用旧测试PASS代替新增路径矩阵。
+4. 行数核算检查点为开始、格式化验证、收口；静态15条/导入排序5处、闭集全部正反向、来源/历史/绑定/过期、旧接口兼容与零I/O均真实通过才可R3-C DONE/PASS。
+5. 本轮仅数值批准落地并完成治理验证，未恢复代码；原R3-C实施授权保留，等待用户明确恢复本片（不是重批相同额度或原四文件授权）。R3依赖R3-C完整PASS，Provider、数据库、服务、Git交付、Step13/14/F-009保持禁止。
+
+
+&#35;# R3-C 1150 实施检查点（历史；固定开始快照继续有效，当前实际见收口表）
+
+- 开始准入PASS后实施；截至格式化/收口检查点为PARTIALLY_IMPLEMENTED / BLOCKED_BY_SIZE，未完成D-029，不进入后续片。当前实际低于1150，但剩余完整预测超限即停止，不能等实际超限再申请。
+- 固定计量基线是本次1150授权开始时的四文件快照，不是main（两个文件未跟踪），以后恢复不能重置本片净新增。下列行数含完整现有文件；R1/R2原差异仍在stack/任务累计中，治理另计。
+
+| 四文件（完整路径见下方D-029清单） | 开始行数 | 当前行数 | 本片净新增 | 仍需净新增预测 |
+| --- | --- | --- | --- | --- |
+| replan_facts.py | 698 | 1056 | 358 | 145–210 |
+| test_replan_facts.py | 1040 | 1428 | 388 | 150–210 |
+| provider_replanning.py | 163 | 192 | 29 | 10–15 |
+| test_provider_replanning.py | 376 | 462 | 86 | 10–25 |
+| 合计 | 2277 | 3138 | 861 | 315–460 |
+
+| 剩余职责（原D-029范围，不是新增方案） | 可核查缺口与保留验收 | 剩余预测组成 |
+| --- | --- | --- |
+| 非天气typed闭集 | 当前_evidence仅接受forecast/alerts；必须补route完整grounding、primary合法fallback原因/modes、required失败拒绝，不能恒拒绝正向 | facts60–85 |
+| 来源/确定性诊断 | 非天气PARTIAL、unknown validity、允许stale location与required stale route/model区分；unknown预算/hard constraint输出必须和候选一致，known-over-budget非提交 | facts55–80 |
+| 绑定及全部消费者收束 | 五类scope与source ancestry、完整安全reason/数值fingerprint、组合/重复事件稳定序列；禁止全计划放行 | facts30–45 |
+| G2完整正反向 | 非天气闭集逐项精确断言，使用真实typed输入及独立预期，保留legacy/V2和四命令 | facts测试65–90 |
+| 来源/天气负向与历史 | 新证据路径的合法DROP、共享保护、历史错误/uncertainty完整前缀、错误refs/origin/capacity，alert同ID更新及forecast省略组合 | facts测试50–70 |
+| 深复制/完成时刻与静态 | 嵌套别名、重复绑定、候选完成后过期及剩余类型断言；不把已通过旧路径用例直接转记新路径覆盖 | facts测试35–50 |
+| executor兼容 | 旧facts seam静态Protocol兼容、新包装planless/异常拒绝与时间传递；保留旧接口测试，不以删除SpyFacts绕过 | executor10–15，直接测试10–25 |
+
+- 工程预测并非数学最小下界：861＋315–460＝1176–1321，超过本片1150达26–171；尚未证明1150内不可能，也没有可复核的完整1150内方案。原1095上沿已失效，不能继续当保证；没有擅自批准1321或其他额度。
+- 全量核算保留R3上沿1200、R4 250、R5 590（Stack1 290＋Stack3 300）：当前S1 4166/S2 82/S3 924/任务5172；最终S1 6221–6366、S2 82、S3 1224、任务7527–7672。最终层文件18/5/18，任务唯一40；共享test_provider_planning_job_executor.py既有20归S2、未来30归S1不搬动，任务仅去重一次。
+- 压力情景不是授权：若R3-C按新预测1321、R3实际用满1500且R4/R5不变，S1为6666（超6500达166），任务7972。仅提高本片额度不能保证此组合通过；后续必须用真实剩余预测复核，不能借总额度掩盖层限制。
+- 当前未完成实现不装配生产；全部R3/R4/R5矩阵和Step13独立Gate保持。原1150及R3实施/runtime授权保留，恢复必须先解除完整方案规模阻塞。
+- 估算复盘：已连续低估。typed输入与独立预期、G2非天气正向/完整负向成本未充分计入，前一1095估算不可靠；本次测试helper正常复用由426降至388（保留248用例），仍不能据此声称全矩阵可装入1150。今后本任务用“已格式化实际＋逐项未完映射/断言＋静态修复”滚动估算，不用总通过数代替矩阵，不靠连续小幅加额代替证明；不修改全局规则。
+
+&#35;# R3-C 900 上限时实施准入（1150授权前历史，已被最新检查点取代）
+
+- 2026-09-03：四文件实施授权已取得；D-029技术设计/文件归属/矩阵未变，F-008仍唯一ACTIVE。开始快照为43个既有差异路径（37 tracked modified +6 untracked）、暂存空，branch/HEAD不变；本片生产/测试增量0。
+- 当前源码没有内部证据包装或绑定通道：facts.changes仅接收result/time，executor port仅返回PlanningJobResult/ReplanOutcome；天气guard仍冻结事实及None变化，历史诊断仍为旧规则。本片未实施，不把R1/R2历史PASS视作R3-C结果。
+- 复用边界已复核：现有safe error/issue文案可复用；现有`_weather`依赖完整OfflinePlanningOutcome，未校验局部请求/消费者/批准impact；`_sources`加入计划级user/system来源且以max时刻评估，不能直接替代D-029局部证明。现有测试baseline/candidate_for可复用，但没有完整typed envelope/绑定/精确诊断断言。
+- 详细实施估算（非实际行数，也非已证明的最小下界）：facts中绑定/深复制75–90、天气与预警独立校验130–160、闭集诊断110–135、消费者/origin/guard衔接75–95，合计390–480；直接测试360–430；executor45–65、直接测试90–120。总计4文件/+885–1095，上沿超900达195。旧580–800估算未充分计入以上独立职责，保留为设计时历史，不能继续作为准入保证。
+- 直接测试360–430包含typed辅助输入70–85、G1/来源图140–165、G2正反向95–115、绑定/零I/O/确定性55–65；保留legacy/V2×四命令参数化、全部旧测试及D-029每行矩阵。此分解不授权第五文件、产品扩张或新接口，不以压缩排版/减少断言伪造900内。
+- 实际仍为Stack1 14/+3305、Stack2 5/+82、Stack3 17/+924、任务36/+4311。加R3-C 885–1095、R3 880–1200、R4 250、R5 590，完整剩余2605–3135；最终Stack1 18/+5610–6140、Stack2 5/+82、Stack3 18/+1224、任务唯一40/+6916–7446。累计上沿分别余360/554，但不能抵消R3-C单片超限；R3专项上沿仍余300。
+- 当前停止：`APPROVED / BLOCKED_BY_SIZE / IMPLEMENTATION_NOT_STARTED`，不是缺少实施批准或代码测试失败。不写RED测试后再补豁免；不借R3额度、不挪层、不拆片、不缩矩阵。需先取得可复核的≤900完整实现估算，或用户单独调整R3-C上限后重新准入；本轮不修改硬阈值，未进入R3–R5/Step13/14/F-009。
+
+&#35;# R3 规模授权收口（历史；R3专项1500保持，层/累计额度见顶部）
+
+- 用户明确批准仅三项调整：R3 净新增 900→1500（仅 R3）；Stack 1 净新增 4500→6500、文件仍 30；F-008 累计净新增 6500→8000、唯一文件仍 68。R3-C 仍为 D-029 四文件、普通净新增上限 900；其他 Step/stack/文件归属/测试矩阵/安全边界均不变。
+- 实际代码/测试 36/+4311；修复 R3-C 580–800、R3 880–1200、R4 250、R5 590，完整剩余 2300–2840。上沿 R3 1200/1500 余300，Stack 1 18/+5845 对30/6500余12文件/655行，任务40/+7151对68/8000余28文件/849行；Stack 2 5/+82、Stack 3 18/+1224仍分别符合24/2200。
+- 保留 R4/R5 预测840后，若 R3-C/R3 分别用满900/1500，最终Stack1 6245/6500余255、任务7551/8000余449；这不是R4/R5实际增长的保证。每片开始、格式化验证检查点和收口继续核算实际＋全部剩余预测，任一有效硬上限预计超出立即停止，不缩矩阵、不移层、不拆片避限。
+- 规模处置为 DONE / PASS / GOVERNANCE_ONLY，只解除当前预测下的规模阻塞，不表示生产接通、R3-C/R3实施或真实UAT通过。R3-C为TODO / BLOCKED_BY_APPROVAL；R3原实施/runtime授权保留，但依赖R3-C PASS及届时重新准入。本次不实施，等待单独批准R3-C四文件。
+</pre>
+</details>
+
+<details id="f008-preserved-5">
+<summary>f008-preserved-5：docs/project-management/current-task.md：原第564–633行历史/旧状态</summary>
+<pre>
+- 准入事实：分支/HEAD/main/origin/main 本地 refs 不变，37 tracked modified +6 untracked（43 路径），既有代码/测试 36/+4311；R1/R2 证据和唯一 ACTIVE 保持。没有新增 R3 模块、测试或分支，没有提交/清理工作区。
+- G1 optional weather：D-025 要求 UNAVAILABLE/stale 天气或预警省略并形成 PARTIAL；但 R1 `_guards` 对 weather 变化要求旧值/新值均非 None、天气字段不变、alerts 除来源/issued_at 外相等。因此连获准日期的省略/事实更新也不允许；不能用恒失败、只保留旧天气或缩小 R3 矩阵冒充完成。
+- G2 降级诊断：D-025 要求 PARTIAL/fallback 保留安全诊断；R1 把 result.errors/warnings/violations/retryable 整体冻结相等。新增 warning 被拒绝；新 uncertainty 虽已有精确 refs 通道，但尚未冻结本片所有降级类别如何映射，不能擅自把必需 warning/error 改写成任意 uncertainty 来绕过契约。
+- 诊断（非 R3 TDD/PASS）：纯内存 synthetic positive control 调时候选通过；同一获准日期的 weather=None、天气事实更新、新 warning 三个候选均先通过 typed projector，再被 changes 拒绝为 replan_facts_invalid。baseline 深比较不变；数据库/网络/子进程审计事件 0，未导入 app。源码位置和解除条件见 evidence。
+- 最小待批设计：先冻结获准日期的 optional weather/alert 省略/刷新、保留旧历史诊断和新增安全诊断的精确 allowed/origin 规则；必须拒绝范围外变化和跨来源借用。优先评估仅调整 replan_facts.py 与 test_replan_facts.py 的最小独立修复，是否涉及 executor/领域必须另列证据，当前不扩清单、不改 D-028 技术规则。
+- 规模：本次生产/测试增量 0；原 R3 570、R4/R5 840 的未执行预测下最终 Stack 1 4415/4500、任务 5721/6500。保留 R4/R5 在 Stack 1 的 540 后，R3 连同未估的必要前置修复最多可容纳 655 行；余 85 不是修复已获授权。契约处置未定，旧 570 不能成为完整实现保证；设计 Gate 须重估所有修复、R3 全矩阵与 R4/R5，不压缩测试或移层。
+- 当前停止：R3 实施和数值授权保留；先等待“R3 内部契约衔接处置设计 Gate”单独批准，只修治理设计，完成后再请求精确修复实施批准。R4/R5/Step 13/14/F-009 均未执行。
+
+&#35;# R2 实施收口（R2 完成时的权威历史）
+
+- 用户单独批准 R2；开始分支/HEAD 不变，37 tracked modified +4 untracked，代码/测试 34/+3519。R1 四文件及其余既有差异全部保留；开始加 R2–R5 预测为 Stack 1 4023/4500、任务 5329/6500，准入通过。
+- 仅新建 replan_candidate.py（300 行）和 test_replan_candidate.py（492 行）：复用 R1 typed projector/impact/budget、main 已有 RouteRequirement 与领域时间校验；不依赖 Stack 2 尚未交付的 scheduler 行为改动。普通 R2 900 行未继承 R1 例外，实际 792、清单外 0。
+- 四命令局部变换：替换接收 typed activity/location/source 输入，删除只移除目标，调时只改目标时段；排序仅对指定日全部获准活动按原位置起点重排并保留各自时长，重叠/越窗直接拒绝，不自动压缩或移动其他日期。legacy/V2 双日类型保留；V2 删除当日唯一活动安全拒绝。
+- 内部 ReplanCandidate 是未提交草稿，不是 TripPlan/PlanningJobResult，无 READY 状态。CandidateEdge 以 activity 身份而非仅地点匹配旧边；新边或地点事实更新时 route=None，保留精确 old route origin_refs，绝不复制旧距离/时长伪装新事实。保留旧 sources，不在本片 DROP；budget_analysis 只为 R1 分析，不是最终报价，未知保持 None。
+- R3 必须补全并验证 schedule/route/source/budget/scope，重新计算最终成本并由 R1 change-set 和 service 提交边界检查；R2 成功不等于生产接通、可提交或真实 UAT ready。内部拒绝没有增加公开错误码。
+- 验证：初始 53 failed/1 passed（行为 RED）；同 ID 地点更新误复用路线的补充 RED 已修复。最终 R2 69 passed，含 R1 和相关领域/时间规则共 270 passed；Ruff format/check、mypy 两文件 PASS。纯变换零 I/O；合并回归禁止数据库/外部网络/子进程事件 0，标准库 socketpair loopback 80 单列。
+- 实际：Stack 1 14/+3305、Stack 2 5/+82、Stack 3 17/+924、任务 36/+4311；加 R3–R5 1410 后，最终 Stack 1 18/+4415（余 85）、任务 40/+5721（余 779）。后续增长风险高，开始/收口仍须重算，不能据此先实施超限内容。
+- R2 完成后停止；R3 运行时 policy、logical call/HTTP attempt/deadline 尚待精确批准，不能继承 planning 配额为 replan 或 UAT 配额。R3–R5、Step 13/14、F-009 未进入；禁止项及历史事实不变。
+
+&#35;# R1 实施收口（R1 完成时的权威历史）
+
+- 用户明确批准 R1 2000/Stack 1 4500 后恢复本片；开始实际 33/+2011、完整预测上沿 R1 1900/Stack 1 4017/任务 5323，均满足新上限。保留全部既有工作区，无提交/清理。
+- 完成完整 typed catalog、计划级/局部成本与 unknown、所有来源消费者/显式时效、五类稳定快照及精确 ownership/origin/allowed refs；四命令正向与拒绝路径均覆盖。仅调用既有领域 helper，不增加领域模型或公开 API。
+- executor 只增加 keyword-only facts/clock 配对的可选路径；旧四参数入口继续兼容。候选结束后取一次 clock，使新抓取来源不被拿到较早时刻评估；before/after 使用同一时刻，新投影失败不回落旧路径。R4 才装配生产。
+- RED：投影最初 75 项实际执行失败；executor 新路径 6 failed/旧 9 passed；补查调时来源重绑再现 1 个行为 RED 后修复。GREEN：两文件 111 passed，增加只读领域回归后 168 passed；Ruff format/check 及四文件 mypy PASS。
+- 测试输入修正不改 fixture：显式时刻移至所有合成 fetched_at 之后；候选 unknown_validity 保持 PARTIAL；候选保留不受影响末段路线；命令 record 同步 operation；删除 uncertainty 的用例先建立非空事实。没有删断言或只验 planning 来替代 replan。
+- 安全验证：投影四命令阻断文件/环境读取入口/网络/数据库/子进程 I/O；合并回归审计数据库/外部网络/子进程事件为 0。Windows asyncio 的标准库 socketpair 有 80 个内部 loopback bind/connect 事件，单独列示，非 Provider 或服务启动；不声称整个测试进程网络事件为 0。
+- 规模：R1 四文件净新增 698 +1040 +40 +128 = 1906（含以前 398 行）；本轮新增 1508。任务实际 34/+3519；加剩余 R2–R5 1810 后，Stack 1 18/+4023、Stack 2 5/+82、Stack 3 18/+1224、任务去重 40/+5329，均未超限。七份治理文档另计，不抵扣代码。
+- 不覆盖旧失败/估算历史，不把本地 projector 或 StubPlanner 证据当作生产装配、真实 Provider ready 或 Step 13 PASS；R1 收口后停止，等待单独批准 R2。
+
+&#35;# R1 规模处置方案（历史：后续已明确批准 2000/4500）
+
+- 本次用户要求先处置规模再完成实现；这不自动改写此前明确的硬阈值。四文件范围和 D-028 保持已批准，普通 Step 900、Stack 1 3000 仍有效，R1 当前仍 BLOCKED；不新增阶段或借此执行 R2–R5。
+- 只读复核：分支/HEAD 不变，40 个差异路径可解释，代码/测试 33/+2011（含现有 R1 398），治理另计；无新实现或测试。预留 R2–R5 Stack 1 1510 后，R1 有效容量为 min(900, 3000-607-1510)=883，不能把此前 928 当作可靠上界。
+- 源码依据：domain/replanning.py:249 的 context 只收 activity/route/source 状态；378 的 source helper 仍会 DROP 非 required 来源；417 的分类不含全部计划级消费者；571 的 budget helper 不证明 owner；672/715 的 diff/scope helper 只比较给定快照和 origin，不替代完整投影/来源证明。provider_replanning.py:48 的旧 executor 没有新 projector/clock 分支。继续复用这些规则，但完整适配、保护和测试不能计为零工作。
+- 既有测试 398 行尚未执行行为断言。此前 928=300+528+40+60 只重估了少量测试，未重新逐项核算生产投影、精确 origin 和兼容测试；现将其保留为上次停止记录，不继续作为施工承诺。以下是只读工程估算区间，既不是已写代码，也不是保证，格式化/类型检查后的实际可能变化。
+
+| 四文件工作（全部仍 Stack 1） | 净新增估算区间 | 上沿逐项核算依据 |
+| --- | --- | --- |
+| replan_facts.py | 650–850 | 类型/准入 120；引用目录与有序链 120；成本归属与预算适配 125；完整消费者/时效/风险 155；规范化与五类快照 130；精确 allowed refs/origin/guard 200；合计 850 |
+| test_replan_facts.py | 600–750 | 现有 398；补齐/修正 B1 正反向 100、B2 全消费者 75、B3 五类变化与 origin 130、确定性/同地点/零 I/O 47；合计 750，不删除既有断言或缩减四命令矩阵 |
+| provider_replanning.py | 70–110 | Protocol/clock 配对 25、analyze 安全路径 30、execute 同时刻/范围/不回落 40、类型与接线 15；合计 110，旧四参数入口不破坏 |
+| test_provider_replanning.py | 130–190 | 复用旧 helper，完整事实测试支撑 40、正向/clock 50、失败不回落 40、planless/旧接口 40、输入不变 20；合计 190 |
+| R1 | 1450–1900 | 1900 是本轮风险计算上沿，不是获批上限或必须写满的目标 |
+
+- 候选处置：只对 R1 给予净新增 2000 行专项上限；Stack 1 净新增上限由 3000 调至 4500，文件仍 30。R1 仍限已批准四个生产/测试文件；普通 Step 的 10/900/清单外 3 对其他片不变，Stack 2/3 各 24/2200、任务 68/6500 不变，治理七文档另计。此候选未生效，不等同用户已批准。
+- 上沿审计：R1 1900（剩余 1502）；R2–R5 原预测 1810（Stack 1 1510、Stack 3 300）不挪动，合计剩余 3312。最终 Stack 1 18/4017、Stack 2 5/82、Stack 3 18/1224、任务去重 40/5323；相对候选分别余 483、2118、976、1177 行。若 R1 用满候选 2000，Stack 1 为 4117、任务 5423，仍余 383/1077 行；余量不是其他切片的提前授权。
+- 未选择通过减少用例、改范围、把代码挪到其他 stack、拆成多个新 R1 片或读取/复用真实 Provider 证据来获得准入。不能证明在 883 行内完整实现，不承诺用压缩写法凑数。
+- 批准后的执行条件：只恢复本 R1 四文件 TDD，先补全行为 RED，再实现及 GREEN、定向静态和安全文档验证；每次格式化后的验证检查点重算本片实际加全部剩余预测，任何有效上限预计超出即停。维持原秘密/数据库/Provider/服务/Git 交付禁令；完成 R1 后停止等待 R2，不把本方案当作 R1 PASS。
+
+&#35;# R1 四文件执行记录与规模停止（上一轮历史）
+
+- 开始核验通过：F-008 唯一 ACTIVE，Git 分支/HEAD 和 39 个既有差异路径与上轮收口一致；当时生产/测试 32/+1613，按冻结预测完整 Stack 1 2877/3000，未超限。用户新授权已解除旧范围和 2800 行阻塞。
+- 本次只新增 `backend/tests/application/test_replan_facts.py`，格式化后 398 行；实现模块未创建，两个既有 executor 文件未修改。首次定向 pytest 在 collection 得 ModuleNotFoundError，退出码 2；这是缺模块的初始 RED，不是行为矩阵已经运行，更不是 PASS。Ruff format 已执行，GREEN/lint/mypy 未执行。
+- 现有脚手架涵盖四命令、legacy/V2、计划级 unknown、畸形引用、显式时效、共享来源、schedule scope 和零 I/O 用例；仍缺局部成本正向约 30 行、消费者删除/完整来源约 30 行、五类变化/新增实体 origin/桥接/碰撞约 55 行、同地点与完整 I/O 边界约 15 行，共预测 +130。现有用例也尚未运行，不能把目录或用例名当作覆盖证明。
+- 不削减断言/矩阵，保持生产模块 300、executor 40、其测试 60 的原预测，R1 重估为 398 + 130 + 300 + 40 + 60 = **928**。普通 Step 上限仍 900，超 **28**；加剩余 R2–R5 Stack 1 1510 与此前 607，最终 **3045/3000**，超 **45**。一旦重估超限即停止，未继续写实现或补齐测试。
+- 当前实际：R1 1 文件/+398；Stack 1 11/+1005，Stack 2 5/+82，Stack 3 17/+924；任务 33/+2011。未完成 R1 仍预计 +530，再加 R2–R5 共 +1810，最终任务 40/+4351。这些是未完成工作预测，不是已交付规模。
+- 估算复盘：两轮设计估算低估了完整验证/测试辅助代码，按目标行数先定额度再落细矩阵导致重复审批。原因属于代理的规模估算，不是新增生产故障或用户未授权。后续应先对完整矩阵逐项估算并核对格式化后的实际规模，再提出整体可容纳的方案；不能继续靠小幅加上限或删用例获得表面准入。本记录落在任务卡/evidence，不改全局规则。
+- 下一步需要用户决定规模处置；不得进入 R2、把 R1 标 DONE 或重复声称只差一次实施授权。保留当前 398 行未完成测试，不删除或清理。
+
+&#35;# R1 实施前核验与阻塞（历史发现，处置见下一节）
+
+- 准入通过：生产重规划计划修订 Gate 已完成；F-008 唯一 ACTIVE；R1 两文件不存在。分支及 HEAD 未变化，37 tracked 修改和 2 untracked 验收文件仍属既有 F-008 工作区；不要求提交或清理。
+- B1 预算归属：现有生产投影的 activity 不带成本条目；门票为计划级 unknown，市内交通为全路线汇总估算。不能凭类别给某 activity/route 分摊 cost，或把缺少局部成本视为零变化。需先冻结计划级与局部成本的处理、复用既有汇总规则的入口，以及无法证明对应关系时的安全结果；本次没有批准新的计算政策。
+- B2 来源依赖：`ReplanImpactContext` 没有计划级 cost/location/weather 等消费者映射；现有 `classify_replan_impact` 的 DROP 判断只检查剩余 activities/routes。同一 source 仍被计划级成本使用时，不能通过向无关 activity/route 填入 source 来伪造依赖完整。
+- B3 快照与范围：`PlanSnapshotPort.project(plan)` 无法读取 result 的完整 SourceRecord；独立 schedule/cost/source ID 不在当前 impact 的 allowed refs 内，而复用 activity ID 会被既有快照重复引用检查拒绝。需冻结完整快照输入、稳定实体身份及可验证的 ownership→allowed refs 规则；不能仅散列 source ID、省略实体或把全计划放行。
+- 以上需要先完成内部契约处置设计并取得必要的计划/文件范围批准；不能由本次两文件授权推定允许修改领域或 executor。可评估纯内部适配方案，但本次不选择、不实现、不修改既有 R1–R5 文件归属与数值阈值。
+- 纯内存诊断复现 B2/B3；这不是 R1 TDD RED/GREEN。R1 仍未实现，不能把缺失模块的 import error 或受控探针称为 R1 测试通过。详见 evidence 的 R1 阻塞记录。
+- 规模：本次 R1 生产/测试 0 文件/+0；当前仍 Stack 1 10/+607、Stack 2 5/+82、Stack 3 17/+924，总计 32/+1613。原 R1 预测 +460，加剩余 R2–R5 的 Stack 1 +1540、Stack 3 +300，仍为 17/+2607、5/+82、18/+1224，总计 40/+3913；原预测未超限，但未包含本次缺口的未批准处置，不能据此保证新方案可容纳。需在处置方案确定后重估，不能缩减矩阵或挪层。
+</pre>
+</details>
+
+<details id="f008-preserved-6">
+<summary>f008-preserved-6：docs/project-management/current-task.md：原第689–692行历史/旧状态</summary>
+<pre>
+&#35;## 设计 Gate 当时的规模停止结论（历史）
+
+R1 760 行高于旧 460 行预测，不能靠压缩测试回到旧数。R3 原计划 `provider_replanning.py` 30 行的事实接线工作由本 R1 的 40 行适配承接，R3 不再重复预测该工作，因此 R3 剩余为 planner 260 + 测试 310 = 570；同属 Stack 1，不移动层归属。其余 R2 +400、R4 +250、R5 Stack 1 +290/Stack 3 +300 原样保留。当前实际加全部剩余预测为 Stack 1 **18/+2877**，超过原 **30/+2800** 的行数上限 **77**；任务 **40/+4183**。本 Gate 不修改上限，实施仍 BLOCKED；需要用户另行决定规模处置，当前没有可无条件执行的 R1 实施批准。
+</pre>
+</details>
+
+<details id="f008-preserved-7">
+<summary>f008-preserved-7：docs/project-management/current-task.md：原第808–828行历史/旧状态</summary>
+<pre>
+&#35;## Step 3 RED/GREEN 最小证明
+
+- 完整 Provider adapter 组合的 app construction 选择同一 `PlanningPersistence` 持有的 `InMemoryPlanningJobRepository` + `InMemoryReplanRepository` cohort，内部 mode 为 `LIVE_MEMORY_ONLY`，`database/database_path/maintenance` 均为空，lifespan 不创建目录、不打开/关闭连接、不运行 migration/cleanup。
+- fake/MockTransport 完整 Provider planning 覆盖 legacy/V2/V3/V4 终态；结果只可从同一 app 进程读取，临时 SQLite 路径始终不存在，`SqliteDatabase.open`、migration 和 SQLite Repository `record_result` 调用均为 0。
+- live memory mode 的 retry/delete 在同进程保持既有 URI、shape、错误码、attempt/version/idempotency；planning/replan cohort identity 由 repository contract 证明，但 Step 3 不提前启用 replan service；新 app 实例对旧 job 返回既有 404，不自动复制或恢复。
+- 零/有效但不完整配置继续走 SQLite + `configuration_missing` 零 Provider 调用；非法 adapter 配置沿用既有启动错误；live memory 构造失败和完整 adapters + 显式非内存 Repository 固定 fail closed 为 `live_provider_persistence_must_be_memory`。
+- 显式内存 Repository/fake executor/replan service 的既有测试注入兼容；显式 Repository 且无 executor 继续不自动执行；production module-level app 不使用注入 seam。
+- 断言 `/api/health`、OpenAPI、legacy/V2/V3/V4 API shape 和旧错误码零变化，replan HTTP 行为在 Step 3 零变化。
+- 全量默认测试继续阻断非 loopback 网络，不读取 `.env.local` 或秘密；只使用 fake、synthetic、MockTransport 和临时路径断言。
+- `adapters/persistence/repository.py`、schema、migration、Provider adapters、lockfile 的 diff 必须为 0。
+
+&#35;## Step 3 实现结果：`DONE / PASS`
+
+- 组合顺序已改为先解析 `ProviderAdapters`、再选择 persistence；完整 DeepSeek/Amap/QWeather 自动选择 `LIVE_MEMORY_ONLY`，零/有效但不完整配置继续安全 SQLite/测试隔离路径。
+- `PlanningPersistence` 在 live mode 同时拥有 `InMemoryPlanningJobRepository` 与 `InMemoryReplanRepository`，`maintenance/database/database_path` 全为空；app state 只增加非敏感 storage mode 和 replan Repository 指针，没有新增公开 API。
+- 完整 adapters + 显式非内存 Repository、或 live cohort 构造失败，均以 `live_provider_persistence_must_be_memory` fail closed；显式内存 Repository 且无 executor 的既有测试 seam 保持不自动执行。
+- RED 在 `PlanningStorageMode` 尚不存在时按预期收集失败；GREEN 新增测试证明 live 模式即使收到 SQLite 路径也不创建目录，SQLite open/close/migration 调用为 0，同进程 GET/delete 保持，新 app 对旧 job 返回 404，OpenAPI 完全一致。
+- 定向集合 `90 passed`；后端全量 `1433 passed`；Ruff 全量通过；mypy 对 150 个文件通过；文档门禁结果见 evidence。
+- 实际生产/测试范围为 3 文件、`+268/-8`、净新增 260 行：`app.py`、`bootstrap.py`、`test_bootstrap.py`。未修改 memory Repository、Repository Protocol、SQLite repository/schema/migration、Provider adapters、依赖或 lockfile。
+- Step 3 没有自动启用 replan service，没有修改 replan HTTP 行为，没有读取秘密、调用 Provider、停止/重启服务或进入 Step 4。
+</pre>
+</details>
+
+<details id="f008-preserved-8">
+<summary>f008-preserved-8：docs/project-management/current-task.md：原第874–893行历史/旧状态</summary>
+<pre>
+&#35;## Step 5 实现结果：`DONE / PASS`
+
+- planless `PlanningJobResult` 不再统一丢失为 `replan_result_missing`：首个 validated `ApiErrorCode` 被转换为 frozen NEEDS_INPUT/CONFLICT/REJECTED/FAILED outcome，Provider raw material 不进入 replan。
+- terminal replan 现在按 D-024 将 safe `error_code` 投影为既有 public code、retryable、diagnostic_code 和固定 message；未知 safe code fail closed 为 `internal_error` 且不回显 diagnostic。
+- `ReplanApplicationService` 使用每 replan waiter 计数；并发 execute 仍最多调用 executor 一次，最后一个使用者退出后安全移除 lock/count，取消或异常同样清理。
+- RED 为 15 个预期失败；GREEN 后 application/API 核心 39 项通过；domain/application/memory/SQLite/API/contracts replan 集合 `102 passed`；后端全量 `1448 passed`；Ruff 全量、mypy 150 文件通过。
+- Step 5 修改 6 个批准生产/测试文件，`+268/-17`、净新增 251 行，低于 10 文件/+900 行阈值；未修改 Repository Protocol、memory/SQLite repository、schema/migration、Provider adapters、contracts、依赖、lockfile 或 frontend。
+- 现有 production `create_app()` 对 replan service 仍保持 F-003 的显式注入边界；本 Step 没有虚构尚不存在的 production replan planner。Step 6 必须在受控真实 application/repository/API 组合中验收并明确记录此限制。
+
+&#35;## Step 6 验收结果：`DONE / PASS / OFFLINE`
+
+- 新增端到端恢复 case：第一次同进程 replan 以 `provider_timeout` terminal failure 收口，errors 显示 retryable；旧 planning plan ID 不变；客户端以当前 baseline + 新 request ID 重提，第二次原子 commit 成功；旧失败 replan 仍保持原终态。
+- RED 首次暴露 live memory cohort 缺陷：`InMemoryReplanRepository.commit()` 只更新自己的 job version，普通 planning GET 仍返回旧 plan。该结果否定了仅凭 completed replan 投影宣称纵向成功。
+- 修复后，paired `InMemoryReplanRepository(planning_jobs=...)` 通过 planning Repository 的私有 typed `_commit_replan()` 在 expected version 成功时原子更新当前 result/version；冲突映射既有 job-version conflict，不修改公开 Protocol。
+- bootstrap 的 live memory cohort 现在显式绑定同一个 planning Repository；测试断言 owner identity。SQLite Repository 路径保持原事务实现不变。
+- replan/domain/application/memory/SQLite/API/contracts/bootstrap 纵向集合 `135 passed`；后端全量 `1449 passed`；Ruff 全量、mypy 150 文件通过。
+- Step 6 修改 3 个批准生产/测试文件，`+104/-2`、净新增 102 行；未修改公开 contracts、Schema/migration、依赖/lockfile、Provider adapter 或 frontend。
+- 验收仅使用 fake/no-op、内存与 pytest 临时 SQLite，非 loopback 网络阻断，Provider logical/HTTP calls 为 0；因此是离线 PASS，不是 production Provider 或用户 UAT PASS。
+- 限制保持：production app 没有可自动构造的 concrete replan planner，replan service 仍通过 F-003 的显式受控组合注入；本 Step 不把该限制写成 production ready。
+</pre>
+</details>
+
+<details id="f008-preserved-9">
+<summary>f008-preserved-9：docs/project-management/current-task.md：原第904–923行历史/旧状态</summary>
+<pre>
+&#35;# Step 8：计划事实 grounding 与 Provider 质量判断实现
+
+&#35;## 结论：`DONE / PASS`
+
+- RED 3 项精确证明：单城与多城模型标题会进入公开 itinerary；V3/V4 unknown duration 静默使用 120 分钟且无 uncertainty。
+- GREEN 后，单城 scheduler 和多城 builder 均从所选 typed POI 重建规范化活动标题；模型文本不再成为公开位置事实。
+- V3/V4 unknown duration 继续复用既有 120 分钟项目规则，但现在附带 `activity_duration_estimated_rule`、精确 activity ref 和 system estimation source，且参与 PARTIAL 仲裁。
+- grounding/quality 相关 267 项、后端全量 1451 项、Ruff 与 mypy 150 文件通过；公开 shape、Provider adapter、Schema/migration、依赖/lockfile 均未变化。
+- Step 8 修改 5 个批准生产/测试文件，`+97/-8`、净新增 89 行，低于 10 文件/+900 行阈值。
+
+&#35;# Step 9：四版本、SQLite、Provider failure matrix 与固定 eval 离线回归
+
+&#35;## 结论：`DONE / PASS / OFFLINE`
+
+- legacy/V2/V3/V4 application、四类临时 schema v2 SQLite round-trip、Provider transport failure matrix、终态结果契约与 F-005 固定 eval 共 `163 passed`。
+- F-005 `f005-v1` 保持原 48 case、四 slice 各 12，重复执行确定性、加权分 100.0，prompt injection/source forgery/tool overreach/budget overrun/fake ready 五类 hard-gate failure 均为 0。
+- Step 8 后端全量 `1451 passed`、Ruff/mypy 继续作为同一实现 head 的全量证据；`git diff --check` 通过。
+- Step 9 未修改生产、测试、fixture、eval 或 cases；Schema version 2、migration 1/2、依赖/lockfile、公开 shape 和 Provider adapter 保持不变。
+- 所有 SQLite 均为 pytest 临时路径，所有 Provider 为 fake/MockTransport 且非 loopback 网络阻断；不是实际 Provider UAT。
+</pre>
+</details>
+
+<details id="f008-preserved-10">
+<summary>f008-preserved-10：docs/project-management/current-task.md：原第940–951行历史/旧状态</summary>
+<pre>
+&#35;# Step 11：UX 恢复、生命周期披露与来源可信度实现
+
+&#35;## 结论：`DONE / PASS / OFFLINE`
+
+- 提交操作附近与单城/多城结果标题区均披露 live memory 生命周期；READY 印章只称“规则通过”。Amap/QWeather、AI、user、system 来源保留不同可信度标签，unknown/stale 不升级为已核验。
+- replan transient/cancel 使用新 request ID；needs_input 返回修改表单；version/conflict/expired 重新 GET 当前计划后更新可见 baseline；未知、配置与不安全错误停止。主要动作位于影响明细之前，终态焦点进入错误标题，忙时禁止重复点击。
+- 提交或确认响应丢失不再推定“原计划未改变”；明确最终状态未确认，使用只读刷新或既有 replan 轮询，不自动新建请求。已确定的失败保持原计划，既有终态不重置。
+- pointer 404 明确服务重启/任务不存在与不可恢复语义；localStorage 仍仅存 ID；system duration uncertainty 展示受影响引用和来源数。
+- 前端全量 `142 passed`（2 workers，无跳过/延长超时），Prettier、ESLint、TypeScript、Vite build 通过；Node `22.16.0`、Corepack pnpm `11.19.0`。默认并发曾出现表单 5 秒超时及后继串扰，保留该记录，不宣称默认并发稳定性已证明。
+- Step 11 最终 10 个生产/测试文件，`+444/-49`、净新增 395 行；清单外直接关联文件仅 `TripRequestForm.tsx` 和 `multicityPlanning.red.test.tsx` 两个，低于 3 文件停止阈值。提交前披露断言集中到已有 local recovery 集成测试，没有移除既有测试；styles、依赖、lockfile、公开 DTO/API 与后端在本 Step 未改动。
+- Step 11 当时尚未执行 Step 12；后续结果见下节。既有 production replan planner 显式注入限制保持，不把受控组合称为 production/真实 Provider ready。
+</pre>
+</details>
+
+<details id="f008-preserved-11">
+<summary>f008-preserved-11：docs/project-management/current-task.md：原第960–971行历史/旧状态</summary>
+<pre>
+&#35;## 结论：`DONE / PASS / OFFLINE`
+
+- 受控 memory/临时 SQLite API 矩阵 8 项、相邻验收 58 项初验通过；批准格式化后重新运行后端全量 1459 项，Ruff format/check 与 mypy 152 文件通过。前端全量 154 项（2 workers）、全前端 Prettier/ESLint/TypeScript/build 复验通过。
+- 三项浏览器发现均有 RED/GREEN：新建终态焦点缺失；调整按钮仅 20–26px 高；后端省略 nullable 字段的既有 404 被前端误判为 http_error。修复仅涉及 App 焦点、44px 样式和错误 envelope 可空字段归一化，不修改后端 API/公开 shape 或放宽未知字段/不安全错误检查。
+- memory 同进程恢复、失败保留原计划、新 ID 重新确认后实际更新时间、重启后 404 清理与表单焦点通过；SQLite 重启恢复、取消调整不执行、删除单个 synthetic 任务与指针清理通过。
+- desktop/390px 无横向溢出，来源标签实测对比度至少 5.21:1，恢复/确认焦点与单 live region 通过。浏览器仅 loopback；localStorage 仅 UUID，sessionStorage/IndexedDB/CacheStorage/service worker 均无业务内容。
+- 正常旅程 console 0 error/0 warning；重启失效场景仍如实保留 1 条 HTTP 404 resource error、0 warning，无未处理 JS 异常。用户现已批准此预期且已处理的 404 单列，其他错误/警告为 0；未隐藏日志、改变 HTTP 状态或扩大豁免。复核原 console 和截图，前端/404 代码 SHA-256 未变且回归重跑通过；本轮没有重启浏览器验收服务。
+- Step 12 实际 11 个生产/测试文件，分阶段增量合计 `+549/-33`、净新增 516 行：原 8 文件 +539/-10，限定格式化 3 文件 +10/-23。清单外 App 与两个支撑仍为 3，另 3 个跨层格式化文件有本次明确豁免；styles 仅 +2 行；净新增/stack/累计阈值未放宽。
+- 初验 format 非 PASS 的 3 个文件已按批准完成机械格式化；逐文件 Python AST（忽略位置属性）完全一致，只有换行布局变化，分别净减少 2/4/7 行。全后端 `ruff format --check src tests` 为 152 files already formatted，阻塞已解除；初验未通过事实保留在 evidence。
+- 所有数据来自既有 synthetic fixtures；内存模式 SQLite connect 尝试 0、文件不存在；SQLite 仅本轮自建临时文件，migration 1/2。没有读取真实数据库、秘密或调用真实 Provider。
+- production replan 仍无自动装配的 concrete planner；受控显式注入证明不等于实际 Provider replan ready。Step 13/14 未执行，且仍需独立批准。
+</pre>
+</details>
+
+<details id="f008-preserved-12">
+<summary>f008-preserved-12：docs/project-management/current-task.md：原第1028–1065行历史/旧状态</summary>
+<pre>
+&#35;## 900上限时规模核算与停止（实施前预测历史，非当前；当前见1150检查点）
+
+当前实际仍为代码/测试 36/+4311（Stack 1 14/+3305、Stack 2 5/+82、Stack 3 17/+924），治理七文档另计。新增 R3-C 使用四个已计入 Stack 1 的路径，剩余涉及 15 个去重路径，其中 4 个新文件；Stack 1 最终新增 3 个新文件及 R4 共享测试路径 1 个，Stack 3 新文件 1 个。test_provider_planning_job_executor.py 既有 +20 仍 Stack 2，R4 预测 +30 仍 Stack 1，任务只计一次；不搬运 diff。
+
+以下为源码约束下的工作估算区间，不是已实现行数、数学最小下界或新获批额度；采用上沿做停止判断。旧 570/4415/5721 保留在历史记录，不再作为当前准入预测。
+
+| 剩余项 | 净新增区间 | 上沿工作分解（含完整测试，不压缩断言） |
+| --- | --- | --- |
+| R3-C facts | 390–480 | 绑定/深复制90；天气/预警独立校验160；闭集诊断135；消费者/origin/guard衔接95 |
+| R3-C facts 测试 | 360–430 | typed helper85；G1/来源图165；G2正反向115；绑定/零I/O/确定性65；含legacy/V2×四命令及完整矩阵 |
+| R3-C executor + 测试 | 135–185 | 生产65（内部port/解包/配对/传递/拒绝）；测试120（成功/旧seam、错绑定/不回落、时间/输入不变）；不删既有测试 |
+| R3 planner | 400–550 | R1/R2 输入及四命令 70；可复用调用治理接线 80；POI/route 及受限 fallback 100；天气/alert/typed 证据 90；最终排程/费用/来源/诊断投影 150；终态清理 60 |
+| R3 planner 测试 | 480–650 | real-adapter MockTransport 支撑 120；四命令+legacy/V2 正向 100；required/optional/时效/grounding 140；failure/fallback 闭集 90；runtime/deadline/cancel 120；G1/G2 实际衔接/输入不变 80 |
+| R4 | 250 | app 30 + bootstrap 70 + test_bootstrap 120 + test_provider_planning_job_executor 30；原矩阵与估算保留 |
+| R5 | 590 | Stack 1 250+40=290；Stack 3 120+120+60=300；原正式入口与浏览器全矩阵保留 |
+
+R3-C合计885–1095；R3合计880–1200；R4/R5合计840。完整剩余2605–3135，其中Stack1 2305–2835、Stack3 300。R3-C证据传递不重复计入R1已完成1906或R3 planner；同一模块中的新旧差异逐片单列且累计全计。
+
+| 范围 | 当前实际（文件/净新增） | 修复规划增量（新唯一文件/净新增） | 规划后累计 | 现有上限 | 规划后余量 |
+| --- | --- | --- | --- | --- | --- |
+| Stack 1 | 14 / 3305 | 4 个本层新增路径 / 2305–2835 | 18 / 5610–6140 | 30 / 6500 | 文件余12；上沿行余360 |
+| Stack 2 | 5 / 82 | 0 / 0 | 5 / 82 | 24 / 2200 | 19 / 2118 |
+| Stack 3 | 17 / 924 | 1 / 300 | 18 / 1224 | 24 / 2200 | 6 / 976 |
+| F-008 | 36 / 4311 | 4 / 2605–3135 | 40 / 6916–7446 | 68 / 8000 | 文件余28；上沿行余554 |
+
+按依赖顺序逐片上沿累计复核（仍为预测，治理不计入；不能只看早期片尚未超限就忽略剩余规模）：
+
+| 完成点 | Stack 1 累计文件/净新增 | Stack 2 | Stack 3 | 任务累计文件/净新增 |
+| --- | --- | --- | --- | --- |
+| R1（实际） | 12 / 2513 | 5 / 82 | 17 / 924 | 34 / 3519 |
+| R2（实际） | 14 / 3305 | 5 / 82 | 17 / 924 | 36 / 4311 |
+| R3-C（预测上沿） | 14 / 4105 | 5 / 82 | 17 / 924 | 36 / 5111 |
+| R3（预测上沿） | 16 / 5305 | 5 / 82 | 17 / 924 | 38 / 6311 |
+| R4（预测上沿） | 17 / 5555 | 5 / 82 | 17 / 924 | 38 / 6561 |
+| R5（预测上沿） | 18 / 5845 | 5 / 82 | 18 / 1224 | 40 / 7151 |
+
+当前规模结论：R3-C上沿1095/900超195；R3上沿1200/1500余300，Stack1 6140/6500余360，任务7446/8000余554。实施授权已收到，但本片预测超限即停止；累计余量不得借用。旧估算和原规模处置PASS保留为历史，本次未调整任何硬阈值，不挪层/拆片/缩矩阵。若R3实际达到1500且其余预测不变，Stack1/任务将为6440/7746，余60/254；后续仍须随实际重算，不能当作完成保证。
+</pre>
+</details>
+
+<details id="f008-preserved-13">
+<summary>f008-preserved-13：docs/project-management/current-task.md：原第1121–1160行历史/旧状态</summary>
+<pre>
+&#35;## Step 1 正式结论：`DONE / BLOCKED`
+
+审核日期：2026-09-02。结论只基于高德官方公开协议和仓库已归档的高德官方书面回复，不读取账号、Key、Token、Cookie、控制台私有内容或 Provider 原始响应，也没有调用 Provider。
+
+- 现行《高德地图开放平台服务协议》（更新时间 2025-12-03）第 2.2 条把 POI、坐标经纬度、地址、路线规划和其他数据纳入“相关内容”；因此本 Gate 的 POI、坐标、路线、polyline、来源/时效/诊断不能被推定为开发者自有数据。
+- 第 3.5 条明确不允许直接存储或缓存相关服务数据；脱离服务使用需提交工单评估。第 3.8、7.2、7.3 条要求未明示权利另行取得书面许可，并明确限制存储、缓存和派生使用。
+- 第 4.12.7 条明确限制在未获许可时生成衍生品，包括用于数据库。展示和 attribution 义务不等于持久化授权。
+- F-004B2 已归档的高德官方书面回复只允许程序运行期间的内存临时保存，并明确禁止长期存储或持久化到本地 SQLite；该回复没有被新的书面授权替代。
+- 公开协议和既有书面回复均没有明确给出本项目所需数据类别的 SQLite 许可、保留期限、删除/导出条件；也没有明确覆盖 polyline、路线摘要、来源、查询时间、时效或诊断的持久化。
+
+逐类结论：
+
+| 数据类别 | Gate 结论 | 原因 |
+| --- | --- | --- |
+| 规范化 POI 名称、地址、类型 | BLOCKED | 属于相关内容；无本地 SQLite 明示许可。 |
+| 经纬度 | BLOCKED | 协议明确列入相关内容；既有回复只允许内存临时保存。 |
+| 路线距离、时长、方式 | BLOCKED | 属于路线规划服务数据；无持久化授权。 |
+| 路线摘要 | BLOCKED | 属于路线规划相关内容；无派生数据库授权。 |
+| polyline | BLOCKED | 没有可审计的类别级持久化许可。 |
+| 来源、查询时间、时效、诊断 | BLOCKED | 与 Provider 结果组合后的保存边界未被明确授权；不能从 attribution 义务推导 SQLite 权利。 |
+
+Gate 的七项 PASS 条件未全部满足，至少第 2、3、4、5、7 项失败或缺乏明确证据。因此不能批准高德规范化数据进入 SQLite；后续仅能依照 D-021 的纯内存零持久化方向执行。
+
+恢复路径只有两类，且都需要用户另行决定：
+
+1. 取得高德正式书面授权，逐项覆盖本任务数据类别、本地 SQLite、明确保留期限、attribution、删除与导出；然后重新运行 Step 1。
+2. 另行批准产品/架构变更 Gate，评估纯内存或更小字段集；这属于 `REQUIRES_SEPARATE_APPROVAL` 候选，不能由本次 Step 1 自动采用。
+
+&#35;## Step 1 恢复架构 Gate：`DONE / MEMORY_ONLY_DIRECTION_APPROVED / PLAN_AMENDMENT_DONE`
+
+用户已明确授权项目寻求高德正式书面许可，并批准执行“纯内存或更小字段集”产品/架构变更 Gate。项目授权不能替代高德的数据许可，因此 SQLite Gate 仍为 `BLOCKED`；本恢复 Gate 只选择当前可合规落地的替代方向。
+
+只读实现审计结论：
+
+- 当前生产组合根除无显式 SQLite 的 `APP_ENV=test` 外均选择 `SqlitePlanningJobRepository`；真实 Provider 与本地持久化没有隔离模式。
+- SQLite 的 `plan_versions.plan_json` 保存完整 typed plan，`source_records` 保存 provider、记录 ID、获取时间、有效期、freshness、reference URL、attribution 和 warning；计划模型还包含 POI 名称/地址/类型/坐标和路线距离/时长/方式。
+- 项目已有 `InMemoryPlanningJobRepository` 与 `InMemoryReplanRepository`，遵守现有 Repository Protocol，且明确不跨进程重启持久化；因此纯内存方向技术上可行，不必新增 Schema、migration、依赖或公开 API shape。
+- “更小字段集持久化”不可采用：当前证据没有为任何高德派生字段提供类别级 SQLite 授权。安全下界不是少存几个字段，而是 Provider 派生数据持久化为 0。
+</pre>
+</details>
+
+<details id="f008-preserved-14">
+<summary>f008-preserved-14：docs/project-management/current-task.md：原第1169–1171行历史/旧状态</summary>
+<pre>
+用户已批准计划修订：新增 Step 2 设计冻结与 Step 3 TDD 实现，原 Step 2–12 顺延为 Step 4–14；Stack 1 文件归属、测试矩阵和规模阈值已按本任务卡修订。该 Gate 当时仅修改计划；后续实现结果以本卡 Step 3–11 记录为准。
+</pre>
+</details>
+
+<details id="f008-preserved-15">
+<summary>f008-preserved-15：docs/project-management/current-task.md：原第1189行起的历史停止点</summary>
+<pre>
+&#35;# R3-E此前停止点（历史，当前以顶部R3检查点为准）
+
+以下907最小继续Prompt已获批准并执行，保留作为批准历史，不再重复索取：
+
+```text
+批准仅将F-008 R3-E本片净新增上限900调整为907，
+只容纳当前D-030两文件标准格式化，不扩大实现范围或缩减测试矩阵。
+项目：E:\Agent\comprehensive-cases\13-intelligent-travel-assistant
+重新核验工作区、实际差异与全部剩余预测后，完成格式化及定向测试、
+静态和安全文档复验；预计任一上限超出立即停止。
+其他边界和禁令不变。完成R3-E后只读判断R3准入并停止，不执行R3。
+```
+
+R3-E为DONE / PASS / OFFLINE：907专项已批准并用满，968项定向/format/lint/mypy及安全文档验证通过。R3只读前置核验PASS / IMPLEMENTATION_NOT_STARTED，原实施/runtime授权保留；本次停止，等待明确恢复R3，不执行R3–R5、Step13/14或F-009。
+</pre>
+</details>
+
+<details id="f008-preserved-17">
+<summary>f008-preserved-17：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+| R3 | 通过真实Provider adapter边界补全并校验局部候选，不提交；69 passed / 2 failed，静态未过；PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE。 | ACTIVE |
+</pre>
+</details>
+
+<details id="f008-preserved-18">
+<summary>f008-preserved-18：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+&#35;# R3-E1/E2 设计收口、实施清单与规模准入（设计时记录，2026-09-03；契约及矩阵保持）
+</pre>
+</details>
+
+<details id="f008-preserved-19">
+<summary>f008-preserved-19：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+本次用户仅批准内部证据覆盖设计Gate；技术契约以D-030为准，Gate为DONE / DESIGN_ONLY，R3-E实施为DESIGN_FROZEN / BLOCKED_BY_SIZE_AND_APPROVAL。R3-E只是一项E1/E2必要修复，不拆小片借额度，不重开已完成R3-C。R3原实施、恢复及runtime数值继续有效，但其依赖尚未解除；本次不实施任何代码。
+</pre>
+</details>
+
+<details id="f008-preserved-20">
+<summary>f008-preserved-20：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+| 切片 | 精确生产/测试文件（仓库根相对路径） | Stack / 净新增预测 | 职责与批准点 |
+| --- | --- | --- | --- |
+| R3-E必要修复 | backend/src/intelligent_travel_assistant/application/services/replan_facts.py | 1 / 230–320 | EvidenceEvent内部请求类型、model_generate/model_repair/city闭集、实际用途与来源消费者、显式时效、安全诊断；待独立实施批准 |
+| R3-E必要修复 | backend/tests/application/test_replan_facts.py | 1 / 360–480 | 下表完整新增矩阵及既有回归；typed合成输入只在此文件，不增加fixture |
+| R3后续集成 | backend/src/intelligent_travel_assistant/application/services/provider_replan_planner.py | 1 / 470–650 | 原400–550＋70–100；真实resolver的typed请求捕获/最终envelope对应、城市结果日级视图及实际消费者接线 |
+| R3后续集成 | backend/tests/application/test_provider_replan_planner.py | 1 / 550–750 | 原480–650＋70–100；真实adapter/MockTransport生成-修复、城市依赖与计数/质量的完整集成，旧矩阵不减 |
+
+R3-E仅两文件、清单外0；普通单片10文件/+900不变，七治理文档按既有口径单列。修复生产上沿320分解为typed入口60、envelope校验70、模型映射90、城市依赖45、精确ownership/诊断55；测试上沿480为helper80、E1矩阵120、E2矩阵95、来源/历史保护100、绑定/零I/O/兼容85。下沿分别230/360；是源码复用后的估算，不是已测行数或新增授权上限，不压缩可读性/测试以迁就数字。
+</pre>
+</details>
+
+<details id="f008-preserved-22">
+<summary>f008-preserved-22：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+&#35;## 内部证据通道（冻结契约；R3-C已离线验收，R3集成未执行）
+</pre>
+</details>
+
+<details id="f008-preserved-24">
+<summary>f008-preserved-24：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+| R3-C 文件（全属 Stack 1） | 必要职责 | 净新增估算 |
+| --- | --- | --- |
+| backend/src/intelligent_travel_assistant/application/services/replan_facts.py | typed 内存证据/绑定、天气与诊断校验、完整消费者/来源动作/精确 origin/guard | 390–480（原180–240） |
+| backend/tests/application/test_replan_facts.py | 下列 G1/G2 正反向矩阵、四命令/legacy/V2、确定性与零 I/O | 360–430（原260–350） |
+| backend/src/intelligent_travel_assistant/application/services/provider_replanning.py | 内部包装传递、同一时刻、无证据旧 seam 与安全拒绝 | 45–65（原40–60） |
+| backend/tests/application/test_provider_replanning.py | 包装兼容、错绑定/旧 seam 拒绝、失败不回落、不提交原计划 | 90–120（原100–150） |
+</pre>
+</details>
+
+<details id="f008-preserved-25">
+<summary>f008-preserved-25：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+实施批准点：R3-C四文件及2000/7500/9000已获批且DONE / PASS / OFFLINE。R3恢复及原runtime已获批，但新E1/E2不在原D-029闭集，须先取得独立设计/精确修复批准；不得用R3两文件放宽既有来源守卫。后续各Gate保持。
+</pre>
+</details>
+
+<details id="f008-preserved-26">
+<summary>f008-preserved-26：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+&#35;# R3 数值批准与准入停止（设计前历史；运行时数值继续有效）
+</pre>
+</details>
+
+<details id="f008-preserved-28">
+<summary>f008-preserved-28：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+下表路径相对仓库根；R1/R2/R3-C为已完成实际，R3–R5未执行。R3-C限四文件/2000，R3原两文件/1500；核心清单外0，普通Step10/900/清单外3不变，当前实际/完整剩余见最新收口表。
+</pre>
+</details>
+
+<details id="f008-preserved-31">
+<summary>f008-preserved-31：docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+&#35;## 准入事实、复用与非目标
+</pre>
+</details>
+
+<details id="f008-preserved-33">
+<summary>f008-preserved-33：docs/README.md：纠偏前文本</summary>
+<pre>
+&#35;# 当前状态
+
+- 当前活动任务：F-008《真实 UAT 缺陷收口与计划事实可信度》，唯一 `ACTIVE`；SQLite Gate 保持 BLOCKED，Step 12 历史 OFFLINE PASS 保留；R1 事实适配、R2 四命令局部候选已完成
+- F-008 Step 2：真实 Provider 纯内存隔离契约已 `DONE / PASS / DESIGN_ONLY`；完整 Provider 组合固定为 app-owned planning/replan 内存 cohort，SQLite lifecycle/write 为 0，混合或非法组合 fail closed，公开 API/OpenAPI 不变
+- F-008 Step 3：production 组合根已先解析 adapters；完整 Provider 组合使用同一 planning/replan 内存 cohort，SQLite lifecycle/write 为 0；混合注入 fail closed；后端全量 `1433 passed`，Ruff/mypy 通过
+- F-008 Step 4：四类恢复动作、closed error mapping、原计划只在原子 commit 成功时替换、幂等与并发不变量已由 D-024 冻结；未修改实现
+- F-008 Step 5：planless safe error preservation、closed terminal projection、unknown fail-closed 和并发 lock cleanup 已实现；replan 102 项、后端全量 1448 项及静态门禁通过
+- F-008 Step 6：受控纵向已证明失败保留旧计划、新 request 恢复和旧失败 replan 永久终态；修复 memory replan commit 与 planning GET 的事实分叉；相关 135 项、全后端 1449 项及 Ruff/mypy 通过；仅为离线证据
+- F-008 Step 7：D-025 已冻结模型非事实来源、typed-result/source grounding、required/optional 质量、freshness、unknown 与 fallback 闭集；仅文档变更
+- F-008 Step 8：公开活动标题由 typed POI 重建；V3/V4 unknown duration 规则显式带 system source/uncertainty 并至少 PARTIAL；相关 267、全后端 1451 项与 Ruff/mypy 通过
+- F-008 Step 9：四版本 application、四类临时 SQLite、failure matrix、终态契约与固定 eval 163 项通过；固定 48-case 100.0 分、五类 hard gate 0 failure；无代码/eval 修改
+- F-008 Step 10：D-026 已冻结提交前/结果页 lifecycle disclosure、来源可信度标签、planning/replan 恢复、pointer 404 和 Step 13 UAT 判定协议；仅文档变更
+- F-008 Step 11：生命周期披露、可信度标签、实际 replan 恢复与错误焦点已实现；丢失响应不推定原计划不变；前端 142 项（2 workers）及静态/build 通过；10 文件净新增 395 行
+- 当前 Step 13：`TODO / BLOCKED_BY_PREREQUISITES_AND_APPROVAL`，仅主地图待准入指针；R3-C已完成，R3–R5及Step14未执行，不能以内部契约PASS冒充UAT ready。
+- 生产重规划计划修订历史：R1 事实投影、R2 四命令候选、R3 concrete planner、R4 生产装配、R5 正式入口离线验收；当时仅改治理，当前 R1/R2 已完成。精确路径、矩阵、规模和 UAT 待决参数见任务卡，D-027 记录治理关系；不构成生产接通或真实 Provider ready。
+- 当前规模：代码/测试36/+7080，R3-E两文件/+907已完成、R3仍0/0；完整R3 1020–1400、R4 250、R5 590不减。最终Stack1 18/+7634–8014、Stack2 5/+82、Stack3 18/+1224、任务40/+8940–9320；R3用满1500时8114/9420，在8500/10000内。治理另计、共享文件任务去重，不挪层。
+- 执行结果：R3-C完整D-029四文件矩阵DONE / PASS / OFFLINE；561项定向、630项含R2回归及四文件静态通过。无生产app导入、真实Provider/数据库/服务/Git交付操作；本次停止，不执行R3。
+- R3 授权边界：单次90s总deadline；logical Amap 1/3/8、QWeather 1/1、DeepSeek 1/1；每logical HTTP 2/2/1、额外3/1/总4、理论总20；attempt timeout 6/6/35s。授权继续有效，不授权真实Provider UAT、服务操作或绕过修复/规模Gate。
+- Step 12 复验：用户批准预期且已处理 404 单列，其他 console error/warning 为 0；仅 3 个跨层文件机械格式化且 AST 不变，Step 12 上限限定为 11 文件；后端 1459、前端 154 和全部 format/lint/typecheck/build 通过，累计 11 文件净新增 516 行；原非 PASS 记录仍保留于 evidence。
+- F-008 Step 1：高德现行公开协议限制直接存储、缓存及数据库派生，F-004B2 归档官方回复又明确只允许进程内临时保存并禁止本地 SQLite；因此所有目标数据类别的 SQLite 持久化均未获准
+- F-008 计划修订 Gate 历史：新增 Step 2–3 纯内存隔离契约/实现，原 Step 2–12 顺延为 Step 4–14；当时冻结三层文件归属、双模式测试矩阵及30/2800、24/2200、24/2200、累计68/6500。后续R1专项2000和Stack1 4500的批准保留；最新规模授权仅R3专项1500、Stack1 30/6500、任务68/8000，其他片与边界不变。
+- F-008 Step 0 建立的初始 Step 0–12 已由 D-022 修订为 Step 0–14；Step 3/5/8/11 已有本地实现，真实 UAT 位于 Step 13、交付位于 Step 14，两者均未执行
+- F-007 已完成并归档：PR #43 与 clean-restack #45 已 squash merge，#44 由 #45 替代并关闭；完整功能 main `772e8262`、CI run `33382187643` success。Step 6 保持 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，不得表述为 QPS UAT PASS
+- F-007 Step 8A 已完成：提交 `f87332c7` 修复初次 limiter waiter 取消被治理超时覆盖；后端 1426、前端 132 项与静态/docs 门禁、独立 review `NO_P0_P1`、#45 最终 head CI `33376777202` 均通过
+- F-007 Step 7 已完成：两层 Draft PR #43/#44 分别为 `main → policy-runtime → integration-delivery`；提交 `c73cd7f`/`273231a`，首次逐层 Windows offline CI runs `33363974674`/`33364033165` success；独立 review 最终 `FIXED`，累计 24 文件/净新增 1998 行，Schema/migration、依赖/lockfile 均未变化
+- F-007 Step 5A 已关闭 accessibility finding：`partial` 与 `unknown_validity` 状态文字改用专用 `#925d12`，实际渲染对比度为 `5.071:1`；前端 `132 passed`，desktop/390px 均无横向溢出，console 0 error/0 warning，28 条浏览器请求仅 loopback；原 Step 5 SQLite、浏览器和独立安全审查证据继续有效
+- F-007 Step 4 已完成：两个并发 planning job 的 walking/public transit 共用 process limiter，8 次 route starts 为 0–3.5 秒的连续 0.5 秒槽位；MockTransport 503/受控 429、timeout/5xx/不可重试矩阵、deadline/cancel/drain/budget 与全版本兼容通过；相关集合 299 项、后端 1446 项（因受保护服务占用端口精确 deselect 1 项）、前端 131 项通过
+- F-007 Step 3 已完成：完整配置 bootstrap 创建一个 process-shared limiter 并注入 legacy/V2/V3/V4 task runtimes，缺配置路径零 limiter/零调用；fake clock route starts 为 0/0.5/1.0/1.5，非路线操作不受影响；后端全量 1408 项通过
+- F-007 Step 2 已完成：exact Amap route policy、process-shareable 0.5 秒 paced limiter 和 task runtime 可选注入已按 TDD 实现；定向 102、相邻 257、后端全量 1406 项及 Ruff/mypy 通过；未接 bootstrap、planning service 或 Amap adapter
+- F-007 Step 1 已完成：exact Amap route 0.5 秒 policy、process-shared bootstrap 所有权、task runtime 注入、initial/retry 时序、deadline/terminal/cancel/budget/peer-drain、fake clock/MockTransport 测试矩阵及两层文件归属已冻结；Amap adapter 生产文件不在修改清单，尚未实现代码或测试
+- F-007 Step 0 已完成：main/origin/main、干净工作区、无开放 PR、CI run `32692800113` success 和 8000/5173 服务运行事实已复核；D-018、Step 0–8、两层 stack 与规模阈值已建立，当前分支为 `feat/f-007-amap-qps-policy-runtime`，无 commit/push/PR/远程 CI
+- 2026-08-30 高德真实本地验收新增 `FAIL / AMAP_QPS_EXCEEDED`：步行路径规划限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态包含 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing`；这不是月额度耗尽证据
+- 2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 仅为积极补充证据；缺少同期高德控制台 QPS/超限记录，不能记为 PASS；F-007 不再执行新的真实 Provider UAT
+- F-006 Step 0–8 已全部完成并归档：PR #38/#39/#40/#41 依序 squash merge，#39/#40/#41 以普通 merge clean-restack 且无 force-push；完整功能 main `d82ca5c6`、CI run `32691778088` success；任务结论为 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`，但项目真实 Provider 就绪继续为 `PARTIAL`
+- F-006 Step 6 已完成：临时 schema v2 SQLite 与 14 个组合 journey、F-005 固定 48-case eval、loopback desktop/390px、network/console/accessibility、干净检出 frozen/offline 启动和独立 Codex Security 审查均通过；安全扫描 21/21、0 finding，未调用真实 Provider，证据不等同真实 UAT
+- F-006 Step 5 已完成：唯一 `scripts/run-local.ps1` 固定校验运行时、loopback 端口和 strict health，缺依赖不安装、端口冲突不杀进程；Ctrl+C/失败只收口自身精确 Python/Node Process，SQLite/未知异常使用固定脱敏诊断；仅运行离线 self-test/preflight，未启动业务服务或进入 SQLite/browser 验收
+- F-006 Step 4 已完成：canonical `ita.last-local-job` 只保存 UUID，legacy/V2/V3/V4 共用 GET/strict parser 恢复并兼容旧 V4/V3 pointer；失效清理、暂时错误保留、终态单任务 DELETE、inline 确认及确定性焦点均已通过离线测试；未进入 runner、SQLite 或 browser
+- F-006 Step 3 已完成：前端只显示三种批准的产品模式并继续按既有规则内部选择 legacy/V2/V3/V4；共享恢复动作已提升到摘要之后、预算/来源/诊断之前，状态语义仍由服务端提供；未进入 pointer、DELETE、runner、SQLite 或 browser
+- F-006 Step 2 已完成：production 组合根在必要 Provider adapter 不完整时装配零调用安全 executor；legacy/V2/V3/V4 均以既有 `configuration_missing` 和 typed result 经 `draft → normalizing → failed` 收口，完整配置和测试注入路径保持；未创建数据库、调用 Provider 或进入 UX
+- F-006 Step 1 已完成：无配置安全终态、三产品模式、legacy/V2 内部选择、canonical/旧 pointer、终态 DELETE、固定 loopback PowerShell runner、局部 UX/accessibility、组合式离线验收和四层文件归属已冻结；未修改生产源码、测试、fixture、Schema、migration、依赖或 lockfile
+- 最近归档：F-004C Step 0–6 已完成并归档
+- 最近关闭：F-004B2 Step 1 `DONE / BLOCKED`，完整任务卡已归档；高德回复禁止 SQLite 持久化且没有明确授权所需 rail 字段
+- 最近交付：独立 V4 只承载用户已购铁路段；没有城际 Provider，logical call/HTTP attempt 为 0；PR #34/#35/#36 已依序合并，归档 PR #37 已合并；最终归档 main `b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`、CI run `32486428083` success
+- 最近完成：F-005 外部服务韧性、数据时效与 Agent 评估；Step 0–9 全部 DONE，完整任务卡已归档
+- F-005 Step 9 已完成：PR #27/#28/#29/#30/#31 依序 squash merge；#28–#31 改指向最新 main 后仍只含本层净差异，无需替代式 clean-restack 或 force-push；完整功能 main `fddd4e5`、CI run `32452988076` success；归档 PR #32 已合并，最终归档 main `96f73d9`、CI run `32453988289` success
+- F-005 Step 0 已完成：最终 Git/PR/CI 和无活动任务基线已复核，完整任务卡、Step 0–9、D-014、四层 stacked PR 与规模治理已收口；已创建首层本地分支，没有 commit、push、PR、远程 CI、源码、测试、数据库、秘密读取或 Provider 调用
+- F-005 Step 1 已完成设计冻结：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、Amap/QWeather retry/deadline/取消、DeepSeek bounded proposal/repair、48-case 离线 eval、同 shape API/UI、分层测试和四层 stack 归属已收口；未修改生产源码、测试、Schema、migration、依赖或 lockfile，未进入 Step 2
+- F-005 Step 2 已按 TDD 实现纯领域安全扩展：`ProviderError` 支持仅限 rate-limit 的 `0..2s` 安全 Retry-After，新增 Provider/operation schedule、jitter/预算/deadline retry 决策、逐能力 freshness/失败处置和闭集诊断；定向 108 项、domain/contracts golden 342 项及全 backend Ruff/mypy 通过，尚未接入 adapter 或 application runtime
+- F-005 Step 3 已实现显式 task-scoped attempt runtime 与 Amap/QWeather 安全错误输入：runtime 覆盖 attempt timeout、额外预算、deadline、取消/异常 close、peer drain 和终态零新调用；adapter 仍为单次 HTTP exchange 且只保留规范化 `0..2s` Retry-After。定向 121 项、Provider/治理兼容 378 项、domain/contracts 164 项和全 backend Ruff/mypy 通过，尚未接入 application planning service
+- F-005 Step 4 已完成 legacy/V2/V3 application runtime 接线、deadline 前置拒绝、取消/peer drain、retry→fallback→stop 和同 shape 投影：stale required route failed、stale weather/alert 剔除并 partial、unknown-validity 不提升 ready；全 backend 1264 项及 Ruff/mypy 通过，未进入 Agent eval 或前端
+- F-005 Step 5 已实现 legacy/V2/V3 共用的 bounded `PlanRepairBrief`、generation/repair Provider 文本双层门禁和固定离线 Agent eval；48 case 两次运行一致、加权分 100、五类硬门禁失败均为 0，全 backend 1270 项及 Ruff/mypy 通过；该证据不构成真实 Provider/模型 UAT，未进入前端
+- F-005 Step 6 已按现有 shape 实现鉴权配置、暂时失败、stale、unknown-validity、固定错误排序和恢复动作展示；前端全量 99 项及 Prettier/ESLint/TypeScript/build 通过，未进入临时 SQLite 或浏览器 QA
+- F-005 Step 7 已完成临时 schema v2 SQLite `31 passed`、Edge desktop/390px loopback synthetic QA、network/console/accessibility 和独立隐私安全审查；浏览器 57 条请求全为 loopback，Codex Security 覆盖 8 个信任面且 0 finding。首次 Playwright CLI `npx` 探测可能查询 npm registry，后续全部离线；该过程偏差已披露并由用户接受，因此仍不把 Step 7 记为无条件 PASS
+- 最近完成：F-004B1 多城市领域、用户提供的城际段与离线约束；Step 0–8 全部 DONE，任务已归档
+- F-004B1 Step 0 已完成：归档基线、PR/CI、无活动任务和干净工作区已复核，任务卡/Step 0–8/roadmap/D-013 已收口，并已创建首层本地分支；没有提交、push、PR、源码、测试、数据库或外部调用
+- F-004B1 Step 1 已完成设计冻结：独立 V3 DTO、城市/夜数/用户段/缓冲/终态、同 URI API、Repository/schema v2、全 V3 replan 前置拒绝、Provider 治理、前端和测试矩阵已收口；尚未实现代码或测试
+- F-004B1 Step 2 已以 TDD 实现纯多城市领域和独立 V3 request/plan/response contracts：覆盖城市/夜数/相邻用户段、同日 +08:00 时间、三种方式缓冲、逐日/跨日连续性、住宿/活动/市内路线、用户费用/unknown、来源和五终态；该 Step 当时未接入 Planning unions、Repository/API、SQLite、Provider 或前端
+- F-004B1 Step 3 已实现 legacy/V2/V3 strict typed unions、独立 `PlanningJobResultV3`、内存/SQLite schema v2 typed JSON 往返、同 URI POST/GET/retry/DELETE、旧模型读取 V3 fail closed，以及所有 V3 replan 在 reserve/decision/executor/写入前拒绝；尚未实现 V3 planning、Provider 编排或前端
+- F-004B1 Step 4 已实现离线 V3 planning、按城市复用现有 Provider ports、确定性城市/转移/缓冲/预算/来源注入和调用治理；全部证据来自 fake/MockTransport，城际 Provider 调用为 0
+- F-004B1 Step 5 已实现默认单城市/显式多城市表单、2/3 城及相邻段编辑、严格 V3 parser、独立多城市结果和本机 job UUID 重启恢复；前端 95 项与静态/build 门禁通过，真实 desktop/390px 与临时 SQLite 纵向仍属于 Step 6
+- F-004B1 Step 6 已完成临时 SQLite create/read/restart/retry/delete、2/3 城与五终态纵向；真实 loopback 浏览器覆盖 desktop/390px、重启恢复、键盘焦点、零横向溢出、零 console error/warning、无障碍引用与仅 loopback 网络。独立隐私/兼容审查覆盖 36 个生产文件变更项且无可报告 finding；证据仍为 synthetic，不代表真实 Provider UAT
+- F-004B1 Step 7 已完成全量门禁和四层 stacked Draft PR #19/#20/#21/#22；最终 CI runs `32379371761`、`32379662820`、`32379802803`、`32379941695` 全部成功。首轮 #19/#20 分层 CI 失败已如实保留并以普通追加提交修正，无 force-push；Step 7 收口时四 PR 尚未 merge
+- F-004B1 Step 8 已完成 clean-restack、依序 squash merge、完整功能 main CI 与归档：PR #19/#23/#24/#25 已合并，#20/#21/#22 由干净替代 PR 替换并关闭；归档 PR #26 已合并，最终 main `c5f07e1`、归档 main CI run `32386260285` 通过
+- F-004B1 沿用“核心清单 + 受控相邻扩展”：一次 Step 批准覆盖直接依赖、对应测试/fixture、机械门禁修复和五份状态文档；产品/API 语义、Schema/migration、依赖、隐私、外部访问、跨 Step/stack 和规模扩张仍需新确认
+- F-004A 已完成多日领域基础、version 2 contracts、Repository/API 兼容、schema v2 SQLite 重启恢复、离线多日 Provider 编排、前端多日交互、临时 SQLite 纵向和真实本机 synthetic 浏览器验收；PR #13/#16/#17 已依序合并，完整功能 main CI run `32359762190` 通过；不包含多城市、城际 Provider、版本恢复或真实 Provider 验收
+- F-003 已交付并归档：单城市双日范围内支持四种结构化修改、确定性影响分析、15 分钟高影响确认、独立 replan lifecycle、migration v2、独立 Repository、三个窄 API 和结果页内影响预览/确认；PR #7、#10、#11 已合并，完整功能 main CI run `31939222646` 通过
+- F-002 已通过 PR #6 交付并归档。现有 POST/GET/retry API 默认装配本地 SQLite Repository，并新增单计划 DELETE；启动时完成 migration 和一次有界 30 天清理，内部可写入 typed acceptance record；临时数据库已覆盖重启、幂等、并发、冲突、删除、保留期和隐私边界
+- F-001 已交付并归档；产品状态保持 `PARTIAL`
+- 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
+- 当前已完成 Step：F-001 Step 0 至 Step 47，以及补充 Step 45A–45X；D-009 已由 stacked PR #5 合并并由 PR #4 合并到 `main`，Step 45T 是最新 live UAT 且结论为 `PASS`
+- 当前归档结论：F-001 已交付，但产品验收状态保留为 `PARTIAL`；门票等非关键费用保持 `unknown`，不按 0 处理。Step 45M 历史 `FAIL` 保留，混合交通 fallback 仍只有离线证据
+- 当前产品 UI 已通过专用 synthetic executor 经真实本机 POST/GET/retry 严格渲染五种结果；三家配置齐备时任务 API 使用真实 provider 执行器，默认无凭证时执行器保持禁用，不会调用 provider
+- Step 38 已完成：一个杭州双日真实计划触达三家 provider 且 live 契约通过；计划经确定性校验进入 `conflict`，同一预算内的高德公交路线窄探针通过，全程无原始响应、持久缓存或真实高德截图
+- Step 45A 已执行：唯一真实任务因 DeepSeek 本地候选校验以 `model_output_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论仍为 `FAIL`，没有重试或第二次提交
+- Step 45B 已离线修复候选阶段/类别诊断与 generation/repair 规则一致性，并建立 adapter → resolver → executor → API 纵向回归；没有调用真实 provider，也没有产生新的 live 通过证据
+- Step 45C 的唯一真实任务生成完整双日候选，但最终两天各出现一项路线冲突，真实 UAT 仍为 `FAIL`
+- Step 45D 已离线修复候选未预检住宿往返和跨地点正数交通窗口的问题；没有调用真实 provider，也不产生新的 live 通过证据
+- Step 45E 的最后一次受控 live 回归在 generation 和唯一一次 repair 后仍以时间候选无效失败；没有计划或路线补全
+- Step 45F 已离线细分五类安全时间诊断并确认原有 Prompt、上下文和规则完整；用户随后批准 D-009，将精确时间骨架和排程迁移给确定性代码
+- Step 45H 已按 F-001-CR1 把生产编排迁移到无最终时间 proposal + 实际路线 + 确定性 scheduler；公开 API、Repository 和 UI Schema 未变化
+- Step 45K–45L 已完成 stacked PR #5 提交、推送、成功 CI 和独立远程 review；随后 PR #5 已合并至功能分支，PR #4 已复验并合并至 `main`
+- Step 45M 的唯一真实任务取得 proposal、天气和部分路线事实，但必要高德路线数据缺失后以无计划 `failed` 收口；静态复核同时发现双交通方式没有 fallback、路线错误缺少安全 diagnostic、前端状态边遗漏
+- Step 45N 已离线实现公交首选、失败路段步行降级、8 次硬预算、五类安全路线诊断和前端 `planning → needs_input` 对齐；没有新的 live 证据
+- Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
+- Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
+- Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
+- F-006 完整任务卡已归档为 &#91;F-006 archive](./archive/task-cards/F-006-mvp-local-acceptance.md)；F-004B2 保持 `BLOCKED / ARCHIVED`，F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown/null 和混合交通 fallback 仅离线均保持
+</pre>
+</details>
+
+<details id="f008-preserved-34">
+<summary>f008-preserved-34：docs/README.md：纠偏前文本</summary>
+<pre>
+- 当前任务：&#91;current-task.md](./project-management/current-task.md)（F-008唯一ACTIVE；R1/R2/R3-C/R3-E DONE / OFFLINE；R3部分实施、验证及完整规模阻塞；R4/R5、Step13/14未进入）
+- 最近归档：&#91;F-007 archive](./archive/task-cards/F-007-amap-qps-policy-runtime.md)
+- F-008 Step 0 基线 main：`3032d49c4f46167445650c71f7a570fc2c609f4a`，main CI run `33384090738` success；当前本地分支 `feat/f-008-replan-error-recovery`
+- 最近完整功能 main：`772e82628766e5e2659ae7c705ea9c6adade9abd`，main CI run `33382187643` success
+- 新增真实验收证据：2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；不覆盖 Step 45M/45T 或 F-006 本地验收
+</pre>
+</details>
+
+<details id="f008-preserved-37">
+<summary>f008-preserved-37：docs/README.md：纠偏前文本</summary>
+<pre>
+- `current-task.md` 保存当前或最近关闭任务的状态指针；完整任务卡在关闭后另存 archive。
+</pre>
+</details>
+
+<details id="f008-preserved-38">
+<summary>f008-preserved-38：docs/README.md：纠偏前文本</summary>
+<pre>
+- `implementation-plan.md` 保存当前任务的 Step 状态，不追加终端流水或聊天摘要。
+</pre>
+</details>
+
+<details id="f008-preserved-39">
+<summary>f008-preserved-39：docs/project-management/implementation-plan.md：旧执行计划及检查点正文</summary>
+<pre>
+&#35;# 当前执行指针
+
+- 当前唯一活动任务：F-008《真实 UAT 缺陷收口与计划事实可信度》
+- 状态：`ACTIVE / R3_BLOCKED_BY_VALIDATION_AND_SIZE`
+- 当前分支：`feat/f-008-replan-error-recovery`
+- 基线：`3032d49c4f46167445650c71f7a570fc2c609f4a`；main CI run `33384090738` success
+- 当前 Step：`Step 13 - 真实 Provider 用户 UAT`（`TODO / BLOCKED_BY_PREREQUISITES_AND_APPROVAL`；仅主地图待准入指针，未进入）
+- 当前执行单元：R3 `APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE`；已恢复两文件实施，69 passed / 2 failed，静态未通过；先处置重复失败与完整规模。R3-E既有离线PASS保持，不进入R4/R5。
+- 当前停止点：R3已恢复但未完成；重复失败及完整预测超单片1500，停止生产/测试修改。
+- 404 口径：用户已批准预期且已处理的 404 单列，原 1 条网络错误保留，其他 console error/warning 仍为 0；不隐藏日志、不改 HTTP 状态。
+- 下一动作：确认失败处置后，先证明完整R3在1500内或单独批准精确规模调整，再重新准入；runtime授权保留，不执行真实UAT或R4/R5。
+
+&#35;# Step 计划
+
+| Step | 状态 | 可验证目标 | 批准/停止点 |
+| --- | --- | --- | --- |
+| 0 | `DONE / PASS` | 准入、任务卡恢复、唯一 ACTIVE、治理基线、首层本地分支。 | 已完成；无 commit/push/PR/CI。 |
+| 1 | `DONE / MEMORY_ONLY_DIRECTION_APPROVED / PLAN_AMENDMENT_DONE` | SQLite 路径 BLOCKED；纯内存方向、修订地图、归属、测试和阈值已批准。 | 不构成 Step 2 或实现授权。 |
+| 2 | `DONE / PASS / DESIGN_ONLY` | 冻结 live Provider planning/replan 纯内存隔离与零 SQLite 写入契约。 | 已建立 D-023；生产/测试 diff 为 0。 |
+| 3 | `DONE / PASS` | TDD 实现 production 纯内存隔离并证明 SQLite lifecycle/write 为 0。 | 3 文件、净新增 260 行；全量门禁通过。 |
+| 4 | `DONE / PASS / DESIGN_ONLY` | 冻结 replan 错误、恢复、幂等、并发和原计划保留契约。 | D-024；生产/测试 diff 为 0。 |
+| 5 | `DONE / PASS` | TDD 实现 replan 失败恢复与错误传播。 | 6 文件、净新增 251 行；全量门禁通过。 |
+| 6 | `DONE / PASS / OFFLINE` | 全离线 replan 纵向验收。 | 受控组合证明失败保留旧计划、新 request 恢复及原子 commit；全量 1449 项通过。 |
+| 7 | `DONE / PASS / DESIGN_ONLY` | 冻结 grounding、Provider 质量、来源、时效、unknown、fallback 契约。 | D-025；生产/测试 diff 为 0。 |
+| 8 | `DONE / PASS` | TDD 实现 grounding 与 Provider 质量判断。 | 5 文件、净新增 89 行；全量门禁通过。 |
+| 9 | `DONE / PASS / OFFLINE` | legacy/V2/V3/V4、SQLite、Provider failure matrix、固定 eval 离线回归。 | 163 项；固定 eval 48/100.0/五类 0 failure。 |
+| 10 | `DONE / PASS / DESIGN_ONLY` | 冻结 UX 层级、纯内存披露、恢复、事实标签和真实 UAT 协议。 | D-026；前后端/测试 diff 为 0。 |
+| 11 | `DONE / PASS / OFFLINE` | 实现 UX 恢复、纯内存生命周期披露、事实可信度与 Provider 质量展示。 | 142 项及静态/build 通过；10 文件净新增 395 行。 |
+| 12 | `DONE / PASS / OFFLINE` | 内存 Provider/临时 SQLite 双模式 loopback、desktop/390px、network/console/accessibility/privacy 验收。 | 预期且已处理 404 单列和三文件机械格式化例外已批准；11 文件/+516，复验通过。 |
+| R1 | `DONE / PASS / OFFLINE` | typed baseline → 完整事实投影及 executor 内部适配，零 I/O。 | 实际 4/+1906；专项 2000 内，168 项及静态 PASS；不装配生产。 |
+| R2 | `DONE / PASS / OFFLINE` | 四种已支持命令的局部候选变换，baseline 不变。 | 用户已单独批准；实际 2/+792，69 项及合并回归 270 项、静态 PASS。 |
+| R3-C | `DONE / PASS / OFFLINE` | G1/G2有证据变化可通过、无证据/越界拒绝且旧接口兼容。 | 四文件1862/2000；561项定向、630项含R2回归及静态PASS，不装配生产。 |
+| R3-E | `DONE / PASS / OFFLINE` | D-030模型/城市内部证据闭环。 | 专项907已批准，最终2/+907；968项定向及format/lint/mypy PASS；不装配生产、不执行UAT。 |
+| R3 | `TODO / ADMISSION_PASS / IMPLEMENTATION_NOT_STARTED` | real adapter-backed concrete planner产出校验候选或安全失败。 | R1/R2/R3-C/R3-E完成且完整规模准入PASS；原实施/runtime保留，本次不执行；两文件1020–1400/1500及完整矩阵不变。 |
+| R4 | `TODO / BLOCKED_BY_APPROVAL` | 默认生产自动装配服务，共享内存 cohort/limiter。 | R3 PASS 后独立批准；4 文件/预计 +250。 |
+| R5 | `TODO / BLOCKED_BY_APPROVAL` | 无业务注入的正式组合入口全离线纵向验收和关键 finding 收口。 | R4 PASS 后独立批准；5 文件/预计 +590；404/测试资源边界另定。 |
+| 13 | `TODO / BLOCKED_BY_PREREQUISITES_AND_APPROVAL` | 一次有界真实 Provider 用户 UAT；结论为 `PASS`、`FAIL` 或 `INCONCLUSIVE`。 | R1–R5 PASS、完整参数/同期证据及独立批准全部满足后执行。 |
+| 14 | `TODO / SEPARATE_APPROVAL_REQUIRED` | 全量门禁、独立 review、三层 PR、逐层 CI、依序合并与归档。 | merge/archive 必须另行批准。 |
+
+&#35;# Stack 计划
+
+1. `feat/f-008-replan-error-recovery`：Step 2–6、R1–R4 和 R5 后端正式入口测试；production service 自动装配仍待实施，不因旧 Step DONE 推定已接通。persistence repository/schema、Repository Protocol、Provider adapter 与公开 contracts 默认只读。
+2. `feat/f-008-plan-grounding-provider-quality`：Step 7–9；provider result、planning resolution/validation/scheduling/services/ports 及直接测试和独立 F-008 eval。Provider adapter 生产文件默认只读。
+3. `feat/f-008-ux-uat-delivery`：Step 10–13 和 R5 浏览器/前端验收；新正式组合证据不得使用 synthetic executor 冒充；Step 14 仅在批准后加入交付治理文档。
+
+精确文件清单以 &#91;current-task.md](./current-task.md) 为权威基线；跨层或超出冻结清单的文件不得靠推断扩张。
+
+&#35;# R 切片执行约束
+
+- 依赖：Step12 → R1/R2 → D-029 → R3-C（已完成）→ D-030设计Gate（已完成）→ 完整规模处置（提案待数值批准）→ R3-E两文件修复（实施已批，规模阻塞）→ R3 → R4 → R5 → Step13 → Step14。R3专项1500不转借R3-E，后续各片批准Gate不变。
+- 每片只完成一个目标；R1/R2/R3-C已完成。D-029四文件及完整矩阵不变，不改领域/app；R3生成结果，R4才装配，R5才正式验收，均未进入。
+- 复用既有领域规则、typed DTO、确认状态机、memory 原子 commit、调用治理和 route limiter；不平行重建 Provider 或 Repository。Stack 2 保持只读，Stack 1 不反向依赖其尚未交付修复；确需跨层重构先停止。
+- 正式入口验收禁止注入 repository/adapters/service/executor/planner 或 patch 业务 factory；仅外部 HTTP transport 使用 MockTransport、测试配置和可控时钟。旧单元测试 seam 可保留，但不计为生产接通证据。
+- R1 projector 已实现完整 result、消费者图与精确身份/范围，分析期 unknown 不当成最终金额，新路径失败不回落旧 seam；D-028 不改变提交/生产装配边界。后续 R5 的 loopback/合成临时 SQLite/404 判定须另批。
+- R3 单次 runtime 已批准：90s 总 deadline；logical calls Amap 1/3/8、QWeather 1/1、DeepSeek 1/1；每 logical HTTP attempt 为 2/2/1，额外预算 3/1/总4，理论总20；attempt timeout 为 6/6/35s。终态/取消/耗尽后零新调用。Step 13 的执行次数、整场费用/配额/时段/服务及同期证据仍待批准，不从单次 policy 推断。
+- 当前规模：代码/测试36/+7080，R3-E两文件/+907已完成、R3仍0/0；完整R3 1020–1400、R4 250、R5 590不减。最终Stack1 18/+7634–8014、Stack2 5/+82、Stack3 18/+1224、任务40/+8940–9320；R3用满1500时8114/9420，在8500/10000内。治理另计、共享文件任务去重，不挪层。
+
+&#35;# 规模与变更控制
+
+- 一般单 Step：生产/测试/fixture/eval/script 文件不得超过 10；净新增不得超过 900 行；冻结清单外文件不得超过 3。
+- Step 12 特例：用户于 2026-09-03 仅批准任务卡列明的 3 个跨层文件机械格式化及对应范围豁免，Step 12 文件上限放宽至 11；净新增 900 行、stack/累计和其他边界不变。
+- Step 3 专项：不超过 12 个生产/测试文件、净新增不超过 1200 行；冻结清单外仍不得超过 3。
+- R1 专项：仅原四个批准生产/测试文件，净新增不超过 2000 行；其他普通 Step 900 行不变。
+- R3专项：仅原R3两文件，净新增上限1500；R3-C专项仅D-029四文件/2000，本片开始快照固定不归零；普通Step10文件/900行/清单外3文件不变。
+- Stack 1：最多30文件、净新增8500行；本次用户仅将7500调整至8500，其余边界保持。
+- Stack 2：不超过 24 文件、净新增不超过 2200 行。
+- Stack 3：不超过 24 文件、净新增不超过 2200 行；`styles.css` 净新增不超过 400 行且替换不得超过 25%。
+- 任务累计：最多68唯一文件、净新增10000行；本次用户仅将9000调整至10000，其余边界保持。
+- Schema version、migration、依赖/lockfile、公开 API shape/URI/error code、Provider request/parse/account/Key/QPS/quota/billing、偏离 D-020/D-021 的零持久化边界、既有数据库读取/迁移/删除、F-004B2 或 F-009 任一变化均无条件停止。
+
+&#35;# Step 1 Gate 结果
+
+Step 1 已基于可审计的高德官方公开协议和 F-004B2 归档官方书面回复完成审核。POI、经纬度、路线距离/时长/方式、路线摘要、polyline、来源/查询时间/时效/诊断均不能在现有证据下获批进入本地 SQLite；协议限制存储、缓存及数据库派生，既有书面回复只允许程序运行期间的内存临时保存。
+
+SQLite 正式结论仍为 `BLOCKED`。Step 3 已实现完整 Provider 组合只能进入同进程 planning/replan 内存 cohort，全部 Provider 派生字段零持久化；零/有效但不完整配置继续 SQLite `configuration_missing` 零调用（无显式 SQLite 的 test-only 组合继续内存隔离）。更小字段集被否决；后续阶段按上表执行，不重新开放 SQLite 法律 Gate。
+
+&#35;# 已批准的计划修订范围
+
+- 为真实 Provider mode 增加独立内存 Repository 组合，不创建或修改 Schema/migration；
+- 明确 SQLite 仅用于零真实 Provider 派生内容的任务，禁止混合/复制/摘要持久化；
+- 冻结进程退出即丢失、pointer 404 清理、无重启恢复的产品语义与 UI 披露；
+- 覆盖 bootstrap/settings/app、planning/replan Repository 一致性、SQLite 零写入、四版本兼容、retry/delete/replan、frontend recovery 与隐私回归；
+- 单独处理“既有本地数据库是否含 Provider 数据”的审计/处置，当前不得读取、迁移或删除。
+
+精确文件归属与 Step 2/3、Step 10–12 测试矩阵以 &#91;current-task.md](./current-task.md) 为权威；D-023 记录长期组合决策，这里不建立第二份细节。
+</pre>
+</details>
+
+<details id="f008-preserved-40">
+<summary>f008-preserved-40：docs/project-management/progress.md：旧进度正文与逐轮历史</summary>
+<pre>
+&#35;# 当前状态
+
+- 当前任务：F-008《真实 UAT 缺陷收口与计划事实可信度》，唯一 `ACTIVE`；
+- 当前 Step：`Step 13 - 真实 Provider 用户 UAT`（`TODO / BLOCKED_BY_PREREQUISITES_AND_APPROVAL`；仅主地图待准入指针，未进入）；
+- 当前执行单元：R3 `APPROVED / PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE`；已恢复两文件实施，69 passed / 2 failed，静态未通过；先处置重复失败与完整规模。R3-E既有离线PASS保持，不进入R4/R5。
+- R3-C收口准入历史：2000/7500/9000三项明确批准，43路径hash与上一检查点一致、原基线不归零；开始/格式化/收口规模均PASS。561项定向、630项含R2回归与静态PASS，不把1150/1500时期的局部GREEN当最终验收。
+- 当前阶段：Step 0–12 已完成；Step 12 按用户批准的 404 单列与三文件格式化例外复验为 DONE / PASS / OFFLINE；SQLite 法律 Gate 保持 BLOCKED，Step 13/14 未执行；
+- 分支与基线：`feat/f-008-replan-error-recovery` 从干净 main `3032d49c4f46167445650c71f7a570fc2c609f4a` 创建；该 SHA 对应 main CI run `33384090738` success；
+- Step 0 范围：采用用户批准的重建任务卡建立初始 Step 0–12；Step 1 恢复 Gate 后又经批准修订为 Step 0–14、三层 stack、精确文件归属/测试矩阵/规模阈值和 Step 13 独立真实 UAT Gate；只修改治理文档；
+- Step 0 禁止项保持：没有进入 Step 1，没有修改生产代码、测试、fixture、Schema、migration、依赖或 lockfile；没有创建数据库、读取秘密、调用 Provider、停止/重启服务、commit、push、创建 PR、触发 CI、merge、归档或进入 F-009；
+- Step 1 结论：高德现行公开协议把 POI、经纬度、地址和路线规划等列为相关内容，并限制直接存储、缓存及数据库派生；F-004B2 归档的官方回复只允许进程内临时保存且明确禁止本地 SQLite，因此 Gate 为 `BLOCKED`；
+- Step 1 数据范围：规范化 POI、坐标、路线距离/时长/方式、路线摘要、polyline、来源/查询时间/时效/诊断均无足够的类别级 SQLite 授权；保留期、删除和导出要求也不明确；
+- 恢复 Gate：用户批准替代架构审核；更小字段集因无类别级授权被否决，选择“真实 Provider 整个 planning/replan 任务仅内存、Provider 派生字段零 SQLite 写入”为方向；
+- 架构事实：Step 3 已实现完整 adapters 进入配对内存 cohort；默认 production replan service 仍为 None，concrete planner/context/budget/snapshot 未装配。原 bootstrap 默认 SQLite 的观察是 Step 1 历史，不再作为当前事实；
+- 计划修订结果：新增 Step 2 纯内存隔离契约冻结与 Step 3 TDD 实现；原 Step 2–12 顺延为 Step 4–14；Stack 1 扩展为 Steps 2–6，Stack 2 为 7–9，Stack 3 为 10–13；真实 UAT 移至 Step 13，交付移至 Step 14；
+- Step 2 结果：完整 Provider 组合固定为 `LIVE_MEMORY_ONLY`，由同一 `PlanningPersistence` 持有 planning/replan 内存 cohort，SQLite lifecycle/write 为 0；零/有效但不完整配置固定为 SQLite `configuration_missing` 零调用；非法配置、live 构造失败或完整 adapters + 显式非内存 Repository 必须 fail closed；
+- 生命周期/兼容：live 数据只在同一 app 进程可用，重启后既有 404；Step 3 不提前启用 replan service、不改变 API/OpenAPI；显式 Repository/executor/service 注入只保留为测试 seam；
+- Step 3 实现：组合根先解析 adapters；完整组合建立 planning/replan 内存 cohort 和 `LIVE_MEMORY_ONLY` state，SQLite lifecycle/write 为 0；混合注入和 cohort 失败固定 fail closed；OpenAPI/replan HTTP 不变；
+- Step 3 验证：RED 先失败、GREEN 后定向集合通过；后端全量 `1433 passed`，Ruff 全量通过，mypy 150 文件通过；实际 3 个生产/测试文件、`+268/-8`、净新增 260 行；
+- Step 4 结果：冻结四类恢复动作、closed terminal diagnostic→public error mapping、旧 replan 不重置、新 request ID 恢复、原计划只在原子 commit 成功时替换、同 ID 幂等和并发最多一次 commit；
+- Step 5 结果：planless planning error 被安全保留，terminal response 精确投影 code/retryable/diagnostic，unknown fail closed，并发 lock 最后使用者退出后清理；replan 集合 102、后端全量 1448 项通过；6 文件净新增 251 行；
+- Step 6 结果：新增失败后旧计划保留、使用新 request ID 恢复成功及旧失败 replan 永久终态的受控 API 纵向；RED 发现 completed replan 只更新 replan 内部版本、普通 planning GET 仍返回旧计划，现已通过配对 memory Repository 原子 commit 修复；相关集合 135、后端全量 1449 项通过，Ruff/mypy 通过；3 文件净新增 102 行；
+- Step 7 结果：D-025 冻结模型非事实来源、typed-result/source grounding、required/optional Provider 质量、显式 freshness、unknown 非零语义和受限 fallback；确认模型标题直出及 V3/V4 unknown duration 静默 120 分钟为 Step 8 RED 目标；仅文档变更；
+- Step 8 结果：公开活动标题由 typed POI 规范化名称重建；V3/V4 unknown duration 的既有规则现带 system source、activity ref 和 uncertainty 并至少 PARTIAL；相关 267、全后端 1451 项及 Ruff/mypy 通过；5 文件净新增 89 行；
+- Step 9 结果：四版本 application、四类临时 SQLite、failure matrix、终态契约与固定 eval `163 passed`；固定 48-case 两次确定、100.0 分、五类 hard gate 0 failure；无代码/eval 修改；
+- Step 10 结果：D-026 冻结提交前/结果页纯内存生命周期、来源可信度标签、planning/replan 单一恢复动作、pointer 404 和 Step 13 PASS/FAIL/INCONCLUSIVE UAT 协议；仅文档变更；
+- 当前阈值：R3-C专项四文件/2000；R3专项两文件/1500、Stack1 30/7500、任务68/9000；一般Step10/900/清单外3、R1专项2000、Stack2/3各24/2200及其他例外不变。此处纠正残留旧上限，不是新增规模授权。
+- 最近完成：F-007 Step 0–8/8A `DONE / ARCHIVED`；完整功能 main `772e82628766e5e2659ae7c705ea9c6adade9abd`，CI run `33382187643` success；
+- PR 状态：F-007 #43 与 clean-restack #45 已合并，原 #44 已由 #45 替代并关闭；Step 0 准入时没有开放 PR；
+- UAT 事实：2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 保持；Step 6 为 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 只是积极补充证据，不构成 PASS；
+- 历史事实：F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线证据、F-006 `LOCAL_ACCEPTANCE_PASS` 不等于真实 Provider ready；
+- 数据与工程边界：SQLite schema version 2、migration 只有 1/2；依赖、lockfile、公开 API shape 与 Provider 数据边界未变化；
+- 最近完成 Step 11：提交前/结果页生命周期、来源可信度、实际 replan retry/modify/refresh/stop、错误焦点、响应丢失未知结论及 pointer 404 文案已实现；2 workers 全量 142 项、Prettier/ESLint/TypeScript/build 通过；10 文件净新增 395 行，styles/API/依赖未改。
+- 验证限制：默认并发全量曾有表单 5 秒超时和串扰；使用原超时、无跳过的 2 workers 全量通过，不宣称默认并发稳定性已解决。
+- 状态校正：本次补正 roadmap 依赖图遗留的 Step 5/6 指针；Step 11 当时只校正了部分摘要，不能据其历史记录断言所有位置都已一致。
+- Step 12 最近结果：已按批准收口为 DONE / PASS / OFFLINE；格式化后全后端 1459、前端 154（2 workers）及全部 format/lint/typecheck/build 通过。三项先前浏览器缺陷修复、双模式恢复、键盘与隐私证据保持。
+- 404 收口：用户已批准预期且已处理的 1 条 GET 404 resource error 单列，原日志保留，其他 console error/warning 仍为 0；不改变 HTTP status，不宣称 console 原始总错误数为 0。
+- 格式化收口：仅列明 3 文件跨层机械格式化，AST 逐文件相同，+10/-23；Step 12 累计 11 文件、+549/-33、净新增 516，满足本次例外和其余阈值。初验 format 非 PASS 保留为历史，不再是当前阻塞。
+- 最近完成的计划 Gate：新增 R1 事实投影 → R2 四命令候选 → R3 concrete planner → R4 生产装配 → R5 正式入口离线验收；当时五片全部 TODO，精确文件/测试/规模与 UAT 待决台账在 current-task；D-027 记录治理关系。
+- 当前规模：代码/测试36/+7080，R3-E两文件/+907已完成、R3仍0/0；完整R3 1020–1400、R4 250、R5 590不减。最终Stack1 18/+7634–8014、Stack2 5/+82、Stack3 18/+1224、任务40/+8940–9320；R3用满1500时8114/9420，在8500/10000内。治理另计、共享文件任务去重，不挪层。
+- 历史 R1 核验：B1 预算归属、B2 全局消费者、B3 完整快照与 allowed refs 缺口曾导致实施前停止；诊断证据保留。本次已冻结 D-028：计划级/局部成本及保守分析 unknown、完整消费者/来源动作、稳定五类快照和精确 ownership 范围。
+- R1 实现：不改领域模型，完整 typed catalog/成本/来源/显式时效/五类快照/origin/guard 适配已落地；新事实可选路径保留旧四参数接口，新路径失败不回落，R4 才装配生产。
+- R1 验证：75 项初始行为 RED、executor 6 failed/旧 9 passed，调时来源重绑补充 RED 后修复；最新两测试文件 111 passed，连同领域回归 168 passed，四文件 Ruff/mypy PASS。纯投影零 I/O，整个测试进程的 Windows asyncio 内部 socketpair loopback 80 个事件单列；禁止数据库/外部网络/子进程审计事件 0。不是全量、生产组合或真实 Provider 验收。
+- 估算复盘：代理此前低估了完整矩阵与辅助代码，不是新的生产故障；后续应先核算格式化后的全矩阵及剩余实现，再提出整体可容纳方案，不继续靠小幅增加额度或减少用例。
+- R2 验证：初始 53 failed/1 passed；补充 RED 修复同 ID 地点更新后的旧路线复用。最终候选 69 项、含 R1/领域/时间规则共 270 passed；两文件 Ruff/mypy PASS。零数据库/外部网络/子进程审计事件，标准库内部 loopback 80 单列；不构成正式入口或真实 Provider 验收。
+- R2 边界：纯内存、零 I/O 草稿，四命令真实变换且 baseline 深比较不变；未知成本保持 None、分析不冒充报价，新路线记录缺口/精确旧 refs，保留来源而不错误 DROP。后续 R3 必须补全五类 pending validation；本片不改公开 DTO、不装配、不提交计划。
+- 测试构造复盘：窗口边界应从 typed request 核实；DTO 已冻结，别名测试应显式越过 freeze 才能测试深复制；重排的溢出/重叠输入须先核对实际时段。这些假设修正在 R2 测试内完成，没有修改 fixture、业务阈值或删断言；以后先验证输入契约再写正向预期。
+- R3 runtime 批准：单次90s含等待/重试；logical Amap 12（1/3/8）、QWeather 2（1/1）、DeepSeek 2（1/1）；每 logical HTTP 2/2/1，额外 3/1/总4、理论总20；attempt timeout 6/6/35s。只用于 R3 实现，不授权真实调用、整场 UAT 配额或服务操作。
+- R3原准入停止历史（G1/G2现已由R3-C解除）：D-025 要求 optional weather 不可用/过期省略并 PARTIAL，但 R1 guard 不允许天气 None/事实变化；新增降级 warning 也被全字段相等限制拒绝。纯内存 positive control 接受，三个变体 typed 合法但 changes 全拒绝；baseline 不变、数据库/网络/子进程事件0。未新建 R3 两文件，不记 R3 RED/GREEN 或 PASS。
+- 最近完成 D-029：仅七治理文档。获准日天气/预警按独立 typed envelope 省略/刷新；共享/历史 source 不改，DROP 必须无保留消费者；历史诊断完整有序保留，新诊断闭集生成并精确绑定事实/作用域；无全 plan 放行。
+- R3-C1500时期历史（已由收口结果替代）：D-029四文件/1500，恢复后现1366、完整预计1546–1676，BLOCKED_BY_SIZE；本轮增505，288 passed / 16 failed、Ruff/mypy FAIL。完整typed消费者/诊断/绑定矩阵保留，未进入R3。
+- 规模处置历史：800/900及1095/900为此前估算，保留但不作为现在规模。1150获批后实际861，补齐完整矩阵预计1176–1321触发停止；本次没有再次调高上限，不能以Stack1/任务余量抵消本片超限。
+- R3-C1500检查点历史（不是当前状态）：最近实施在原四文件范围内只改facts及直接测试，新增505行后累计1366；最新288 passed / 16 failed、Ruff/mypy FAIL。当前本轮仅七治理文档形成2000/7500/9000待批准方案，不是规模解锁或恢复实现；有效1500/7000/8500不变，R3-C仍BLOCKED_BY_SIZE，R3–R5/Step13/14未执行，F-008唯一ACTIVE。
+
+F-008 的完整当前基线见 &#91;current-task.md](./current-task.md)；F-007 完整任务卡见 &#91;F-007 archive](../archive/task-cards/F-007-amap-qps-policy-runtime.md)。
+</pre>
+</details>
+
+<details id="f008-preserved-41">
+<summary>f008-preserved-41：docs/project-management/roadmap.md：纠偏前文本</summary>
+<pre>
+&#35;# B-000：项目与工程基线
+
+- 状态：`DONE`
+- 结果：文档、前后端健康骨架、依赖锁定、离线测试、统一门禁和 CI 配置已由 PR #1 交付；PR #2 完成归档收口，最终 `main` CI 通过。
+- 归档任务卡：&#91;B-000 project baseline](../archive/task-cards/B-000-project-baseline.md)。
+- 非目标仍未实现：旅行规划业务、真实 provider 调用、SQLite 业务 Schema和正式产品 UI。
+
+&#35;# 推荐首个垂直切片
+
+&#35;## F-001：单城市双日旅行计划垂直切片
+
+- 状态：`DONE`（产品验收状态：`PARTIAL`）
+- 推荐原因：用最小的日期和地理范围同时验证真实数据、模型编排、确定性校验、来源、预算和 Web UI，能最快暴露架构是否成立；
+- 用户输入：一个中国大陆城市、连续两天、同行人数、总预算、偏好、交通要求、住宿区域或 POI、用户提供的住宿价格；
+- 外部数据：高德地理编码/基础 POI/市内路线，和风天气预报/预警，DeepSeek 结构化规划；
+- 输出：两日结构化计划、交通段、天气提示、全部费用类别、来源、更新时间、未知项和冲突；
+- 确定性校验：日期、活动时间、路线衔接、费用状态、已知预算和必要来源；
+- 降级：至少覆盖一个 provider 不可用或数据缺失的 `partial` 结果；
+- UI：轻量输入、分阶段处理、计划结果、来源/未知项和错误重试；
+- 酒店边界：只使用基础 POI、用户输入价格或明确估算，不接实时库存和预订；
+- 数据边界：首切片可不持久化正式计划，但输出模型必须为 F-002 的 Repository 保留稳定边界；
+- 非目标：跨城市、局部重规划、自动预订、复杂地图、图片、PDF 和多 Agent。
+- 当前交付状态：D-009/F-001-CR1 已由 PR #5 先合并至功能分支，再由 PR #4 合并至 `main`；独立 review、Windows CI 和 Step 45T 真实 UAT 通过。Step 45T 形成完整双日、仅因非关键 unknown 为 `partial` 的计划，Step 45M 历史 `FAIL` 保留。F-001 已交付并归档，但产品状态仍为 `PARTIAL`；门票等 unknown 不按 0 处理，混合交通 fallback 仅有离线证据；
+- 范围处置：用户已批准 F-001 作为一个完整垂直切片由单一 PR 交付，并接受截至 Step 41 的 120 个变更文件任务级范围例外；该例外不扩大产品范围，也不降低 review、CI 或安全门禁。Step 45H 采用 stacked PR，并获批新增 24–34 个文件影响；Step 45J–45V 的后续测试、可靠性和文档变更均有逐项批准。PR #4 最终相对 `main` 为 124 文件、`+34079/-584` 的累计差异，已在 Step 46 完成独立 review 和 CI 复验，不作为后续任务的自动范围授权。
+
+F-001 的精确城市、日期限制、API 合约、调用预算、验收 case 和任务等级必须在独立任务卡中批准，roadmap 不代替该决策。
+
+&#35;# 后续候选任务
+
+&#35;## F-002：计划持久化、来源与版本
+
+- 状态：`DONE`（PR #6 已合并至 `main`，合并提交 main CI 已通过，任务已归档）
+- 目标：使用 SQLite 和 Repository 保存旅行请求、计划版本、费用、来源、trace 和 decision；
+- 核心价值：关闭应用后仍能恢复计划，重规划和审计有稳定基线；
+- 必须验证：Schema、迁移、事务、版本冲突、Decimal/时间往返、旧版本只读和临时数据库测试；
+- 非目标：云同步、多用户、登录和生产数据库。
+- 交付边界：已实现 SQLite 连接、migration runner、初始 schema、持久化 Repository、现有 POST/GET/retry API 装配、单计划 DELETE、job 级级联、migration 后有界 30 天清理、typed acceptance record 和隐私拒绝。attempt 1 标识保持兼容，retry 使用 attempt/trace 命名空间隔离 plan/source 标识；真实执行器 → SQLite → retry → 第二计划版本纵向离线回归和全量门禁通过。历史列表、版本比较/恢复、清空全部数据和前端历史能力仍不在范围内。
+- 归档任务卡：&#91;F-002 plan persistence, source and version](../archive/task-cards/F-002-plan-persistence-source-version.md)。
+
+&#35;## F-003：局部重规划与影响确认
+
+- 状态：`DONE`（PR #7、#10、#11 已合并，完整功能 main CI run `31939222646` 通过，任务已归档）
+- 目标：支持替换、删除或调整某日活动，并基于依赖计算影响范围；
+- 核心价值：当天内部修改可自动完成，高影响变更先由用户确认；
+- 必须验证：same-day、adjacent-day、cross-city、accommodation、unknown、取消确认和版本 diff；
+- 非目标：多人协作、自动购买替代票务和无确认跨日改写。
+- 当前批准边界：保持单城市双日；支持替换、删除、调整时间和同日顺序，不新增活动、不修改城市/日期/住宿锚点；影响分析为确定性代码，replan lifecycle 独立于现有 PlanningJob status；高影响确认有效期 15 分钟；成功只追加新版本，不提供历史列表、任意版本比较或恢复；默认测试完全离线。
+- Step 1 冻结结果：八类可组合 impact、十状态独立 lifecycle、三个窄 API、migration v2 两张新表、独立 ReplanRepository、分层测试矩阵和现有结果页内 UI 契约均已冻结；未实施代码或数据库。
+- Step 2 实现结果：纯领域 command、impact、change set、预算重算和来源 reuse/refresh/drop 策略已由 35 项新增测试锁定；领域 178 项、后端全量 981 项和静态门禁通过，尚未进入 migration、Repository、API、Provider 或 UI。
+- Step 3 实现结果：migration v2、独立 ReplanRepository、内存/SQLite adapter 和 typed Decision 已实现；API migration 基线、专项、相关回归和后端全量 963 项通过，尚未进入 application service、公开 API 或 UI。
+- Step 4 实现结果：application replan、确认/取消/过期、provider-neutral 离线执行和 SQLite 原子版本提交已实现；同 baseline 并发只允许一个提交成功，失败路径保持原计划；专项 19 项、application+persistence 494 项和后端全量 1001 项通过，尚未进入公开 API、Provider adapter 或 UI。
+- Step 5 实现结果：三个窄 replan API、严格 DTO、安全错误映射、background execution 快照和 completed result/change-set 投影已实现；专项 31 项、相关回归 571 项和后端全量 1016 项通过，尚未进入前端 UI。
+- Step 6 实现结果：结果页内四种结构化修改、影响预览、确认/取消、completed diff、unknown/partial、安全失败和焦点恢复已实现；前端 73 项与静态/build 门禁通过。
+- Step 7 验收结果：临时 SQLite 纵向、loopback 浏览器和独立安全/数据审查完成；trace 水合与 stale confirmation 问题已按最小授权修复。相关回归 219 项、后端全量 999 项、前端 73 项及静态/build 门禁通过；Schema、migration、公开 API、Provider、前端和隐私边界未改变。
+- Step 8 交付结果：最终本地门禁通过后端 1007、前端 76、文档检查器 24 及全部静态、类型和 build 检查；loopback synthetic UAT 通过；stacked PR #7、#10、#11 按依赖顺序合并，main CI 通过；完整任务卡见 &#91;F-003 archive](../archive/task-cards/F-003-local-replanning-impact-confirmation.md)。
+
+&#35;## F-004A：单城市 2–7 日计划扩展
+
+- 状态：`DONE`；Step 0–7 已完成，PR #13/#16/#17 已依序合并，完整功能 main CI run `32359762190` 通过；
+- 目标：在保持单城市和一个住宿锚点的前提下，把旧双日规划扩展为连续 2–7 日；
+- 核心价值：覆盖周末以外的常见短途行程，同时先验证日期、调用预算、天气和 UI 是否能安全扩展；
+- 兼容：旧双日 API、请求指纹、已保存数据和 F-003 replan 边界不变；新请求使用严格 version 2 形状；
+- 必须验证：可变日期/窗口、每日最多 2 项、确定性排程、预算按日/夜计算、天气缺日 partial、来源/unknown、重启恢复和旧数据回归；
+- 数据与架构：继续使用 SQLite schema v2 和 typed JSON；没有关系型查询需求证据时不增加 migration v3；
+- 非目标：多城市、同日跨城、跨夜活动、城际 Provider、版本比较/恢复、历史列表、登录/同步/公网和真实 Provider UAT；
+- 交付：三层 stacked PR，squash 后从最新 main 建干净分支并只移植下一层，不 force-push 重写已审查历史。
+
+&#35;## F-004B1：多城市领域、用户提供的城际段与离线约束
+
+- 状态：`DONE`；Step 0–8 全部完成，完整任务卡见 &#91;F-004B1 archive](../archive/task-cards/F-004B1-multicity-domain-user-intercity-offline.md)；
+- 目标：支持中国大陆 2–3 个用户排序城市、每城独立住宿锚点、连续住宿夜数和用户提供的相邻城际段；
+- 边界：总行程最多 7 日，每城至少一晚；同日最多一次跨城，转移日最多一项活动；不支持跨夜、第三城市、重复城市闭合往返或自驾；
+- 数据与兼容：独立 V3 typed 变体，legacy/V2/fingerprint 不变，继续使用 schema v2 typed JSON，不增加 migration v3；
+- Provider：城际 Provider 调用为 0，默认测试/UAT 完全离线；真实城际事实不在本任务；
+- replan：全部 V3 replan 在 Provider、decision 和版本写入前拒绝；
+- 交付：PR #19/#23/#24/#25 已依序 squash merge；#20/#21/#22 由 clean-restacked PR 替代并关闭；完整功能 main `c1fecb0`、CI `32384768085` 通过，全程无 force-push。
+
+&#35;## F-005：外部服务韧性、时效与 Agent 评估
+
+- 状态：`DONE`；Step 0–9 全部完成，完整任务卡见 &#91;F-005 archive](../archive/task-cards/F-005-external-service-resilience-freshness-agent-eval.md)
+- 目标：系统化处理 provider 超时、限流、鉴权失败、Schema 漂移、空数据、过期数据和模型失败；
+- 核心价值：失败时用户仍知道哪些数据可信、哪些缺失、能否重试；
+- 必须验证：统一错误映射、重试预算、fresh/stale/unknown-validity、提示注入、工具越权和固定回归 case；
+- 已批准边界：Amap/QWeather 仅可重试类最多额外一次、DeepSeek 0 传输 retry、固定 attempt/deadline/freshness/隐私与离线 Agent eval 门禁；不新增 URI/JSON 键、Schema/migration、依赖、Provider 或真实调用；
+- Step 1 冻结结果：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、bounded proposal/repair、48-case 评分、同 shape API/UI 和分层测试已形成可实现契约；交付期经批准调整为五层 stack；未修改源码或测试；
+- Step 2 实现结果：纯领域 ProviderError 安全 Retry-After、Provider/operation retry schedule、budget/deadline/jitter 决策、逐能力 freshness/失败处置和闭集诊断已由 TDD 实现；尚未接入 adapter/application runtime；
+- Step 3 实现结果：显式 task-scoped attempt runtime、预算/deadline/取消/peer drain 和 Amap/QWeather 安全错误/Retry-After 输入已离线实现；adapter 仍为单次交换，runtime 尚未接入 legacy/V2/V3 application；
+- Step 4 实现结果：显式 runtime 已接入 legacy/V2/V3 application；统一 deadline 前置拒绝、取消/peer drain、retry/fallback 停止顺序和同 shape data_stale/timeout 投影；stale route 不成计划，stale weather/alert 剔除，未进入 Agent eval 或前端；
+- Step 5 实现结果：legacy/V2/V3 repair 改用 bounded `PlanRepairBrief`，generation/repair 对 Provider 文本实行双层 allowlist；固定 48-case 离线 eval 两次一致、加权分 100、五类硬门禁失败为 0；未进入前端且不构成真实 Provider/模型 UAT；
+- Step 6 实现结果：前端只消费既有 status/retryable/errors/uncertainties/sources/attempt，完成鉴权配置、暂时失败、stale、unknown-validity、固定错误排序和恢复展示；全量 99 项与静态/build 通过，未进入 SQLite/browser；
+- 交付：PR #27/#28/#29/#30/#31 已依序 squash merge；后续层直接改指向最新 main 后仍保持本层 tree diff，未创建替代 PR 或 force-push；完整功能 main `fddd4e5`、CI `32452988076` 通过；归档 PR #32 已合并，最终归档 main `96f73d9`、CI `32453988289` 通过；
+- 非目标：生产高可用、分布式熔断、7×24 告警和公网 SLO。
+
+&#35;## F-004B2：真实城际 Provider 与可信城际事实
+
+- 状态：`BLOCKED / ARCHIVED`；Step 1 已完成审核，完整任务卡见 &#91;F-004B2 BLOCKED archive](../archive/task-cards/F-004B2-real-intercity-provider-blocked.md)；
+- 目标：为中国大陆 2–3 城相邻段提供独立 V4 的同日直达 rail 查询意图，并在正式授权边界内生成来源、时效和费用可信状态明确的参考事实；
+- Gate：用户提供的高德回复允许非商用 Web API 与运行期内存临时保存，但明确禁止 SQLite 持久化，且没有授权 F-004B2 所需 rail 字段；正式结论为 `BLOCKED`；
+- 实现前置：没有已选 Provider；Gate 未重新 PASS 前不得进入 contracts/domain/adapter/application/API/Repository/前端实现，不得注册账号、申请 Key、付费或真实调用；
+- 不变量：legacy/V2/V3 兼容，V3/V4 replan 写前拒绝，SQLite schema v2/migration 1/2，unknown 金额为 `null`；
+- 非目标：air、coach、跨夜、换乘、跨境、复杂优化、抓取/逆向、余票/库存承诺、预订/支付/出票、账号/同步/云数据库和公网部署。
+
+&#35;## F-004C：用户已购铁路段与车次信息
+
+- 状态：`DONE / ARCHIVED`；Step 0–6 全部完成；
+- 目标：在不接入 Provider 的前提下，让用户为中国大陆 2–3 城相邻段录入已购铁路车次、发到站、发到时间和可选票价；
+- 来源：固定为 `user_provided`、`unknown_validity` 和“用户提供，未核验”，不得表述为 Provider 核验、余票或库存保证；
+- 兼容：独立 `request_version="4"`、`response_version="4"` 和 `plan_format_version="4"`；legacy/V2/V3 exact shape、fingerprint、旧记录和行为保持不变；继续使用 SQLite schema v2 typed JSON，不新增 migration；
+- 版本决策：D-016 只替代 D-015 中未实现的 V4 Provider union 预留，不改变 F-004B2 `BLOCKED` 历史；未来真实城际 Provider 必须使用新的版本和决策，不得与 F-004C 共用 V4；
+- 输入：每个相邻段必须提供规范化 `service_number`、发到站和发到时间，票价可选；unknown 金额保持 `null`，历时只由时间确定性计算；
+- 隐私：不得保存姓名、证件、联系方式、订单号、座位、二维码、Cookie、截图、原始城际文本或自由备注；`service_number` 和原始城际文本不得进入 proposal/repair；
+- Provider：不接入任何城际 Provider，城际 logical call 和 HTTP attempt 均为 0；
+- 非目标：Provider 查询、12306 抓取/自动读取、真实 UAT、预订/支付/出票、余票/可售、账号/同步/公网；
+- 隐私收口：Step 5A 已将 V4 preferences 收窄为 interests-only strict allowlist；非法自由文本/硬约束 422 且零 job/SQLite 写入，Agent context 与前端 sentinel 回归通过，两层独立复审无 finding；
+- 交付：三层 PR #34/#35/#36 已依序 squash merge；完整功能 main `14c4dea`，最终 main CI run `32484789531` success；
+- 归档：&#91;F-004C archive](../archive/task-cards/F-004C-booked-rail-user-provided.md)。
+
+&#35;## F-006：MVP 体验收口与本地验收
+
+- 状态：`DONE / DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`
+- 目标：统一输入、计划、预算、来源、冲突、重规划和恢复体验，完成 MVP 本地 UAT；
+- 核心价值：真实用户可在本机完整完成旅行决策流程；
+- 必须验证：桌面/窄屏、可访问性、加载/空/部分/错误/确认状态、安装与恢复文档、独立 QA；
+- 非目标：品牌重塑、复杂地图、图片、PDF、公网部署和交易能力。
+- Step 1 冻结结果：零调用 `configuration_missing` 安全 executor、三产品模式与 legacy/V2 内部选择、canonical/旧 pointer、终态 DELETE、固定 loopback PowerShell runner、局部 UX/accessibility、至少 12 个组合式 journey 和四层文件归属已形成可实现契约；尚未修改生产源码或测试。
+- Step 2 实现结果：production bootstrap 已接入纯 Repository 的零调用安全 executor，四版本无配置终态和完整配置兼容由 TDD/静态门禁证明；未创建数据库、修改 Schema/migration 或进入 UX。
+- Step 3 实现结果：三个用户产品模式、既有内部版本选择和共享终态恢复层级已由 TDD 落地；前端 109 项及静态/build 门禁通过，尚未进入 pointer/DELETE、runner 或本地纵向验收。
+- Step 4–6 实现与验收结果：全版本 canonical/旧 pointer 恢复、终态 DELETE、安全 PowerShell runner、临时 schema v2 SQLite、14 个组合 journey、loopback desktop/390px、干净检出启动和独立安全审查均已完成；未调用真实 Provider。
+- Step 7 交付结果：四层 Draft PR #38/#39/#40/#41 已完成独立 review 和逐层远程 CI，四个 Windows offline runs 均 success；
+- Step 8 关闭结果：四层依序 squash merge，#39/#40/#41 以普通 merge clean-restack 且无 force-push；完整功能 main `d82ca5c6`、CI run `32691778088` success；完整任务卡见 &#91;F-006 archive](../archive/task-cards/F-006-mvp-local-acceptance.md)。
+
+&#35;## F-007：高德路径规划 QPS 节流与真实调用稳定性
+
+- 状态：`DONE / ARCHIVED`；Step 0–5、Step 7、Step 8/8A `DONE / PASS`，Step 6 `DONE / UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；
+- 触发证据：2026-08-30 真实本地验收显示高德步行路径规划 2.0 限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态包含 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing`；记录为新的 `FAIL / AMAP_QPS_EXCEEDED`；
+- 唯一目标：只为 `Provider.AMAP + ProviderOperation.CALCULATE_ROUTES` 增加单进程共享的 0.5 秒无突发 paced slot，使 walking/public transit 的初次 attempt 与 retry 合计最多 2 次/秒；
+- 不变量：不改变产品、Provider、URI/公开 shape、逻辑/HTTP attempt 预算、route concurrency=2、180 秒 deadline、Schema/migration、依赖/lockfile或隐私边界；
+- UAT：2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 保留；2026-08-31 间隔与无 rate-limit 现象仅为补充证据，因缺少同期控制台数据，Step 6 不构成 PASS；不再执行新的真实 Provider UAT；
+- 交付：两层 stack `feat/f-007-amap-qps-policy-runtime` → `feat/f-007-amap-qps-integration-delivery`，详细文件和规模治理以 current-task/implementation-plan 为准。
+- Step 1 冻结结果：exact Amap route 0.5 秒 policy、bootstrap 单实例所有权、task runtime 注入、initial/retry 的 backoff→slot→postflight→HTTP 顺序、deadline/cancel/budget/peer-drain、fake clock/MockTransport 矩阵及两层文件归属已冻结；Amap adapter 生产文件不在修改清单，尚未实现代码或测试。
+- Step 2 实现结果：纯 domain policy、process-shareable paced limiter 和 task runtime 可选注入已按 TDD 完成；定向 102、相邻 257、后端全量 1406 项及 Ruff/mypy 通过；尚未接 production bootstrap、planning service 或 Amap adapter。
+- Step 3 接线结果：完整配置 bootstrap 只创建一个 limiter 并由同一 factory 注入四版本 task runtimes；缺配置路径零构造/零调用。fake clock route starts 为 0/0.5/1.0/1.5，非路线 Provider 操作不受影响；后端全量 1408 项通过。
+- Step 4 回归结果：并发双 planning job 的 walking/public transit 共用 0.5 秒时间线，MockTransport 503/受控 429、timeout/5xx/不可重试、deadline/cancel/drain/budget 与全版本兼容矩阵通过；相关集合 299 项、后端 1446 项（端口保护精确 deselect 1 项）、前端 131 项通过。
+- Step 5/5A 验收结果：临时 schema v2 SQLite、loopback desktop/390px、network/console/accessibility 与独立安全审查通过，状态文字对比度 finding 已关闭；
+- Step 6 收口结果：`UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；不再执行新的真实 Provider UAT。
+- Step 7/8 clean-restack：#43 squash merge commit `6252193b`、main CI `33365971491` success；#45 从该基线替代 #44，最终 squash merge commit `772e8262`、main CI `33382187643` success；#44 未合并并已关闭。
+- Step 8A 修复结果：提交 `f87332c7` 修复初次 limiter waiter 取消被治理超时覆盖；后端 1426、前端 132 项与静态/docs 门禁通过，独立 review `NO_P0_P1`，#45 最终 head CI `33376777202` success；累计 24 文件/净增 2154 行。
+- 归档结果：F-007 完整任务卡见 &#91;F-007 archive](../archive/task-cards/F-007-amap-qps-policy-runtime.md)；Step 6 的 INCONCLUSIVE 与 2026-08-30 FAIL 均保持。
+
+&#35;## F-008：真实 UAT 缺陷收口与计划事实可信度
+
+- 状态：`ACTIVE / R3_BLOCKED_BY_VALIDATION_AND_SIZE`；当前唯一活动任务；
+- 目标：收口 replan 失败恢复、计划事实 grounding、Provider 质量表达与 UAT 可信度，明确区分已核验、Provider 未交叉核验、用户提供未知有效性、fallback、unknown/data_missing 及安全恢复动作；
+- 阶段：Step 0–12 历史结果保留；新增 UAT 前置 R1 事实投影 → R2 四命令候选 → R3 concrete planner → R4 生产装配 → R5 正式入口离线验收，逐片独立批准；Step 13 仍为真实 UAT，Step 14 仍为交付/归档；
+- 三层候选 stack：`feat/f-008-replan-error-recovery` → `feat/f-008-plan-grounding-provider-quality` → `feat/f-008-ux-uat-delivery`；
+- 当前分支：首层 `feat/f-008-replan-error-recovery` 已从 main `3032d49c` 创建；没有 commit、push、PR 或远程 CI；
+- 法律/架构边界：SQLite Gate 保持 `BLOCKED`；Step 3–11 本地实现和 Step 12 离线验收已完成；本次停止，Step 13/14 未进入；Schema/migration、依赖、公开 API 和路线阈值变化仍未批准；
+- Step 4 结果：恢复动作闭集为 retry-new-request/modify-input/refresh-plan/stop；只有原子 commit 可替换旧计划；同 ID 不重执行，并发最多一个 commit；公开 shape 不变；
+- Step 5 结果：安全 terminal error 投影和 planless Provider error preservation 已实现；unknown 不回显，并发锁清理；replan 102、全后端 1448 项通过；
+- Step 6 结果：受控纵向证明失败保留旧计划、新 request 恢复和旧 replan 终态；并修复 memory replan commit 与 planning GET 的事实分叉；相关 135、全后端 1449 项通过；仅离线证据；
+- Step 7 结果：D-025 冻结 typed-result/source grounding、模型非事实来源、required/optional 质量、freshness、unknown 与 fallback 闭集；只改治理文档；
+- Step 8 结果：公开活动标题改由 typed POI 重建；V3/V4 unknown duration 规则显式带 system source/uncertainty 并至少 PARTIAL；相关 267、全后端 1451 项通过；
+- Step 9 结果：四版本/四类临时 SQLite/failure matrix/终态/固定 eval 163 项通过；固定 48-case 100.0 分、五类 hard gate 0 failure；无文件修改；
+- Step 10 结果：D-026 冻结 lifecycle disclosure、来源标签、planning/replan 恢复、pointer 404 与真实 UAT 协议；只改治理文档；
+- Step 11 结果：披露、标签、实际恢复和错误焦点已实现；响应丢失不推定原计划不变；前端 142 项（2 workers）及静态/build 门禁通过；10 文件净新增 395 行；
+- Step 12 结果：DONE / PASS / OFFLINE；预期且已处理的 404 单列和 3 文件仅机械格式化获批，AST 一致；后端 1459、前端 154、全部静态/build 门禁复验通过；11 文件净新增 516 行，未进入 Step 13/14；
+- Step 3 结果：完整 Provider 组合已固定使用同一 app-owned planning/replan 内存 cohort，SQLite lifecycle/write 为 0；零/有效但不完整配置继续安全零调用路径；非法或混合组合 fail closed，API/OpenAPI/replan HTTP 不变；后端全量 1433 项及静态门禁通过；
+- UAT 边界：真实 Provider UAT 只位于 Step 13，需独立批准，结果可为 PASS/FAIL/INCONCLUSIVE；离线、synthetic、MockTransport、loopback 或缺同期控制台证据不得记为真实 PASS；
+- 当前规模：代码/测试36/+7080，R3-E两文件/+907已完成、R3仍0/0；完整R3 1020–1400、R4 250、R5 590不减。最终Stack1 18/+7634–8014、Stack2 5/+82、Stack3 18/+1224、任务40/+8940–9320；R3用满1500时8114/9420，在8500/10000内。治理另计、共享文件任务去重，不挪层。
+- R3单次90s及logical/HTTP attempt/timeout已批数值不变；D-030两文件实施已获批准，先等两项候选规模数值明确批准并重新准入。完整矩阵和精确范围保持，不以规模调整跳过契约修复；本轮不进入任何实施/真实UAT/交付。
+- 精确 Step/R 切片、文件归属和规模阈值以 &#91;current-task.md](./current-task.md) 为权威基线；D-029 仅补充 D-028 的 G1/G2 内部契约，不改历史 UAT、D-023–D-027 其余范围及法律结论。
+</pre>
+</details>
+
+<details id="f008-preserved-42">
+<summary>f008-preserved-42：docs/project-management/roadmap.md：纠偏前文本</summary>
+<pre>
+| 11 | F-008 真实 UAT 缺陷收口与计划事实可信度 | ACTIVE | 让 replan 恢复、计划事实、Provider 质量和 UAT 结论可区分、可追溯且不夸大 | D-019–D-030；R1/R2/R3-C/R3-E DONE / OFFLINE；R3 PARTIALLY_IMPLEMENTED / BLOCKED_BY_VALIDATION_AND_SIZE；R4/R5 TODO，Step13/14未进入 |
+</pre>
+</details>
+
+<details id="f008-preserved-43">
+<summary>f008-preserved-43：docs/project-management/roadmap.md：纠偏前文本</summary>
+<pre>
+R1/R2 → D-029 → R3-C（DONE / PASS / OFFLINE）→ D-030设计（DONE）→ 完整规模处置（提案已形成，待数值批准）→ R3-E（实施已批，规模阻塞）→ R3（原授权保留）→ R4 → R5（逐片批准）
+</pre>
+</details>
+
+<details id="f008-preserved-44">
+<summary>f008-preserved-44：docs/decisions.md：纠偏前文本</summary>
+<pre>
+- 当前退出：D-029历史结果保持；D-030 R3-E两文件已按907专项完成标准格式化与离线复验，968项及静态PASS。R3仅只读前置准入PASS，原授权/runtime保留，本次不执行R3/UAT/交付。
+</pre>
+</details>
+
+<details id="f008-preserved-45">
+<summary>f008-preserved-45：docs/decisions.md：纠偏前文本</summary>
+<pre>
+&#35;## R3 后续明确规模授权与收口（此前预测；授权继续有效）
+</pre>
+</details>
+
+<details id="f008-preserved-46">
+<summary>f008-preserved-46：docs/decisions.md：纠偏前文本</summary>
+<pre>
+- 必要修复590–800、R3 1020–1400、R4 250、R5 590；上沿Stack1=7907、任务=9213，超7500/9000为407/213，故BLOCKED_BY_SIZE_AND_APPROVAL。估算不是新上限，也未证明现上限内不可能；本Gate不调整额度、不预记压缩收益，先有可复核完整可容纳方案或另获精确规模授权，再独立批准实施。
+</pre>
+</details>
+
+<details id="f008-preserved-47">
+<summary>f008-preserved-47：docs/project-management/current-task.md：修正时态前的原句</summary>
+<pre>
+以下Step13参数仍为`PENDING_USER_CONFIRMATION`，不是默认批准值；R1/R2/R3-C/R3-E已离线完成，R3单次runtime已批准但R3未实施。不能把单次实现policy套为整场UAT授权。
+</pre>
+</details>
+
+<details id="f008-preserved-48">
+<summary>f008-preserved-48：docs/project-management/current-task.md：修正时态前的原句</summary>
+<pre>
+| Provider logical call | R3 单次 replan 已批准复用双日上限：Amap≤12（resolve 1/search 3/route 8）、QWeather≤2（forecast/alert 各1）、DeepSeek≤2（generation/repair 各1）；尚未实现，不是 UAT 授权 | 仍须按 planning/replan/恢复及整场分列 UAT 配额，明确执行次数与累计上限 |
+</pre>
+</details>
+
+<details id="f008-preserved-49">
+<summary>f008-preserved-49：docs/project-management/current-task.md：修正时态前的原句</summary>
+<pre>
+| deadline/时段 | R3 单次 replan 已批准总90s含等待/重试；Amap/QWeather attempt 6s、DeepSeek 35s；尚无实现验证 | UAT 整场截止、开始/结束与时区、停止后的 drain 时限仍待批准，不从单次90s推断 |
+</pre>
+</details>
+
+<details id="f008-preserved-50">
+<summary>f008-preserved-50：docs/project-management/current-task.md：修正时态前的原句</summary>
+<pre>
+- 用户已明确批准 R3，并逐项确认上一轮提出的具体数值；运行时 Gate 不再待批。本次仍仅离线实施授权，不等于真实 UAT、Provider 账户额度/费用或服务操作授权。
+</pre>
+</details>
+
+<details id="f008-preserved-51">
+<summary>f008-preserved-51：docs/project-management/current-task.md：修正时态前的原句</summary>
+<pre>
+- 本方案所需的两个既有文件及四文件实施已获本次独立批准，不是从旧两文件授权推定。`domain/replanning.py` 和全部领域直接测试保持只读，未发现必须改变公开 API/Schema/依赖的需要；若实现中出现该需要仍立即停止。
+</pre>
+</details>
+
+<details id="f008-preserved-52">
+<summary>f008-preserved-52：docs/project-management/current-task.md：修正时态前的原句</summary>
+<pre>
+- Step 12 限定例外：本次用户批准的 3 个跨层文件仅机械格式化，豁免其对应清单限制，Step 12 文件上限为 11；不授权其他文件、逻辑或 API 修改，其余规模阈值不变。
+</pre>
+</details>
+
+<details id="f008-preserved-53">
+<summary>f008-preserved-53：docs/project-management/current-task.md：其余被纠正的原句（只作历史）；docs/project-management/current-task.md：纠偏前文本</summary>
+<pre>
+2026-09-03 插入 R1 → R2 → R3 → R4 → R5，不重编号历史 Step。R1 经 D-028 和数值规模处置批准后完成；R2 后经单独批准已完成；R3–R5 仍 TODO，依赖前片 PASS 和各自批准。主地图数字检查器不能验证 R 切片，须另核对状态及依赖；真实 UAT 唯一入口仍为 Step 13。
+- 结果：`DONE / DESIGN_ONLY`；只处理 G1/G2，D-029 记录决策摘要。设计冻结不等于实现通过；R3-C 与 R3 均未实施。R1/R2 历史结果、D-023–D-028 其余边界、四命令及原测试矩阵保留。
+R3-C唯一目标是“有证据变化可通过、无证据/越界变化仍拒绝、旧接口兼容”的内部闭环，不装配生产或发起调用。四文件/2000已获批，实际1862并完整离线验证PASS；下方职责/完整矩阵不变，旧估算保留为历史；原开始快照固定，当前规模见收口表。
+- 设计状态：`DONE`；决策摘要 D-028。设计时的实施阻塞为历史，当前实现结果见上节，不把历史诊断改成测试 PASS。
+- R3单次运行时数值继续有效，精确值见上文“R3 数值批准与准入停止”；只适用于单次实现policy，不是Step13授权。R3-C已离线验收，R3恢复已批但E1/E2使实施停止；不得新增model prompt、Provider request/parse、公开code/shape或新依赖，确需变化即停止。
+- R3专项：原R3两文件净新增上限1500；R3-C专项为D-029四文件净新增2000（本次从1500调整），本片原开始快照固定，其他普通Step上限不变。
+</pre>
+</details>
+
+<details id="f008-preserved-54">
+<summary>f008-preserved-54：docs/README.md：其余被纠正的原句（只作历史）；docs/README.md：纠偏前文本</summary>
+<pre>
+| 当前任务 | 当前 | 当前/最近任务卡、批准范围、验收标准和 Step 地图 | 当前任务、批准状态或 Step 变化 | 关闭任务的完整卡片另存 archive | &#91;current-task.md](./project-management/current-task.md) |
+| 当前计划 | 当前 | 当前/最近任务的可验证执行步骤、结果和停止条件 | 当前任务计划或 Step 结果变化 | 不追加逐轮日志 | &#91;implementation-plan.md](./project-management/implementation-plan.md) |
+</pre>
+</details>
+
+<a id="f008-mechanisms-20260911"></a>
+
+## F-008 执行机制整改（2026-09-11）
+
+本轮当前结果、版本/文件指纹、验证分类及未覆盖项见 整改报告（本机历史证据：`output/diagnostics/20260911-execution-mechanisms/report.md`）。当前授权只查 [current-task](./current-task.md#当前执行状态)。历史结果保持原版本/批次含义，不重命名为本轮 PASS。
+
+<a id="f008-step13-schema-contract-repair-20260912"></a>
+
+## F-008 Step 13 Schema合同局部修复（2026-09-12）
+
+- 结果：`PASS / OFFLINE`。Step 13真实Provider UAT仍为`FAIL`，R5保持`PASS / OFFLINE`，`live_provider_authorized=false`。
+- RED：QWeather精确合法zero-result缺少`metadata.attributions`时返回`UNAVAILABLE / SCHEMA`；DeepSeek冻结请求别名收到规范响应模型`deepseek-flash`时返回`MODEL_MISMATCH`。
+- 修复边界：QWeather仅对current alerts的合法空结果形状允许缺失attributions，forecast及其他非法形状保持严格拒绝；DeepSeek仅接受冻结旧请求别名对应的规范响应模型，任意其他model继续拒绝。
+- 验证：定向`6 passed`；QWeather/DeepSeek adapters、Provider failure matrix及bootstrap共`158 passed`；四文件Ruff format/check、167文件strict mypy及`git diff --check`通过。
+- 额度与副作用：`schema_contract_repair=2/2`，四业务文件净增`93/120`行；Provider/HTTP/费用均为0，未启动服务、浏览器或端口，未创建数据库、job或replan；旧证据和工作区其他改动保留。
+- 下一项：只具备生成新的独立Step 13真实Provider UAT授权Prompt的条件；本轮未授权或执行该批次、Step 14或Git交付。
+- 完整证据：schema contract repair report（本机历史证据：`output/diagnostics/20260912-step13-schema-contract-repair/report.md`）。
+
+<a id="f008-step13-live-uat-after-schema-repair-20260912"></a>
+
+## F-008 Step 13 Schema修复后第二个真实Provider UAT（2026-09-12）
+
+- 结果：`FAIL`；真实UAT累计`2/2`已消费，不批准第三批。R5保持`PASS / OFFLINE`，F-008保持`ACTIVE`。
+- Schema复验：QWeather两次调用与DeepSeek一次调用均`ok`；`metadata_attributions_invalid`和`model_mismatch`未复发。
+- 首个业务失败：唯一planning在Amap `calculate_routes`出现`data_missing`，RunCallBudget以`business_failure`停止；未形成可操作计划或计划版本，四次replan均未执行。
+- 脱敏标识：request_id/job_id=`f715e652-8cb3-43cd-8b43-d82ae74fa115`；浏览器最终安全错误码=`RESPONSE_INVALID`。
+- 调用与资源：logical/HTTP均为Amap 9、QWeather 2、DeepSeek 1，总计12；单次execution约6.258秒，drain完成、active execution为0；费用=`UNKNOWN_NOT_MEASURED`。
+- 执行偏差：捕获支撑在首个点击后报机械错误；修正脚本在后端停止、UI复位后额外产生一次代理POST，但连接在代理层被拒绝，后端未收到、未创建第二job或第二execution，也未增加Provider调用。未重跑或开启新批次。
+- 数据与收口：SQLite=None；未保存真实计划、Provider原始内容、Prompt、坐标或截图；生产/测试文件未修改；浏览器和服务关闭，15173/18008监听0，泄漏扫描PASS。
+- 下一项：仅可另行批准零真实调用的Amap路线`data_missing`根因诊断；本批不授权诊断、修复、第三批UAT、Step 14或Git交付。
+- 完整证据：live UAT after schema repair report（本机历史证据：`output/diagnostics/20260912-step13-live-uat-after-schema-repair/report.md`）。
+
+<a id="f008-step13-amap-route-data-missing-diagnosis-20260912"></a>
+
+## F-008 Step 13 Amap路线data_missing零调用诊断（2026-09-12）
+
+- 结果：`EVIDENCE_INSUFFICIENT`；诊断额度`1/1`已消费。F-008保持`ACTIVE`、R5保持`PASS / OFFLINE`、Step 13保持`DONE / FAIL`。
+- 已证调用：Amap logical/HTTP `9/9`；route 6次中4次ok、2次`UNAVAILABLE / data_missing`。
+- 已证代码链：Amap route只有业务无路线分类和合法route外壳count=0两类分支产生`EMPTY_RESULT`；该类别映射`data_missing`，允许交通方式fallback，仍无可用路线时planning失败并触发`business_failure`。
+- 证据缺口：本批没有保存adapter branch reason、route mode、primary/fallback、终态route diagnostic或匿名路段序号，因此不能在两条EMPTY_RESULT分支间唯一归因，也不能证明primary不可用或fallback耗尽。
+- 浏览器偏差：额外代理POST发生在后端停止后，未创建第二execution/job或额外Provider调用；不影响首个Amap业务失败归因，但第二批FAIL保持。
+- 本轮副作用：Provider、HTTP、planning、replan、服务、浏览器、测试、代码修复及费用均为0；生产/测试文件未修改；只新增本报告索引和独立诊断证据。
+- 下一项：待批准零真实调用的Amap安全诊断reason及终态取证实现与离线验证；真实Amap调用、第三批UAT、Step 14和Git交付仍未授权。
+- 完整证据：Amap route data_missing diagnosis（本机历史证据：`output/diagnostics/20260912-step13-amap-route-data-missing-diagnosis/report.md`）。
+
+## F-008 Provider Replan change-scope子分支诊断（2026-09-12）
+
+- **结论**：`PASS / OFFLINE`（诊断完成），分类为`PLANNER_BRANCH_CONFIRMED`。第二次replan进入Neutral Executor后续校验前，`ProviderReplanPlanner.execute`已直接返回`ReplanOutcome(conflict, replan_change_scope_conflict)`。
+- **场景证据**：初始planning成功形成计划；首次replan为`failed/provider_unavailable`；第二次replan为`conflict/replan_change_scope_conflict`。Planner观察器只覆盖第二次replan，原方法调用1次、返回对象原样转发并在finally恢复。
+- **版本与计划**：expected、observed和repository job version均为7；replan aggregate version为4；`plan_changed=false`。因此本轮排除Neutral Executor的evidence前置和change-set分支。
+- **运行边界**：诊断1/1、capture运行1/1、预运行机械支撑修正1/1；synthetic transport调用17次。真实Provider、外部HTTP、SQLite、服务、浏览器和费用均为0。
+- **资源与泄漏**：活动execution为0；任务自有临时根已清理；六个生产/测试/脚本只读文件哈希未变；四份持久证据的凭证、私钥、JWT、Provider Host、完整URL、坐标和实例UUID扫描0命中。
+- **命令入口**：`uv run --offline --no-sync --directory backend python -B output/diagnostics/20260912-provider-replan-change-scope-subbranch-diagnostic/capture.py`。该命令已消费唯一运行额度，不得重跑。
+- **证据**：report.md（本机历史证据：`output/diagnostics/20260912-provider-replan-change-scope-subbranch-diagnostic/report.md`）、result.json（本机历史证据：`output/diagnostics/20260912-provider-replan-change-scope-subbranch-diagnostic/result.json`）。
+- **未覆盖**：尚未定位Planner内部具体异常行，未修改生产代码，未运行pytest、Ruff或strict mypy，未重跑真实UAT。下一步需独立批准ProviderReplanPlanner最小代码修复闭环。
+
+<a id="f008-playwright-evidence-boundary-validation-20260912"></a>
+
+## F-008 Playwright浏览器产物边界验证（2026-09-12）
+
+- 结果：`FAIL / OFFLINE`；`playwright_artifact_confinement_validation=1/1`，浏览器启动1/1，INFO探针0/1，重试0。R5保持`PASS / OFFLINE`，Step 13保持`DONE / FAIL`，真实UAT保持3/3且无第四批授权。
+- 已证收口：唯一open/close退出0；1个0字节空白页快照只写入新授权目录。项目根`.playwright-cli`的196个旧文件按路径、大小、SHA-256逐项未变，两份重点保护文件也未变。
+- 精确失败：预检使用Python规范化JSON摘要，运行检查使用PowerShell压缩JSON摘要；两种表示不可比较，造成`OLD_ROOT_CHANGED_AFTER_OPEN`误报并在INFO探针前停止。
+- 未覆盖：INFO探针没有执行，`console_log_count=0`不能证明warning级别在写入前过滤INFO；按首次失败停止规则未启动第二次浏览器。
+- 环境与泄漏：browser daemon已退出，15173/18008/5173监听0；服务、Provider、HTTP、planning、replan、SQLite、费用和非loopback连接均0。唯一运行时快照为空，凭证、Provider Host、外部URL、业务数据标记均0。
+- 当前状态：`execution_status=BLOCKED`，`blocked_at=browser_artifact_validation_pre_probe_manifest_digest_algorithm_mismatch`。下一项只能重新决定是否批准统一清单算法后的新独立browser-only验证轮次。
+- 完整证据：Playwright artifact confinement validation report（本机历史证据：`output/diagnostics/20260912-playwright-evidence-boundary-validation/report.md`）。
+
+<a id="f008-playwright-evidence-boundary-revalidation-20260912"></a>
+
+## F-008 Playwright浏览器产物边界复验（2026-09-12）
+
+- 最终结果：`FAIL / OFFLINE`；浏览器运行时检查`PASS / OFFLINE`，最终`git diff --check`门禁`FAIL`。复验1/1、清单支撑1/1、浏览器1/1、INFO探针1/1，修复和重跑0。
+- 运行时证据：统一清单四次完全一致，旧根196文件及两份保护文件未变；唯一空白page快照只在新目录；INFO探针没有生成console文件。
+- 资源与泄漏：专用会话和进程残留0，三个端口监听0，非loopback连接0；服务、Provider、HTTP、planning、replan、SQLite、费用及敏感标记均0。
+- 最终失败：项目文档检查PASS；git diff首次运行报告`docs/project-management/evidence.md`文件尾新增空行。按零修复/零重跑规则未修复或复验。
+- 当前状态：`execution_status=BLOCKED`，`blocked_at=git_diff_check_evidence_trailing_blank_line`。唯一下一项是待批准零浏览器的文件尾机械修复和文档/diff定向复验。
+- 完整证据：Playwright artifact confinement revalidation report（本机历史证据：`output/diagnostics/20260912-playwright-evidence-boundary-revalidation/report.md`）。
+
+<a id="f008-playwright-revalidation-document-gate-repair-20260912"></a>
+
+## F-008 Playwright复验文档门禁机械修复（2026-09-12）
+
+- 目标：仅移除本文件原有的一个文件尾多余空行，并完成零浏览器的文档与diff门禁定向复验；修复额度`1/1`。
+- 修改前：文件以2个LF结束；最后一个非空行及此前正文保留。既有Playwright复验FAIL报告和final-gate.json未覆盖。
+- 运行时事实继续复用：统一清单、自动快照收口、INFO过滤、旧根保护、会话/进程/端口/网络/泄漏均已`PASS / OFFLINE`，本轮不重跑浏览器。
+- 副作用：浏览器、INFO探针、服务、Provider、HTTP、planning、replan、SQLite和费用均为0。
+- 完整证据：document gate repair report（本机历史证据：`output/diagnostics/20260912-playwright-revalidation-document-gate-repair/report.md`）。
+
+<a id="f008-step13-live-uat-round4-20260912"></a>
+
+## F-008 Step 13第四批真实Provider UAT（2026-09-12）
+
+- 最终结果：`INCONCLUSIVE`；真实UAT最终额度`4/4`已消费，不批准第五批。
+- 日期：执行日2026-09-12，行程2026-09-13至2026-09-14，Asia/Shanghai。
+- 前置与运行：三个Provider配置存在性、SQLite=None、三端口空闲、浏览器会话空、PID归属和代理健康均通过；浏览器脱敏结果结构校验失败后立即停止。
+- 实际调用：planning/replan `0/0`；Amap、QWeather、DeepSeek logical/HTTP均`0/0`；费用`0元`；业务不变量未执行。
+- 收口：后端active executions 0且drain完成；浏览器、前后端关闭，15173/18008/5173监听0；旧Playwright根未变，截图0，泄漏检查PASS。
+- 状态：Step 13 `DONE / INCONCLUSIVE`，`formal_result=INCONCLUSIVE`，`execution_status=PENDING_APPROVAL`；下一项仅为最终处置决定。
+- 完整证据：round4 report（本机历史证据：`output/diagnostics/20260912-step13-live-uat-round4/report.md`）。
+- 最终门禁：唯一一次项目文档检查FAIL，错误为`progress.md`缺少检查器认可的current authority/evidence route；唯一一次`git diff --check`通过。按规则未修复、未复验、未重跑UAT。
+
+<a id="f008-step13-round4-document-route-repair-20260912"></a>
+
+## F-008 Step 13第四批文档执行路由修复（2026-09-12）
+
+- 结果：`PASS / OFFLINE`；仅统一第四批`DONE / INCONCLUSIVE`结果的当前执行路由，真实UAT仍为`4/4`且不批准第五批。
+- 当前路由：`current-task.md`、`progress.md`、`implementation-plan.md`和文档地图统一指向本锚点及本轮报告。
+- 历史保留：第四批原始项目文档检查`FAIL`证据及前三批、第四批UAT证据均保持原位，没有覆盖、删除、移动或改写。
+- 本轮边界：Provider、HTTP、服务、浏览器、planning、replan、SQLite和费用均为0；未重跑第四批UAT。
+- 当前状态：`execution_status=PENDING_APPROVAL`、`blocked_at=null`、`formal_result=INCONCLUSIVE`；唯一下一项是决定接受最终INCONCLUSIVE并结束F-008，或提出新的明确修复目标。
+- 完整证据：document route repair report（本机历史证据：`output/diagnostics/20260912-step13-round4-document-route-repair/report.md`）。
+
+<a id="f008-final-inconclusive-closeout-20260912"></a>
+
+## F-008最终INCONCLUSIVE治理收口（2026-09-12）
+
+- 最终状态：F-008=`DONE / ARCHIVED`；R5=`PASS / OFFLINE`；Step 13=`DONE / INCONCLUSIVE`；`formal_result=INCONCLUSIVE`。
+- 额度与交付：真实Provider UAT累计`4/4`且不批准第五批；Step 14=`NOT_EXECUTED / NOT_AUTHORIZED`，未执行Git交付。
+- 用户决定：接受现有INCONCLUSIVE结论并结束F-008；不得将离线PASS或任务DONE表述为真实Provider UAT PASS。
+- 本轮边界：只完成文档与状态收口；Provider、HTTP、服务、浏览器、测试、planning、replan、SQLite、外部网络和费用均为0。
+- 历史保护：四批真实UAT和第四批文档路由修复证据保持原位、内容和SHA-256不变。
+- 归档任务卡：[F-008 archive](../archive/task-cards/F-008-real-uat-plan-fact-trust.md)。
+- 完整证据：final closeout report（本机历史证据：`output/diagnostics/20260912-f008-final-inconclusive-closeout/report.md`）。

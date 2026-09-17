@@ -6,6 +6,14 @@
 
 B-000 已建立后端健康服务测试、前端健康诊断测试、本地 Chromium 闭环、统一门禁、Windows CI、独立负向测试、范围/凭证审查和用户 UAT，并已完成 review、合并和归档。F-001 已在该基线上实现旅行领域、Agent 编排、provider 适配器、五种业务终态、产品 UI、失败注入和受控 live smoke；synthetic 浏览器闭环、离线门禁和 Step 45T 的完整双日 partial 真实数据 UAT 已通过。真实验收仍须如实保留 partial 边界：unknown 费用不按 0 处理，混合交通 fallback 只有离线证据。
 
+## Step13整场机制的验证边界
+
+当前[证据](./project-management/evidence.md#f008-synthetic-connection-round4-20260912)：第4轮把合成根改到项目`output/f008-r5`下的新专用目录后，后端监听PID经CIM证明为本批Python Launcher的直接子进程且命令行匹配；前端启动/监听PID相同，归属门禁通过。
+
+15173代理健康及恰好一次planning execution通过，终态partial且ID关联一致；三家适配器均使用OfflineProviderTransport，治理计数logical/HTTP均为Amap9、QWeather2、DeepSeek1，SQLite为false。该HTTP计数属于本机synthetic transport，不是外部网络或真实Provider调用。
+
+停止后drain完成、active execution为0，前后端exit_ok，两个端口和本批残留进程均0。临时支撑已到4/4且不批准第5轮；旧三轮和其他历史计数不清零。真实Provider质量、账号QPS/余额/费用、同期控制台和浏览器用户流程仍未覆盖。
+
 ## 核心原则
 
 1. 先定义可观察行为和失败路径，再选择测试层级；
@@ -17,6 +25,40 @@ B-000 已建立后端健康服务测试、前端健康诊断测试、本地 Chro
 7. 每项通过结论必须可复现，并明确未覆盖范围；
 8. 不通过关闭 lint、类型检查、测试或降级断言来制造绿色结果；
 9. 不在 fixture、日志、截图或 evidence 中保存真实凭证和不必要原始数据。
+
+## 方法论接入与失败处理
+
+2026-09-07 已接入 `E:\Vibe coding\vibe-methodology` 当前规则；下表是唯一中央来源的路由，不复制全部规范。项目具体授权、累计额度及已触发停止只在 [current-task.md](./project-management/current-task.md) 维护。
+
+| 方法论改进 | 中央权威文件 | 本项目执行要求 |
+| --- | --- | --- |
+| 分阶段失败、修复闭环与 warning 分类 | `08-quality-gates.md`；授权字段见 `03-task-card.md` | 普通本地修复可在范围内恢复；冻结验收失败保留批次。R5 已触发的专项失败即停和正常流程零 warning 不被新默认值解除 |
+| QA 工具就绪、失败取证与复杂度 | `08-quality-gates.md` | 正式入口仍只允许 HTTP transport 替换；先证明支撑及失败取证可用，不用全量验收调试工具，也不为一次诊断扩建 runner |
+| 契约与替身隔离 | `06-test-selection-matrix.md` | 同时检查 transport、请求 payload、候选映射、命令范围和关联负例；不注入业务对象、修改 fail-closed 守卫或只修报错行 |
+| 独立结论与性能适用性 | `08-quality-gates.md` | R3/R4、R5 focused、全量、浏览器与真实 UAT 分别判断；历史或局部通过不替代未执行项。性能先有适用基线与批准协议 |
+| 文档、台账与同步验收 | `04-document-governance.md` | 当前状态原位更新，机器记录不追加到人工 evidence；规则已接入不等于生产整改或执行效果已验证 |
+| 版本检查点与跨对话交接 | `07-git-delivery.md` | 保留已有 tracked/untracked 工作；哈希不替代版本历史，本地检查点须已有授权，交接不重置累计额度或停止状态 |
+| 复盘与 Prompt 一致性 | `12-阶段复盘与归档.md`、`10-prompt-recipes.md` | 同类故障第二次出现先复盘；后续 Prompt 按风险授权闭环，不默认逐行审批，也不自动开启新任务 |
+
+普通本地开发没有专项限制时采用中央默认最多 2 轮失败后修复—复验；这不是给当前暂停的 R5 重新发放两轮。新正式批次、真实调用、范围扩展和 warning 例外均须对应批准。D-023–D-030、Provider 零 SQLite、未知费用不按 0、原矩阵和规模上限保持。
+
+<a id="f008-continuous-coverage"></a>
+
+## F-008 连续覆盖与执行防护
+
+当前准备方案、场景和缺项以[current-task](./project-management/current-task.md#当前执行状态)及[当前证据](./project-management/evidence.md#f008-formal-r5-20260911)为准，不把历史未运行或单项通过复写为当前结果。
+
+- 当前正式R5本批已验证连续恢复、取消、正常reload和一次实际服务重启；R8复用API/服务层证据。仅离线合成边界PASS，不转换成真实Provider或浏览器并发结论；下一项Step13准入准备见任务卡。
+- 连续链必须同一job执行museum/scenic→delete→adjust→reorder→故障→新ID恢复；现有test_continuous_edits_then_fault_recovers_with_new_request覆盖两种删除位置，最新离线结果见证据。
+- 有效历史诊断保留，已移除对象引用经完整变化范围校验后归一化；候选不复用既有地点目录，有限池耗尽仍needs_input。
+- 实际UI验收独立采集request_id、状态、错误码、plan_id、内部版本和故障计数；没有来源填UNKNOWN，不从点击次数/时间戳推断。
+- 正式命令准入必须检查完整执行清单，不能仅以抽取的10条通过签发完整结论；原82条P0命令22条拒绝已修复；当前84条候选清单（含取消/reload）全通过，截图须为本批新文件、日期须与合同一致。R8默认组合的先后提交冲突与服务层同时执行测试分层列证，不宣称浏览器并发通过。
+- MechanismOnly包含机制format/lint/type/tests/docs；ToolReadiness仅核已有证据；FormalAcceptance另核正式授权、冻结范围、日期和命令。证据PASS按证明范围理解，不等于全流程PASS。
+- CLI采集须按函数表达式加载；测试不得为被测采集器注入实际CLI未提供的URL等全局。已移除URL注入，17项当前合成测试与实际CLI预检均通过；旧14项合成通过而动态FAIL保留历史。checkbox输入被可见文字遮挡时点击用户可见标签并核验checked；不修改DOM状态绕过UI。
+- 浏览器工具和取证预检必须在正式批次前完成；帮助、语法检查、方案设计与合成日志不签发动态PASS。已补齐关闭/重新发起控件、requests 及固定 capture_f008_replan.js 哈希校验；十条静态命令通过仍不证明整条动态路径。取证器及其14项负例纳入 MechanismOnly；只读诊断仅存在于 test/loopback 专用工厂，读取不消费故障。
+- 固定工具：PowerShell -File脚本、New-Item -Path、rg目录配-g、mypy源码根src/tests/../scripts。每次页面变更读取新snapshot，日期查input.value，checkbox查checked，重复控件按article限定。
+- canonical应partial、双日、errors/violations空、budget_indeterminate、unknown=null；四类uncertainty为activity_duration_estimated_model、travel_buffer_estimated、budget_indeterminate、source_validity_unknown。日期以Asia/Shanghai运行当天统一固化。
+- 正式非预期失败保留批次，不自动修复重跑；已通过的前轮离线结果经源码/测试/配置哈希比对可复用。真实Provider仍为Step13单独准入。
 
 ## 测试分层
 

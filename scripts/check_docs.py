@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -258,6 +259,8 @@ def _extract_step(text: str, pattern: str, source: str) -> tuple[int | None, Iss
 def check_status_consistency(root: Path) -> list[Issue]:
     current_task_path = root / "docs/project-management/current-task.md"
     current_task_text = _read_text(current_task_path) if current_task_path.is_file() else ""
+    if "```f008-execution" in current_task_text:
+        return check_execution_contract(root, current_task_text)
     no_active_task = re.search(r"^当前无活动任务。?$", current_task_text, re.MULTILINE) is not None
     sources = {
         "current-task": (
@@ -364,6 +367,124 @@ def check_status_consistency(root: Path) -> list[Issue]:
                     f"expected exactly {expected_active_rows} ACTIVE roadmap row(s)",
                 )
             )
+    return issues
+
+
+def check_execution_contract(root: Path, text: str) -> list[Issue]:
+    """Validate the actual execution phase instead of the blocked numerical Step pointer."""
+    source = "docs/project-management/current-task.md"
+    issues: list[Issue] = []
+    blocks = re.findall(r"```f008-execution\s*\n(.*?)\n```", text, re.DOTALL)
+    try:
+        if len(blocks) != 1:
+            raise ValueError("one contract required")
+        contract = json.loads(blocks[0])
+        required = {
+            "phase",
+            "status",
+            "goal",
+            "allowed_files",
+            "allowed_actions",
+            "resources",
+            "repair_limit",
+            "repairs_used",
+            "verification",
+            "completion",
+            "formal_authorized",
+            "development_authorized",
+            "scale_approval",
+            "readiness",
+            "evidence",
+            "evidence_anchor",
+        }
+        if not isinstance(contract, dict) or not required <= contract.keys():
+            raise ValueError("missing fields")
+        if contract["phase"] not in {
+            "mechanism_remediation",
+            "development",
+            "tool_readiness",
+            "formal_acceptance",
+        }:
+            raise ValueError("invalid phase")
+        limit = contract["repair_limit"]
+        if type(limit) is not int or limit < 0 or not isinstance(contract["repairs_used"], dict):
+            raise ValueError("invalid repair allowance")
+        if any(type(v) is not int or v < 0 or v > limit for v in contract["repairs_used"].values()):
+            raise ValueError("invalid repair count")
+        if any(
+            type(contract[key]) is not bool
+            for key in ("formal_authorized", "development_authorized")
+        ):
+            raise ValueError("invalid authorization flag")
+        if contract["phase"] == "mechanism_remediation" and (
+            contract["formal_authorized"] or contract["development_authorized"]
+        ):
+            raise ValueError("mechanism phase cannot authorize business/formal execution")
+        if not all(
+            contract[key]
+            for key in (
+                "goal",
+                "allowed_files",
+                "allowed_actions",
+                "resources",
+                "verification",
+                "completion",
+            )
+        ):
+            raise ValueError("empty authorization field")
+        reference = contract["evidence"]
+        anchor = contract["evidence_anchor"]
+        if not isinstance(anchor, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", anchor):
+            raise ValueError("invalid evidence anchor")
+        if not re.fullmatch(r"output/diagnostics/[A-Za-z0-9_-]+/report\.md", reference):
+            raise ValueError("invalid current evidence reference")
+    except (ValueError, TypeError, KeyError):
+        return [
+            Issue("execution-contract", source, "invalid or incomplete unique execution contract")
+        ]
+    if not (root / reference).is_file():
+        issues.append(Issue("execution-contract", source, "current evidence missing"))
+    if f"当前实际执行阶段：`{contract['phase']}`" not in text:
+        issues.append(Issue("execution-contract", source, "human and machine phases differ"))
+    for relative in (
+        "docs/README.md",
+        "docs/project-management/progress.md",
+        "docs/project-management/implementation-plan.md",
+    ):
+        path = root / relative
+        body = _read_text(path) if path.is_file() else ""
+        if "current-task.md#当前执行状态" not in body or f"evidence.md#{anchor}" not in body:
+            issues.append(
+                Issue("execution-route", relative, "missing current authority/evidence route")
+            )
+        if "当前 Step：`Step 13" in body or "R5尚未执行" in body:
+            issues.append(Issue("execution-route", relative, "obsolete current execution pointer"))
+    evidence = root / "docs/project-management/evidence.md"
+    body = _read_text(evidence) if evidence.is_file() else ""
+    if f'id="{anchor}"' not in body or reference not in body:
+        issues.append(
+            Issue(
+                "execution-evidence",
+                str(evidence.relative_to(root)),
+                "current evidence index mismatch",
+            )
+        )
+    if 'id="f008-continuous-coverage"' not in _read_text(root / "docs/testing-strategy.md"):
+        issues.append(
+            Issue(
+                "execution-coverage",
+                "docs/testing-strategy.md",
+                "missing continuous journey matrix",
+            )
+        )
+    roadmap = root / "docs/project-management/roadmap.md"
+    if (
+        roadmap.is_file()
+        and len(re.findall(r"^\|[^\n]*\|\s*ACTIVE\s*\|", _read_text(roadmap), re.MULTILINE)) != 1
+    ):
+        issues.append(
+            Issue("execution-contract", str(roadmap.relative_to(root)), "expected one ACTIVE task")
+        )
     return issues
 
 

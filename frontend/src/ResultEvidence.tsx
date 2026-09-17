@@ -19,6 +19,14 @@ const FRESHNESS_LABELS: Record<DataFreshness, string> = {
   unknown_validity: "有效期未知",
 };
 
+const TRUST_LABELS: Record<ProviderName, string> = {
+  deepseek: "AI 仅做候选选择，不是事实来源",
+  amap: "Provider 提供，未交叉核验",
+  qweather: "Provider 提供，未交叉核验",
+  user: "用户提供，未核验",
+  system: "项目固定估算规则，不是已核验事实",
+};
+
 function formatTimestamp(value: string): string {
   return `${value.slice(0, 10)} ${value.slice(11, 16)}`;
 }
@@ -29,6 +37,7 @@ function SourceRow({ source }: { source: SourceRecordDto }) {
       <div className="source-provider">
         <strong>{PROVIDER_LABELS[source.provider]}</strong>
         <span>{source.source_type.replaceAll("_", " · ")}</span>
+        <small>{TRUST_LABELS[source.provider]}</small>
       </div>
       <div className="source-time">
         <span>获取于 {formatTimestamp(source.fetched_at)}</span>
@@ -107,8 +116,8 @@ export function SourceEvidence({
           )}
           {includesDeepSeek && (
             <p>
-              本计划包含 DeepSeek AI
-              生成内容，已通过确定性规则校验，但仍可能不准确。
+              本计划包含 DeepSeek AI 生成内容；AI
+              仅做候选选择，公开地点和路线事实由结构化来源重建，但仍可能不准确。
             </p>
           )}
         </div>
@@ -199,8 +208,13 @@ export function ResultDiagnostics({
                 <strong>{uncertainty.message}</strong>
                 <small>
                   {uncertainty.code} · {uncertainty.source_ids.length}{" "}
-                  个来源引用
+                  个来源引用 · 影响 {uncertainty.affected_refs.length} 项引用
                 </small>
+                {uncertainty.code === "activity_duration_estimated_rule" && (
+                  <small>
+                    受影响对象：{uncertainty.affected_refs.join("、")}
+                  </small>
+                )}
               </article>
             );
           }

@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
+from enum import StrEnum
 from typing import cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -143,6 +144,21 @@ class OfflinePlanningRequest:
         return (self.trip.end_date - self.trip.start_date).days + 1
 
 
+class RouteLookupStage(StrEnum):
+    PRIMARY = "primary"
+    FALLBACK = "fallback"
+
+
+@dataclass(frozen=True, slots=True)
+class RouteLookupDiagnostic:
+    provider: Provider
+    operation: ProviderOperation
+    requirement_index: int
+    mode: RouteMode
+    stage: RouteLookupStage
+    reason: ProviderErrorReason | None
+
+
 @dataclass(frozen=True, slots=True)
 class OfflinePlanningOutcome:
     status: PlanningStatus
@@ -166,6 +182,7 @@ class OfflinePlanningOutcome:
     scheduling_warnings: tuple[SchedulingWarningCode, ...] = ()
     scheduling_uncertainties: tuple[SchedulingUncertaintyCode, ...] = ()
     route_results: tuple[ProviderResult[RouteLeg], ...] = ()
+    route_lookup_diagnostics: tuple[RouteLookupDiagnostic, ...] = ()
     route_enrichments: tuple[RouteEnrichmentResult, ...] = ()
     final_validation: FinalValidationResult | None = None
 
@@ -184,6 +201,8 @@ class _RouteLookup:
     requirement: RouteRequirement
     request: RouteCalculationRequest | None
     result: ProviderResult[RouteLeg] | None
+    requirement_index: int
+    stage: RouteLookupStage
     diagnostic_code: RouteDataDiagnosticCode | None = None
 
 
@@ -477,6 +496,7 @@ class OfflinePlanningOrchestrator:
                 scheduling_warnings=scheduling.warnings,
                 scheduling_uncertainties=scheduling.uncertainties,
                 route_results=_route_results(route_lookups),
+                route_lookup_diagnostics=_route_lookup_diagnostics(route_lookups),
                 route_enrichments=_route_enrichments_from_lookups(
                     None,
                     request,
@@ -503,6 +523,7 @@ class OfflinePlanningOrchestrator:
                 scheduling_warnings=scheduling.warnings,
                 scheduling_uncertainties=scheduling.uncertainties,
                 route_results=_route_results(route_lookups),
+                route_lookup_diagnostics=_route_lookup_diagnostics(route_lookups),
             )
         if scheduling.issue is not None or scheduling.candidate is None:
             raise AssertionError("deterministic scheduler returned an unsupported result")
@@ -569,6 +590,7 @@ class OfflinePlanningOrchestrator:
             scheduling_warnings=scheduling.warnings,
             scheduling_uncertainties=scheduling.uncertainties,
             route_results=_route_results(route_lookups),
+            route_lookup_diagnostics=_route_lookup_diagnostics(route_lookups),
             route_enrichments=route_enrichments,
             final_validation=final_validation,
         )
@@ -609,6 +631,7 @@ def _outcome(
     scheduling_warnings: tuple[SchedulingWarningCode, ...] = (),
     scheduling_uncertainties: tuple[SchedulingUncertaintyCode, ...] = (),
     route_results: tuple[ProviderResult[RouteLeg], ...] = (),
+    route_lookup_diagnostics: tuple[RouteLookupDiagnostic, ...] = (),
     route_enrichments: tuple[RouteEnrichmentResult, ...] = (),
     final_validation: FinalValidationResult | None = None,
 ) -> OfflinePlanningOutcome:
@@ -634,6 +657,7 @@ def _outcome(
         scheduling_warnings=scheduling_warnings,
         scheduling_uncertainties=scheduling_uncertainties,
         route_results=route_results,
+        route_lookup_diagnostics=route_lookup_diagnostics,
         route_enrichments=route_enrichments,
         final_validation=final_validation,
     )
@@ -850,6 +874,7 @@ async def _schedule_with_routes(
     coordinates = {item.location_id: item.coordinates for item in pois}
     coordinates[accommodation.location_id] = accommodation.coordinates
     lookups: list[_RouteLookup] = []
+    requirement_indexes: dict[RouteRequirement, int] = {}
     for _ in range(3):
         if scheduling.issue is not SchedulingIssueCode.ROUTE_DATA_REQUIRED:
             return tuple(lookups), _with_route_fallback_warning(
@@ -858,9 +883,12 @@ async def _schedule_with_routes(
                 lookups,
                 request,
             )
+        _index_route_requirements(scheduling.missing_routes, requirement_indexes)
         primary_batch = await _lookup_route_batch(
             scheduling.missing_routes,
             mode=request.route_mode,
+            stage=RouteLookupStage.PRIMARY,
+            requirement_indexes=requirement_indexes,
             coordinates=coordinates,
             citycode=citycode,
             amap=amap,
@@ -882,6 +910,8 @@ async def _schedule_with_routes(
             fallback_batch = await _lookup_route_batch(
                 tuple(item.requirement for item in fallback_pending),
                 mode=fallback_mode,
+                stage=RouteLookupStage.FALLBACK,
+                requirement_indexes=requirement_indexes,
                 coordinates=coordinates,
                 citycode=citycode,
                 amap=amap,
@@ -922,6 +952,8 @@ async def _lookup_route_batch(
     requirements: tuple[RouteRequirement, ...],
     *,
     mode: RouteMode,
+    stage: RouteLookupStage,
+    requirement_indexes: dict[RouteRequirement, int],
     coordinates: dict[UUID, Coordinates | None],
     citycode: str,
     amap: AmapPort,
@@ -939,6 +971,8 @@ async def _lookup_route_batch(
                 _lookup_route(
                     requirement,
                     mode=mode,
+                    stage=stage,
+                    requirement_index=requirement_indexes[requirement],
                     coordinates=coordinates,
                     citycode=citycode,
                     amap=amap,
@@ -969,6 +1003,8 @@ async def _lookup_route(
     requirement: RouteRequirement,
     *,
     mode: RouteMode,
+    stage: RouteLookupStage,
+    requirement_index: int,
     coordinates: dict[UUID, Coordinates | None],
     citycode: str,
     amap: AmapPort,
@@ -984,6 +1020,8 @@ async def _lookup_route(
             requirement,
             None,
             None,
+            requirement_index,
+            stage,
             RouteDataDiagnosticCode.COORDINATES_MISSING,
         )
     route_request = RouteCalculationRequest(
@@ -1016,7 +1054,14 @@ async def _lookup_route(
             governance_diagnostic = RouteDataDiagnosticCode.DEADLINE_EXHAUSTED
         else:
             raise
-        return _RouteLookup(requirement, route_request, None, governance_diagnostic)
+        return _RouteLookup(
+            requirement,
+            route_request,
+            None,
+            requirement_index,
+            stage,
+            governance_diagnostic,
+        )
     diagnostic_code: RouteDataDiagnosticCode | None = None
     if route_result.provider is not Provider.AMAP or (
         route_result.data is not None
@@ -1034,7 +1079,49 @@ async def _lookup_route(
         is None
     ):
         diagnostic_code = RouteDataDiagnosticCode.SOURCE_STALE
-    return _RouteLookup(requirement, route_request, route_result, diagnostic_code)
+    return _RouteLookup(
+        requirement,
+        route_request,
+        route_result,
+        requirement_index,
+        stage,
+        diagnostic_code,
+    )
+
+
+def _index_route_requirements(
+    requirements: tuple[RouteRequirement, ...],
+    indexes: dict[RouteRequirement, int],
+) -> None:
+    for requirement in requirements:
+        if requirement not in indexes:
+            indexes[requirement] = len(indexes) + 1
+
+
+def _route_lookup_diagnostics(
+    lookups: tuple[_RouteLookup, ...] | list[_RouteLookup],
+) -> tuple[RouteLookupDiagnostic, ...]:
+    values: list[RouteLookupDiagnostic] = []
+    for lookup in lookups:
+        if (
+            lookup.request is None
+            or lookup.result is None
+            or lookup.result.provider is not Provider.AMAP
+            or lookup.result.error is None
+            or lookup.result.error.category is not ProviderErrorCategory.EMPTY_RESULT
+        ):
+            continue
+        values.append(
+            RouteLookupDiagnostic(
+                Provider.AMAP,
+                ProviderOperation.CALCULATE_ROUTES,
+                lookup.requirement_index,
+                lookup.request.mode,
+                lookup.stage,
+                lookup.result.error.reason,
+            )
+        )
+    return tuple(values)
 
 
 def _scheduled_routes(

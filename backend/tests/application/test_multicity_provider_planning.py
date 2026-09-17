@@ -119,7 +119,14 @@ def _request() -> TripPlanRequestV3:
     return TripPlanRequestV3.model_validate(payload)
 
 
-def _proposal(poi_a: UUID, poi_b: UUID, source_a: UUID, source_b: UUID) -> str:
+def _proposal(
+    poi_a: UUID,
+    poi_b: UUID,
+    source_a: UUID,
+    source_b: UUID,
+    *,
+    first_duration: str = "short",
+) -> str:
     return json.dumps(
         {
             "intent_summary": "synthetic multi-city proposal",
@@ -136,7 +143,7 @@ def _proposal(poi_a: UUID, poi_b: UUID, source_a: UUID, source_b: UUID) -> str:
                             "title": "synthetic Hangzhou activity",
                             "priority_rank": 1,
                             "selection_kind": "required",
-                            "duration_class": "short",
+                            "duration_class": first_duration,
                             "source_ids": [str(source_a)],
                         }
                     ],
@@ -178,6 +185,7 @@ def _orchestrator(
     route_valid_until: datetime | None = None,
     deepseek_error: ProviderError | None = None,
     route_error: ProviderError | None = None,
+    first_duration: str = "short",
 ) -> tuple[
     MultiCityPlanningOrchestrator,
     FakeAmapAdapter,
@@ -324,7 +332,14 @@ def _orchestrator(
             if deepseek_error is not None
             else _result(
                 Provider.DEEPSEEK,
-                ModelTextOutput(_proposal(pois[0].location_id, pois[1].location_id, *poi_sources)),
+                ModelTextOutput(
+                    _proposal(
+                        pois[0].location_id,
+                        pois[1].location_id,
+                        *poi_sources,
+                        first_duration=first_duration,
+                    )
+                ),
                 "model",
             ),
         )
@@ -398,6 +413,10 @@ def test_multicity_orchestrator_builds_v3_plan_with_global_model_and_no_intercit
     assert [day.overnight_city_index for day in result.plan.days] == [0, 1, 1]
     assert result.plan.days[1].intercity_segment_id is not None
     assert result.plan.days[1].activities == ()
+    assert [activity.title for day in result.plan.days for activity in day.activities] == [
+        "poi 0",
+        "poi 1",
+    ]
     assert len(result.plan.days[0].routes) == 2
     assert len(result.plan.days[2].routes) == 2
     assert len([call for call in amap.calls if call.operation is FakeOperation.RESOLVE_CITY]) == 2
@@ -413,6 +432,21 @@ def test_multicity_orchestrator_builds_v3_plan_with_global_model_and_no_intercit
     assert context.day_city_indices == ((0, 0, 0), (0, 1, 1), (1, 1, 1))
     assert governors[0].snapshot().active_route_calls == 0
     assert governors[0].snapshot().count_for(ToolCallCapability.GENERATE_PLAN_CANDIDATE) == 1
+
+
+def test_multicity_unknown_duration_is_explicit_system_estimate() -> None:
+    orchestrator, _amap, _qweather, _deepseek, _governors = _orchestrator(first_duration="unknown")
+    job_id = _id("unknown-duration")
+
+    result = asyncio.run(orchestrator.plan(_request(), job_id=job_id, evaluated_at=NOW))
+
+    assert result.status is PlanningStatus.PARTIAL
+    assert result.plan is not None
+    uncertainty = next(
+        item for item in result.uncertainties if item.code == "activity_duration_estimated_rule"
+    )
+    assert uncertainty.affected_refs == (uuid5(NAMESPACE_URL, f"f-004b1:{job_id}:activity:0:0"),)
+    assert uncertainty.source_ids == (uuid5(NAMESPACE_URL, f"f-004b1:{job_id}:source:system"),)
 
 
 def test_multicity_uses_one_explicit_runtime_for_city_route_weather_and_model_attempts() -> None:

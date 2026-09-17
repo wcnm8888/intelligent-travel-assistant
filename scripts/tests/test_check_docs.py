@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -16,11 +18,117 @@ from check_docs import (  # noqa: E402
     BUILD_CONSTRAINTS,
     CI_WORKFLOW,
     REQUIRED_DOCUMENTS,
+    check_execution_contract,
     collect_issues,
 )
 
 
 class DocumentationChecksTest(unittest.TestCase):
+    def test_execution_contract_allows_approved_limit_and_evidence_changes(self) -> None:
+        contract: dict[str, Any] = dict(
+            phase="mechanism_remediation",
+            status="ACTIVE",
+            goal="closeout",
+            allowed_files=["scripts/verify.ps1"],
+            allowed_actions=["tests"],
+            resources=["synthetic"],
+            repair_limit=4,
+            repairs_used={"mechanism_format_lint": 3},
+            verification=["tests"],
+            completion="stop",
+            formal_authorized=False,
+            development_authorized=False,
+            scale_approval="pending",
+            readiness={},
+            evidence="output/diagnostics/approved-next/report.md",
+            evidence_anchor="f008-approved-next",
+        )
+        self._write(contract["evidence"], "# New result\n")
+        for relative in (
+            "docs/README.md",
+            "docs/project-management/progress.md",
+            "docs/project-management/implementation-plan.md",
+        ):
+            self._write(relative, "current-task.md#当前执行状态\nevidence.md#f008-approved-next\n")
+        self._write(
+            "docs/project-management/evidence.md",
+            '<a id="f008-approved-next"></a>\n' + contract["evidence"],
+        )
+        self._write("docs/testing-strategy.md", '<a id="f008-continuous-coverage"></a>')
+
+        def render() -> str:
+            return (
+                "当前实际执行阶段：`mechanism_remediation`\n```f008-execution\n"
+                + json.dumps(contract)
+                + "\n```"
+            )
+
+        self.assertEqual(check_execution_contract(self.root, render()), [])
+        for invalid in (True, -1, "4", 2):
+            contract["repair_limit"] = invalid
+            self.assertTrue(check_execution_contract(self.root, render()))
+        contract["repair_limit"] = 4
+        contract["repairs_used"] = {"mechanism_format_lint": True}
+        self.assertTrue(check_execution_contract(self.root, render()))
+        contract["repairs_used"] = {"mechanism_format_lint": 3}
+        self._write("docs/project-management/evidence.md", '<a id="old"></a>')
+        self.assertTrue(check_execution_contract(self.root, render()))
+
+    def test_execution_contract_rejects_missing_phase_authorization_and_routes(self) -> None:
+        contract = dict(
+            phase="mechanism_remediation",
+            status="ACTIVE",
+            goal="mechanisms",
+            allowed_files=["scripts/verify.ps1"],
+            allowed_actions=["synthetic tests"],
+            resources=["isolated output"],
+            repair_limit=2,
+            repairs_used={},
+            verification=["negative tests"],
+            completion="stop",
+            formal_authorized=False,
+            development_authorized=False,
+            scale_approval="pending",
+            readiness={},
+            evidence="output/diagnostics/test/report.md",
+            evidence_anchor="f008-mechanisms-20260911",
+        )
+
+        def render() -> str:
+            return (
+                "当前实际执行阶段：`mechanism_remediation`\n```f008-execution\n"
+                + json.dumps(contract)
+                + "\n```\n"
+            )
+
+        self._write("output/diagnostics/test/report.md", "# Synthetic\n")
+        for relative in (
+            "docs/README.md",
+            "docs/project-management/progress.md",
+            "docs/project-management/implementation-plan.md",
+        ):
+            self._write(
+                relative, "current-task.md#当前执行状态\nevidence.md#f008-mechanisms-20260911\n"
+            )
+        self._write(
+            "docs/project-management/evidence.md",
+            '<a id="f008-mechanisms-20260911"></a>\noutput/diagnostics/test/report.md\n',
+        )
+        self._write("docs/testing-strategy.md", '<a id="f008-continuous-coverage"></a>\n')
+        self.assertEqual(check_execution_contract(self.root, render()), [])
+        contract["formal_authorized"] = True
+        self.assertTrue(check_execution_contract(self.root, render()))
+        contract["formal_authorized"] = False
+        self.assertTrue(
+            check_execution_contract(
+                self.root, render().replace("`mechanism_remediation`", "`development`")
+            )
+        )
+        self._write("docs/project-management/progress.md", "当前 Step：`Step 13 - UAT`\n")
+        self.assertTrue(check_execution_contract(self.root, render()))
+        self._write("docs/project-management/evidence.md", "# obsolete\n")
+        self.assertTrue(check_execution_contract(self.root, render()))
+
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)

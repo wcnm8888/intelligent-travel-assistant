@@ -6,12 +6,19 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
+from threading import RLock
 from types import MappingProxyType
-from typing import Final
+from typing import Any, Final, Literal
 from uuid import UUID, uuid4
 
 from intelligent_travel_assistant.application.ports import PlanningToolName
 from intelligent_travel_assistant.contracts import PlanningStatus
+from intelligent_travel_assistant.domain import (
+    Provider,
+    ProviderErrorCode,
+    ProviderOperation,
+    ProviderResultStatus,
+)
 
 TASK_TIMEOUT_SECONDS: Final = 90.0
 ROUTE_CONCURRENCY_LIMIT: Final = 2
@@ -410,3 +417,176 @@ class ToolCallGovernor:
             raise ToolCallGovernanceError(ToolCallGovernanceErrorCode.CLOCK_INVALID)
         self._last_clock = float(reading)
         return self._last_clock
+
+
+class RunCallBudget:
+    """Explicit, in-memory run allowance. No environment, payloads or global state."""
+
+    def __init__(
+        self,
+        *,
+        clock: Callable[[], float],
+        logical_limits: tuple[int, int, int] = (60, 10, 10),
+        http_limits: tuple[int, int, int] = (75, 15, 10),
+        execution_limits: tuple[int, int] = (1, 4),
+        deadline_seconds: float = 1200,
+    ) -> None:
+        if any(
+            type(n) is not int or not 0 <= n <= 10000
+            for n in (*logical_limits, *http_limits, *execution_limits)
+        ):
+            raise ValueError("run_limits_invalid")
+        if len(logical_limits) != 3 or len(http_limits) != 3 or len(execution_limits) != 2:
+            raise ValueError("run_limits_invalid")
+        if not isfinite(deadline_seconds) or deadline_seconds <= 0:
+            raise ValueError("run_deadline_invalid")
+        self._clock = clock
+        self._last = float(clock())
+        if not isfinite(self._last):
+            raise ValueError("run_clock_invalid")
+        self._started = self._last
+        self._deadline = self._last + deadline_seconds
+        self._lock = RLock()
+        self._providers = (Provider.AMAP, Provider.QWEATHER, Provider.DEEPSEEK)
+        self._limits = {"logical": logical_limits, "http": http_limits}
+        self._counts = {"logical": [0, 0, 0], "http": [0, 0, 0]}
+        self._execution_limits = dict(zip(("planning", "replan"), execution_limits, strict=True))
+        self._executions: dict[UUID, dict[str, Any]] = {}
+        self._records: list[dict[str, Any]] = []
+        self.stopped = False
+        self.reason = "none"
+
+    def _remaining(self) -> float:
+        now = float(self._clock())
+        if not isfinite(now) or now < self._last:
+            self.stop("clock_invalid")
+            return 0
+        self._last = now
+        remaining = max(0.0, self._deadline - now)
+        if remaining == 0:
+            self.stop("deadline")
+        return remaining
+
+    def remaining(self) -> float:
+        with self._lock:
+            return self._remaining()
+
+    def stop(
+        self,
+        reason: Literal[
+            "stopped", "deadline", "budget", "clock_invalid", "business_failure"
+        ] = "stopped",
+    ) -> None:
+        with self._lock:
+            if not self.stopped:
+                self.reason = reason
+            self.stopped = True
+
+    def _admit(self) -> None:
+        if self._remaining() <= 0:
+            self.stop("deadline")
+        if self.stopped:
+            code = (
+                ToolCallGovernanceErrorCode.TASK_TIMEOUT
+                if self.reason == "deadline"
+                else ToolCallGovernanceErrorCode.CALL_BUDGET_EXHAUSTED
+            )
+            raise ToolCallGovernanceError(code)
+
+    def open_execution(self, kind: Literal["planning", "replan"], request_id: UUID) -> UUID:
+        with self._lock:
+            self._admit()
+            if kind not in self._execution_limits or not isinstance(request_id, UUID):
+                raise ValueError("run_identity_invalid")
+            matching = [v for v in self._executions.values() if v["kind"] == kind]
+            if len(matching) >= self._execution_limits[kind] or any(
+                v["request_id"] == str(request_id) for v in matching
+            ):
+                self.stop("budget")
+                self._admit()
+            identity = uuid4()
+            self._executions[identity] = {
+                "kind": kind,
+                "request_id": str(request_id),
+                "state": "active",
+                "started_seconds": self._last - self._started,
+            }
+            return identity
+
+    def reserve(
+        self,
+        kind: Literal["logical", "http"],
+        execution: UUID,
+        provider: Provider,
+        operation: ProviderOperation,
+        attempt: int = 1,
+    ) -> int:
+        with self._lock:
+            self._admit()
+            if (
+                kind not in self._limits
+                or execution not in self._executions
+                or self._executions[execution]["state"] != "active"
+                or not isinstance(provider, Provider)
+                or provider not in self._providers
+                or not isinstance(operation, ProviderOperation)
+                or type(attempt) is not int
+                or attempt < 1
+            ):
+                raise ValueError("run_record_invalid")
+            index = self._providers.index(provider)
+            if self._counts[kind][index] >= self._limits[kind][index]:
+                self.stop("budget")
+                self._admit()
+            self._counts[kind][index] += 1
+            self._records.append(
+                {
+                    "kind": kind,
+                    "execution_id": str(execution),
+                    "provider": provider.value,
+                    "operation": operation.value,
+                    "attempt": attempt,
+                    "state": "started",
+                    "status": None,
+                    "error_code": None,
+                }
+            )
+            return len(self._records) - 1
+
+    def finish_attempt(
+        self, index: int, status: ProviderResultStatus | None, error: ProviderErrorCode | None
+    ) -> None:
+        with self._lock:
+            if status is not None and not isinstance(status, ProviderResultStatus):
+                raise ValueError("run_status_invalid")
+            if error is not None and not isinstance(error, ProviderErrorCode):
+                raise ValueError("run_error_invalid")
+            row = self._records[index]
+            row.update(
+                state="interrupted" if status is None else "returned",
+                status=status.value if status is not None else None,
+                error_code=error.value if error is not None else None,
+            )
+
+    def finish_execution(
+        self, execution: UUID, state: Literal["returned", "cancelled", "failed"]
+    ) -> None:
+        with self._lock:
+            self._remaining()
+            self._executions[execution]["state"] = state
+            self._executions[execution]["duration_seconds"] = max(
+                0.0, self._last - self._started - self._executions[execution]["started_seconds"]
+            )
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "stopped": self.stopped,
+                "reason": self.reason,
+                **{
+                    k: {p.value: n for p, n in zip(self._providers, values, strict=True)}
+                    for k, values in self._counts.items()
+                },
+                "executions": [{"execution_id": str(k), **v} for k, v in self._executions.items()],
+                "records": [dict(r) for r in self._records],
+            }

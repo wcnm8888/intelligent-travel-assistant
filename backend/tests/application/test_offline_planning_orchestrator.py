@@ -288,7 +288,7 @@ def _candidate() -> PlanCandidate:
                     CandidateActivity(
                         POI_ONE_ID,
                         date(2026, 8, 15),
-                        "西湖步行",
+                        "西湖 synthetic POI",
                         time(8, 45),
                         time(10, 45),
                         (SOURCE_IDS[Provider.AMAP],),
@@ -301,7 +301,7 @@ def _candidate() -> PlanCandidate:
                     CandidateActivity(
                         POI_TWO_ID,
                         date(2026, 8, 16),
-                        "博物馆参观",
+                        "博物馆 synthetic POI",
                         time(8, 45),
                         time(10, 45),
                         (SOURCE_IDS[Provider.AMAP],),

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
 from math import isfinite
+from typing import Any, Literal
+from uuid import UUID
 
 from intelligent_travel_assistant.domain import (
     Provider,
@@ -25,6 +28,7 @@ from intelligent_travel_assistant.domain import (
     retry_schedule_for,
 )
 
+from .governance import RunCallBudget, ToolCallGovernanceError, ToolCallGovernanceErrorCode
 from .rate_limiting import PacedAttemptLimiter
 
 
@@ -75,6 +79,7 @@ class ProviderAttemptRuntime:
 
     __slots__ = (
         "_active_tasks",
+        "_run_observation",
         "_amap_extra_attempts",
         "_attempt_limiter",
         "_clock",
@@ -112,6 +117,7 @@ class ProviderAttemptRuntime:
             or task_timeout_seconds <= 0
         ):
             raise ValueError("provider_attempt_task_timeout_invalid")
+        self._run_observation: tuple[ProviderRunSession, UUID] | None = None
         self._clock = clock
         self._sleeper = sleeper
         self._jitter = jitter
@@ -131,6 +137,11 @@ class ProviderAttemptRuntime:
         self._task_extra_attempts = 0
         self._active_tasks: set[asyncio.Task[object]] = set()
         self._closed = False
+
+    def bind_run(self, session: ProviderRunSession, execution: UUID) -> None:
+        if self._active_tasks or self._closed or self._records or self._run_observation is not None:
+            raise ValueError("runtime_observation_must_bind_before_use")
+        self._run_observation = (session, execution)
 
     async def execute[T](
         self,
@@ -176,6 +187,9 @@ class ProviderAttemptRuntime:
             )
 
         try:
+            if self._run_observation is not None:
+                session, execution = self._run_observation
+                session.reserve("logical", execution, provider, operation)
             while True:
                 if self._closed:
                     raise ProviderAttemptRuntimeError(
@@ -216,13 +230,34 @@ class ProviderAttemptRuntime:
                         if self._retry_budget_exhausted(provider, schedule):
                             return stopped_outcome(ResilienceDiagnosticCode.RETRY_BUDGET_EXHAUSTED)
                         self._reserve_extra_attempt(provider)
+                    observation_index: int | None = None
+                    if self._run_observation is not None:
+                        session, execution = self._run_observation
+                        observation_index = session.reserve(
+                            "http", execution, provider, operation, attempts_started + 1
+                        )
                     attempts_started += 1
 
-                result = await self._run_attempt(
-                    provider=provider,
-                    call=call,
-                    timeout_seconds=schedule.attempt_timeout_seconds,
-                )
+                try:
+                    result = await self._run_attempt(
+                        provider=provider,
+                        call=call,
+                        timeout_seconds=schedule.attempt_timeout_seconds,
+                    )
+                    if self._run_observation is not None:
+                        self._run_observation[0].ensure_publishable(self._run_observation[1])
+                except BaseException:
+                    if self._run_observation is not None and observation_index is not None:
+                        self._run_observation[0].budget.finish_attempt(
+                            observation_index, None, None
+                        )
+                    raise
+                if self._run_observation is not None and observation_index is not None:
+                    self._run_observation[0].budget.finish_attempt(
+                        observation_index,
+                        result.status,
+                        result.error.code if result.error else None,
+                    )
                 last_result = result
                 self._append_record(
                     provider=provider,
@@ -453,3 +488,123 @@ def provider_result_from_attempt_outcome[T](
         error,
         result.source_records,
     )
+
+
+class ProviderRunSession:
+    """Opt-in shared allowance; bound explicitly to one application's execution loop."""
+
+    def __init__(self, budget: RunCallBudget, *, stop_on_failure: bool = False) -> None:
+        self.budget = budget
+        self.stop_on_failure = stop_on_failure
+        self.stopped_event = asyncio.Event()
+        self.last_drain_complete: bool | None = None
+        self._timeouts: dict[UUID, asyncio.Timeout] = {}
+        self._tasks: set[asyncio.Task[Any]] = set()
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    @asynccontextmanager
+    async def execution(
+        self, kind: Literal["planning", "replan"], request_id: UUID
+    ) -> AsyncIterator[UUID]:
+        loop = asyncio.get_running_loop()
+        if self._loop is not None and self._loop is not loop:
+            raise ValueError("run_session_loop_mismatch")
+        self._loop = loop
+        task = asyncio.current_task()
+        assert task is not None
+        try:
+            identity = self.budget.open_execution(kind, request_id)
+        except ToolCallGovernanceError:
+            self._cancel_peers()
+            raise
+        self._tasks.add(task)
+        state: Literal["returned", "cancelled", "failed"] = "failed"
+        try:
+            deadline = asyncio.timeout(min(90.0, self.budget.remaining()))
+            self._timeouts[identity] = deadline
+            async with deadline:
+                yield identity
+                self.ensure_publishable(identity)
+            state = "returned"
+        except asyncio.CancelledError:
+            state = "cancelled"
+            self.budget.stop()
+            self._cancel_peers()
+            raise
+        except TimeoutError:
+            self.budget.stop("deadline")
+            self._cancel_peers()
+            raise
+        except Exception:
+            self.budget.stop()
+            self._cancel_peers()
+            raise
+        finally:
+            self._timeouts.pop(identity, None)
+            self._tasks.discard(task)
+            self.budget.finish_execution(identity, state)
+
+    def ensure_publishable(self, execution: UUID) -> None:
+        deadline = self._timeouts[execution]
+        when = deadline.when()
+        if (
+            deadline.expired()
+            or self.budget.remaining() <= 0
+            or (when is not None and asyncio.get_running_loop().time() >= when)
+        ):
+            self.budget.stop("deadline")
+            self._cancel_peers()
+            raise TimeoutError("run_deadline_expired")
+        task = asyncio.current_task()
+        if task is not None and task.cancelling():
+            raise asyncio.CancelledError
+        if self.budget.stopped:
+            raise ToolCallGovernanceError(ToolCallGovernanceErrorCode.CALL_BUDGET_EXHAUSTED)
+
+    def business_failure(self) -> None:
+        if self.stop_on_failure:
+            self.budget.stop("business_failure")
+            self._cancel_peers()
+
+    def _cancel_peers(self) -> None:
+        if self.budget.stopped:
+            self.stopped_event.set()
+        current = asyncio.current_task()
+        for task in self._tasks:
+            if task is not current:
+                task.cancel()
+
+    def reserve(
+        self,
+        kind: Literal["logical", "http"],
+        execution: UUID,
+        provider: Provider,
+        operation: ProviderOperation,
+        attempt: int = 1,
+    ) -> int:
+        try:
+            return self.budget.reserve(kind, execution, provider, operation, attempt)
+        except ToolCallGovernanceError:
+            self._cancel_peers()
+            raise
+
+    async def stop(self, drain_seconds: float = 10) -> bool:
+        if not isfinite(drain_seconds) or drain_seconds < 0:
+            raise ValueError("run_drain_invalid")
+        self.budget.stop()
+        self._cancel_peers()
+        current = asyncio.current_task()
+        peers = [task for task in self._tasks if task is not current]
+        if not peers:
+            self.last_drain_complete = not self._tasks
+        else:
+            _, pending = await asyncio.wait(peers, timeout=drain_seconds)
+            self.last_drain_complete = not pending and not self._tasks
+        return self.last_drain_complete
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            **self.budget.snapshot(),
+            "active_executions": len(self._tasks),
+            "drain_complete": self.last_drain_complete,
+        }

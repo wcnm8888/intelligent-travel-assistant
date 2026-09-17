@@ -269,6 +269,7 @@ async def test_empty_or_malformed_walking_routes_are_not_admitted(
     assert result.error is not None
     if response["count"] == "0":
         assert result.error.category is ProviderErrorCategory.EMPTY_RESULT
+        assert getattr(result.error.reason, "value", None) == "route_count_zero"
     else:
         assert result.error.category is ProviderErrorCategory.SCHEMA
 
@@ -295,6 +296,7 @@ async def test_empty_or_malformed_transit_routes_are_not_admitted(
     assert result.error is not None
     if response["count"] == "0":
         assert result.error.category is ProviderErrorCategory.EMPTY_RESULT
+        assert getattr(result.error.reason, "value", None) == "route_count_zero"
     else:
         assert result.error.category is ProviderErrorCategory.SCHEMA
 
@@ -314,6 +316,7 @@ async def test_no_route_infocodes_map_to_empty_result(infocode: str) -> None:
     assert result.status is ProviderResultStatus.UNAVAILABLE
     assert result.error is not None
     assert result.error.category is ProviderErrorCategory.EMPTY_RESULT
+    assert getattr(result.error.reason, "value", None) == "route_business_no_result"
     assert "raw route detail" not in repr(result)
 
 

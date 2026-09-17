@@ -229,9 +229,12 @@ export function MulticityTripPlanResult({ response, onRetry, onReset }: Props) {
           </p>
         </div>
         <div className={`result-stamp result-stamp--${response.status}`}>
-          {isPartial ? "部分\n可用" : "完整\n可用"}
+          {isPartial ? "部分\n可用" : "规则\n通过"}
         </div>
       </header>
+      <p className="stage-note" role="note">
+        <strong>真实服务结果仅本次运行可用</strong> · Provider 事实未交叉核验
+      </p>
       <div
         className={`result-verdict result-verdict--${response.status}`}
         role="status"

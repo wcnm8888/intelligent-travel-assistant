@@ -469,3 +469,35 @@ def test_governance_module_has_no_network_environment_sleep_or_async_runtime_dep
 
     assert observed_imports == []
     assert observed_calls == []
+
+
+def test_run_budget_is_shared_across_executions_and_refuses_before_call() -> None:
+    from uuid import uuid4
+
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+    from intelligent_travel_assistant.domain import Provider, ProviderOperation
+
+    budget = RunCallBudget(clock=ManualClock(), logical_limits=(1, 1, 1), http_limits=(1, 1, 1))
+    first = budget.open_execution("planning", uuid4())
+    budget.reserve("logical", first, Provider.AMAP, ProviderOperation.RESOLVE_CITY)
+    budget.reserve("http", first, Provider.AMAP, ProviderOperation.RESOLVE_CITY)
+    second = budget.open_execution("replan", uuid4())
+    with pytest.raises(ToolCallGovernanceError):
+        budget.reserve("logical", second, Provider.AMAP, ProviderOperation.RESOLVE_CITY)
+    assert budget.snapshot()["logical"] == {"amap": 1, "qweather": 0, "deepseek": 0}
+    assert budget.stopped
+
+
+def test_run_budget_stops_at_deadline_and_rejects_invalid_identity() -> None:
+    from uuid import uuid4
+
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+    from intelligent_travel_assistant.domain import Provider, ProviderOperation
+
+    clock = ManualClock()
+    budget = RunCallBudget(clock=clock, deadline_seconds=10)
+    execution = budget.open_execution("planning", uuid4())
+    clock.value = 10
+    with pytest.raises(ToolCallGovernanceError):
+        budget.reserve("http", execution, Provider.AMAP, ProviderOperation.RESOLVE_CITY)
+    assert budget.snapshot()["http"] == {"amap": 0, "qweather": 0, "deepseek": 0}

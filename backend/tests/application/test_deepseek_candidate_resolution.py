@@ -3,6 +3,7 @@
 import ast
 import asyncio
 import json
+from dataclasses import replace
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -18,7 +19,9 @@ from intelligent_travel_assistant.application.planning import (
     CandidateValidationError,
     CandidateValidationStage,
     DeepSeekCandidateResolver,
+    DeepSeekProposalResolver,
     parse_plan_candidate,
+    parse_plan_proposal,
 )
 from intelligent_travel_assistant.application.ports import (
     CandidateTimeFailureCode,
@@ -29,6 +32,7 @@ from intelligent_travel_assistant.application.ports import (
     PlanningObservation,
     PlanningToolName,
     PlanRepairBrief,
+    ReplanSelectionScope,
 )
 from intelligent_travel_assistant.application.tooling import (
     ProviderAttemptRuntime,
@@ -52,7 +56,10 @@ FETCHED_AT = datetime(2026, 8, 13, 2, tzinfo=UTC)
 VALID_UNTIL = FETCHED_AT + timedelta(hours=1)
 POI_ONE_ID = UUID("90000000-0000-4000-8000-000000000002")
 POI_TWO_ID = UUID("90000000-0000-4000-8000-000000000003")
+POI_THREE_ID = UUID("90000000-0000-4000-8000-000000000004")
+POI_FOUR_ID = UUID("90000000-0000-4000-8000-000000000005")
 HOTEL_ID = UUID("90000000-0000-4000-8000-000000000010")
+TARGET_ACTIVITY_ID = UUID("90000000-0000-4000-8000-000000000020")
 AMAP_SOURCE_ID = UUID("40000000-0000-4000-8000-000000000001")
 WEATHER_SOURCE_ID = UUID("60000000-0000-4000-8000-000000000001")
 DEEPSEEK_SOURCE_ID = UUID("70000000-0000-4000-8000-000000000001")
@@ -147,6 +154,167 @@ def _candidate_document() -> dict[str, object]:
 
 def _candidate_json() -> str:
     return json.dumps(_candidate_document(), ensure_ascii=False, separators=(",", ":"))
+
+
+def _replan_context() -> PlanningContext:
+    context = _context()
+    return replace(
+        context,
+        locations=(
+            *context.locations,
+            PlanningLocation(POI_THREE_ID, "候选三", "museum", "330100"),
+            PlanningLocation(POI_FOUR_ID, "候选四", "museum", "330100"),
+        ),
+        replan_selection_scope=ReplanSelectionScope(
+            target_activity_id=TARGET_ACTIVITY_ID,
+            target_local_date=date(2026, 8, 15),
+            target_selection_index=0,
+            baseline_location_ids_by_day=((POI_ONE_ID,), (POI_TWO_ID,)),
+            allowed_candidate_location_ids=(POI_THREE_ID, POI_FOUR_ID),
+        ),
+    )
+
+
+def _replan_proposal_document(selected: UUID = POI_THREE_ID) -> dict[str, object]:
+    return {
+        "intent_summary": "受控候选选择",
+        "days": [
+            {
+                "local_date": "2026-08-15",
+                "selections": [
+                    {
+                        "location_id": str(selected),
+                        "local_date": "2026-08-15",
+                        "title": "模型仅选择候选",
+                        "priority_rank": 1,
+                        "selection_kind": "required",
+                        "duration_class": "standard",
+                        "source_ids": [str(AMAP_SOURCE_ID)],
+                    }
+                ],
+            },
+            {
+                "local_date": "2026-08-16",
+                "selections": [
+                    {
+                        "location_id": str(POI_TWO_ID),
+                        "local_date": "2026-08-16",
+                        "title": "非目标活动保持不变",
+                        "priority_rank": 1,
+                        "selection_kind": "required",
+                        "duration_class": "standard",
+                        "source_ids": [str(AMAP_SOURCE_ID)],
+                    }
+                ],
+            },
+        ],
+        "explanation": "只在目标槽位选择允许候选。",
+        "warnings": [],
+    }
+
+
+@pytest.mark.parametrize("selected", (POI_THREE_ID, POI_FOUR_ID))
+def test_replan_scope_accepts_any_allowed_candidate_only_at_target_slot(selected: UUID) -> None:
+    proposal = parse_plan_proposal(
+        json.dumps(_replan_proposal_document(selected)),
+        _replan_context(),
+    )
+
+    assert proposal.days[0].selections[0].location_id == selected
+    assert proposal.days[1].selections[0].location_id == POI_TWO_ID
+
+
+@pytest.mark.parametrize(
+    ("fault", "expected_code"),
+    (
+        ("original_target", CandidateValidationCode.POI_REFERENCE_INVALID),
+        ("unknown_target", CandidateValidationCode.POI_REFERENCE_INVALID),
+        ("other_slot", CandidateValidationCode.SCHEMA_INVALID),
+        ("extra_selection", CandidateValidationCode.SCHEMA_INVALID),
+        ("duplicate_location", CandidateValidationCode.SCHEMA_INVALID),
+        ("wrong_date", CandidateValidationCode.DATE_INVALID),
+    ),
+)
+def test_replan_scope_rejects_escape_from_target_and_candidate_allowlist(
+    fault: str,
+    expected_code: CandidateValidationCode,
+) -> None:
+    document = _replan_proposal_document()
+    days = document["days"]
+    assert isinstance(days, list)
+    first = days[0]
+    second = days[1]
+    assert isinstance(first, dict) and isinstance(second, dict)
+    first_selections = first["selections"]
+    second_selections = second["selections"]
+    assert isinstance(first_selections, list) and isinstance(second_selections, list)
+    if fault == "original_target":
+        first_selections[0]["location_id"] = str(POI_ONE_ID)
+    elif fault == "unknown_target":
+        first_selections[0]["location_id"] = str(UUID(int=999))
+    elif fault == "other_slot":
+        second_selections[0]["location_id"] = str(POI_THREE_ID)
+    elif fault == "extra_selection":
+        first_selections.append({**first_selections[0], "priority_rank": 2})
+    elif fault == "duplicate_location":
+        second_selections[0]["location_id"] = str(POI_THREE_ID)
+    else:
+        first_selections[0]["local_date"] = "2026-08-16"
+
+    with pytest.raises(CandidateValidationError) as error:
+        parse_plan_proposal(json.dumps(document), _replan_context())
+
+    assert error.value.code is expected_code
+    assert error.value.repairable is True
+
+
+def test_replan_scope_is_identical_in_generation_and_single_repair() -> None:
+    invalid = _replan_proposal_document()
+    invalid_days = invalid["days"]
+    assert isinstance(invalid_days, list) and isinstance(invalid_days[1], dict)
+    invalid_selections = invalid_days[1]["selections"]
+    assert isinstance(invalid_selections, list)
+    invalid_selections[0]["location_id"] = str(POI_THREE_ID)
+    context = _replan_context()
+    fake = FakeDeepSeekAdapter(
+        generation_results=(_deepseek_result(json.dumps(invalid)),),
+        repair_results=(_deepseek_result(json.dumps(_replan_proposal_document())),),
+    )
+
+    resolution = asyncio.run(
+        DeepSeekProposalResolver(fake).resolve(context, ToolCallGovernor(clock=lambda: 0.0))
+    )
+
+    assert resolution.error_code is None
+    assert resolution.repaired is True
+    repair_request = fake.calls[1].request
+    assert isinstance(repair_request, PlanRepairBrief)
+    assert repair_request.replan_selection_scope == context.replan_selection_scope
+
+
+def test_replan_scope_escape_after_repair_is_model_output_invalid() -> None:
+    invalid = _replan_proposal_document()
+    invalid_days = invalid["days"]
+    assert isinstance(invalid_days, list) and isinstance(invalid_days[1], dict)
+    invalid_selections = invalid_days[1]["selections"]
+    assert isinstance(invalid_selections, list)
+    invalid_selections[0]["location_id"] = str(POI_THREE_ID)
+    fake = FakeDeepSeekAdapter(
+        generation_results=(_deepseek_result(json.dumps(invalid)),),
+        repair_results=(_deepseek_result(json.dumps(invalid)),),
+    )
+
+    resolution = asyncio.run(
+        DeepSeekProposalResolver(fake).resolve(
+            _replan_context(),
+            ToolCallGovernor(clock=lambda: 0.0),
+        )
+    )
+
+    assert resolution.error_code is CandidateResolutionErrorCode.MODEL_OUTPUT_INVALID
+    assert resolution.validation_stage is CandidateValidationStage.REPAIR
+    assert resolution.validation_code is CandidateValidationCode.SCHEMA_INVALID
+    assert len(fake.calls) == 2
 
 
 @pytest.mark.parametrize(

@@ -13,6 +13,7 @@ import {
   readyPlanningResponse,
 } from "./test/tripPlanningFixtures";
 import {
+  createTripPlanningApi,
   parseTripPlanResponse,
   TripPlanningClientError,
   type TripPlanResponseDto,
@@ -47,6 +48,11 @@ function renderApp(api: TripPlanningApi, maxPolls = 0) {
 }
 
 async function submitValidRequest(user: ReturnType<typeof userEvent.setup>) {
+  expect(
+    screen.getByText(
+      "启用真实服务时，结果仅在本次本地服务运行期间可用；关闭或重启服务后无法恢复。",
+    ),
+  ).toBeVisible();
   await user.type(screen.getByLabelText("目的地城市 *"), "杭州");
   await user.type(
     screen.getByLabelText("开始日期 *"),
@@ -61,6 +67,42 @@ beforeEach(() => window.localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
 describe("F-006 local job recovery", () => {
+  it("clears the pointer after the backend's omitted-null 404 envelope", async () => {
+    window.localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, FIXED_JOB_ID);
+    const request = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            code: "job_not_found",
+            message: "The planning job was not found.",
+            retryable: false,
+          },
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    renderApp(createTripPlanningApi(request));
+    expect(
+      await screen.findByText(/本地服务已重启或任务已不存在/),
+    ).toBeVisible();
+    expect(window.localStorage).toHaveLength(0);
+    expect(request).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "行前设定" })).toHaveFocus(),
+    );
+  });
+
+  it("moves focus to a newly created terminal plan, not only a restored one", async () => {
+    const response = readyPlanningResponse();
+    const api = apiFor(response);
+    vi.mocked(api.create).mockResolvedValue(response);
+    renderApp(api);
+    await submitValidRequest(userEvent.setup());
+    expect(
+      await screen.findByRole("heading", { name: /2日旅笺/ }),
+    ).toHaveFocus();
+  });
+
   it.each([
     ["legacy", readyPlanningResponse()],
     ["V2", parseTripPlanResponse(multidayPlanningPayload(2))],
@@ -140,7 +182,9 @@ describe("F-006 local job recovery", () => {
     renderApp(api);
 
     expect(
-      await screen.findByText("上次本机任务无法恢复，已返回新建。"),
+      await screen.findByText(
+        "本地服务已重启或任务已不存在；真实服务结果无法恢复，已返回新建。",
+      ),
     ).toBeVisible();
     expect(api.read).not.toHaveBeenCalled();
     expect(window.localStorage).toHaveLength(0);
@@ -180,7 +224,9 @@ describe("F-006 local job recovery", () => {
     renderApp(api);
 
     expect(
-      await screen.findByText("上次本机任务无法恢复，已返回新建。"),
+      await screen.findByText(
+        "本地服务已重启或任务已不存在；真实服务结果无法恢复，已返回新建。",
+      ),
     ).toBeVisible();
     expect(window.localStorage).toHaveLength(0);
     expect(screen.queryByText("西湖湖滨步行")).not.toBeInTheDocument();

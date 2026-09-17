@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import socket
+from concurrent.futures import ThreadPoolExecutor
 from ipaddress import IPv4Address
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -13,21 +15,44 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+import intelligent_travel_assistant.app as app_module
 import intelligent_travel_assistant.bootstrap as bootstrap_module
-from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
+from intelligent_travel_assistant.adapters.persistence import (
+    MigrationRunner,
+    SqliteConnectionConfig,
+    SqliteDatabase,
+    SqlitePlanningJobRepository,
+)
+from intelligent_travel_assistant.adapters.repositories import (
+    InMemoryPlanningJobRepository,
+    InMemoryReplanRepository,
+)
 from intelligent_travel_assistant.app import create_app
+from intelligent_travel_assistant.application.replanning import (
+    ReplanApplicationRequest,
+    ReplanApplicationService,
+)
 from intelligent_travel_assistant.application.services import (
     ConfigurationMissingPlanningJobExecutor,
+    ProviderNeutralReplanExecutor,
     ProviderPlanningJobExecutor,
+)
+from intelligent_travel_assistant.application.services.provider_replan_planner import (
+    ProviderReplanPlanner,
 )
 from intelligent_travel_assistant.application.tooling import PacedAttemptLimiter
 from intelligent_travel_assistant.bootstrap import (
+    PlanningPersistence,
+    PlanningStorageMode,
     ProviderActivationState,
     StartupConfigurationError,
+    build_application_services,
     build_planning_job_executor,
     build_provider_adapters,
 )
+from intelligent_travel_assistant.contracts import PlanningStatus
 from intelligent_travel_assistant.domain import (
+    DeleteActivity,
     Provider,
     ProviderError,
     ProviderErrorCategory,
@@ -41,6 +66,8 @@ from intelligent_travel_assistant.settings import (
     Settings,
     default_local_sqlite_database_path,
 )
+from tests.api.test_multiday_trip_plans_api import legacy_payload
+from tests.application.test_replan_service import _job as ready_replan_job
 
 PROVIDER_ENVIRONMENT = (
     "DEEPSEEK_API_KEY",
@@ -61,6 +88,11 @@ class _ManualClock:
 
     def advance(self, seconds: float) -> None:
         self.value += seconds
+
+
+class _NoopExecutor:
+    async def execute(self, _job_id: object) -> None:
+        return None
 
 
 def _settings(**overrides: object) -> Settings:
@@ -84,6 +116,22 @@ def _write_private_key(path: Path) -> None:
     )
 
 
+def _complete_settings(tmp_path: Path, *, database_path: Path | None = None) -> Settings:
+    private_key_path = tmp_path / "qweather-live-memory.pem"
+    _write_private_key(private_key_path)
+    values: dict[str, object] = {
+        "deepseek_api_key": "deepseek-local-test-value",
+        "amap_api_key": "amap-local-test-value",
+        "qweather_api_host": "example.qweatherapi.com",
+        "qweather_project_id": "project_test",
+        "qweather_credential_id": "credential_test",
+        "qweather_private_key_path": private_key_path,
+    }
+    if database_path is not None:
+        values["sqlite_database_path"] = database_path.resolve()
+    return _settings(**values)
+
+
 def test_empty_provider_configuration_starts_health_with_disabled_report() -> None:
     application = create_app(_settings())
 
@@ -98,6 +146,8 @@ def test_empty_provider_configuration_starts_health_with_disabled_report() -> No
         application.state.planning_job_executor,
         ConfigurationMissingPlanningJobExecutor,
     )
+    assert application.state.replan_application_service is None
+    assert application.state.route_attempt_limiter is None
 
 
 def test_incomplete_required_provider_combination_uses_zero_call_executor() -> None:
@@ -110,6 +160,8 @@ def test_incomplete_required_provider_combination_uses_zero_call_executor() -> N
         application.state.planning_job_executor,
         ConfigurationMissingPlanningJobExecutor,
     )
+    assert application.state.replan_application_service is None
+    assert application.state.route_attempt_limiter is None
 
 
 def test_test_composition_never_consults_local_dotenv() -> None:
@@ -125,6 +177,22 @@ def test_test_composition_never_consults_local_dotenv() -> None:
         ConfigurationMissingPlanningJobExecutor,
     )
     assert application.state.sqlite_database is None
+
+
+def test_module_level_default_is_safe_zero_call_composition() -> None:
+    application = app_module.app
+
+    assert SETTINGS_ENV_FILE is None
+    assert isinstance(
+        application.state.planning_job_executor,
+        ConfigurationMissingPlanningJobExecutor,
+    )
+    assert application.state.replan_application_service is None
+    assert application.state.route_attempt_limiter is None
+    assert application.state.sqlite_database is None
+
+    with TestClient(application) as client:
+        assert client.get("/api/health").status_code == 200
 
 
 def test_sqlite_database_path_must_be_absolute() -> None:
@@ -181,6 +249,335 @@ def test_complete_configuration_builds_all_adapters_without_network(tmp_path: Pa
 
     application = create_app(settings=settings)
     assert isinstance(application.state.planning_job_executor, ProviderPlanningJobExecutor)
+    assert isinstance(application.state.replan_application_service, ReplanApplicationService)
+
+
+def test_complete_configuration_owns_memory_cohort_and_never_touches_sqlite(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "forbidden-live" / "travel-plans.sqlite3"
+    sqlite_calls: list[str] = []
+
+    def forbidden_open(_database: SqliteDatabase) -> object:
+        sqlite_calls.append("open")
+        raise AssertionError("live_mode_must_not_open_sqlite")
+
+    def forbidden_close(_database: SqliteDatabase) -> None:
+        sqlite_calls.append("close")
+        raise AssertionError("live_mode_must_not_close_sqlite")
+
+    def forbidden_migration(_runner: MigrationRunner, _connection: object) -> None:
+        sqlite_calls.append("migration")
+        raise AssertionError("live_mode_must_not_run_migration")
+
+    monkeypatch.setattr(SqliteDatabase, "open", forbidden_open)
+    monkeypatch.setattr(SqliteDatabase, "close", forbidden_close)
+    monkeypatch.setattr(MigrationRunner, "run", forbidden_migration)
+
+    application = create_app(settings=_complete_settings(tmp_path, database_path=path))
+    persistence = application.state.planning_persistence
+
+    assert persistence.storage_mode is PlanningStorageMode.LIVE_MEMORY_ONLY
+    assert isinstance(persistence.repository, InMemoryPlanningJobRepository)
+    assert isinstance(persistence.replan_repository, InMemoryReplanRepository)
+    assert persistence.replan_repository._planning_jobs is persistence.repository
+    assert application.state.planning_job_repository is persistence.repository
+    assert application.state.replan_repository is persistence.replan_repository
+    assert application.state.planning_storage_mode is PlanningStorageMode.LIVE_MEMORY_ONLY
+    assert isinstance(application.state.replan_application_service, ReplanApplicationService)
+    assert persistence.maintenance is None
+    assert persistence.database is None
+    assert persistence.database_path is None
+    assert not path.parent.exists()
+
+    with TestClient(application) as client:
+        assert client.get("/api/health").json() == {
+            "status": "ok",
+            "service": "intelligent-travel-assistant-api",
+        }
+
+    assert sqlite_calls == []
+    assert not path.parent.exists()
+
+
+def test_complete_default_composition_shares_cohort_limiter_and_isolates_runtimes(
+    tmp_path: Path,
+) -> None:
+    application = create_app(settings=_complete_settings(tmp_path))
+    persistence = application.state.planning_persistence
+    planning_executor = application.state.planning_job_executor
+    service = application.state.replan_application_service
+    limiter = application.state.route_attempt_limiter
+
+    assert isinstance(planning_executor, ProviderPlanningJobExecutor)
+    assert isinstance(service, ReplanApplicationService)
+    assert isinstance(service._executor, ProviderNeutralReplanExecutor)
+    assert service._planning_jobs is persistence.repository
+    assert service._replans is persistence.replan_repository
+    assert isinstance(service._executor._planner, ProviderReplanPlanner)
+    assert service._executor._planner.route_limiter is limiter
+
+    runtime_factory = planning_executor._attempt_runtime_factory
+    assert runtime_factory is not None
+    first_runtime = runtime_factory(90.0)
+    second_runtime = runtime_factory(90.0)
+    assert first_runtime is not second_runtime
+    assert first_runtime._attempt_limiter is limiter
+    assert second_runtime._attempt_limiter is limiter
+    assert first_runtime.snapshot().records == second_runtime.snapshot().records == ()
+    asyncio.run(first_runtime.close())
+    asyncio.run(second_runtime.close())
+
+
+def test_complete_default_composition_is_owned_by_each_app(tmp_path: Path) -> None:
+    settings = _complete_settings(tmp_path)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_future = executor.submit(create_app, settings)
+        second_future = executor.submit(create_app, settings)
+        first, second = first_future.result(), second_future.result()
+
+    assert first.state.planning_persistence is not second.state.planning_persistence
+    assert first.state.planning_job_repository is not second.state.planning_job_repository
+    assert first.state.replan_repository is not second.state.replan_repository
+    assert first.state.route_attempt_limiter is not second.state.route_attempt_limiter
+    assert first.state.replan_application_service is not second.state.replan_application_service
+
+
+def test_default_replan_router_uses_automatically_built_service(tmp_path: Path) -> None:
+    application = create_app(settings=_complete_settings(tmp_path))
+
+    with TestClient(application) as client:
+        response = client.get(
+            "/api/trip-plans/00000000-0000-4000-8000-000000000001/"
+            "replans/00000000-0000-4000-8000-000000000002"
+        )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "replan_not_found"
+
+
+def test_default_service_reads_plan_created_in_owned_memory_cohort(tmp_path: Path) -> None:
+    application = create_app(settings=_complete_settings(tmp_path))
+    repository = application.state.planning_job_repository
+    service = application.state.replan_application_service
+    template = ready_replan_job()
+    template_result = template.result
+    assert isinstance(repository, InMemoryPlanningJobRepository)
+    assert isinstance(service, ReplanApplicationService)
+    assert template_result is not None
+    template_plan = template_result.plan
+    assert template_plan is not None
+
+    async def scenario() -> tuple[UUID, UUID]:
+        job = (await repository.get_or_create(template.request)).job
+        for status in (
+            PlanningStatus.NORMALIZING,
+            PlanningStatus.COLLECTING,
+            PlanningStatus.PLANNING,
+            PlanningStatus.ENRICHING_ROUTES,
+            PlanningStatus.VALIDATING,
+        ):
+            job = await repository.advance(
+                job.job_id,
+                status,
+                expected_version=job.version,
+            )
+        job = await repository.record_result(
+            job.job_id,
+            template_result,
+            expected_version=job.version,
+        )
+        result = await service.create(
+            ReplanApplicationRequest(
+                job.job_id,
+                UUID("00000000-0000-4000-8000-000000000003"),
+                template_plan.plan_id,
+                DeleteActivity(
+                    template_plan.days[0].activities[0].item_id,
+                    reason_code="user_requested",
+                ),
+            ),
+            defer_execution=True,
+        )
+        stored = await application.state.replan_repository.get(
+            job.job_id,
+            result.replan.replan_id,
+        )
+        return job.job_id, stored.job_id
+
+    planning_job_id, replan_job_id = asyncio.run(scenario())
+    assert replan_job_id == planning_job_id
+
+
+def test_live_service_composition_rejects_incomplete_memory_cohort(tmp_path: Path) -> None:
+    persistence = PlanningPersistence(
+        repository=InMemoryPlanningJobRepository(),
+        storage_mode=PlanningStorageMode.LIVE_MEMORY_ONLY,
+    )
+
+    with pytest.raises(
+        StartupConfigurationError,
+        match="^live_provider_persistence_must_be_memory$",
+    ):
+        build_application_services(
+            persistence, build_provider_adapters(_complete_settings(tmp_path))
+        )
+
+
+def test_live_service_composition_rejects_mismatched_memory_cohort(tmp_path: Path) -> None:
+    planning_repository = InMemoryPlanningJobRepository()
+    replan_repository = InMemoryReplanRepository(planning_jobs=InMemoryPlanningJobRepository())
+    persistence = PlanningPersistence(
+        repository=planning_repository,
+        replan_repository=replan_repository,
+        storage_mode=PlanningStorageMode.LIVE_MEMORY_ONLY,
+    )
+
+    with pytest.raises(
+        StartupConfigurationError,
+        match="^live_provider_persistence_must_be_memory$",
+    ):
+        build_application_services(
+            persistence, build_provider_adapters(_complete_settings(tmp_path))
+        )
+
+
+def test_executor_construction_failure_keeps_precise_error_and_zero_sqlite(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "forbidden-construction" / "travel-plans.sqlite3"
+    monkeypatch.setattr(
+        bootstrap_module,
+        "attempt_pacing_policy_for",
+        lambda _provider, _operation: None,
+    )
+
+    with pytest.raises(
+        StartupConfigurationError,
+        match="^amap_route_pacing_policy_missing$",
+    ):
+        create_app(settings=_complete_settings(tmp_path, database_path=path))
+
+    assert not path.parent.exists()
+
+
+def test_incomplete_configuration_keeps_safe_sqlite_composition(tmp_path: Path) -> None:
+    path = tmp_path / "safe-unavailable.sqlite3"
+    application = create_app(
+        settings=_settings(
+            deepseek_api_key="deepseek-local-test-value",
+            sqlite_database_path=path.resolve(),
+        )
+    )
+    persistence = application.state.planning_persistence
+
+    assert persistence.storage_mode is PlanningStorageMode.SAFE_UNAVAILABLE_SQLITE
+    assert isinstance(persistence.repository, SqlitePlanningJobRepository)
+    assert persistence.replan_repository is None
+    assert application.state.replan_repository is None
+    assert application.state.planning_storage_mode is PlanningStorageMode.SAFE_UNAVAILABLE_SQLITE
+    assert isinstance(
+        application.state.planning_job_executor,
+        ConfigurationMissingPlanningJobExecutor,
+    )
+    assert application.state.replan_application_service is None
+    assert application.state.route_attempt_limiter is None
+
+    with TestClient(application):
+        assert path.is_file()
+
+
+def test_complete_adapters_reject_explicit_sqlite_repository_without_opening_file(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "injected-live.sqlite3"
+    repository = SqlitePlanningJobRepository(
+        SqliteDatabase(SqliteConnectionConfig(path=path.resolve()))
+    )
+    adapters = build_provider_adapters(_complete_settings(tmp_path))
+
+    with pytest.raises(
+        StartupConfigurationError,
+        match="^live_provider_persistence_must_be_memory$",
+    ):
+        create_app(
+            settings=_settings(),
+            planning_job_repository=repository,
+            provider_adapters=adapters,
+            planning_job_executor=ConfigurationMissingPlanningJobExecutor(repository),
+        )
+
+    assert not path.exists()
+
+
+def test_complete_adapters_preserve_explicit_in_memory_test_seam(tmp_path: Path) -> None:
+    repository = InMemoryPlanningJobRepository()
+    adapters = build_provider_adapters(_complete_settings(tmp_path))
+
+    application = create_app(
+        settings=_settings(),
+        planning_job_repository=repository,
+        provider_adapters=adapters,
+    )
+
+    assert application.state.planning_persistence is None
+    assert application.state.planning_job_repository is repository
+    assert application.state.planning_job_executor is None
+    assert application.state.planning_storage_mode is None
+    assert application.state.replan_repository is None
+    assert application.state.replan_application_service is None
+    assert application.state.route_attempt_limiter is None
+
+
+def test_live_memory_cohort_construction_failure_is_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def fail_replan_repository() -> object:
+        raise RuntimeError("sensitive internal construction detail")
+
+    monkeypatch.setattr(bootstrap_module, "InMemoryReplanRepository", fail_replan_repository)
+
+    with pytest.raises(StartupConfigurationError) as captured:
+        create_app(settings=_complete_settings(tmp_path))
+
+    assert str(captured.value) == "live_provider_persistence_must_be_memory"
+    assert "sensitive" not in str(captured.value)
+
+
+def test_storage_mode_does_not_change_openapi_contract(tmp_path: Path) -> None:
+    safe_application = create_app(_settings())
+    live_application = create_app(_complete_settings(tmp_path))
+
+    assert live_application.openapi() == safe_application.openapi()
+
+
+def test_live_memory_job_is_process_local_and_keeps_existing_get_delete_contract(
+    tmp_path: Path,
+) -> None:
+    settings = _complete_settings(tmp_path)
+    first_application = create_app(settings, planning_job_executor=_NoopExecutor())
+
+    with TestClient(first_application) as first_client:
+        created = first_client.post("/api/trip-plans", json=legacy_payload())
+        job_id = created.json()["job_id"]
+        fetched = first_client.get(f"/api/trip-plans/{job_id}")
+        deleted = first_client.delete(f"/api/trip-plans/{job_id}")
+        missing_after_delete = first_client.get(f"/api/trip-plans/{job_id}")
+        recreated = first_client.post("/api/trip-plans", json=legacy_payload())
+        restart_only_job_id = recreated.json()["job_id"]
+
+    second_application = create_app(settings, planning_job_executor=_NoopExecutor())
+    with TestClient(second_application) as second_client:
+        missing_after_restart = second_client.get(f"/api/trip-plans/{restart_only_job_id}")
+
+    assert created.status_code == recreated.status_code == 202
+    assert fetched.status_code == 200
+    assert deleted.status_code == 204
+    assert missing_after_delete.status_code == missing_after_restart.status_code == 404
+    assert job_id != restart_only_job_id
 
 
 def test_complete_composition_shares_one_amap_route_limiter_across_all_task_runtimes(

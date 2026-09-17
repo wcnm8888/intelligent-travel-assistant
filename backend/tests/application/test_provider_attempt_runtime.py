@@ -770,3 +770,174 @@ def test_runtime_source_has_no_global_budget_context_variable_or_network_depende
 
     assert observed_imports == []
     assert observed_calls == []
+
+
+def test_run_observation_counts_retries_and_blocks_later_execution() -> None:
+    from uuid import uuid4
+
+    from intelligent_travel_assistant.application.tooling.governance import (
+        RunCallBudget,
+        ToolCallGovernanceError,
+    )
+    from intelligent_travel_assistant.application.tooling.resilience import ProviderRunSession
+
+    async def scenario() -> None:
+        clock = ManualClock()
+        session = ProviderRunSession(RunCallBudget(clock=clock, http_limits=(2, 2, 2)))
+        calls = 0
+
+        async def call() -> ProviderResult[str]:
+            nonlocal calls
+            calls += 1
+            return (
+                unavailable(Provider.AMAP, ProviderErrorCategory.SERVER)
+                if calls == 1
+                else ok(Provider.AMAP)
+            )
+
+        async with session.execution("planning", uuid4()) as execution:
+            first = runtime(clock)
+            first.bind_run(session, execution)
+            assert (
+                await first.execute(
+                    provider=Provider.AMAP, operation=ProviderOperation.RESOLVE_CITY, call=call
+                )
+            ).attempts_started == 2
+            await first.close()
+        with pytest.raises(ToolCallGovernanceError):
+            async with session.execution("replan", uuid4()) as execution:
+                second = runtime(clock)
+                second.bind_run(session, execution)
+                await second.execute(
+                    provider=Provider.AMAP, operation=ProviderOperation.RESOLVE_CITY, call=call
+                )
+        snapshot = session.snapshot()
+        assert calls == 2 and snapshot["http"]["amap"] == 2
+        assert snapshot["logical"]["amap"] == 2
+        assert [r["attempt"] for r in snapshot["records"] if r["kind"] == "http"] == [1, 2]
+        assert snapshot["active_executions"] == 0
+        assert snapshot["stopped"]
+        assert all(
+            set(r)
+            <= {
+                "kind",
+                "execution_id",
+                "provider",
+                "operation",
+                "attempt",
+                "state",
+                "status",
+                "error_code",
+            }
+            for r in snapshot["records"]
+        )
+
+    asyncio.run(scenario())
+
+
+def test_run_stop_reports_incomplete_drain_and_denies_late_calls() -> None:
+    from uuid import uuid4
+
+    from intelligent_travel_assistant.application.tooling.governance import (
+        RunCallBudget,
+        ToolCallGovernanceError,
+    )
+    from intelligent_travel_assistant.application.tooling.resilience import ProviderRunSession
+
+    async def scenario() -> None:
+        clock = ManualClock()
+        session = ProviderRunSession(RunCallBudget(clock=clock))
+        entered, release = asyncio.Event(), asyncio.Event()
+        calls = 0
+
+        async def call() -> ProviderResult[str]:
+            nonlocal calls
+            calls += 1
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                await release.wait()
+            return ok(Provider.AMAP)
+
+        async def work() -> None:
+            async with session.execution("planning", uuid4()) as execution:
+                value = runtime(clock)
+                value.bind_run(session, execution)
+                await value.execute(
+                    provider=Provider.AMAP, operation=ProviderOperation.RESOLVE_CITY, call=call
+                )
+                await value.close()
+
+        task = asyncio.create_task(work())
+        await entered.wait()
+        assert not await session.stop(0)
+        assert session.snapshot()["active_executions"] == 1
+        with pytest.raises(ToolCallGovernanceError):
+            async with session.execution("replan", uuid4()):
+                raise AssertionError("late execution admitted")
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        assert await session.stop(0.1)
+        assert calls == 1 and session.snapshot()["active_executions"] == 0
+
+    asyncio.run(scenario())
+
+
+def test_run_deadline_cancels_inflight_and_keeps_interrupted_attempt() -> None:
+    from time import monotonic
+    from uuid import uuid4
+
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+    from intelligent_travel_assistant.application.tooling.resilience import ProviderRunSession
+
+    async def scenario() -> None:
+        session = ProviderRunSession(RunCallBudget(clock=monotonic, deadline_seconds=0.03))
+
+        async def blocked() -> ProviderResult[str]:
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+        with pytest.raises(TimeoutError):
+            async with session.execution("planning", uuid4()) as execution:
+                value = runtime(ManualClock())
+                value.bind_run(session, execution)
+                await value.execute(
+                    provider=Provider.AMAP, operation=ProviderOperation.RESOLVE_CITY, call=blocked
+                )
+        snap = session.snapshot()
+        assert snap["stopped"] and snap["reason"] == "deadline"
+        assert snap["active_executions"] == 0
+        assert snap["records"][-1]["state"] == "interrupted"
+        assert snap["http"]["amap"] == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("swallow_cancel", [True, False])
+def test_run_rejects_late_return_even_without_timeout_exception(swallow_cancel: bool) -> None:
+    from time import monotonic
+    from uuid import uuid4
+
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+    from intelligent_travel_assistant.application.tooling.resilience import ProviderRunSession
+
+    async def scenario() -> None:
+        readings = [0.0]
+        clock = monotonic if swallow_cancel else lambda: readings[0]
+        session = ProviderRunSession(RunCallBudget(clock=clock, deadline_seconds=0.01))
+        with pytest.raises(TimeoutError):
+            async with session.execution("planning", uuid4()):
+                if swallow_cancel:
+                    try:
+                        await asyncio.Event().wait()
+                    except asyncio.CancelledError:
+                        pass
+                else:
+                    readings[0] = 1.0
+        snap = session.snapshot()
+        assert snap["stopped"] and snap["reason"] == "deadline"
+        assert snap["executions"][0]["state"] == "failed"
+        assert snap["active_executions"] == 0
+
+    asyncio.run(scenario())

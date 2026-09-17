@@ -28,6 +28,7 @@ from intelligent_travel_assistant.application.ports import (
     PlanRepairBrief,
     PlanRepairLocation,
     ProposalDay,
+    ReplanSelectionScope,
     bounded_display_label,
     bounded_project_token,
 )
@@ -369,6 +370,7 @@ def _repair_brief(
         activity_source_ids=context.activity_source_ids,
         validation_code=validation_code,
         validation_time_failure=time_failure,
+        replan_selection_scope=context.replan_selection_scope,
     )
 
 
@@ -407,12 +409,82 @@ def parse_plan_proposal(raw_output: str, context: PlanningContext) -> PlanPropos
     )
     if tuple(item.local_date for item in days) != expected_dates:
         raise CandidateValidationError(CandidateValidationCode.DATE_INVALID, repairable=True)
+    _validate_replan_selection_scope(context, days, expected_dates)
     return PlanProposal(
         _safe_text(root["intent_summary"], max_length=120),
         days,
         _safe_text(root["explanation"], max_length=500),
         _string_tuple(root["warnings"], max_items=10, max_length=500),
     )
+
+
+def _validate_replan_selection_scope(
+    context: PlanningContext,
+    days: tuple[ProposalDay, ...],
+    expected_dates: tuple[date, ...],
+) -> None:
+    scope = context.replan_selection_scope
+    if scope is None:
+        return
+    if (
+        type(scope) is not ReplanSelectionScope
+        or context.request_version not in {None, "2"}
+        or type(scope.target_activity_id) is not UUID
+        or type(scope.target_local_date) is not date
+        or type(scope.target_selection_index) is not int
+        or not isinstance(scope.baseline_location_ids_by_day, tuple)
+        or len(scope.baseline_location_ids_by_day) != len(expected_dates)
+        or not isinstance(scope.allowed_candidate_location_ids, tuple)
+        or not 1 <= len(scope.allowed_candidate_location_ids) <= 5
+        or len(set(scope.allowed_candidate_location_ids))
+        != len(scope.allowed_candidate_location_ids)
+        or any(type(item) is not UUID for item in scope.allowed_candidate_location_ids)
+    ):
+        raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
+    try:
+        target_day = expected_dates.index(scope.target_local_date)
+    except ValueError:
+        raise CandidateValidationError(
+            CandidateValidationCode.DATE_INVALID,
+            repairable=True,
+        ) from None
+    baseline = scope.baseline_location_ids_by_day
+    if any(
+        not isinstance(day, tuple)
+        or not 1 <= len(day) <= 2
+        or any(type(item) is not UUID for item in day)
+        for day in baseline
+    ) or not 0 <= scope.target_selection_index < len(baseline[target_day]):
+        raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
+    catalog = {item.location_id for item in context.locations}
+    baseline_ids = {item for day in baseline for item in day}
+    allowed = set(scope.allowed_candidate_location_ids)
+    if not baseline_ids <= catalog or not allowed <= catalog or bool(baseline_ids & allowed):
+        raise CandidateValidationError(
+            CandidateValidationCode.POI_REFERENCE_INVALID,
+            repairable=True,
+        )
+    proposed = tuple(tuple(item.location_id for item in day.selections) for day in days)
+    if tuple(map(len, proposed)) != tuple(map(len, baseline)):
+        raise CandidateValidationError(CandidateValidationCode.SCHEMA_INVALID, repairable=True)
+    for day_index, (actual, original) in enumerate(zip(proposed, baseline, strict=True)):
+        for selection_index, (location_id, baseline_id) in enumerate(
+            zip(actual, original, strict=True)
+        ):
+            if (day_index, selection_index) == (
+                target_day,
+                scope.target_selection_index,
+            ):
+                if location_id not in allowed:
+                    raise CandidateValidationError(
+                        CandidateValidationCode.POI_REFERENCE_INVALID,
+                        repairable=True,
+                    )
+            elif location_id != baseline_id:
+                raise CandidateValidationError(
+                    CandidateValidationCode.SCHEMA_INVALID,
+                    repairable=True,
+                )
 
 
 def _parse_proposal_day(

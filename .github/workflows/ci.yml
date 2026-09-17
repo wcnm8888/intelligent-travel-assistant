@@ -52,4 +52,4 @@ jobs:
 
       - name: Run unified verification
         shell: powershell
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -Phase RepositoryVerification

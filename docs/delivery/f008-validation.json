@@ -1,0 +1,43 @@
+{
+  "candidate": "F-008",
+  "base": "3032d49c4f46167445650c71f7a570fc2c609f4a",
+  "scope": "offline recovered candidate and necessary CI delivery fixes",
+  "date": "2026-09-17",
+  "backend": 2574,
+  "frontend": 161,
+  "mechanism": 55,
+  "capture": 17,
+  "static": "format/lint/types PASS",
+  "build": "synthetic PASS",
+  "documentation": "clean delivery tree PASS",
+  "review": "independent static review of manifest including added files; no confirmed product finding",
+  "ci": "pending remote exact-head check",
+  "real_provider_calls": 0,
+  "source_history": "77 recovered candidate paths; one whitespace correction; 4 CI and mechanism files separately reviewed",
+  "local_evidence_hashes": [
+    {
+      "name": "f008-final-mechanism.log",
+      "sha256": "32D2234859C4A5E2B4DA4B8A89240BF7E2CAC4CD2FBE8F74A70E17F3A4997824"
+    },
+    {
+      "name": "f008-capture.log",
+      "sha256": "C79FE25098CAD0C5E7B6528EF0D9A3527EF145FBFA34B1DA1951703F4FB08B16"
+    },
+    {
+      "name": "f008-final-docs.log",
+      "sha256": "62233A0848F675355543AD7B4672B02D0ED5FD4926228C22F07D5066B3C3B64D"
+    },
+    {
+      "name": "f008-final-types.log",
+      "sha256": "6736860141ED8F45F90891DF7A299EA9D1C1D24621EE80EF4189761C8788172F"
+    },
+    {
+      "name": "f008-repair-format.log",
+      "sha256": "97D85B4B6C185A05396E2D09A3C304FF0F7CC77F8B7B7BB7989EC6CD875B3898"
+    },
+    {
+      "name": "f008-repair-lint.log",
+      "sha256": "A4443AFDCFB6D7363ADB285762515CCF7CF50473B1A05C20C1A50F6BED4D26B0"
+    }
+  ]
+}

@@ -28,7 +28,7 @@ export function App({
     useTripPlanningJob(tripPlanApi, pollingPolicy);
   const [requestExpanded, setRequestExpanded] = useState(false);
   const requestPanel = useRef<HTMLElement>(null);
-  const focusedRestoredJob = useRef<string | null>(null);
+  const focusedPlanStage = useRef<string | null>(null);
   const busy =
     state.phase === "submitting" ||
     state.phase === "retrying" ||
@@ -41,14 +41,15 @@ export function App({
       (state.phase === "tracking" ||
         state.phase === "paused" ||
         state.phase === "terminal") &&
-      state.restored &&
-      focusedRestoredJob.current !== state.response.job_id
+      (state.restored || state.phase === "terminal") &&
+      focusedPlanStage.current !==
+        `${state.response.job_id}:${state.phase}:${state.response.attempt}`
     ) {
-      focusedRestoredJob.current = state.response.job_id;
+      focusedPlanStage.current = `${state.response.job_id}:${state.phase}:${state.response.attempt}`;
       document.getElementById("plan-stage-title")?.focus();
     }
     if (state.phase === "idle") {
-      focusedRestoredJob.current = null;
+      focusedPlanStage.current = null;
     }
     if (state.phase === "idle" && state.notice) {
       window.setTimeout(() => {

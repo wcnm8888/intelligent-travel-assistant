@@ -29,6 +29,7 @@ import type {
   ResolvedDestinationDto,
 } from "./tripPlanModels";
 import type { TripPlanResponseV3Dto } from "./tripPlanningApi";
+import { tripPlanningApi } from "./tripPlanningApi";
 
 type TripPlanResponseViewDto = Pick<
   TripPlanResponseDto,
@@ -309,7 +310,7 @@ function ReplanComposer({
   const [endTime, setEndTime] = useState(
     activity?.end_time.slice(0, 5) ?? "10:00",
   );
-  const [categories, setCategories] = useState<string[]>(["culture"]);
+  const [categories, setCategories] = useState<string[]>(["museum"]);
   const [order, setOrder] = useState(
     target.operation === "reorder_activities"
       ? target.day.activities.map((item) => item.item_id)
@@ -334,8 +335,8 @@ function ReplanComposer({
 
   const submit = () => {
     if (target.operation === "replace_activity") {
-      if (categories.length < 1 || categories.length > 3) {
-        setError("请选择 1–3 个替换类别。");
+      if (categories.length < 1 || categories.length > 2) {
+        setError("请选择 1–2 个替换类别。");
         return;
       }
       onReady(
@@ -400,11 +401,10 @@ function ReplanComposer({
       </h3>
       {target.operation === "replace_activity" && (
         <fieldset>
-          <legend>替换类别（1–3 项）</legend>
+          <legend>替换类别（1–2 项）</legend>
           {[
-            ["culture", "文化"],
-            ["nature", "自然"],
-            ["food", "餐饮"],
+            ["museum", "博物馆 / 文化"],
+            ["scenic_area", "景区 / 自然"],
           ].map(([value, text]) => (
             <label key={value}>
               <input
@@ -569,9 +569,13 @@ function SingleCityTripPlanResult({
           </p>
         </div>
         <div className={`result-stamp result-stamp--${active.status}`}>
-          {isConflict ? "约束\n冲突" : isPartial ? "部分\n可用" : "完整\n可用"}
+          {isConflict ? "约束\n冲突" : isPartial ? "部分\n可用" : "规则\n通过"}
         </div>
       </header>
+
+      <p className="stage-note" role="note">
+        <strong>真实服务结果仅本次运行可用</strong> · Provider 事实未交叉核验
+      </p>
 
       <div
         className={`result-verdict result-verdict--${active.status}`}
@@ -718,6 +722,30 @@ function SingleCityTripPlanResult({
           command={prepared.command}
           commandLabel={prepared.label}
           onClose={closeReplan}
+          onModify={() => setPrepared(null)}
+          onRefresh={async () => {
+            const result = await tripPlanningApi.read(active.job_id);
+            if (
+              result.job_id !== active.job_id ||
+              result.client_request_id !== active.client_request_id ||
+              !result.plan ||
+              !["ready", "partial", "conflict"].includes(result.status) ||
+              ("plan_format_version" in result.plan &&
+                result.plan.plan_format_version !== "2")
+            ) {
+              throw new Error("current_plan_unavailable");
+            }
+            setCompletedOverride({
+              baselinePlanId: response.plan.plan_id,
+              response: result as typeof response,
+            });
+            setEditTarget(null);
+            setPrepared(null);
+            window.setTimeout(
+              () => document.getElementById("plan-stage-title")?.focus(),
+              0,
+            );
+          }}
           onCompleted={(result) => {
             if (
               result.plan &&
@@ -725,7 +753,7 @@ function SingleCityTripPlanResult({
                 result.plan.plan_format_version === "2")
             ) {
               setCompletedOverride({
-                baselinePlanId: baseline.plan.plan_id,
+                baselinePlanId: response.plan.plan_id,
                 response: {
                   ...(result as
                     LegacyTripPlanResponseDto | TripPlanResponseV2Dto),

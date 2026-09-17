@@ -1,14 +1,15 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    port: mode === "uat" ? 15173 : 5173,
     strictPort: true,
     proxy: {
-      "/api": "http://127.0.0.1:8000",
+      "/api":
+        mode === "uat" ? "http://127.0.0.1:18008" : "http://127.0.0.1:8000",
     },
   },
   test: {
@@ -17,4 +18,4 @@ export default defineConfig({
     restoreMocks: true,
     css: true,
   },
-});
+}));

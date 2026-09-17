@@ -27,6 +27,8 @@ interface ReplanPanelProps {
   command: ReplanCommand;
   commandLabel: string;
   onClose: () => void;
+  onModify?: () => void;
+  onRefresh?: () => Promise<void>;
   onCompleted: (
     result: TripPlanResponseDto,
     changeSet: ReplanChangeSetDto,
@@ -59,12 +61,54 @@ const CHANGE_LABELS: Record<string, string> = {
   source_changed: "来源变化",
 };
 
+type RecoveryAction = "retry" | "modify" | "refresh" | "stop";
+function recoveryFor(
+  status: ReplanResponseDto["status"],
+  errors: ReplanResponseDto["errors"],
+): RecoveryAction | null {
+  if (status === "cancelled") return "retry";
+  if (["conflict", "expired"].includes(status)) return "refresh";
+  if (status === "needs_input") return "modify";
+  if (status === "rejected") return "stop";
+  if (status !== "failed") return null;
+  const first = errors[0];
+  if (
+    [
+      "version_conflict",
+      "confirmation_expired",
+      "constraint_conflict",
+    ].includes(first?.code)
+  )
+    return "refresh";
+  if (
+    ["input_invalid", "data_missing", "budget_incomplete"].includes(first?.code)
+  )
+    return "modify";
+  if (
+    first?.retryable &&
+    ([
+      "provider_timeout",
+      "provider_unavailable",
+      "provider_rate_limited",
+      "data_stale",
+    ].includes(first.code) ||
+      (first.code === "internal_error" &&
+        ["replan_analysis_cancelled", "replan_execution_cancelled"].includes(
+          first.diagnostic_code ?? "",
+        )))
+  )
+    return "retry";
+  return "stop";
+}
+
 export function ReplanPanel({
   api = createReplanningApi(),
   baseline,
   command,
   commandLabel,
   onClose,
+  onModify = onClose,
+  onRefresh,
   onCompleted,
   pollingPolicy = DEFAULT_POLLING,
 }: ReplanPanelProps) {
@@ -78,6 +122,10 @@ export function ReplanPanel({
     "editing",
   );
   const [error, setError] = useState<string | null>(null);
+  const [outcomeUncertain, setOutcomeUncertain] = useState(false);
+  const [clientRecovery, setClientRecovery] = useState<RecoveryAction | null>(
+    null,
+  );
 
   useEffect(() => {
     title.current?.focus();
@@ -90,8 +138,19 @@ export function ReplanPanel({
   }, [snapshot?.status]);
 
   useEffect(() => {
-    if (error) errorTitle.current?.focus();
-  }, [error]);
+    if (
+      error ||
+      [
+        "cancelled",
+        "expired",
+        "needs_input",
+        "conflict",
+        "failed",
+        "rejected",
+      ].includes(snapshot?.status ?? "")
+    )
+      errorTitle.current?.focus();
+  }, [error, snapshot?.status]);
 
   const finish = (next: ReplanResponseDto) => {
     setSnapshot(next);
@@ -136,6 +195,8 @@ export function ReplanPanel({
     recoverableResponseLoss = false,
   ) => {
     setError(null);
+    setOutcomeUncertain(false);
+    setClientRecovery(null);
     setPhase("busy");
     try {
       const next = await action();
@@ -143,19 +204,49 @@ export function ReplanPanel({
       if (["analyzing", "replanning"].includes(next.status)) await poll(next);
       else finish(next);
     } catch (caught) {
+      const responseUncertain =
+        !(caught instanceof ReplanningClientError) ||
+        [
+          "network_unavailable",
+          "response_invalid",
+          "http_error",
+          "internal_error",
+        ].includes(caught.code);
       const shouldRecover =
         recoverableResponseLoss &&
-        (!(caught instanceof ReplanningClientError) ||
-          caught.retryable ||
-          ["network_unavailable", "response_invalid"].includes(caught.code));
+        (responseUncertain ||
+          (caught instanceof ReplanningClientError && caught.retryable));
+      setOutcomeUncertain(responseUncertain);
       setError(
         shouldRecover
           ? "确认响应未能核实；后台可能仍在执行，请继续刷新确认最终状态。"
-          : caught instanceof ReplanningClientError
-            ? caught.message
-            : "局部调整未能安全完成，原计划保持不变。",
+          : responseUncertain
+            ? "提交响应未能核实；后台可能仍在执行，请刷新当前计划确认，勿重复提交调整。"
+            : caught instanceof ReplanningClientError
+              ? caught.message
+              : "局部调整未能安全完成，原计划保持不变。",
       );
       setPhase(shouldRecover ? "paused" : "settled");
+      setClientRecovery(
+        shouldRecover
+          ? null
+          : responseUncertain
+            ? "refresh"
+            : recoveryFor("failed", [
+                {
+                  code:
+                    caught instanceof ReplanningClientError
+                      ? caught.code
+                      : "internal_error",
+                  retryable:
+                    caught instanceof ReplanningClientError && caught.retryable,
+                  message: "",
+                  field: null,
+                  provider: null,
+                  diagnostic_code: null,
+                },
+              ]),
+      );
     }
   };
 
@@ -178,13 +269,48 @@ export function ReplanPanel({
   const impact = snapshot?.impact;
   const terminalMessage: Partial<Record<ReplanResponseDto["status"], string>> =
     {
-      cancelled: "已取消调整，原计划没有改变。",
-      expired: "确认已失效，原计划没有改变；请重新分析影响。",
-      needs_input: "还需要安全的结构化信息，原计划仍可继续使用。",
-      conflict: "局部调整存在硬冲突，原计划仍可继续使用。",
-      failed: "局部调整未能安全完成，原计划仍可继续使用。",
-      rejected: "该修改超出当前范围，原计划仍可继续使用。",
+      cancelled: "已取消调整，原计划未改变。",
+      expired: "确认已失效，原计划未改变；请刷新当前计划。",
+      needs_input: "还需要安全的结构化信息，原计划未改变。",
+      conflict: "局部调整存在硬冲突，原计划未改变。",
+      failed: "局部调整未能安全完成，原计划未改变。",
+      rejected: "该修改超出当前范围，原计划未改变。",
     };
+  const recoveryAction =
+    phase === "paused"
+      ? null
+      : error
+        ? clientRecovery
+        : snapshot
+          ? recoveryFor(snapshot.status, snapshot.errors)
+          : null;
+  const recover = async () => {
+    if (busy) return;
+    if (recoveryAction === "retry") {
+      await analyze();
+      return;
+    }
+    if (recoveryAction === "modify") {
+      onModify();
+      return;
+    }
+    if (recoveryAction !== "refresh") {
+      onClose();
+      return;
+    }
+    setPhase("busy");
+    try {
+      if (!onRefresh) throw new Error("current_plan_refresh_unavailable");
+      await onRefresh();
+    } catch {
+      setError(
+        "当前计划读取未成功，仍保留原计划；请稍后刷新，不会重新提交调整。",
+      );
+      setClientRecovery("refresh");
+    } finally {
+      setPhase("settled");
+    }
+  };
 
   return (
     <section className="replan-panel" aria-labelledby={titleId}>
@@ -205,11 +331,13 @@ export function ReplanPanel({
           ? snapshot?.status === "replanning"
             ? "正在重新校验并生成新版本"
             : "正在分析修改影响"
-          : phase === "paused"
-            ? "自动刷新已暂停；原计划仍可继续阅读。"
-            : snapshot
-              ? `局部调整状态：${snapshot.status}`
-              : "修改尚未发送；原计划不会在分析前改变。"}
+          : outcomeUncertain
+            ? "本次调整结果尚待确认。"
+            : phase === "paused"
+              ? "自动刷新已暂停；原计划仍可继续阅读。"
+              : snapshot
+                ? `局部调整状态：${snapshot.status}`
+                : "修改尚未发送；原计划不会在分析前改变。"}
       </div>
 
       {phase === "paused" && snapshot && (
@@ -237,6 +365,32 @@ export function ReplanPanel({
           <button type="button" onClick={() => void analyze()} disabled={busy}>
             分析影响
           </button>
+        </div>
+      )}
+
+      {(error || (snapshot && terminalMessage[snapshot.status])) && (
+        <div className="replan-terminal" role="alert">
+          <strong ref={errorTitle} tabIndex={-1}>
+            {phase === "paused" || outcomeUncertain
+              ? "最终状态尚待确认"
+              : "没有替换当前计划"}
+          </strong>
+          <p>{error ?? terminalMessage[snapshot!.status]}</p>
+          {recoveryAction && (
+            <button
+              type="button"
+              onClick={() => void recover()}
+              disabled={busy}
+            >
+              {recoveryAction === "retry"
+                ? "重新发起调整"
+                : recoveryAction === "modify"
+                  ? "修改调整内容"
+                  : recoveryAction === "refresh"
+                    ? "刷新当前计划"
+                    : "停止并保留原计划"}
+            </button>
+          )}
         </div>
       )}
 
@@ -385,15 +539,6 @@ export function ReplanPanel({
             </p>
           )}
         </section>
-      )}
-
-      {(error || (snapshot && terminalMessage[snapshot.status])) && (
-        <div className="replan-terminal" role="alert">
-          <strong ref={errorTitle} tabIndex={-1}>
-            {phase === "paused" ? "最终状态尚待确认" : "没有替换当前计划"}
-          </strong>
-          <p>{error ?? terminalMessage[snapshot!.status]}</p>
-        </div>
       )}
     </section>
   );

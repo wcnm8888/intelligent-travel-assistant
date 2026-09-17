@@ -1,5 +1,7 @@
 # 项目决策记录
 
+本文件保存D-001–D-030的长期技术裁决和按日期记录的决策沿革，不维护当前执行状态。当前切片、有效规模授权以 [任务卡](./project-management/current-task.md#当前执行状态) 为准；实施/批准历史与本次纠偏证据见 [evidence](./project-management/evidence.md#f008-governance-20260905)。下文旧额度/准入/“当前”表述均限定于各自记录时点，不替代任务卡现值。本轮未新增决策编号或改变技术契约。
+
 本文件只保存长期有效的已批准决策、理由和后果。当前任务状态不在这里维护。
 
 ## D-001：采用 Python 3.13.3 和 Node.js 22.16.0 作为工程基线
@@ -759,3 +761,414 @@ F-001 从领域模型、单 Agent 编排、三家 provider adapter、任务 API 
 - #43 merge commit 为 `6252193b8d3f3ed07498ff318e09b02edaca4889`；#45 merge commit/完整功能 main 为 `772e82628766e5e2659ae7c705ea9c6adade9abd`，main CI run `33382187643` success；
 - 2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 只作为积极补充证据；由于缺少同期高德控制台 QPS/超限记录，不能覆盖 2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`，也不能宣称真实调用 QPS 已 PASS；
 - F-006 `LOCAL_ACCEPTANCE_PASS` 保持，项目真实 Provider 就绪继续为 `PARTIAL`；其他历史产品、UAT、unknown、fallback、Provider、Schema/migration 事实均不变。
+
+## D-019：F-008 重建任务卡、事实可信度分层与阶段 Gate
+
+- 日期：2026-09-02
+- 状态：`APPROVED / STEP_0_DONE / STEP_1_BLOCKED_BY_APPROVAL`
+- 适用：F-008《真实 UAT 缺陷收口与计划事实可信度》的执行治理；不构成 Step 1 法律结论、产品实现或真实 Provider UAT 授权
+
+### 权威基线与目标
+
+- 由于旧 F-008 任务卡已由用户删除，用户明确批准本次“重建任务卡”作为新的权威任务基线；不得再把旧任务卡缺失作为 Step 0 阻塞，也不得根据标题或分支名补写超出重建卡的范围；
+- F-008 只收口 replan 失败恢复、计划事实 grounding、Provider 质量表达和 UAT 可信度，使证据区分已核验、Provider 未交叉核验、用户提供且有效性未知、fallback、unknown/data_missing 及安全恢复动作；
+- F-008 完成不要求所有真实 Provider UAT 为 PASS；真实 UAT 可以是 `PASS`、`FAIL` 或 `INCONCLUSIVE`，离线、synthetic、MockTransport、loopback 或缺少同期控制台证据不得表述为真实 PASS。
+
+### 阶段与交付治理
+
+- Step 0–12 的精确、单一目标、三层 stack、文件归属和规模阈值以 F-008 current task 为权威；
+- 三层候选拓扑为 `feat/f-008-replan-error-recovery` → `feat/f-008-plan-grounding-provider-quality` → `feat/f-008-ux-uat-delivery`；Step 0 只创建首层本地分支；
+- Step 1 是高德数据持久化法律/数据 Gate；未通过前禁止生产实现；Step 11 是唯一真实 Provider UAT Step 且需独立批准；Step 12 的 PR、CI、merge 和 archive 也需独立批准；
+- 单 Step 上限为 10 个生产/测试/fixture/eval/script 文件、净新增 900 行、冻结清单外 3 文件；Stack 1 为 20 文件/1800 行，Stack 2 为 24/2200，Stack 3 为 22/2000，任务累计为 55 个唯一文件/5200 行；超过即停止；
+- Schema version、migration、依赖/lockfile、公开 API shape/URI/error code、Provider request/parse/account/Key/QPS/quota/billing、Provider 持久化/法律边界、F-004B2 恢复或 F-009 均为无条件停止项。
+
+### 尚未形成的决定
+
+- 本决策不批准高德规范化 POI、坐标、路线、polyline 或诊断落盘；
+- 不批准纯内存替代、部分字段持久化、Schema v3、migration、新依赖、公开 API shape、删除能力、walking 2km/30min 或 fallback 3km/45min 阈值；
+- 不批准读取秘密、保存 Provider 原始响应、调用真实 Provider或执行真实 UAT；这些候选必须分别通过对应 Gate 与用户批准。
+
+### 历史事实保持
+
+- F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown 不按 0、混合交通 fallback 仅离线、F-004A/F-004B1/F-004C/F-005/F-006 无新增真实 Provider UAT均保持；
+- F-004B1/F-004C 城际 Provider logical call 和 HTTP attempt 为 0；F-004B2 `BLOCKED / ARCHIVED`；F-006 `LOCAL_ACCEPTANCE_PASS` 不等于真实 Provider ready；
+- SQLite schema version 2、migration 1/2 保持；F-007 `DONE / ARCHIVED`，Step 6 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`；2026-08-30 `FAIL / AMAP_QPS_EXCEEDED` 保持，2026-08-31 补充证据不构成 PASS。
+
+## D-020：高德数据持久化法律/数据 Gate 当前阻塞
+
+- 日期：2026-09-02
+- 状态：`APPROVED GATE RESULT / BLOCKED`
+- 适用：F-008 Step 1；规范化 POI、坐标、路线、polyline、来源、查询时间、时效与诊断的本地持久化边界
+- 不适用：律师法律意见、高德新书面授权、纯内存架构批准、Schema/API 变更或真实 Provider UAT
+
+### 审核证据
+
+- [高德地图开放平台服务协议](https://developer.amap.com/pages/terms/) 更新时间为 2025-12-03。第 2.2 条把 POI、坐标经纬度、地址和路线规划等列为“相关内容”；第 3.5 条限制直接存储和缓存，脱离服务使用需提交工单评估；第 3.8 条要求未明示权利另行取得书面许可；
+- 同一协议第 4.12.7 条限制未经许可生成衍生品，包括用于数据库；第 7.2、7.3 条进一步要求明确书面同意，并限制存储、缓存、修改与派生使用；
+- [高德地图开放平台技术服务使用许可协议](https://lbs.amap.com/pages/authorization/) 只是服务协议的附加条款，许可限定在审核确认的使用场景，不自动扩大数据持久化权利；
+- F-004B2 归档的高德官方书面回复明确：只允许程序运行期间内存临时保存，禁止 API 数据长期存储或持久化到本地 SQLite。该回复截至本次审核没有被更宽的新书面授权替代。
+
+### Gate 判定
+
+- 规范化 POI 名称/地址/类型、经纬度、路线距离/时长/方式、路线摘要、polyline、来源/查询时间/时效/诊断均没有覆盖当前本地 SQLite 方案的明确类别级授权；
+- 保留期限、SQLite、本地离线使用、删除和导出要求均未获得足以实施的明确许可；attribution 或“仅供参考”展示要求不能推导出存储权利；
+- 不保存原始响应、URL、Key、Cookie 或 Authorization 是必要的数据最小化边界，但不能消除对规范化或派生字段持久化本身的授权要求；
+- F-008 Step 1 的七项 PASS 条件没有全部满足，且命中“官方限制持久化”和“没有可审计类别级授权”两个 BLOCKED 条件，因此唯一正式结论为 `BLOCKED`。
+
+### 后果与恢复入口
+
+- 不批准任何高德服务数据进入 SQLite；Step 2 及后续生产实现为 `BLOCKED_BY_STEP_1`；
+- 若取得正式书面授权，必须逐项覆盖目标数据类别、本地 SQLite、保留期限、attribution、删除和导出，然后重新执行 Step 1；
+- 纯内存或更小字段集是可能的替代方向，但会改变批准架构或体验，只能作为新的 `REQUIRES_SEPARATE_APPROVAL` Gate，不能由本决定自动采用；
+- 本决定不修改 D-007、F-004B2、Schema version 2、migration 1/2 或任何历史 UAT 事实。
+
+## D-021：真实 Provider 任务采用零持久化的纯内存方向
+
+- 日期：2026-09-02
+- 状态：`DIRECTION_APPROVED / PLAN_AMENDMENT_APPROVED / IMPLEMENTATION_NOT_AUTHORIZED`
+- 适用：F-008 Step 1 恢复架构 Gate；真实 Provider planning job 与 replan aggregate 的 Repository 和恢复语义
+- 不适用：高德 SQLite 授权、既有数据库扫描/清理、代码实现、Step 2、Schema/API 变化或真实 UAT
+
+### 授权解释
+
+- 用户明确授权项目寻求高德正式书面许可；该授权允许准备许可范围与工单材料，但不能替代高德作为数据权利方给出的书面许可，也不授权自动登录账号或提交外部工单；
+- 用户同时批准“纯内存或更小字段集”的产品/架构变更 Gate。审核结果排除更小字段集，选择真实 Provider 派生内容零持久化的纯内存方向；
+- D-020 的 SQLite `BLOCKED` 结论保持，不能被用户项目授权改写为 Provider 已授权。
+
+### 只读架构事实
+
+- 当前 production bootstrap 默认创建 `SqlitePlanningJobRepository`；只有 test 且未配置 SQLite 路径时使用 `InMemoryPlanningJobRepository`；
+- schema v2 的 `plan_versions.plan_json` 保存完整计划，`source_records` 保存 Provider、记录 ID、时间、freshness、reference URL、attribution 和 warning；typed plan 还包含 POI 名称/地址/类型/坐标及路线距离/时长/方式；
+- 已有 `InMemoryPlanningJobRepository` 和 `InMemoryReplanRepository` 遵守现有 Protocol，明确不跨进程持久化，因此纯内存方向不必新增 Schema、migration、依赖或公开 API shape；
+- 但切换 production 组合会触及 bootstrap、可能的 settings/app、planning/replan Repository 一致性、前端恢复披露与直接测试，超出当前三层冻结文件归属，并改变 F-006 对真实 Provider 任务的重启恢复体验。
+
+### 批准方向
+
+- 任何启用真实 Provider 的整个 planning job 与 replan aggregate 只进入内存 Repository；Provider 派生计划、POI、坐标、路线、来源、时效、诊断、摘要或 hash 的 SQLite 写入均为 0；
+- SQLite 只可保存完全不含真实 Provider 派生内容的离线、用户提供或系统自有任务；禁止以规范化、摘要、attribution 或哈希名义绕过边界；
+- 真实 Provider job 只在当前进程内支持读取、retry、replan 和 delete；进程退出后不可恢复。canonical pointer 随后的 404 按现有安全语义清理并返回新建；
+- UI 必须在调用前和结果页披露“真实数据结果仅本次运行可用，关闭本地服务后无法恢复”；不得把本地 SQLite 重启恢复承诺扩展到真实 Provider job；
+- 既有本地数据库未读取、未扫描、未迁移、未删除。任何历史 Provider 数据处置必须单独批准。
+
+### 后果
+
+- 该方向只关闭“选择哪种替代架构”的 Gate，不授权实现；
+- 原 Step 0–12 和三层文件归属没有为 bootstrap/persistence 隔离提供单一可验证 Step；D-022 已完成精确计划修订；
+- 修订后的 Step 2 状态为 `TODO / BLOCKED_BY_APPROVAL`。用户单独批准前不得修改生产代码或测试；
+- 高德正式书面许可仍是未来重新开放 SQLite Gate 的独立路径，届时必须重新执行 D-020 的逐类审核。
+
+## D-022：F-008 纯内存隔离执行计划修订
+
+- 日期：2026-09-02
+- 状态：`APPROVED / GOVERNANCE_ONLY / STEP_2_NOT_STARTED`
+- 适用：F-008 阶段地图、三层文件归属、测试矩阵和规模阈值
+- 不适用：Step 2 设计执行、生产代码、测试实现、数据库、Provider 调用、真实 UAT 或交付
+
+### 阶段修订
+
+- 初始 Step 0–12 修订为 Step 0–14；Step 0–1 历史目标和结果不变；
+- 新 Step 2 单独冻结 live Provider planning/replan 的纯内存 Repository、零 SQLite lifecycle/write、进程生命周期、恢复披露和 fail-closed 组合契约；
+- 新 Step 3 以 TDD 实现该隔离，并证明完整 Provider 配置下不创建目录、不打开 SQLite、不运行 migration、不写 SQL；
+- 原 Step 2–12 依次顺延为 Step 4–14；真实 Provider UAT 移至 Step 13，交付/merge/archive 移至 Step 14；
+- Step 2–12 仍逐步单独批准；Step 13 和 Step 14 仍各自需要独立批准。
+
+### 文件归属修订
+
+- Stack 1 `feat/f-008-replan-error-recovery` 扩展为 Step 2–6，新增 `app.py`、`bootstrap.py`、必要时最小修改 `adapters/repositories/memory.py` 及其直接 bootstrap/configuration-missing/SQLite-zero-write/provider/replan 测试；
+- `settings.py` 不得提供 live Provider→SQLite 逃生开关；Repository Protocol、SQLite repository/schema、migration、Provider adapters 和公开 contracts 默认只读；
+- Stack 2 对应 Step 7–9，原 grounding/provider quality 文件归属不变；
+- Stack 3 对应 Step 10–13，并承担 live 结果仅进程内可用的 UX 披露及 recovery/browser 测试；Step 14 仅加入交付治理文档。
+
+### 测试矩阵修订
+
+- 完整 Provider 组合必须选择内存 planning/replan Repository，SQLite lifecycle 对象为空且 open/migration/write 为 0；
+- legacy/V2/V3/V4 使用 fake/MockTransport 完成同进程 GET/retry/replan/delete，新 app 对旧 live job 返回既有 404；
+- 零/不完整 Provider 配置继续使用既有 SQLite + `configuration_missing` 零调用安全路径，offline/user/system-only SQLite 行为、schema v2、migration 1/2、30 天维护及旧 shape 保持；
+- desktop/390px 必须披露 live 结果关闭服务后无法恢复，验证 pointer 404 清理与 offline SQLite 重启恢复并存；
+- 默认测试继续阻断非 loopback 网络，不读取秘密或真实数据库，不调用真实 Provider。
+
+### 规模修订
+
+- 一般单 Step 保持 10 文件/净新增 900 行/冻结清单外 3 文件；Step 3 专项为 12 文件/1200 行；
+- Stack 1 调整为 30 文件/2800 行；Stack 2 保持 24/2200；Stack 3 调整为 24/2200；任务累计调整为 68 个唯一文件/6500 行；
+- `styles.css` 仍为净新增 400 行或替换 25% 停止；治理文档继续不计生产/测试文件数但单独报告；
+- Schema/migration、依赖/lockfile、公开 API、Provider request/parse/account/Key/QPS/quota/billing、偏离 D-020/D-021、既有数据库读取/迁移/删除、F-004B2 或 F-009 均无条件停止。
+
+### 后果
+
+- 本决定只让计划重新可执行，不构成 Step 2 批准；
+- 当前状态为 Step 2 `TODO / BLOCKED_BY_APPROVAL`；下一批准动作只能是设计冻结，不得直接进入 Step 3；
+- D-019 的初始 Step 0–12 数字地图由本决定替代，其历史批准范围、事实保留和三层分支名称继续有效。
+
+## D-023：F-008 真实 Provider 纯内存隔离契约
+
+- 日期：2026-09-02
+- 状态：`APPROVED / IMPLEMENTED / VERIFIED`
+- 适用：production 自动组合根、planning/replan Repository 所有权、SQLite 零写入、生命周期、测试注入和 fail-closed 边界
+- 不适用：生产/测试实现、公开 API 变化、Provider adapter 变化、Schema/migration、依赖、真实 Provider 调用、UAT 或交付
+
+2026-09-03 状态补充：本条 IMPLEMENTED / VERIFIED 仅指已完成的内存隔离与受控 Repository 证明，不代表 production replan 已接通。下文“Step 5 接线”是原计划要求，实际 Step 5/6 保留显式注入；该未交付项现由 D-027 的 R1–R5 承接，旧历史证据不改写。
+
+### 决策
+
+- `create_app()` 必须先解析 Provider adapters 再选择 persistence。只有 DeepSeek/Amap/QWeather 三者全部存在才进入内部 `LIVE_MEMORY_ONLY`；零或有效但不完整组合进入 `SAFE_UNAVAILABLE_SQLITE`，只产生既有 `configuration_missing` 零调用终态；
+- `LIVE_MEMORY_ONLY` 由一个 app-owned `PlanningPersistence` 同时持有 `InMemoryPlanningJobRepository` 与 `InMemoryReplanRepository` cohort；其 maintenance/database/database_path 均为空，lifespan 不创建目录、不打开/关闭 SQLite、不运行 migration/cleanup、不执行 SQL；
+- Step 3 只建立 cohort 与 planning 自动组合，不提前启用 replan application service。Step 5 接线时必须使用同一 cohort，禁止 memory/SQLite planning 与 replan Repository 混合；
+- live 请求、状态、计划、来源、POI、坐标、路线、诊断、摘要、hash 与 replan aggregate 全部只在当前 app 进程内存在。重启后旧 ID 返回既有 404；不得复制、迁移、导出或降级写入 SQLite；
+- production 自动组合不得新增 live→SQLite 设置、环境变量或公开 API。完整 adapters 与显式非内存 planning Repository 必须以固定安全码 `live_provider_persistence_must_be_memory` 拒绝；live cohort 构造失败使用同一码并停止，不得 fallback；
+- 既有显式 Repository/executor/adapters/replan service 注入只保留为测试 seam；显式 Repository 且无 executor 时继续不自动执行。module-level production app 不得使用注入 seam；
+- `SAFE_UNAVAILABLE_SQLITE` 保持 schema v2、migration 1/2、30 天 cleanup、legacy/V2/V3/V4 shape 与 restart recovery；该路径的 `configuration_missing` 结果不含 Provider 派生内容；
+- 内部 app state 可暴露非敏感 storage mode/replan repository 指针用于断言，但 health、OpenAPI、公开 URI、DTO、错误码、顶层 shape 和 Step 3 replan HTTP 行为必须零变化；
+- Step 11 固定披露：“真实数据结果仅本次运行可用；关闭或重启本地服务后无法恢复。”调用前和结果页都必须可感知，旧 pointer 404 沿用安全清理。
+
+### 失败与验证规则
+
+- adapter 格式、私钥或启动校验错误沿用安全 `StartupConfigurationError`；不得包含凭证/路径、调用 Provider 或回退 SQLite；
+- Step 3 RED/GREEN 必须覆盖完整 adapters 内存 cohort、零 SQLite lifecycle/write、四版本 fake/MockTransport、同进程 retry/delete、重启 404、零/不完整配置 SQLite 安全终态、显式注入兼容、混合组合拒绝、API/OpenAPI 零差异；
+- Step 3 不修改 Repository Protocol、SQLite repository/schema/migration、Provider adapters、依赖或 lockfile；不读取秘密、不访问非 loopback 网络、不创建含 Provider 数据的数据库。
+
+### 后果
+
+- F-006 的 SQLite 重启恢复承诺继续只适用于不含真实 Provider 派生数据的安全 SQLite 路径，不适用于 live Provider job；
+- Step 3 已把组合根调整为先解析 adapters 再选择 persistence，并以 `PlanningStorageMode`、app-owned memory cohort、混合注入拒绝和零 SQLite lifecycle 测试实现本决定；
+- Step 3 的生产/测试范围为 3 文件、净新增 260 行；定向、后端全量、Ruff、mypy、文档和范围门禁均通过；Repository Protocol、SQLite schema/migration、Provider adapters、依赖和 lockfile 未变化；
+- F-008 Step 3 为 `DONE / PASS`，Step 4 为 `TODO / BLOCKED_BY_APPROVAL`，不得自动进入 replan 契约或实现。
+
+## D-024：F-008 replan 错误恢复与原计划保留契约
+
+- 日期：2026-09-02
+- 状态：`APPROVED / IMPLEMENTED / VERIFIED`
+- 适用：replan terminal error 分类、公开安全投影、恢复动作、幂等、并发和原计划保留
+- 不适用：新 API shape/endpoint、自动 Provider retry、生产实现、Schema/migration、依赖、真实 Provider 调用、UAT 或交付
+
+### 决策
+
+- 恢复动作只有 `RETRY_NEW_REQUEST`、`MODIFY_INPUT`、`REFRESH_PLAN`、`STOP`；不新增公开 recovery 字段，后续 UI 只从既有 status、`ApiError.code/retryable/diagnostic_code` 推导；
+- transient Provider/data stale 和 execution/analysis cancel 可用新 request ID 重试；输入/预算缺失必须修改输入；version/baseline/change-scope/expiry 必须刷新当前计划；scope、配置、授权、schema/model invalid 和未知内部失败必须停止；
+- 原 replan terminal 后不可重置。恢复必须先读取当前 planning job，再用新的 `replan_request_id` 和当前 `baseline_plan_id` 创建新资源；不得新增 retry endpoint 或自动重试；
+- planning result、plan ID、job/plan version 只有原子 commit 成功才可变化；其他所有 terminal outcome 的 result/change_set/result_plan_version 为空，原计划逐字段保持；
+- 同 request ID + 同 command/baseline 返回同一资源且不重执行；不同 payload 冲突。单 app 同一 replan executor 最多一次；跨 replan 竞争最多一个 commit，失败者 terminal 为 job-version conflict；
+- terminal error 使用既有 public code 与固定安全 message，内部安全 code 放在既有 `diagnostic_code`；不得转发异常、Provider body、URL、坐标、请求或凭证。
+
+### Step 5 实现边界
+
+- 只允许 `domain/replanning.py`、`application/replanning/models.py`、`application/replanning/service.py`、`application/services/provider_replanning.py`、`api/replans.py`、必要时 `api/errors.py` 及其已冻结直接测试；
+- 表驱动测试覆盖 closed mapping、原计划保留、无 plan planning result、cancel/exception/invalid result、幂等/decision、并发 execute/commit、lock cleanup、memory/SQLite contract 和 OpenAPI exact shape；
+- Repository Protocol、SQLite schema/migration、Provider adapters、依赖/lockfile 和公开 contracts 默认只读；如确需改变，立即停止。
+
+### 后果
+
+- Step 5 已实现 planless safe error preservation、closed terminal projection、unknown fail-closed 和并发 lock lifecycle；原计划保留继续由 Repository commit/version 测试证明；
+- F-008 的总体完成授权不降低真实 Provider UAT、远程交付、秘密、数据库和范围停止 Gate；
+- Step 5 为 `DONE / PASS`；Step 6 为 `TODO / AUTHORIZED_BY_COMPLETION_GOAL`，只允许全离线纵向验收，不得进入 grounding 或真实 Provider。
+
+Step 6 的纵向验收补充实现后果：live memory cohort 的 `InMemoryReplanRepository` 必须持有配对 planning Repository，并在 commit 成功时原子更新其当前 typed result/version；否则 completed replan 与普通 planning GET 会产生事实分叉。该内部配对不改变 Repository Protocol、公开 API 或 SQLite 实现。
+
+## D-025：F-008 计划事实 grounding 与 Provider 质量契约
+
+- 日期：2026-09-03
+- 状态：`APPROVED / DESIGN_FROZEN`
+- 适用：legacy/V2/V3/V4 的计划事实来源、Provider 质量、时效、unknown、fallback 与终态仲裁
+- 不适用：Provider adapter/request/parse、公开 API shape、路线数值阈值、Schema/migration、依赖、真实 Provider 调用、UAT 或交付
+
+### 决策
+
+- 公开计划中的城市、POI 名称/类别/地址/坐标、路线端点/方式/距离/时长、天气与 Provider 费用只能来自本地校验通过的对应 Provider typed result；模型只允许选择既有 location ID、顺序、optional/required 和受控 duration class，不得把模型标题、解释或数值升级为外部事实；公开活动标题必须由已选 POI 的规范化名称重建；
+- 每个公开事实引用的 `source_ids` 必须存在于最终 `sources[]`，且属于承载该事实的同一 typed result；route source 集必须与所选 route result 精确相等。缺失、悬空、跨结果借用、provider/endpoint/city/date/mode 不匹配均 fail closed，不得靠模型或系统补齐；
+- 质量闭集保持 `OK / PARTIAL / UNAVAILABLE`：`OK` 只表示 Provider envelope 与本地结构校验通过，不表示交叉核验；`PARTIAL` 的可用 data 可继续使用，但最终计划至少为 `PARTIAL` 并保留固定安全 error/warning；`UNAVAILABLE` 无 data/source，required 事实导致 `FAILED`，optional 天气/预警只允许省略并形成 `PARTIAL`；
+- required 事实为城市解析、住宿锚点、候选 POI、模型 proposal、所有最终采用的路线链；optional 事实仅为天气预报和当前预警。hard constraint 未核验、预算 unknown、Provider partial、可用来源有效期未知或 optional 事实缺失均不得产生 `READY`；已知超预算或结构/引用冲突优先为 `CONFLICT`；
+- 时效必须用显式 `evaluated_at` 与每个 source 的 `fetched_at/valid_until` 确定计算：`fresh` 可用；`unknown_validity` 可用但最终至少 `PARTIAL`；stale required route/model 必须拒绝且 `FAILED`，stale optional weather/alert 必须省略且 `PARTIAL`，stale location 只可带 `data_stale` 明示降级为 `PARTIAL`。不得读取系统隐式时间或把 unknown 当 fresh；
+- `unknown` 不按 0，也不得静默变成 verified。单城无已批准类别规则的 unknown duration 保持 `NEEDS_INPUT`；V3/V4 unknown duration 若使用既有项目固定 120 分钟规则，必须以 system `estimation_rule` 为来源并产生稳定 uncertainty，使结果至少 `PARTIAL`。unknown fare/price 保持 amount 为空、unknown_count 增加且预算为 indeterminate；
+- fallback 只允许在用户已选择的 transport modes 内按既有顺序进行，且仅针对 primary 的 empty result 或结构无效结果；auth、schema、timeout、rate limit、server、deadline、budget、stale 或坐标缺失不得用 fallback 掩盖。采用 fallback 的每一段仍须通过完整 route grounding，并产生稳定 warning、最终至少 `PARTIAL`；不引入 walking 2km/30min 或 fallback 3km/45min 等未批准数值阈值；
+- 最终仲裁优先级固定为 `CONFLICT > FAILED/NEEDS_INPUT > PARTIAL > READY`，但只有含可发布 plan 的降级结果可为 `PARTIAL`；不得为追求 PASS 删除 error、warning、uncertainty、source、unknown_count 或既有历史评分事实。
+
+### Step 8 实现与测试边界
+
+- 只允许 Stack 2 冻结文件及直接测试/eval；优先在 `candidate_resolution.py`、`final_validation.py`、`scheduling.py`、`offline_planning.py`、`provider_planning_jobs.py`、`multicity_planning.py` 内复用既有 enum/DTO；Provider adapter、公开 contracts、Repository、Schema/migration、依赖/lockfile 默认只读；
+- RED 必须覆盖模型标题不能进入公开事实、V3/V4 unknown duration 的 system estimate + uncertainty、source 悬空/跨结果借用、OK/PARTIAL/UNAVAILABLE required/optional 矩阵、fresh/stale/unknown validity、fallback 允许/禁止矩阵、unknown cost/budget 以及 legacy/V2/V3/V4 shape 不变；
+- 如实现需要新增公开字段/error code、修改 Provider request/parse、改变路线阈值或越过 10 文件/+900 行单 Step 阈值，立即停止。
+
+### 后果
+
+- Step 7 只完成设计冻结，生产/测试 diff 为 0；Step 8 可按总体完成授权进入本地 TDD；
+- 现有 `ProviderResultStatus`、`SourceRecord`、`DataFreshness`、`ApiError`、warning/uncertainty 和 PlanningStatus 足以表达本契约，不新增公开 API shape；
+- 真实 Provider 数据继续只在同进程内存使用；本决定不改变 D-020/D-021/D-023 的零 SQLite 持久化边界。
+- Step 8 已按本决定实现并验证：公开活动标题由 typed POI 重建；V3/V4 unknown duration 规则带 system source、activity ref 和 uncertainty 并至少 PARTIAL；未改变公开 API、Provider adapter 或数据持久化边界。
+
+## D-026：F-008 UX 可信度、纯内存生命周期与真实 UAT 协议
+
+- 日期：2026-09-03
+- 状态：`APPROVED / DESIGN_FROZEN`
+- 适用：计划/replan 用户界面层级、恢复操作、来源事实标签、live memory 生命周期披露与 Step 13 真实 UAT 判定
+- 不适用：新 API 字段/endpoint、Provider 调用实现、Schema/migration、依赖、路由阈值、真实 UAT 执行或远程交付
+
+### 信息层级与生命周期
+
+- 创建任务前必须在提交操作附近显示固定披露：“启用真实服务时，结果仅在本次本地服务运行期间可用；关闭或重启服务后无法恢复。”不得只藏在帮助页、来源折叠区或结果页；
+- ready/partial/conflict 的结果标题区必须重复短版“真实服务结果仅本次运行可用”，且不能用“完整可用”“已验证”等文案暗示 Provider 事实被交叉核验；`READY` 只表示现有来源与确定性规则通过，仍须显示“Provider 提供，未交叉核验”；
+- 信息顺序固定为：终态与生命周期 → 唯一主要恢复动作 → 行程/预算 → 来源可信度与时效 → errors/violations/uncertainties/warnings；partial/unknown/stale/conflict 必须用文字和图形表达，不能只靠颜色；
+- localStorage 只保存 job pointer，不保存 Provider 计划内容。pointer 404 时清除旧 pointer并回到新建流程，显示“本地服务已重启或任务已不存在；真实服务结果无法恢复”；不得将其描述为网络失败或自动重建旧计划；
+- SQLite 安全模式继续保持既有重启恢复；UI 的通用披露使用条件句，不虚构当前是否已启用真实 Provider，也不新增 storage mode API 字段。
+
+### 来源与事实标签
+
+- Amap/QWeather 来源显示“Provider 提供，未交叉核验”，并继续显示 fresh/stale/unknown validity；DeepSeek 显示“AI 仅做候选选择，公开地点/路线事实由 typed 来源重建”；user 显示“用户提供，未核验”；system 显示“项目固定估算规则，不是已核验事实”；
+- `unknown_validity` 固定解释为“有效期未知，不代表当前有效”；unknown amount 固定显示“未知，未按 0 计算”；system duration estimate 必须能由 uncertainty 看到受影响引用和来源数量；
+- Provider `OK`、attribution 或 `READY` 均不得显示为“真实准确”“官方核验”“UAT PASS”；来源 URL 仍只来自既有安全 typed source。
+
+### planning 与 replan 恢复动作
+
+- planning 保持现有服务端语义：retryable 且 attempt<3 才显示安全重试；needs_input/constraint/config/auth/non-retryable 均引导修改需求或检查配置；达到 3 次时不再显示重试；
+- replan UI 从既有 status + `errors[].code/retryable/diagnostic_code` 推导且只显示一个主要动作：transient/cancel → `重新发起调整`（新 request ID）；needs_input → `修改调整内容`；conflict/expired/version → `刷新当前计划`；scope/config/auth/schema/model/unknown failure → `停止并保留原计划`；
+- replan terminal 永不原地重置。任一非 completed 结果必须明确“原计划未改变”；completed 后只显示 baseline→result 的本次差异，不提供历史回滚假象；自动轮询暂停不等于失败，继续刷新只读取同一 replan；
+- 键盘焦点必须进入新状态标题/错误标题，按钮有可见 focus，live region 不重复轰炸；desktop 与 390px 零横向溢出。
+
+### Step 13 真实 Provider UAT 协议
+
+- Step 13 仍须用户单独批准，并在开始前确认 live memory mode、全部离线/前端/隐私门禁通过、服务与端口范围、请求场景、最大 job/replan 次数、停止条件、测试时段及同期高德控制台 QPS/超限证据可取得；
+- 只从现有本地秘密配置注入进程，不读取或回显 Key/Token/Cookie/Authorization、Provider raw response、完整 URL、真实坐标日志或控制台敏感内容；不创建 SQLite，不停止/重启用户既有服务；
+- 最小有界场景为一个 planning job 与至多一个 replan recovery；任何 auth/schema/rate-limit/QPS/配额/费用/法律边界、非预期写盘、超出批准次数或无法确认服务归属时立即停止；
+- `PASS` 必须同时满足：用户可完成场景、typed 事实/source/freshness/unknown/恢复动作正确、零 Provider 数据持久化、无安全/隐私偏差、同期 Provider 控制台证据可解释且无超限；`FAIL` 为任一产品/事实/安全/Provider 明确失败；缺少同期控制台或关键观测则为 `INCONCLUSIVE`。离线、MockTransport、loopback、浏览器或“未出现 rate-limit”单独均不能构成 PASS；
+- UAT 证据只保存脱敏摘要、时间窗、请求计数、终态、安全诊断、控制台结论和零写盘证明；不得保存原始 Provider body、秘密或精确用户敏感行程。
+
+### Step 11/12 边界
+
+- Step 11 只复用既有 DTO/components/styles，实现上述披露、标签和恢复动作；不得新增 framework/router/依赖或改变 API；
+- Step 12 只用 fake/synthetic、内存 Provider app 与 pytest 临时 schema v2 SQLite，完成 loopback desktop/390px、keyboard/focus/live-region、network/console/accessibility/privacy；不得调用真实 Provider；
+- 如需新增 API shape、storage mode 字段、依赖、超过 10 文件/+900 行或 `styles.css` +400/替换 25%，立即停止。
+
+2026-09-03 Step 12 限定批准：预期且已正确处理的 memory restart / GET 404 浏览器网络错误单列且保留，其他 console error/warning 仍为 0；只允许任务卡列明的 3 个跨层文件机械格式化并豁免对应范围，Step 12 文件上限为 11，净新增 900 行和 stack/累计边界不变。此例外不适用于其他 Step、其他文件、产品逻辑、API 或真实 UAT；复验完成后停止，不进入 Step 13/14。
+
+### Step 11 落地核对
+
+- 已按本契约实现提交前/结果页披露、来源可信度、pointer 404、closed replan 恢复和终态焦点；`刷新当前计划` 实际读取既有 planning GET 并更新可见 baseline，`修改调整内容` 返回结构化编辑，不以关闭弹层冒充恢复。
+- 传输或响应解析失败不构成确定终态：创建响应丢失只允许读取当前计划，确认响应丢失继续读取既有 replan，不自动创建新请求，不宣称旧计划必定未改变。
+- 本地 142 项前端测试（2 workers、无跳过/延长超时）及静态/build 通过；结果不是 Step 12 浏览器验收、真实 Provider UAT 或 production replan 自动装配证明。
+
+## D-027：F-008 生产重规划接通计划修订
+
+- 日期：2026-09-03。
+- 状态：`APPROVED / PLAN_AMENDMENT_ONLY / IMPLEMENTATION_PENDING`。
+- 用户授权仅限七份治理文档；不授权生产/测试修改、数据库、服务生命周期、真实 Provider、远程交付或归档。
+- 关系：补充 D-023 的尚未落实生产接线义务；保持 D-024 恢复/提交不变量、D-025 grounding 和 D-026 UX/UAT 判定。Step 0–12 的已完成结果及离线证据边界不变；D-026 的 Step 12 例外不延伸至修复或 UAT。
+
+### 决策
+
+- 在 Step 12 与 Step 13 之间插入 R1 事实投影 → R2 四命令局部候选 → R3 adapter-backed concrete planner → R4 默认生产装配 → R5 正式入口全离线验收。每片单一目标、全部 TODO、逐片独立批准，不能从总体完成权限自动开始；真实 UAT 仍只在 Step 13，交付仍 Step 14。
+- 保持单城双日 legacy/V2 和四种已支持命令，不扩大 V2 多日或 V3/V4 replan，也不以只做调时/恒失败/全量 planning 覆盖来缩小验收。复用现有领域规则和原子提交，新 planner 只生成校验后的候选，禁止在 commit 前写原 job。
+- planning/replan 必须共用 app-owned memory cohort 与 route limiter；每次执行独立 Governor/attempt runtime，不新建互不知情的 limiter，不改既有 pacing/Provider adapter/公开 API。
+- 正式组合证明只允许在外部 HTTP transport 使用 MockTransport及非秘密测试配置/时钟；不得注入业务 repository/adapters/service/executor/planner 或 patch 业务 factory 绕过默认装配。既有单元测试 seam 保留，但不能证明生产入口已可用。
+- 未来文件归属、逐文件额度及测试矩阵以 current-task 为唯一权威。R1–R4/R5 后端入口归 Stack 1；R5 浏览器/前端归 Stack 3；Stack 2 保持只读。禁止为预算挪层或让前层依赖尚未交付后层修复。
+- 预测新增唯一 8 文件/+2300，累计 40/+3913；Stack 1 17/+2607、Stack 2 5/+82、Stack 3 18/+1224。普通 Step 10/900/清单外 3、各 stack 30/2800、24/2200、24/2200、任务 68/6500 全不变；预测不是保证，任一硬上限预计超出即停止、重新请求计划批准。
+
+### 未决与后果
+
+- R3 的具体运行时 policy/deadline 是否复用既有双日上限须在其实施批准前确认；planning 代码常量不是 replan 或本轮 UAT 额度。
+- R5 的 loopback/临时合成 SQLite 资源和可能的预期 404 判定须另批；验收发现生产缺陷，先停止并提出准确修复范围，不借验收改生产。
+- Step 13 的城市/日期/完整输入、job、replan 首次/恢复/合计、用户重试、分 Provider logical call/HTTP attempt/deadline、费用、时间窗、服务归属、安全计数与同期高德控制台证据全部仍须确认。未给定的数值不可补写。
+- 产品可恢复不等于 UAT 可继续：未独立批准时首次明确失败即停止并按 D-026 记录；auth/schema/rate-limit/QPS/配额/费用/法律/写盘/未知服务归属必须停止。后续成功不得擦除首轮 FAIL；缺少自然恢复场景记 NOT_OBSERVED/关键证据不足，不用故障注入冒充真实经历。
+- 本 Gate 完成不等于 R1 已获实施批准，更不等于生产 replan ready、Step 13 PASS 或 F-008 完成。F-007 INCONCLUSIVE、2026-08-30 FAIL、2026-08-31 非 PASS 和所有既有 UAT/法律事实保持。
+
+### R1 后续批准与核验记录（不新增实现决定）
+
+2026-09-03 用户随后单独批准 R1 两文件实施。准入通过，但源码与纯领域诊断发现计划级成本归属、完整来源消费者、快照输入及身份/范围规则尚未冻结到可直接实施的程度；R1 为 `BLOCKED / CONTRACT_GAP / IMPLEMENTATION_NOT_STARTED`。具体事实与复现结果见 evidence；本记录不撤销原计划 Gate，也不把 R1 描述为仍未获授权。不修改既有领域或 executor、不选定新预算/身份政策、不扩大文件或规模范围；下一动作须先取得缺口处置设计批准，不能自动进入 R2–R5、真实 UAT 或交付。
+
+## D-028：F-008 R1 完整事实投影内部契约
+
+- 日期：2026-09-03；状态：`APPROVED / DESIGN_ONLY / IMPLEMENTATION_BLOCKED_BY_SIZE_AND_SCOPE`。用户只批准设计及七文档同步，未批准修订四文件实现或阈值变更；原 R1 两文件授权保留。
+- 采用最小 application 适配，不修改领域/公开 DTO/Repository：typed projector 接收完整 result 与显式时刻，复用现有 impact/source/freshness/budget/diff/scope helper。executor 增加可选完整事实路径，旧四参数 seam 保留；新路径失败不得回落旧路径，R4 才装配生产。
+- 成本 owner 与集合依赖分离：嵌套成本有唯一 activity/route owner，其他为 plan owner；TICKET/LOCAL_TRANSPORT 对活动/路线集合的依赖不等于逐项分摊。分析期未知采用既有 UNKNOWN 语义并需要确认，不冒充最终候选金额；关系冲突或不可证明时 fail closed。禁止 unknown=0、新报价公式或直接提交分析占位项。
+- 来源图覆盖所有 typed 消费者，DROP 必须证明无保留消费者；共享刷新不能改写范围外事实。时效用显式时刻计算，unknown_validity 不升级 fresh；user/system 不通过 Provider 调用假造有效期。继续服从 D-025，不绕过 stale required/optional 和范围边界。
+- 五类快照必须覆盖完整事实：保留 activity/route/cost/source 原 ID，schedule 使用不依赖 plan revision 的稳定 UUID5；完整 SourceRecord 与 owner/guard 校验不可用 source ID hash 或全计划 allowed refs 替代。新增实体 origin 必须能唯一证明来源于获准旧 root，无状态缓存；无法证明即拒绝。
+- 精确规则、四文件分工、测试矩阵及实施批准点仅以 current-task 的“R1 内部契约缺口处置设计 Gate”为权威，避免建立两套细节。D-023–D-027 的纯内存、原子提交、历史证据及独立 UAT Gate 不变。
+- 修订预测 R1 4/+760、R3 2/+570（原事实接线已纳入 R1，同层不重复），其余不变；最终 Stack 1 18/+2877，超原 2800 上限 77，任务去重 40/+4183。共享路径逐层计数校正不搬运原 diff。原硬阈值全部不变，规模处置及新增两文件授权均须用户另批；不得先实现再补豁免。
+
+### R1 后续四文件与规模授权、执行状态
+
+用户随后明确批准四文件实施，并仅把 Stack 1 净新增上限从 2800 改为 3000、文件仍 30；普通 Step 10/900/清单外 3、Stack 2/3 各 24/2200、任务 68/6500 全部不变。上文 2800/未批准四文件是设计 Gate 历史，不再是当前授权。技术契约不变；本次仅新增 398 行测试脚手架，初始 collection RED 后重估完整 R1 928/900、最终 Stack 1 3045/3000，按停止条件暂停。当前为 `APPROVED_SCOPE / IMPLEMENTATION_PARTIAL / BLOCKED_BY_SIZE`，不将设计或缺模块错误计为实现 PASS；没有批准继续增大阈值、减少矩阵或进入 R2。
+
+### R1 规模处置候选（未批准，不是新技术决定）
+
+用户随后要求先处置规模再实现与验证。只读细化确认旧 helper 不覆盖完整 owner/消费者/origin，原 928 不是可靠上界；最新四文件估算区间 1450–1900，上沿 850/750/110/190，任务卡记录依据和全部剩余预测。候选仅 R1 专项净新增 2000、Stack 1 净新增 4500，其他文件/层/任务上限及 D-028 技术范围不变；等待用户明确数值批准，有效 900/3000 未改。当前仍 IMPLEMENTATION_PARTIAL / BLOCKED_BY_SIZE；本轮无生产/测试修改，不新增实施切片，不以候选额度授权 R2–R5 或真实 UAT。
+
+### R1 数值批准及实现收口（R1 完成时）
+
+用户已明确批准仅 R1 净新增 2000、Stack 1 净新增 4500（文件 30 不变），其余 Step/stack/累计和四文件范围不变；上节待批状态是历史。当前 R1 DONE / PASS / OFFLINE：实际 1906 行，168 项定向/领域回归与四文件静态通过；不增加技术范围、领域或公开 DTO。可选 executor 路径在候选完成后取一次显式时刻评估完整 before/after，失败不回落；R4 才默认生产装配。当前停止等待 R2，真实 UAT/交付继续独立批准，历史结论不变。
+
+### R2 单独批准及收口（R2 完成时）
+
+用户随后单独批准 R2，现为 DONE / PASS / OFFLINE，仅两文件实际 792，普通 900/Stack 1 4500 及其他阈值不变。四命令构造内部未提交草稿，保留 baseline 类型、未影响实体及来源；route 缺口和旧边 origin 明示，地点事实更新不复用旧测量；分析预算不当最终报价。没有新产品/公开 API/领域/法律决定，R3 才补全并验证候选，R4 才生产装配。69 项候选测试、合并回归 270 项及两文件静态通过；加 R3–R5 剩余预测后 Stack 1 4415（余 85）、任务 5721（余 779），必须继续逐片复核。停止等待 R3 及运行时预算 Gate，真实 UAT/交付仍需独立批准。
+
+### R3 运行时数值确认与准入停止（设计前历史；数值继续有效）
+
+用户已明确批准 R3，并逐项确认单次 replan runtime：总 deadline 90s（含 retry/backoff/limiter wait）；logical call 上限 Amap 12（resolve1/search3/route8）、QWeather2（forecast1/alert1）、DeepSeek2（generation1/repair1）；每 logical HTTP attempt 为2/2/1，额外重试 Amap3/QWeather1/总4，理论总20；attempt timeout 为6/6/35s。复用已存在 policy，不新增必须发起的调用；独立 runtime、terminal/cancel/deadline/budget 后零新请求及 cancel/drain 不变。route 并发2、0.5s pacing 不变；R4才装配共享 app limiter。以上不授权真实调用、Provider 费用/账户边界、UAT 整场参数、服务操作或扩规模。
+
+当前 R3 为 APPROVED / RUNTIME_BUDGET_CONFIRMED / BLOCKED_BY_CONTRACT_GAP / IMPLEMENTATION_NOT_STARTED。纯内存准入复现 D-025 optional weather 省略/刷新和安全降级诊断无法通过 D-028/R1 guards；不是本次有权放宽既有 guard，也不改写 R1/R2 已完成结果。候选最小处置是先单独批准 G1/G2 内部契约设计，再决定精确修复文件、矩阵和全量规模；本条仅登记阻塞，不批准天气范围、diagnostic append 规则或任何修复实现。原 R3 570 预测不含新修复，保留 R4/R5 Stack1 540后可容纳655，设计后须重估。七文档同步后停止，R4/R5/Step13/14/F-009 未进入。
+
+## D-029：F-008 R3 天气与诊断内部证据衔接
+
+- 日期：2026-09-03；技术状态DESIGN_FROZEN。用户明确批准R3-C2000、Stack1 7500、任务9000，文件上限及D-029设计不变；R3-C现为DONE / PASS / OFFLINE，四文件实际1862，561项定向/630项含R2回归及静态PASS；不是生产接通或真实UAT验收。
+- 对 D-028 的限定补充：只有获准日级 schedule 内、经对应 typed forecast/alert envelope 证明的省略/刷新才允许变化；历史日级天气、来源共享、精确 origin/allowed refs 保护不解除。fresh 空 alerts 与 UNAVAILABLE/stale 分开，后者省略并 PARTIAL，不能当“验证无预警”；范围外过期需修改时安全失败，不扩大命令影响。
+- 历史 errors/warnings/uncertainties 保留有序完整前缀，violations/resolved_destination 不变；新增诊断必须由闭集 typed 证据和现有 code/安全文案确定生成，前后精确核对。旧 PARTIAL 不因新增成功而抹去；未知费用非零，required 失败/硬冲突不得降级成可提交 PARTIAL；retryable 沿用任务卡精确规则，不触发额外调用。
+- 选择仅内存、call-owned 的候选结果+证据包装：绑定 job/replan/baseline/command/candidate，由 executor 用候选完成时的同一显式时刻传给 projector 验证；无证据保留旧严格 guard，新路径失败不得退回旧 seam。证据复用领域 typed result，不含原始响应、不做全局缓存、不进入 Repository/日志/公开 API。它只证明本地映射一致性，不证明外部交叉核验。
+- source consumer 图涵盖旧历史/计划级消费者和本次有证据的新局部诊断；新 source 必须有完整获准旧 root ancestry，DROP 需无保留消费者。不能给全部历史 uncertainty、deepseek/system provenance 或全 plan 放行。公开 uncertainty 不引入内部 schedule UUID，不通过空 refs 或任意 message 绕过范围。
+- 最小拟实施 R3-C：replan_facts.py/test_replan_facts.py/provider_replanning.py/test_provider_replanning.py 四个既有文件，全部 Stack 1。两文件只放松比较不能构成证据传递闭环，故增加 executor 兼容传递及测试；不改领域/公开 DTO/Repository/service/adapter/fixture。精确字段、事件映射、完整测试矩阵与文件分工仅以 current-task 当前设计节为权威。
+- 设计时的规模停止历史：代码/测试36/+4311；修复580–800、R3 880–1200、R4/R5 840。上沿最终Stack1 18/+5845、Stack2 5/+82、Stack3 18/+1224、任务40/+7151；当时R3超900达300、Stack1超4500达1345、任务超6500达651，因此停止而未实施。此历史保留，不能削减矩阵、拆片或移层来伪造准入。
+- 执行状态补记（2026-09-07）：R3-C/R3-E/R3既有离线结果保持；R4原四文件已完成 `DONE / PASS / OFFLINE`，下一片R5仍需独立批准。默认app-owned内存cohort、共享route limiter与执行隔离已离线验证；当前执行授权/额度见任务卡，验证结果见evidence。本补记不改变D-023–D-030技术规则，也不构成R5或真实Provider UAT通过。
+
+### R3 后续规模授权沿革（历史；被后续批准替代的字段不再生效）
+
+- 用户仅批准R3净新增900→1500（不适用于其他片）、Stack1净新增4500→6500（文件30）、F-008累计净新增6500→8000（唯一文件68）。R3-C仍严格限D-029四文件/900；普通Step10/900/清单外3、R1专项2000、Stack2/3各24/2200、其他专项及全部安全边界不变。
+- 重新核算实际36/+4311与全部剩余预测：R3-C 800、R3 1200、R4 250、R5 590（均取上沿/原完整预测），最终Stack1 5845/6500、任务7151/8000；R3 1200/1500，分别余655/849/300，规模准入PASS。若R3-C/R3用满900/1500且R4/R5预测不变，最终Stack1 6245、任务7551；后续增长仍须重新核算，不作完成保证。
+- 仅七治理文档同步，不改技术设计、文件归属或测试矩阵，不实施、不调用Provider、不操作服务、不执行Git交付。R3已有实施/runtime授权保留，但恢复依赖R3-C PASS；本轮完成后等待单独批准R3-C四文件实施。规模批准不等于生产接通或真实UAT批准。
+
+### R3-C 独立实施批准后的准入停止（900上限时历史，不是当前执行状态）
+
+- 用户已批准D-029四文件实施；授权未撤回，技术设计/文件归属/完整矩阵及R3 runtime数值不变。本次逐项复核后R3-C估算885–1095（facts390–480、直接测试360–430、executor45–65、直接测试90–120），上沿超过本片900达195，按“预计超限立即停止”保留未实施状态。
+- 估算不是新的硬阈值，也不是已证明900内不可能；源码/复用依据及完整剩余核算见current-task/evidence当前节。原580–800及其规模PASS是此前预测历史，不能替代本次详细准入。Stack1/任务预测上沿6140/7446符合6500/8000，不抵消单片超限；不借R3专项1500、不挪层、不拆片或缩矩阵。
+- 当前只记录`APPROVED / BLOCKED_BY_SIZE / IMPLEMENTATION_NOT_STARTED`，没有生产/测试实施或新的产品/法律/架构决定。先取得完整≤900的可复核方案或单独规模授权，再重新准入；R3–R5、Step13/14与F-009未进入。
+
+## D-030：F-008 R3-E1/E2 模型与城市内部证据覆盖
+
+- R4状态补记（2026-09-07）：默认生产组合装配已按原四文件完成离线验证；planning/replan共用app-owned内存cohort及route limiter，每次执行保持独立runtime/Governor。正式组合入口纵向验收仍属于R5，真实Provider UAT仍属于Step13；本补记不修改本决定的证据范围或技术契约。
+- 后续批准与验收补记（2026-09-04）：用户单独批准R3-E上限900→907，仅用于标准格式化/复验；两文件2/+907、968项及静态PASS，R3-E DONE / PASS / OFFLINE。本节以下为原设计及批准前估算，技术契约保持；不构成执行R3或真实UAT授权。
+- 日期：2026-09-03；状态：DESIGN_FROZEN / DESIGN_ONLY。用户只批准本设计Gate；技术规则冻结不等于修复实施或规模准入通过。R3-E为待独立批准的E1/E2必要修复，不重开R3-C，不把R3的1500或R3-C剩余额度转借本片。
+- 限定补充D-025/D-028/D-029：只补模型/城市来源及其安全质量诊断的内部证据通道；四命令仍为ReplaceActivity/DeleteActivity/AdjustActivityTime/ReorderActivities，支持范围仍legacy/V2单城市双日。原产品、Provider request/parse、公开API/领域/Schema/依赖/法律边界均不变。
+- 最小修复仅Stack1的application/services/replan_facts.py及tests/application/test_replan_facts.py（完整路径见任务卡）。现有EvidencedReplanResult/ReplanEvidence已由provider_replanning.py完整传递，commit不保存证据，无需改executor；resolver已返回保留envelope元数据的ProviderResult[PlanProposal]，无需改resolver或adapter。若实施发现必须改这些只读文件，立即停止再审，不在本批准范围自动扩展。
+
+### E1：模型选择证据不是外部事实
+
+- 沿用EvidenceEvent/ReplanEvidence绑定，不新建公开DTO或第二套来源系统；闭集新增model_generate、model_repair、city。request内部union补PlanningContext、PlanRepairBrief、CityResolutionRequest；仅repair允许新增可选model_context: PlanningContext（默认None）。其他旧operation必须拒绝非空model_context，旧primary/city用途不泛化。
+- model_generate要求request为实际PlanningContext、model_context/primary/city均None；model_repair要求request为实际PlanRepairBrief、model_context为同一次resolve使用的PlanningContext，primary/city均None。result为既有ProposalResolution.result的ProviderResult[PlanProposal]，provider=DeepSeek，source_type分别精确为model_plan_proposal/model_plan_proposal_repair；不接收ModelTextOutput、原始无效输出、完整Prompt或自定义解析替代物作为证据。
+- 生成/修复绑定不靠布尔标记推定：复用DeepSeekProposalResolver、其纯parse/repair-brief规则及同一governor/runtime。R3可在自己的文件内以调用转发包装捕获实际generate/repair的typed请求，调用仍委托真实adapter，不另加重试/预算或返回业务替身；resolver最终envelope必须对应实际被采用阶段。repair brief必须等于同context按既有可修复validation_code生成的安全brief（既有affected_refs/command_category默认值不擅改），无前序generate、跨resolve/跨context、非可修复失败后repair或第二次repair均拒绝；调用顺序的真实性由R3真实adapter+MockTransport矩阵证明，不声称纯facts或fingerprint能认证一次外部调用。
+- context的城市、日期、版本、day_windows、预算/人数及受控工具/地点/来源目录必须从当前job、baseline和本次已证明的POI结果导出。模型只能在原允许目录中选location、优先序、selection_kind、duration_class；复用既有纯解析/allowlist校验typed proposal，不能借内部dataclass跳过校验。完整双日context是只读输入，不产生全计划修改权限；未受影响部分不因模型新建议改变。
+- 按日期及被实际采用selection到candidate实体的对应关系计算消费者，不信任event.refs自报权限：活动必须匹配同日location/选项及本命令的局部变换；路线只能作为采用相邻selection形成局部链的决策消费者，测量仍必须由对应route事件独立证明。未被采用的selection、仅作为context读入的实体、无可证明实际用途的模型结果不取得消费者。新模型source不得塞入location/route/cost/城市的事实source_ids，也不得替换POI事实来源；公开标题只取规范化POI名称，模型标题/解释不成为事实或新诊断。
+- 非选择型命令可以复用有效baseline与R2确定性变换，不为凑矩阵强制调用模型；若使用模型则必须经过同一完整证据链。四命令的正向与安全拒绝仍全部验证，不能仅实现无需模型的命令或把正常unknown模型恒失败。模型新来源至少有一个精确的实际采用消费者，否则拒绝新增来源。
+
+### E2：城市上下文与住宿事实分离
+
+- city事件request精确为CityResolutionRequest(job.request.city)，result为AMAP的ProviderResult[CityResolution]、source_type=amap_geocode，primary/city/model_context均None。adcode须等于baseline单城市及后续POI/route/context；使用route的citycode时须与本次解析结果精确对应并满足既有数字校验，不通过route事件中的裸CityResolution冒充城市质量证据。
+- 新city结果仅补本次局部计算需要的上下文，resolved_destination、旧城市来源、住宿锚点及其历史事实保持不变；不把城市中心坐标当住宿/POI坐标。消费者只可由本次经证据证明、实际使用该城市adcode/citycode的局部POI/route/model操作反向推导到实体；缺下游用途、跨城市、任意声明全日/全计划refs均拒绝。
+- 同一城市解析/模型调用可服务多个受影响实体或日期，但每个日级事件仅是同一typed结果的视图；同source_id必须对应完全相同request/envelope/阶段，精确合并已证明消费者，不按视图次数伪造新logical call，也不重复追加相同诊断。相同source借给其他不对应operation、provider或请求即拒绝。
+- 复用仅限baseline已保存、仍可证明的typed字段及原source/time，不反造ProviderResult或新fresh标签；baseline没有citycode等本次必需字段时必须真实解析（未来R3受已批resolve≤1约束），不能用adcode猜citycode。住宿仍复用不可变锚点与对应来源；现有location事件只允许在既有ownership范围内证明局部POI刷新，不借城市事件刷新共享住宿。若所需刷新将改写范围外/共享锚点则安全失败，不扩大本Gate。
+- required城市/住宿/POI仍遵D-025：缺失或UNAVAILABLE不能发布候选；可用PARTIAL及unknown不得READY；stale location保留data_stale/location_source_stale与PARTIAL，若因此需要范围外改写则拒绝。stale model/route必须拒绝；不以城市来源是上下文为由省略其质量，也不将旧失败覆盖为成功。
+
+### 精确来源、诊断及生命周期
+
+- 先完成typed request/result、实际用途、binding和质量校验，再仅为before中不存在的新model/city source建立局部provenance消费者。只可替换该新来源由_catalog自动生成的无主provenance占位；任何旧source、历史uncertainty、destination/共享住宿/范围外消费者均不得删除或去全局化。旧deepseek/system来源仍按D-028/D-029保守保留；后续请求从baseline重投影时不追溯解锁这些旧来源。
+- 对每个新来源s，C(s)必须非空且等于全部经对应事件实际证明的消费者；event.refs为该日C(s)投影的排序去重结果，不能手写扩大。origin(s)=并集parents(ref)，每个parents(ref)必须非空且属于before.roots(command)；现有allowed refs/快照守卫不扩大。若仍有不可解释全局消费者、遗漏合法消费者、交叉/悬空/身份碰撞或多结果共用ID，fail closed。旧来源DROP仍要求全消费者闭包为空；新增局部证明不影响旧DROP保护。
+- _envelope/_public_sources及显式completed evaluated_at复用：provider、source_type、fetched_at、valid_until、source_ids与对应envelope逐项匹配；不接受缓存freshness标签。future/无效时刻拒绝，unknown允许但至少PARTIAL；stale模型必须显式拒绝，不能因新增来源改为局部消费者而绕过旧stale provenance防线。
+- 诊断继续闭集：PARTIAL映射固定provider_degraded及安全_provider_errors；unknown映射source_validity_unknown；stale城市按既有location_source_stale/data_stale及source_stale。只复用既有code/message与容量20/50/50，不把模型输出或Provider任意文本追加为错误/警告。READY须无降级条件；历史三类列表（含重复）保留有序前缀，新增诊断按D-029确定性顺序精确去重，多条件同时保留，不能因修复成功删除历史失败。
+- 同一ReplanEvidence绑定job/replan/baseline/version/command/candidate/events；repair上下文也被fingerprint/deepcopy覆盖。无证据、篡改、跨绑定重放、别名后改、重复事件不一致均拒绝；同输入/显式时刻结果确定且不修改任何输入。证据只在调用栈/进程内存，executor解包校验后丢弃，不入公开API、日志、Repository或SQLite；它是本地一致性证据，不是Provider认证或真实UAT PASS。
+
+### 验收与停止
+
+- 任务卡R3-E完整矩阵为实施冻结基线；R1/R2/R3-C既有矩阵和旧executor兼容回归必须保持。新增model/city fresh、PARTIAL、unknown正向与越界/无据负向必须同时通过；只跑旧回归不能验收新片。R3原真实adapter/MockTransport及runtime矩阵另行执行，不在纯计算片提前宣称已覆盖。
+- 设计时规模判断（历史，已由后续数值批准与R3-E验收替代）：必要修复590–800、R3 1020–1400、R4 250、R5 590；上沿Stack1=7907、任务=9213，超7500/9000为407/213，故BLOCKED_BY_SIZE_AND_APPROVAL。估算不是新上限，也未证明现上限内不可能；本Gate不调整额度、不预记压缩收益，先有可复核完整可容纳方案或另获精确规模授权，再独立批准实施。
+- 不增第三个生产/测试文件，不改公开shape/领域/Schema/migration/依赖/法律，不新建分支、不执行Git交付/服务/Provider/数据库操作；任何违反或完整预测超限立即停止。R3-E完成后仅只读判断R3准入，不自动执行R3/R4/R5/Step13/14/F-009。
+
+### R3-E后续实施授权与规模提案（批准前历史；现行额度只查current-task）
+
+- 用户随后已批准D-030两文件实施；当前因完整规模超限保持APPROVED / BLOCKED_BY_SIZE / IMPLEMENTATION_NOT_STARTED，不重复索取技术范围授权。本轮只完成规模处置提案，D-030技术契约及全部矩阵保持。
+- 仅建议Stack1净新增7500→8500、任务累计9000→10000，文件上限30/68及其他数值不改；当前仍以7500/9000为有效上限。R3-E/R3各用满900/1500且R4/R5完整预测250/590不变时，8107/9413在候选额度下余393/587；不宣称任意后续增长已覆盖。
+- 先有两项明确数值批准及重新准入，再按用户恢复指令沿用既有R3-E授权；候选本身不授权代码/Provider/服务/Git交付，R3及后续阶段不自动执行。完整核算与审批Prompt以current-task本轮规模处置节为准。

@@ -12,9 +12,88 @@ import {
   multidayPartialPlanningPayload,
 } from "./test/tripPlanningFixtures";
 import { TripPlanResult } from "./TripPlanResult";
-import { parseTripPlanResponse } from "./tripPlanningApi";
+import { parseTripPlanResponse, tripPlanningApi } from "./tripPlanningApi";
+import { ReplanningClientError } from "./replanningApi";
 
 describe("TripPlanResult", () => {
+  it.each([
+    { selectedLabel: null, expectedCategories: ["museum"] },
+    { selectedLabel: "景区 / 自然", expectedCategories: ["scenic_area"] },
+  ])(
+    "submits only provider-supported replace categories for $expectedCategories",
+    async ({ selectedLabel, expectedCategories }) => {
+      const user = userEvent.setup();
+      const response = readyPlanningResponse();
+      if (!response.plan) throw new Error("fixture plan missing");
+      const create = vi
+        .fn()
+        .mockRejectedValue(
+          new ReplanningClientError(
+            "network_unavailable",
+            "停止在请求取证点。",
+          ),
+        );
+      render(
+        <TripPlanResult
+          response={{ ...response, plan: response.plan }}
+          replanApi={{ create, read: vi.fn(), decide: vi.fn() }}
+        />,
+      );
+
+      await user.click(screen.getAllByRole("button", { name: "替换活动" })[0]);
+      const museum = screen.getByRole("checkbox", { name: "博物馆 / 文化" });
+      expect(museum).toBeChecked();
+      expect(screen.queryByRole("checkbox", { name: "餐饮" })).toBeNull();
+      if (selectedLabel) {
+        await user.click(museum);
+        await user.click(screen.getByRole("checkbox", { name: selectedLabel }));
+      }
+      await user.click(screen.getByRole("button", { name: "准备影响分析" }));
+      await user.click(screen.getByRole("button", { name: "分析影响" }));
+
+      await waitFor(() => expect(create).toHaveBeenCalledOnce());
+      expect(create.mock.calls[0]?.[1].command).toEqual({
+        operation: "replace_activity",
+        target_activity_id: response.plan.days[0].activities[0].item_id,
+        replacement_categories: expectedCategories,
+      });
+    },
+  );
+
+  it("reads the authoritative plan after a stale-baseline conflict without creating another replan", async () => {
+    const user = userEvent.setup();
+    const response = readyPlanningResponse();
+    if (!response.plan) throw new Error("fixture plan missing");
+    const next = structuredClone(response);
+    next.plan!.plan_id = "88888888-8888-4888-8888-888888888888";
+    next.plan!.days[0].activities[0].title = "刷新后的当前活动";
+    const read = vi.spyOn(tripPlanningApi, "read").mockResolvedValue(next);
+    const create = vi
+      .fn()
+      .mockRejectedValue(
+        new ReplanningClientError("version_conflict", "当前计划版本已改变。"),
+      );
+    render(
+      <TripPlanResult
+        response={{ ...response, plan: response.plan }}
+        replanApi={{ create, read: vi.fn(), decide: vi.fn() }}
+      />,
+    );
+    await user.click(screen.getAllByRole("button", { name: "删除活动" })[0]);
+    await user.click(screen.getByRole("button", { name: "准备影响分析" }));
+    await user.click(screen.getByRole("button", { name: "分析影响" }));
+    await user.click(
+      await screen.findByRole("button", { name: "刷新当前计划" }),
+    );
+    expect(await screen.findByText("刷新后的当前活动")).toBeVisible();
+    expect(read).toHaveBeenCalledWith(response.job_id);
+    expect(create).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /2日旅笺/ })).toHaveFocus(),
+    );
+    read.mockRestore();
+  });
+
   it("offers the four frozen structured change operations and restores focus on cancel", async () => {
     const user = userEvent.setup();
     const response = readyPlanningResponse();
@@ -59,6 +138,13 @@ describe("TripPlanResult", () => {
     expect(screen.getAllByText("¥2,140.00")).toHaveLength(2);
     expect(screen.getByText("预算可完整判定")).toBeVisible();
     expect(screen.getByText(/本计划包含 DeepSeek AI 生成内容/)).toBeVisible();
+    expect(screen.getByText("真实服务结果仅本次运行可用")).toBeVisible();
+    expect(
+      screen.getAllByText("Provider 提供，未交叉核验").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("AI 仅做候选选择，不是事实来源")).toBeVisible();
+    expect(screen.getByText("项目固定估算规则，不是已核验事实")).toBeVisible();
+    expect(screen.queryByText("完整可用")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "和风天气" })).toHaveAttribute(
       "href",
       "https://www.qweather.com",

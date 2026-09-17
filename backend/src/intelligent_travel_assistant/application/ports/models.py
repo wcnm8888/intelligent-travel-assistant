@@ -180,6 +180,17 @@ class PlanningDayWindow:
 
 
 @dataclass(frozen=True, slots=True)
+class ReplanSelectionScope:
+    """Opaque, call-owned limits for one model-assisted activity replacement."""
+
+    target_activity_id: UUID
+    target_local_date: date
+    target_selection_index: int
+    baseline_location_ids_by_day: tuple[tuple[UUID, ...], ...]
+    allowed_candidate_location_ids: tuple[UUID, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class PlanningContext:
     city_name: str
     city_adcode: str
@@ -202,6 +213,7 @@ class PlanningContext:
     city_adcodes: tuple[str, ...] = ()
     day_city_indices: tuple[tuple[int, int, int], ...] = ()
     accommodations: tuple[PlanningLocation, ...] = ()
+    replan_selection_scope: ReplanSelectionScope | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +243,7 @@ class PlanRepairBrief:
     validation_time_failure: CandidateTimeFailureCode | None = None
     affected_refs: tuple[UUID, ...] = ()
     command_category: str | None = None
+    replan_selection_scope: ReplanSelectionScope | None = None
 
 
 def bounded_display_label(value: object) -> str | None:
