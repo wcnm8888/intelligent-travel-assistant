@@ -12,5 +12,8 @@ if (!rootElement) {
 const syntheticMap = import.meta.env.VITE_F010_SYNTHETIC_MAP === "1";
 
 createRoot(rootElement).render(
-  <App f009MapLoader={syntheticMap ? f010SyntheticMapLoader : undefined} />,
+  <App
+    f009MapLoader={syntheticMap ? f010SyntheticMapLoader : undefined}
+    syntheticSelectionMap={syntheticMap}
+  />,
 );

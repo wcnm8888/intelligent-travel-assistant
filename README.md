@@ -1,5 +1,7 @@
 # Intelligent Travel Assistant
 
+当前UI采用同一V5/V6旅程中的地点清单、地图与旅行顾问三栏，支持桌面、平板及窄屏；离线验收及真实服务边界见 [F-019交付说明](./docs/delivery/f019-delivery.md)。完整CI门禁使用 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1 -Phase RepositoryVerification`。
+
 Intelligent Travel Assistant 是一个面向中国大陆境内自由行的本地旅行决策辅助工具。目标用户是个人和小型同行群体；系统将基于目的地、日期、预算、偏好、交通和住宿要求，组合真实外部数据，生成可校验、可局部重规划且能说明来源与不确定性的旅行计划。
 
 ## 当前状态

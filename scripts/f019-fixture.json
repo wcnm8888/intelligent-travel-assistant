@@ -1,0 +1,155 @@
+{
+  "provenance": "F019-UI3-v1 visual-fixture.json adapted to existing DTOs; synthetic only, never a provider response",
+  "source_sha256": "221C60DB87E562B9676DC3B35632744ECF9CB8E56C669C7361974F50267BB982",
+  "options": [
+    {
+      "location_id": "70000000-0000-4000-8000-000000000002",
+      "provider": "amap",
+      "provider_place_id": "synthetic-70000000-0000-4000-8000-000000000002",
+      "name": "龙翔桥住宿锚点",
+      "address": null,
+      "city_adcode": "330100",
+      "district_adcode": "330102",
+      "category_code": "100000",
+      "category_label": "住宿服务",
+      "coordinate_gcj02": {
+        "longitude": 120.16,
+        "latitude": 30.25
+      },
+      "purpose": "accommodation",
+      "scope_kind": "point",
+      "confirmation_status": "verified"
+    },
+    {
+      "location_id": "70000000-0000-4000-8000-000000000003",
+      "provider": "amap",
+      "provider_place_id": "synthetic-70000000-0000-4000-8000-000000000003",
+      "name": "西湖断桥",
+      "address": null,
+      "city_adcode": "330100",
+      "district_adcode": "330102",
+      "category_code": "110000",
+      "category_label": "风景名胜",
+      "coordinate_gcj02": {
+        "longitude": 120.17,
+        "latitude": 30.25
+      },
+      "purpose": "visit",
+      "scope_kind": "point",
+      "confirmation_status": "verified"
+    },
+    {
+      "location_id": "70000000-0000-4000-8000-000000000004",
+      "provider": "amap",
+      "provider_place_id": "synthetic-70000000-0000-4000-8000-000000000004",
+      "name": "灵隐寺",
+      "address": null,
+      "city_adcode": "330100",
+      "district_adcode": "330102",
+      "category_code": "110000",
+      "category_label": "风景名胜",
+      "coordinate_gcj02": {
+        "longitude": 120.11,
+        "latitude": 30.25
+      },
+      "purpose": "visit",
+      "scope_kind": "point",
+      "confirmation_status": "verified"
+    }
+  ],
+  "advisor": {
+    "advisor_version": "1",
+    "session_id": "70000000-0000-4000-8000-000000000001",
+    "revision": 0,
+    "phase": "curation",
+    "conversation": [
+      {
+        "role": "user",
+        "text": "先推荐自然景点，其他都灵活"
+      },
+      {
+        "role": "advisor",
+        "text": "先看看这两个候选，其他偏好可以以后再补充。"
+      }
+    ],
+    "confirmed_preferences": {
+      "walking_tolerance": null,
+      "crowd_tolerance": null,
+      "day_start": null,
+      "food_preferences": [],
+      "budget_flexibility": null,
+      "party_notes": []
+    },
+    "pending_suggestions": [
+      {
+        "suggestion_id": "70000000-0000-4000-8000-000000000016",
+        "kind": "poi",
+        "title": "西湖断桥",
+        "reason": "地图示意中位于住宿东侧，先查看位置。",
+        "preference_patch": null,
+        "location_id": "70000000-0000-4000-8000-000000000003",
+        "location_name": "西湖断桥",
+        "category": "风景名胜"
+      },
+      {
+        "suggestion_id": "70000000-0000-4000-8000-000000000017",
+        "kind": "poi",
+        "title": "灵隐寺",
+        "reason": "地图示意中位于住宿西侧，可与 1 号候选对照位置后选择。",
+        "preference_patch": null,
+        "location_id": "70000000-0000-4000-8000-000000000004",
+        "location_name": "灵隐寺",
+        "category": "风景名胜"
+      }
+    ],
+    "question": null,
+    "safety_summary": "已确认0项偏好；2个地点建议待确认。尚未加入推荐景点。"
+  },
+  "session": {
+    "session_version": "1",
+    "session_id": "70000000-0000-4000-8000-000000000001",
+    "revision": 0,
+    "state": "draft",
+    "trip": {
+      "city": "杭州",
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-02",
+      "travelers": 2,
+      "total_budget": {
+        "amount": "3000",
+        "currency": "CNY"
+      },
+      "preferences": {
+        "interests": [],
+        "free_text": "",
+        "hard_constraints": []
+      },
+      "pace": "balanced",
+      "transport_modes": ["public_transit", "walking"],
+      "day_windows": [
+        {
+          "day_offset": 0,
+          "start_time": "09:00:00",
+          "end_time": "20:00:00"
+        },
+        {
+          "day_offset": 1,
+          "start_time": "09:00:00",
+          "end_time": "20:00:00"
+        }
+      ]
+    },
+    "city_adcode": "330100",
+    "city_name": "杭州",
+    "selection": null,
+    "calls": {
+      "poi_search": 0,
+      "reverse_geocode": 0,
+      "route": 0,
+      "total": 0
+    },
+    "created_at": "2026-09-17T02:00:00Z",
+    "expires_at": "2026-09-17T02:30:00Z",
+    "absolute_expires_at": "2026-09-17T04:00:00Z"
+  }
+}

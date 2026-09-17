@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -25,18 +26,27 @@ import {
   type TripPlanAgentResponseDto,
 } from "./f009Api";
 import { F009Map } from "./F009Map";
+import { F019SelectionView } from "./F019SelectionView";
+import { F019Advisor } from "./F019Advisor";
+import "./f019-journey.css";
+import {
+  visitCollectionReducer,
+  type MapFocusRequest,
+} from "./f019Presentation";
 import type { F009MapLoader } from "./f009MapLoader";
 
 interface F009PlannerProps {
   api?: F009Api;
   createClientRequestId?: () => string;
   mapLoader?: F009MapLoader;
+  syntheticSelectionMap?: boolean;
 }
 
 export function F009Planner({
   api = createF009Api(),
   createClientRequestId = () => crypto.randomUUID(),
   mapLoader,
+  syntheticSelectionMap = false,
 }: F009PlannerProps) {
   const [step, setStep] = useState<
     "destination" | "selection" | "details" | "preflight" | "result"
@@ -46,7 +56,24 @@ export function F009Planner({
   const [accommodationQuery, setAccommodationQuery] = useState("湖滨 龙翔桥");
   const [visitQuery, setVisitQuery] = useState("西湖");
   const [accommodations, setAccommodations] = useState<PoiOptionDto[]>([]);
-  const [visits, setVisits] = useState<PoiOptionDto[]>([]);
+  const [visitCollection, setVisits] = useReducer(visitCollectionReducer, {
+    visible: [],
+    catalog: [],
+  });
+  const visits = visitCollection.visible;
+  const displayIndices = useMemo(
+    () =>
+      new Map(
+        visitCollection.catalog.map((option, index) => [
+          option.location_id,
+          index + 1,
+        ]),
+      ),
+    [visitCollection.catalog],
+  );
+  const [mapFocus, setMapFocus] = useState<MapFocusRequest | null>(null);
+  const [listFocus, setListFocus] = useState<MapFocusRequest | null>(null);
+  const operationInFlight = useRef(false);
   const [accommodationId, setAccommodationId] = useState<string | null>(null);
   const [accommodationMode, setAccommodationMode] =
     useState<AccommodationChoiceDto["mode"]>("exact_poi");
@@ -99,8 +126,15 @@ export function F009Planner({
     [accommodationId, intents],
   );
   const allOptions = useMemo(
-    () => uniqueOptions([...accommodations, ...visits]),
-    [accommodations, visits],
+    () =>
+      uniqueOptions([
+        ...accommodations,
+        ...visits,
+        ...visitCollection.catalog.filter((option) =>
+          selectedIds.has(option.location_id),
+        ),
+      ]),
+    [accommodations, visits, visitCollection.catalog, selectedIds],
   );
   const visibleVisitOptions = useMemo(
     () =>
@@ -125,6 +159,8 @@ export function F009Planner({
     [accommodations, visits],
   );
   const run = useCallback(async (operation: () => Promise<void>) => {
+    if (operationInFlight.current) return;
+    operationInFlight.current = true;
     setBusy(true);
     setNotice(null);
     try {
@@ -132,14 +168,33 @@ export function F009Planner({
     } catch (error) {
       setNotice(userFacingError(error));
     } finally {
+      operationInFlight.current = false;
       setBusy(false);
     }
   }, []);
-  const mapSelect = useCallback((locationId: string) => {
-    document
-      .querySelector<HTMLElement>(`[data-location-id="${locationId}"]`)
-      ?.focus();
-  }, []);
+  const mapSelect = useCallback(
+    (locationId: string) => {
+      if (step === "selection") {
+        setListFocus((current) => ({
+          locationId,
+          sequence: (current?.sequence ?? 0) + 1,
+        }));
+        return;
+      }
+      const cards = document.querySelectorAll<HTMLElement>(
+        ".f019-locations [data-location-id], .f009-option-list [data-location-id]",
+      );
+      Array.from(cards)
+        .find((card) => card.dataset.locationId === locationId)
+        ?.focus();
+    },
+    [step],
+  );
+  const focusMap = (locationId: string) =>
+    setMapFocus((current) => ({
+      locationId,
+      sequence: (current?.sequence ?? 0) + 1,
+    }));
   const searchMapArea = useCallback(
     (center: { longitude: number; latitude: number }) => {
       if (!session) return;
@@ -166,6 +221,11 @@ export function F009Planner({
     void run(async () => {
       const created = await api.createSession(trip);
       setSession(created);
+      setVisits({ reset: true });
+      setAccommodations([]);
+      setAccommodationId(null);
+      setIntents([]);
+      setMapFocus(null);
       setPreflight(null);
       setPlan(null);
       setMapPlan(null);
@@ -174,9 +234,13 @@ export function F009Planner({
     });
   };
 
-  const search = (purpose: "visit" | "accommodation") => {
+  const search = (
+    purpose: "visit" | "accommodation",
+    overrideQuery?: string,
+  ) => {
     if (!session) return;
-    const keywords = purpose === "visit" ? visitQuery : accommodationQuery;
+    const keywords =
+      overrideQuery ?? (purpose === "visit" ? visitQuery : accommodationQuery);
     void run(async () => {
       const result = await api.searchPois(
         session.session_id,
@@ -210,6 +274,7 @@ export function F009Planner({
   };
 
   const chooseVisit = (option: PoiOptionDto) => {
+    if (operationInFlight.current) return;
     if (
       intents.length >= 8 ||
       intents.some((item) => item.location_id === option.location_id)
@@ -251,20 +316,25 @@ export function F009Planner({
       return;
     }
     const semantic = pendingSemantic ?? option;
-    setIntents((current) => [
-      ...current,
-      {
-        location_id: semantic.location_id,
-        route_anchor_location_id: option.location_id,
-        importance: "must_visit",
-        either_or_group_id: null,
-        visit_group_id: null,
-        preferred_day: null,
-        expected_duration_minutes: 90,
-        omission_allowed: false,
-        source: "user_selected",
-      },
-    ]);
+    setIntents((current) =>
+      current.length >= 8 ||
+      current.some((item) => item.location_id === semantic.location_id)
+        ? current
+        : [
+            ...current,
+            {
+              location_id: semantic.location_id,
+              route_anchor_location_id: option.location_id,
+              importance: "must_visit",
+              either_or_group_id: null,
+              visit_group_id: null,
+              preferred_day: null,
+              expected_duration_minutes: 90,
+              omission_allowed: false,
+              source: "user_selected",
+            },
+          ],
+    );
     setPendingSemantic(null);
     setAnchorSearchState(null);
     setNotice(null);
@@ -319,7 +389,13 @@ export function F009Planner({
   };
 
   const sendAdvisorTurn = () => {
-    if (!session || !api.advisorTurn || !advisorMessage.trim()) return;
+    if (
+      !session ||
+      !api.advisorTurn ||
+      !advisorMessage.trim() ||
+      advisorMessage.length > 500
+    )
+      return;
     const outgoingMessage = advisorMessage.trim();
     void run(async () => {
       if (advisorRecommendationRequested(outgoingMessage)) {
@@ -637,7 +713,58 @@ export function F009Planner({
   };
 
   return (
-    <section className="f009-planner" aria-labelledby="f009-title">
+    <section
+      className="f009-planner f019-journey"
+      data-journey-step={step}
+      aria-labelledby={
+        step === "selection" && session ? "f019-title" : "f019-journey-title"
+      }
+    >
+      {step !== "selection" && (
+        <>
+          <header className="f019-journey-header">
+            <div className="f019-brand">
+              <span className="f019-brand-mark">行</span>
+              <strong>行旅</strong>
+              <small>旅行顾问</small>
+            </div>
+            <nav aria-label="旅行进度" className="f019-journey-steps">
+              <span aria-current={step === "destination" ? "step" : undefined}>
+                01 旅行需求
+              </span>
+              <span>02 选地点</span>
+              <span aria-current={step !== "destination" ? "step" : undefined}>
+                03 比较方案
+              </span>
+            </nav>
+            <span className="f019-journey-city">
+              {session ? trip.city : "开始你的旅行"}
+            </span>
+          </header>
+          <div className="f019-journey-context">
+            <h2 id="f019-journey-title" tabIndex={-1}>
+              {
+                {
+                  destination: "从想去的地方开始",
+                  details: "把旅行安排得更合适",
+                  preflight: "看看哪些安排可行",
+                  result: "你的旅行，已整理就绪",
+                }[step]
+              }
+            </h2>
+            <p>
+              {
+                {
+                  destination: "先选目的地，再一起挑选想去的地点。",
+                  details: "保留已选地点，补充日期、预算与出行方式。",
+                  preflight: "先核验安排，再确认适合你的方案。",
+                  result: "查看每日安排与说明，也可以返回调整选择。",
+                }[step]
+              }
+            </p>
+          </div>
+        </>
+      )}
       <header className="f009-heading">
         <div>
           <p className="section-kicker">V6 · TRAVEL ADVISOR JOURNEY</p>
@@ -666,7 +793,7 @@ export function F009Planner({
         ))}
       </nav>
 
-      {notice && (
+      {notice && step !== "selection" && (
         <p className="form-notice" role="alert">
           {notice}
         </p>
@@ -700,193 +827,236 @@ export function F009Planner({
           </div>
         </div>
       ) : step === "selection" ? (
-        <div
-          className="f009-grid f017-advisor-workspace"
-          data-advisor-open={advisorOpen ? "true" : "false"}
-        >
-          <div className="f009-controls">
-            <h3 className="sr-only" data-f010-step-heading tabIndex={-1}>
-              选择住宿与想去的地点
-            </h3>
-            <SessionStatus session={session} />
-            <SearchPanel
-              title="你打算住在哪里？"
-              query={accommodationQuery}
-              onQuery={setAccommodationQuery}
-              onSearch={() => search("accommodation")}
+        <F019SelectionView
+          city={trip.city}
+          accommodation={
+            accommodationMode === "map_pin" && pinChoice
+              ? { location_id: pinChoice.location_id, name: pinChoice.label }
+              : (accommodations.find(
+                  (option) => option.location_id === accommodationId,
+                ) ?? null)
+          }
+          visits={allOptions.filter((option) => option.purpose === "visit")}
+          indices={displayIndices}
+          selected={selectedIds}
+          selectedCount={intents.length}
+          pendingCount={advisor?.pending_suggestions.length ?? 0}
+          busy={busy}
+          notice={notice}
+          listFocus={listFocus}
+          anchorPending={!!pendingSemantic}
+          onChoose={chooseVisit}
+          onView={focusMap}
+          onDestination={() => setStep("destination")}
+          onContinue={continueToDetails}
+          onSearch={(query) => {
+            setVisitQuery(query);
+            search("visit", query);
+          }}
+          editor={
+            <fieldset
+              className="f009-controls f019-editor-controls"
               disabled={busy}
             >
-              <div
-                className="f009-mode-row"
-                role="radiogroup"
-                aria-label="住宿选择方式"
+              <h3 className="sr-only" data-f010-step-heading tabIndex={-1}>
+                选择住宿与想去的地点
+              </h3>
+              <SessionStatus session={session} />
+              <SearchPanel
+                title="你打算住在哪里？"
+                query={accommodationQuery}
+                onQuery={setAccommodationQuery}
+                onSearch={() => search("accommodation")}
+                disabled={busy}
               >
-                {(["area", "exact_poi", "map_pin"] as const).map((mode) => (
-                  <label key={mode}>
-                    <input
-                      type="radio"
-                      name="accommodation-mode"
-                      checked={accommodationMode === mode}
-                      onChange={() => setAccommodationMode(mode)}
-                    />
-                    {
+                <div
+                  className="f009-mode-row"
+                  role="radiogroup"
+                  aria-label="住宿选择方式"
+                >
+                  {(["area", "exact_poi", "map_pin"] as const).map((mode) => (
+                    <label key={mode}>
+                      <input
+                        type="radio"
+                        name="accommodation-mode"
+                        checked={accommodationMode === mode}
+                        onChange={() => setAccommodationMode(mode)}
+                      />
                       {
-                        area: "大概区域",
-                        exact_poi: "已确定酒店",
-                        map_pin: "地图上选择",
-                      }[mode]
-                    }
-                  </label>
-                ))}
-              </div>
-              <p className="f009-muted f011-accommodation-help">
-                大概区域需要从候选中确认一个附近位置用于估算路线；已确定酒店使用核验后的具体住宿；地图上选择会由后端确认地址，只作为每天出发和返回的位置。
-              </p>
-              {accommodationMode === "map_pin" ? (
-                <div className="f009-pin-fields">
-                  <label>
-                    经度
-                    <input
-                      value={pin.longitude}
-                      onChange={(e) =>
-                        setPin({ ...pin, longitude: e.target.value })
+                        {
+                          area: "大概区域",
+                          exact_poi: "已确定酒店",
+                          map_pin: "地图上选择",
+                        }[mode]
                       }
-                    />
-                  </label>
-                  <label>
-                    纬度
-                    <input
-                      value={pin.latitude}
-                      onChange={(e) =>
-                        setPin({ ...pin, latitude: e.target.value })
-                      }
-                    />
-                  </label>
-                  <button type="button" onClick={createPin} disabled={busy}>
-                    确认这个位置
-                  </button>
-                  {pinChoice && <p role="status">已确认：{pinChoice.label}</p>}
+                    </label>
+                  ))}
                 </div>
-              ) : (
-                <OptionList
-                  options={accommodations}
-                  selected={new Set(accommodationId ? [accommodationId] : [])}
-                  actionLabel={
-                    accommodationMode === "area"
-                      ? "用这个位置估算路线"
-                      : "选择这家住宿"
-                  }
-                  onChoose={(option) => setAccommodationId(option.location_id)}
-                />
-              )}
-            </SearchPanel>
-
-            <SearchPanel
-              title="想去的地点与关系"
-              query={visitQuery}
-              onQuery={setVisitQuery}
-              onSearch={() => search("visit")}
-              disabled={busy}
-            >
-              {pendingSemantic && (
-                <div className="f018-anchor-task" role="status">
-                  <div>
-                    <strong>
-                      {anchorSearchState === "searching"
-                        ? `正在查找“${pendingSemantic.name}”的具体入口…`
-                        : `为“${pendingSemantic.name}”选择一个具体入口`}
-                    </strong>
-                    <p>
-                      {anchorSearchState === "empty"
-                        ? "暂未找到可用于路线计算的入口或子景点。你可以修改关键词后重试，或取消本次选择。"
-                        : "景区范围较大；下方只显示可以作为每天到达点的具体入口或子景点。"}
-                    </p>
+                <p className="f009-muted f011-accommodation-help">
+                  大概区域需要从候选中确认一个附近位置用于估算路线；已确定酒店使用核验后的具体住宿；地图上选择会由后端确认地址，只作为每天出发和返回的位置。
+                </p>
+                {accommodationMode === "map_pin" ? (
+                  <div className="f009-pin-fields">
+                    <label>
+                      经度
+                      <input
+                        value={pin.longitude}
+                        onChange={(e) =>
+                          setPin({ ...pin, longitude: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      纬度
+                      <input
+                        value={pin.latitude}
+                        onChange={(e) =>
+                          setPin({ ...pin, latitude: e.target.value })
+                        }
+                      />
+                    </label>
+                    <button type="button" onClick={createPin} disabled={busy}>
+                      确认这个位置
+                    </button>
+                    {pinChoice && (
+                      <p role="status">已确认：{pinChoice.label}</p>
+                    )}
                   </div>
+                ) : (
+                  <OptionList
+                    options={accommodations}
+                    selected={new Set(accommodationId ? [accommodationId] : [])}
+                    actionLabel={
+                      accommodationMode === "area"
+                        ? "用这个位置估算路线"
+                        : "选择这家住宿"
+                    }
+                    onChoose={(option) =>
+                      setAccommodationId(option.location_id)
+                    }
+                  />
+                )}
+              </SearchPanel>
+
+              <SearchPanel
+                title="想去的地点与关系"
+                query={visitQuery}
+                onQuery={setVisitQuery}
+                onSearch={() => search("visit")}
+                disabled={busy}
+              >
+                {pendingSemantic && (
+                  <div className="f018-anchor-task" role="status">
+                    <div>
+                      <strong>
+                        {anchorSearchState === "searching"
+                          ? `正在查找“${pendingSemantic.name}”的具体入口…`
+                          : `为“${pendingSemantic.name}”选择一个具体入口`}
+                      </strong>
+                      <p>
+                        {anchorSearchState === "empty"
+                          ? "暂未找到可用于路线计算的入口或子景点。你可以修改关键词后重试，或取消本次选择。"
+                          : "景区范围较大；下方只显示可以作为每天到达点的具体入口或子景点。"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={cancelAnchorSelection}
+                      disabled={busy}
+                    >
+                      取消选择
+                    </button>
+                  </div>
+                )}
+                <OptionList
+                  options={visibleVisitOptions}
+                  selected={selectedIds}
+                  resolvedRepresentativeIds={
+                    new Set(
+                      intents
+                        .filter(
+                          (intent) =>
+                            intent.location_id !==
+                            intent.route_anchor_location_id,
+                        )
+                        .map((intent) => intent.location_id),
+                    )
+                  }
+                  actionLabel={pendingSemantic ? "用作路线入口" : "加入行程"}
+                  onChoose={chooseVisit}
+                />
+                <IntentEditor
+                  intents={intents}
+                  options={allOptions}
+                  onChange={setIntents}
+                />
+                <label className="f009-recommendations">
+                  <input
+                    type="checkbox"
+                    checked={recommendations}
+                    onChange={(event) =>
+                      setRecommendations(event.target.checked)
+                    }
+                  />
+                  允许系统推荐同城、同类别、5 km 内的可达替代点（默认关闭）
+                </label>
+                <div className="f010-flow-actions">
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={cancelAnchorSelection}
-                    disabled={busy}
+                    onClick={() => setStep("destination")}
                   >
-                    取消选择
+                    修改目的地
+                  </button>
+                  <button
+                    type="button"
+                    onClick={continueToDetails}
+                    disabled={busy || intents.length === 0}
+                  >
+                    已选好，补充旅行信息
                   </button>
                 </div>
-              )}
-              <OptionList
-                options={visibleVisitOptions}
-                selected={selectedIds}
-                resolvedRepresentativeIds={
-                  new Set(
-                    intents
-                      .filter(
-                        (intent) =>
-                          intent.location_id !==
-                          intent.route_anchor_location_id,
-                      )
-                      .map((intent) => intent.location_id),
-                  )
-                }
-                actionLabel={pendingSemantic ? "用作路线入口" : "加入行程"}
-                onChoose={chooseVisit}
-              />
-              <IntentEditor
-                intents={intents}
-                options={allOptions}
-                onChange={setIntents}
-              />
-              <label className="f009-recommendations">
-                <input
-                  type="checkbox"
-                  checked={recommendations}
-                  onChange={(event) => setRecommendations(event.target.checked)}
-                />
-                允许系统推荐同城、同类别、5 km 内的可达替代点（默认关闭）
-              </label>
-              <div className="f010-flow-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setStep("destination")}
-                >
-                  修改目的地
-                </button>
-                <button
-                  type="button"
-                  onClick={continueToDetails}
-                  disabled={busy || intents.length === 0}
-                >
-                  已选好，补充旅行信息
-                </button>
-              </div>
-            </SearchPanel>
-          </div>
-
-          <div className="f009-visuals">
+              </SearchPanel>
+            </fieldset>
+          }
+          map={
             <F009Map
-              key={mapPlan?.job_id ?? "selection"}
               options={allOptions}
               optionRoles={optionRoles}
               selectedLocationIds={selectedIds}
-              mapPlan={mapPlan}
+              mapPlan={null}
               onSelect={mapSelect}
               onSearchArea={searchMapArea}
               loader={mapLoader}
+              syntheticPresentation={syntheticSelectionMap}
+              city={trip.city}
+              displayIndices={displayIndices}
+              focusRequest={mapFocus}
             />
-          </div>
-          {advisor && (
-            <AdvisorPanel
-              snapshot={advisor}
-              message={advisorMessage}
-              disabled={busy}
-              expanded={advisorOpen}
-              onToggle={() => setAdvisorOpen((current) => !current)}
-              onMessage={setAdvisorMessage}
-              onSend={sendAdvisorTurn}
-              onAction={applyAdvisorSuggestion}
-              onView={(locationId) => mapSelect(locationId)}
-            />
-          )}
-        </div>
+          }
+          advisor={
+            advisor ? (
+              <F019Advisor
+                snapshot={advisor}
+                message={advisorMessage}
+                disabled={busy}
+                expanded={advisorOpen}
+                onToggle={() => setAdvisorOpen((current) => !current)}
+                onMessage={setAdvisorMessage}
+                onSend={sendAdvisorTurn}
+                onAction={applyAdvisorSuggestion}
+                onView={focusMap}
+                indices={displayIndices}
+                selected={selectedIds}
+              />
+            ) : (
+              <aside className="f019-panel">
+                旅行顾问暂不可用，仍可在清单选择地点。
+              </aside>
+            )
+          }
+        />
       ) : step === "details" ? (
         <TripDetailsForm
           trip={trip}
@@ -995,248 +1165,6 @@ export function F009Planner({
       )}
     </section>
   );
-}
-
-function AdvisorPanel({
-  snapshot,
-  message,
-  disabled,
-  expanded,
-  onToggle,
-  onMessage,
-  onSend,
-  onAction,
-  onView,
-}: {
-  snapshot: AdvisorSnapshotDto;
-  message: string;
-  disabled: boolean;
-  expanded: boolean;
-  onToggle(): void;
-  onMessage(value: string): void;
-  onSend(): void;
-  onAction(suggestion: AdvisorSuggestionDto, action: "accept" | "ignore"): void;
-  onView(locationId: string): void;
-}) {
-  const preferenceLabels = advisorPreferenceLabels(
-    snapshot.confirmed_preferences,
-  );
-  const conversation =
-    snapshot.conversation.length > 0
-      ? snapshot.conversation
-      : snapshot.question
-        ? [{ role: "advisor" as const, text: snapshot.question }]
-        : [];
-  const olderConversation = conversation.slice(0, -4);
-  const recentConversation = conversation.slice(-4);
-  return (
-    <aside
-      className="f014-advisor f017-advisor-drawer"
-      aria-labelledby="f014-advisor-title"
-      data-collapsed={expanded ? "false" : "true"}
-    >
-      <header>
-        <div>
-          <small>TRAVEL ADVISOR · V6</small>
-          <h3 id="f014-advisor-title">旅行顾问</h3>
-        </div>
-        <button
-          type="button"
-          className="f017-advisor-toggle secondary-button"
-          aria-expanded={expanded}
-          aria-controls="f017-advisor-content"
-          onClick={onToggle}
-        >
-          {expanded ? "收起" : "打开顾问"}
-        </button>
-      </header>
-      {expanded && (
-        <div id="f017-advisor-content" className="f017-advisor-content">
-          <div className="f017-advisor-status" role="status">
-            <span>
-              {snapshot.phase === "degraded" ? "顾问暂不可用" : "共同规划中"}
-            </span>
-            <p>{snapshot.safety_summary}</p>
-          </div>
-
-          {snapshot.pending_suggestions.length > 0 && (
-            <section aria-labelledby="f017-suggestions-title">
-              <h4 id="f017-suggestions-title">先看看这些建议</h4>
-              <ul className="f017-suggestions">
-                {snapshot.pending_suggestions.map((suggestion) => (
-                  <li key={suggestion.suggestion_id}>
-                    <small>
-                      {suggestion.kind === "poi" ? "地点建议" : "偏好理解"}
-                    </small>
-                    <strong>{suggestion.title}</strong>
-                    <p>{suggestion.reason}</p>
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => onAction(suggestion, "accept")}
-                        disabled={disabled}
-                      >
-                        {suggestion.kind === "poi" ? "加入行程" : "确认偏好"}
-                      </button>
-                      {suggestion.location_id && (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() =>
-                            onView(suggestion.location_id as string)
-                          }
-                        >
-                          在地图查看
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="f017-text-button"
-                        onClick={() => onAction(suggestion, "ignore")}
-                        disabled={disabled}
-                      >
-                        暂不采用
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <section aria-labelledby="f017-conversation-title">
-            <h4 id="f017-conversation-title">最近对话</h4>
-            {olderConversation.length > 0 && (
-              <details className="f018-earlier-conversation">
-                <summary>查看更早的 {olderConversation.length} 条消息</summary>
-                <ol className="f017-conversation">
-                  {olderConversation.map((entry, index) => (
-                    <li
-                      key={`older-${entry.role}-${index}-${entry.text}`}
-                      data-role={entry.role}
-                    >
-                      <small>{entry.role === "user" ? "你" : "旅行顾问"}</small>
-                      <p>{entry.text}</p>
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            )}
-            <ol className="f017-conversation" aria-live="polite">
-              {recentConversation.map((entry, index) => (
-                <li
-                  key={`${entry.role}-${index}-${entry.text}`}
-                  data-role={entry.role}
-                >
-                  <small>{entry.role === "user" ? "你" : "旅行顾问"}</small>
-                  <p>{entry.text}</p>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section aria-labelledby="f017-preferences-title">
-            <div className="f017-advisor-section-heading">
-              <h4 id="f017-preferences-title">已确认偏好</h4>
-              <button
-                type="button"
-                className="f017-text-button"
-                onClick={() => onMessage("我想调整已确认偏好：")}
-              >
-                调整
-              </button>
-            </div>
-            {preferenceLabels.length > 0 ? (
-              <ul className="f017-preference-chips">
-                {preferenceLabels.map((label) => (
-                  <li key={label}>{label}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="f009-muted">
-                尚未确认偏好，顾问会先从你的回答中整理。
-              </p>
-            )}
-          </section>
-
-          <section
-            className="f017-advisor-composer"
-            aria-labelledby="f017-reply-title"
-          >
-            <h4 id="f017-reply-title">你现在想先解决什么？</h4>
-            <div className="f017-quick-replies" aria-label="快捷回答">
-              {[
-                "先推荐自然景点，其他都灵活",
-                "少走路",
-                "避开拥挤",
-                "上午 10 点后出发",
-                "第一次来，请帮我取舍",
-              ].map((reply) => (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  key={reply}
-                  onClick={() => onMessage(reply)}
-                >
-                  {reply}
-                </button>
-              ))}
-            </div>
-            <label>
-              你的补充
-              <textarea
-                value={message}
-                maxLength={500}
-                placeholder="例如：先推荐一些自然景点，其他条件以后再说"
-                onChange={(event) => onMessage(event.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              onClick={onSend}
-              disabled={disabled || !message.trim()}
-            >
-              发送给旅行顾问
-            </button>
-          </section>
-
-          <details>
-            <summary>顾问如何工作</summary>
-            <p>
-              顾问只提出偏好补丁和已验证地点建议；你确认后才会更新选择并使旧预检失效。路线、时间和可行性仍由确定性程序核验。
-            </p>
-          </details>
-        </div>
-      )}
-    </aside>
-  );
-}
-
-function advisorPreferenceLabels(
-  preferences: AdvisorSnapshotDto["confirmed_preferences"],
-): string[] {
-  const tolerance = { low: "低", medium: "中", high: "高" } as const;
-  const budget = {
-    fixed: "预算固定",
-    small: "预算可小幅调整",
-    flexible: "预算较灵活",
-  } as const;
-  return [
-    preferences.walking_tolerance
-      ? `步行承受度：${tolerance[preferences.walking_tolerance]}`
-      : null,
-    preferences.crowd_tolerance
-      ? `拥挤承受度：${tolerance[preferences.crowd_tolerance]}`
-      : null,
-    preferences.day_start
-      ? `${preferences.day_start.slice(0, 5)} 后出发`
-      : null,
-    preferences.budget_flexibility
-      ? budget[preferences.budget_flexibility]
-      : null,
-    ...preferences.food_preferences.map((item) => `饮食：${item}`),
-    ...preferences.party_notes.map((item) => `同行：${item}`),
-  ].filter((value): value is string => value !== null);
 }
 
 function DestinationForm({

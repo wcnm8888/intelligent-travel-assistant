@@ -8,27 +8,12 @@
 
 ## 当前工作入口
 
-- 项目规则：[AGENTS.md](../AGENTS.md)
-- 项目总览：[README.md](../README.md)
 - 当前活动任务：无
-- 最近完成：[F-018 推荐优先、路线锚点闭环与方案有效对比](./project-management/f-018-advisor-discovery-anchor-option-clarity.md)（`DONE / IMPLEMENTED / PASS / OFFLINE`）
-- 最近归档：[F-010 地图优先统一规划流程与 DeepSeek 安全降级](./archive/task-cards/F-010-map-first-unified-flow.md)
-- 方法论与执行策略：[testing-strategy.md](./testing-strategy.md#方法论接入与失败处理)（2026-09-07 接入；中央规则更新不解除已有暂停）
-- 当前证据：F-018 基线 `output/f018/20260916-143834-baseline/`；恢复浏览器 `output/f018/20260916-150000-browser-recovery/`；最终收口 `output/f018/20260916-151500-final-closeout/`
-- 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)（当前无执行中 Step）
-- 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
-- 最近进度：[progress.md](./project-management/progress.md)
-- 长期决策：[decisions.md](./decisions.md)
-- 产品说明：[product-brief.md](./product-brief.md)
-- 系统架构：[architecture.md](./architecture.md)
-- API 契约：[api-contract.md](./api-contract.md)
-- 验收样例：[acceptance-cases.md](./acceptance-cases.md)
-- 技术栈：[tech-stack.md](./tech-stack.md)
-- 交互设计：[design-spec.md](./design-spec.md)
-- Agent 领域规格：[agent-domain-spec.md](./agent-domain-spec.md)
-- 项目路线：[roadmap.md](./project-management/roadmap.md)
-- 验收证据：[evidence.md](./project-management/evidence.md)
-- 历史归档：[docs/archive/](./archive/)
+- 最近完成：[F-019归档](./archive/task-cards/F-019-advisor-ui-design-system.md)，离线QA及最终确认完成，归档以对应PR合并生效。
+- 当前状态：[current-task](./project-management/current-task.md)；[计划](./project-management/implementation-plan.md)；[进度](./project-management/progress.md)。
+- 最终证据：[F-019交付报告](./delivery/f019-delivery.md)；[设计/运行图](./design/f019/README.md)。
+- 前置交付：[F008](./delivery/f008-delivery.md)；[F009–F018联合父基线](./delivery/parent-delivery.md)。
+- 产品、架构、API、测试、决策文档见下方权威映射；原始本机output不随仓库分发。
 
 ## 推荐读取路径
 
@@ -111,8 +96,4 @@ AGENTS.md
 
 ## 当前任务导航
 
-- 当前活动任务：无。
-- 最近关闭任务：[F-018 推荐优先、路线锚点闭环与方案有效对比](./project-management/f-018-advisor-discovery-anchor-option-clarity.md)，最终为 `DONE / IMPLEMENTED / PASS / OFFLINE`。
-- 当前核验位置：[current-task.md#当前执行状态](./project-management/current-task.md#当前执行状态)。
-- 真实地图和 Provider UAT 为 `NOT_EXECUTED / NOT_AUTHORIZED`。
-- 当前执行：无；真实地图或 Provider UAT 仍需独立授权。
+当前无活动任务；F-019归档及交付状态见上述入口。后续真实UAT与新功能另起任务。

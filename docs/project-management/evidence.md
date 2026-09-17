@@ -1,5 +1,9 @@
 # 验收证据索引
 
+## F-019 最终离线交付
+
+[最终报告](../delivery/f019-delivery.md) · [最终确认](../delivery/f019-confirmation.json) · [运行图](../design/f019/README.md)。UI0–UI8完成；最终正常图与UI8像素差0，外部请求0。归档以对应PR合并生效；不替代真实Provider/真实地图成功UAT。下方保留先前任务的历史验收。
+
 ## F-018 最终离线收口：DONE / IMPLEMENTED / PASS / OFFLINE（2026-09-16）
 
 - 真实测试确认三个核心缺口：顾问对明确推荐意图重复访谈；区域景点把等待用户选入口误写成持续计算；多个方案总交通相同但卡片不展示每日差异。

@@ -424,6 +424,7 @@ test("offline list journey survives map loader failure and preserves selected ID
   await screen.findByText("地图当前不可用");
   expect(screen.getByText(/列表仍可完成地点选择/)).toBeInTheDocument();
 
+  await user.click(screen.getByRole("button", { name: "选择住宿" }));
   await user.click(screen.getAllByRole("button", { name: "搜索" })[0]);
   await user.click(
     await screen.findByRole("button", { name: /龙翔桥住宿锚点/ }),
@@ -445,6 +446,7 @@ test("offline list journey survives map loader failure and preserves selected ID
   await user.click(screen.getByRole("button", { name: "应用这个关系" }));
   expect(screen.getAllByText("一起游览")).toHaveLength(3);
   await user.click(screen.getByRole("button", { name: "返回选点" }));
+  await user.click(screen.getByRole("button", { name: "更换住宿" }));
   expect(
     screen.getByRole("button", { name: /西湖断桥/ }).closest("li"),
   ).toHaveAttribute("data-selected", "true");
@@ -584,10 +586,18 @@ test("advisor discovery request searches first and surfaces suggestions before m
   await user.click(screen.getByRole("button", { name: "发送给旅行顾问" }));
 
   expect(api.searchPois).toHaveBeenCalledWith(SESSION_ID, "visit", "自然景点");
-  expect(await screen.findByText("先看看这些建议")).toBeVisible();
-  expect(screen.getByText("考虑 西湖断桥")).toBeVisible();
+  expect(await screen.findByText("1 条建议，等你确认")).toBeVisible();
+  expect(screen.getAllByText("1 · 西湖断桥")).toHaveLength(2);
+  await user.click(screen.getByRole("button", { name: /查看对话记录/ }));
   expect(screen.getByText(/其他偏好可以以后再补充/)).toBeVisible();
-  expect(screen.getByRole("button", { name: /西湖断桥/ })).toBeVisible();
+  expect(
+    within(
+      within(screen.getByRole("region", { name: "地点清单" })).getByRole(
+        "article",
+        { name: "西湖断桥" },
+      ),
+    ).getByRole("button", { name: "加入已选" }),
+  ).toBeVisible();
 });
 
 test("area POI automatically searches and clearly completes a route anchor choice", async () => {
@@ -616,6 +626,7 @@ test("area POI automatically searches and clearly completes a route anchor choic
   renderPlanner(api);
 
   await user.click(screen.getByRole("button", { name: "查看地图与地点" }));
+  await user.click(screen.getByRole("button", { name: "选择住宿" }));
   await user.click(screen.getAllByRole("button", { name: "搜索" })[0]);
   await user.click(
     await screen.findByRole("button", { name: /龙翔桥住宿锚点/ }),
@@ -774,6 +785,7 @@ test("explains why one location from an either-or choice was not planned", async
 
 async function reachTripDetails(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "查看地图与地点" }));
+  await user.click(screen.getByRole("button", { name: "选择住宿" }));
   await user.click(screen.getAllByRole("button", { name: "搜索" })[0]);
   await user.click(
     await screen.findByRole("button", { name: /龙翔桥住宿锚点/ }),

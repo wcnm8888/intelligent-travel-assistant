@@ -1,0 +1,43 @@
+{
+  "task": "F-019",
+  "date": "2026-09-17",
+  "authority": "User authorized completion of final confirmation and delivery closeout, including necessary actions",
+  "confirmation_type": "delegated final review backed by prior explicit UI6 and UI7 approvals",
+  "user_personally_reviewed_new_screenshot": false,
+  "prior_approvals": [
+    {
+      "path": "output/f019/20260917-114801-ui6-approved/approval.json",
+      "sha256": "18022173DA0358C0CF741794A7248878DCF4FEE2F37842DDCF71960A714C18E1"
+    },
+    {
+      "path": "output/f019/20260917-123405-ui8/ui7-approval.json",
+      "sha256": "2F044EEFF018C54CB7CDC9AB34A4E980A1BA58B6FF1F069F3D38543DF94EFC23"
+    }
+  ],
+  "frozen_package_verified": 12,
+  "reference_sha256": "0716C820133AF764D1FB8197CCCBB63161C5EB59862613AE4E0B0C6037192E65",
+  "current_runtime_sha256": "E67C42C2CE222A36615265A2F012A2E3A959C00AEB7665F8852204B8D752B37F",
+  "current_normal_vs_ui8_changed_pixels": 0,
+  "ui8_vs_approved_ui7_changed_pixels": 0,
+  "agent_visual_review": "normal 1440x900 inspected; three panels, neutral advisor cards, both suggestions and composer fully visible",
+  "viewport": {
+    "width": 1440,
+    "height": 900,
+    "dpr": 1,
+    "zoom": 1,
+    "fullPage": false
+  },
+  "browser_status": "PASS",
+  "external_attempts": 0,
+  "unknown_api": 0,
+  "new_changes": "nonvisual reply live status and conditional focus restoration; 12 DOM regressions PASS",
+  "visual_approved": true,
+  "scope": "UI6 desktop normal and previously approved UI7 pages/breakpoints, retained UI8 evidence; no new mobile design",
+  "not_covered": [
+    "real providers",
+    "real map success",
+    "cross-machine font distribution",
+    "physical IME or screen-reader device certification"
+  ],
+  "git_delivery": "separate pending gates"
+}

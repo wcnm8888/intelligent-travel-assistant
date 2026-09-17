@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { MapPlanDto, PoiOptionDto } from "./f009Api";
+import { F019SyntheticMap } from "./F019SyntheticMap";
+import type { MapFocusRequest } from "./f019Presentation";
 import {
   officialF009MapLoader,
   type AMapInstance,
@@ -16,9 +18,21 @@ interface F009MapProps {
   onSelect(locationId: string): void;
   onSearchArea?(center: { longitude: number; latitude: number }): void;
   loader?: F009MapLoader;
+  syntheticPresentation?: boolean;
+  city?: string;
+  displayIndices?: ReadonlyMap<string, number>;
+  focusRequest?: MapFocusRequest | null;
 }
 
-export function F009Map({
+export function F009Map(props: F009MapProps) {
+  return props.syntheticPresentation && !props.mapPlan ? (
+    <F019SyntheticMap {...props} />
+  ) : (
+    <NativeF009Map {...props} />
+  );
+}
+
+function NativeF009Map({
   options,
   optionRoles,
   selectedLocationIds,
@@ -26,6 +40,8 @@ export function F009Map({
   onSelect,
   onSearchArea,
   loader = officialF009MapLoader,
+  displayIndices,
+  focusRequest,
 }: F009MapProps) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<AMapInstance | null>(null);
@@ -133,10 +149,12 @@ export function F009Map({
       const selected = selectedLocationIds.has(marker.location_id);
       const markerText =
         marker.role === "accommodation"
-          ? "住"
+          ? displayIndices
+            ? "宿"
+            : "住"
           : marker.visit_order
             ? String(marker.visit_order)
-            : "游";
+            : (displayIndices?.get(marker.location_id)?.toString() ?? "游");
       const instance = new AMap.Marker({
         position,
         title: marker.name,
@@ -169,7 +187,7 @@ export function F009Map({
         overlaysRef.current.push(polyline);
       }
     }
-    map.setFitView();
+    if (!focusRequest) map.setFitView();
   }, [
     activeDayIndex,
     mapPlan,
@@ -179,11 +197,29 @@ export function F009Map({
     options,
     selectedLocationIds,
     status,
+    displayIndices,
+    focusRequest,
   ]);
+
+  useEffect(() => {
+    if (!focusRequest || status !== "ready") return;
+    const option = options.find(
+      (item) => item.location_id === focusRequest.locationId,
+    );
+    if (option) {
+      mapRef.current?.setCenter?.([
+        option.coordinate_gcj02.longitude,
+        option.coordinate_gcj02.latitude,
+      ]);
+      mapRef.current?.setZoom?.(14);
+    }
+  }, [focusRequest, options, status, mapReadyVersion]);
 
   return (
     <section
       className="f009-map-shell"
+      id="f019-map-region"
+      tabIndex={-1}
       aria-label="地点地图"
       data-state={status}
     >

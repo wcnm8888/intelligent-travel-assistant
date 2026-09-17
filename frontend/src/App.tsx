@@ -21,6 +21,7 @@ interface AppProps {
   replanApi?: ReplanningApi;
   f009Api?: F009Api;
   f009MapLoader?: F009MapLoader;
+  syntheticSelectionMap?: boolean;
   /** Test-only compatibility surface; the shipped experience is the unified V5 flow. */
   legacyCompatibilityMode?: boolean;
 }
@@ -32,6 +33,7 @@ export function App({
   replanApi,
   f009Api,
   f009MapLoader,
+  syntheticSelectionMap = false,
   legacyCompatibilityMode = false,
 }: AppProps) {
   const { state, start, resume, retry, restore, remove, reset } =
@@ -150,7 +152,16 @@ export function App({
       <a
         className="skip-link"
         href={legacyCompatibilityMode ? "#trip-request-form" : "#f009-title"}
-        onClick={() => setRequestExpanded(true)}
+        onClick={(event) => {
+          setRequestExpanded(true);
+          const selectionHeading =
+            document.getElementById("f019-title") ??
+            document.getElementById("f019-journey-title");
+          if (selectionHeading) {
+            event.preventDefault();
+            selectionHeading.focus();
+          }
+        }}
       >
         跳到地图优先规划
       </a>
@@ -184,6 +195,7 @@ export function App({
             api={f009Api}
             createClientRequestId={createClientRequestId}
             mapLoader={f009MapLoader}
+            syntheticSelectionMap={syntheticSelectionMap}
           />
         </main>
       ) : (
