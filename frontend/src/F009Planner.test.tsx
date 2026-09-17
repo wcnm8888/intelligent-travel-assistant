@@ -589,7 +589,11 @@ test("advisor discovery request searches first and surfaces suggestions before m
   expect(await screen.findByText("1 条建议，等你确认")).toBeVisible();
   expect(screen.getAllByText("1 · 西湖断桥")).toHaveLength(2);
   await user.click(screen.getByRole("button", { name: /查看对话记录/ }));
-  expect(screen.getByText(/其他偏好可以以后再补充/)).toBeVisible();
+  expect(
+    within(screen.getByRole("region", { name: "对话与偏好" })).getByText(
+      /其他偏好可以以后再补充/,
+    ),
+  ).toBeVisible();
   expect(
     within(
       within(screen.getByRole("region", { name: "地点清单" })).getByRole(
