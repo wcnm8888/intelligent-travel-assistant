@@ -47,6 +47,13 @@ class ApiErrorCode(StrEnum):
     REPLAN_NOT_ALLOWED = "replan_not_allowed"
     REPLAN_SCOPE_NOT_SUPPORTED = "replan_scope_not_supported"
     RETRY_NOT_ALLOWED = "retry_not_allowed"
+    PREPLANNING_SESSION_NOT_FOUND = "preplanning_session_not_found"
+    PREPLANNING_SESSION_EXPIRED = "preplanning_session_expired"
+    SELECTION_REVISION_CONFLICT = "selection_revision_conflict"
+    SELECTION_INVALID = "selection_invalid"
+    PREPLANNING_CALL_BUDGET_EXCEEDED = "preplanning_call_budget_exceeded"
+    FEASIBILITY_STALE = "feasibility_stale"
+    MAP_GEOMETRY_UNAVAILABLE = "map_geometry_unavailable"
     INTERNAL_ERROR = "internal_error"
 
 

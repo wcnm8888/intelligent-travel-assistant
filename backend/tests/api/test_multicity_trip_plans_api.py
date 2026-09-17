@@ -97,7 +97,7 @@ def test_v3_post_get_retry_delete_share_existing_uris_with_executor_dispatch() -
     assert executor.job_ids == [partial.job_id, partial.job_id]
 
 
-def test_openapi_and_strict_request_discriminator_expose_four_versioned_branches() -> None:
+def test_openapi_and_strict_request_discriminator_expose_six_versioned_branches() -> None:
     app = create_app(planning_job_repository=InMemoryPlanningJobRepository())
     schema = app.openapi()["paths"]["/api/trip-plans"]["post"]["requestBody"]["content"][
         "application/json"
@@ -108,6 +108,8 @@ def test_openapi_and_strict_request_discriminator_expose_four_versioned_branches
         "TripPlanRequestV2",
         "TripPlanRequestV3",
         "TripPlanRequestV4",
+        "TripPlanRequestV5",
+        "TripPlanRequestV6",
     }
 
     with TestClient(app) as client:

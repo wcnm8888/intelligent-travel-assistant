@@ -1,6 +1,6 @@
 # 项目文档地图
 
-交付补充：[恢复来源、验证与边界](./delivery/f008-delivery.md)。原文所称Git未执行为历史端点状态；本次交付按对应PR的实际状态确认。
+交付补充：[恢复来源、验证与边界](./delivery/parent-delivery.md)。原文所称Git未执行为历史端点状态；本次交付按对应PR的实际状态确认。
 
 ## 使用说明
 
@@ -11,10 +11,11 @@
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
 - 当前活动任务：无
-- 最近归档：[F-008 archive](./archive/task-cards/F-008-real-uat-plan-fact-trust.md)
+- 最近完成：[F-018 推荐优先、路线锚点闭环与方案有效对比](./project-management/f-018-advisor-discovery-anchor-option-clarity.md)（`DONE / IMPLEMENTED / PASS / OFFLINE`）
+- 最近归档：[F-010 地图优先统一规划流程与 DeepSeek 安全降级](./archive/task-cards/F-010-map-first-unified-flow.md)
 - 方法论与执行策略：[testing-strategy.md](./testing-strategy.md#方法论接入与失败处理)（2026-09-07 接入；中央规则更新不解除已有暂停）
-- 当前证据：[evidence.md](./project-management/evidence.md#f008-final-inconclusive-closeout-20260912)（F-008 DONE / ARCHIVED；Step 13 DONE / INCONCLUSIVE；当前无活动任务）
-- 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)（当前无活动任务）
+- 当前证据：F-018 基线 `output/f018/20260916-143834-baseline/`；恢复浏览器 `output/f018/20260916-150000-browser-recovery/`；最终收口 `output/f018/20260916-151500-final-closeout/`
+- 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)（当前无执行中 Step）
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
 - 长期决策：[decisions.md](./decisions.md)
@@ -110,8 +111,8 @@ AGENTS.md
 
 ## 当前任务导航
 
-- 当前活动任务：无
-- 最近关闭任务：[F-008 archive](./archive/task-cards/F-008-real-uat-plan-fact-trust.md)，最终为`DONE / ARCHIVED`；R5保持`PASS / OFFLINE`，Step 13保持`DONE / INCONCLUSIVE`。
-- 当前核验和历史保留位置：[F-008最终收口证据](./project-management/evidence.md#f008-final-inconclusive-closeout-20260912)。
-- Step 14和Git交付未执行；F-009及其他任务未激活。
-- 下一步：等待用户从 roadmap 选择候选任务。
+- 当前活动任务：无。
+- 最近关闭任务：[F-018 推荐优先、路线锚点闭环与方案有效对比](./project-management/f-018-advisor-discovery-anchor-option-clarity.md)，最终为 `DONE / IMPLEMENTED / PASS / OFFLINE`。
+- 当前核验位置：[current-task.md#当前执行状态](./project-management/current-task.md#当前执行状态)。
+- 真实地图和 Provider UAT 为 `NOT_EXECUTED / NOT_AUTHORIZED`。
+- 当前执行：无；真实地图或 Provider UAT 仍需独立授权。

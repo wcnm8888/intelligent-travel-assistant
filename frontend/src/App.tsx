@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
+import { F009Planner } from "./F009Planner";
+import type { F009Api } from "./f009Api";
+import type { F009MapLoader } from "./f009MapLoader";
 import { PlanningStage } from "./PlanningStage";
 import { TripRequestForm } from "./TripRequestForm";
 import type { TripPlanningApi } from "./tripPlanningApi";
@@ -16,6 +19,10 @@ interface AppProps {
   tripPlanApi?: TripPlanningApi;
   pollingPolicy?: PollingPolicy;
   replanApi?: ReplanningApi;
+  f009Api?: F009Api;
+  f009MapLoader?: F009MapLoader;
+  /** Test-only compatibility surface; the shipped experience is the unified V5 flow. */
+  legacyCompatibilityMode?: boolean;
 }
 
 export function App({
@@ -23,6 +30,9 @@ export function App({
   tripPlanApi,
   pollingPolicy = DEFAULT_POLLING_POLICY,
   replanApi,
+  f009Api,
+  f009MapLoader,
+  legacyCompatibilityMode = false,
 }: AppProps) {
   const { state, start, resume, retry, restore, remove, reset } =
     useTripPlanningJob(tripPlanApi, pollingPolicy);
@@ -139,10 +149,10 @@ export function App({
     <div className="product-shell">
       <a
         className="skip-link"
-        href="#trip-request-form"
+        href={legacyCompatibilityMode ? "#trip-request-form" : "#f009-title"}
         onClick={() => setRequestExpanded(true)}
       >
-        跳到旅行需求表单
+        跳到地图优先规划
       </a>
 
       <header className="product-header">
@@ -159,7 +169,7 @@ export function App({
           </div>
           <div>
             <dt>当前范围</dt>
-            <dd>单城 / 2—3 城 · 2—7 日</dd>
+            <dd>单城市 · 2—7 日</dd>
           </div>
           <div>
             <dt>币种</dt>
@@ -168,57 +178,67 @@ export function App({
         </dl>
       </header>
 
-      <main
-        className={`planning-workspace${
-          resultFirst ? " planning-workspace--result" : ""
-        }`}
-      >
-        <section
-          className="request-panel"
-          data-collapsed={requestCollapsed}
-          id="trip-request-form"
-          aria-label="旅行需求"
-          ref={requestPanel}
-          tabIndex={-1}
+      {!legacyCompatibilityMode ? (
+        <main className="f009-workspace">
+          <F009Planner
+            api={f009Api}
+            createClientRequestId={createClientRequestId}
+            mapLoader={f009MapLoader}
+          />
+        </main>
+      ) : (
+        <main
+          className={`planning-workspace${
+            resultFirst ? " planning-workspace--result" : ""
+          }`}
         >
-          <button
-            className="request-panel-toggle"
-            type="button"
-            aria-controls="trip-request-fields"
-            aria-expanded={!requestCollapsed}
-            onClick={() => setRequestExpanded((current) => !current)}
+          <section
+            className="request-panel"
+            data-collapsed={requestCollapsed}
+            id="trip-request-form"
+            aria-label="旅行需求"
+            ref={requestPanel}
+            tabIndex={-1}
           >
-            <span>{requestCollapsed ? "查看旅行需求" : "收起旅行需求"}</span>
-            <span aria-hidden="true">{requestCollapsed ? "+" : "−"}</span>
-          </button>
-          <div className="request-panel-body" id="trip-request-fields">
-            <TripRequestForm
-              onSubmit={(request) => {
-                setRequestExpanded(false);
-                void start(request);
-              }}
-              createClientRequestId={createClientRequestId}
-              submitting={busy}
-            />
-          </div>
-        </section>
+            <button
+              className="request-panel-toggle"
+              type="button"
+              aria-controls="trip-request-fields"
+              aria-expanded={!requestCollapsed}
+              onClick={() => setRequestExpanded((current) => !current)}
+            >
+              <span>{requestCollapsed ? "查看旅行需求" : "收起旅行需求"}</span>
+              <span aria-hidden="true">{requestCollapsed ? "+" : "−"}</span>
+            </button>
+            <div className="request-panel-body" id="trip-request-fields">
+              <TripRequestForm
+                onSubmit={(request) => {
+                  setRequestExpanded(false);
+                  void start(request);
+                }}
+                createClientRequestId={createClientRequestId}
+                submitting={busy}
+              />
+            </div>
+          </section>
 
-        <PlanningStage
-          state={state}
-          onResume={() => void resume()}
-          onRetry={() => {
-            setRequestExpanded(false);
-            void retry();
-          }}
-          onRestore={() => void restore()}
-          onDelete={remove}
-          onReset={returnToRequest}
-          replanApi={replanApi}
-        />
-      </main>
+          <PlanningStage
+            state={state}
+            onResume={() => void resume()}
+            onRetry={() => {
+              setRequestExpanded(false);
+              void retry();
+            }}
+            onRestore={() => void restore()}
+            onDelete={remove}
+            onReset={returnToRequest}
+            replanApi={replanApi}
+          />
+        </main>
+      )}
 
       <footer className="product-footer">
-        <span>F-004C · 单城市、多城市与用户已购铁路段</span>
+        <span>V6 · 地图优先 · 旅行顾问共同规划</span>
         <span>计划、来源、时效与冲突均来自服务端终态 · 不推测缺失事实</span>
       </footer>
     </div>

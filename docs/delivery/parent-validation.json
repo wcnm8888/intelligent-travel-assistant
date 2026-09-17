@@ -1,0 +1,31 @@
+{
+  "task_group": "F-009 through F-018",
+  "historical_files": 321,
+  "historical_delta_paths": 90,
+  "missing_intermediate_versions": 31,
+  "topology": "joint endpoint; not fabricated replay",
+  "offline_baseline": {
+    "backend": 2629,
+    "frontend": 183,
+    "static": "PASS",
+    "synthetic_build": "PASS"
+  },
+  "review_recovery": {
+    "new_regressions": 8,
+    "red_to_green": true,
+    "affected_backend": 40,
+    "mechanism": 58,
+    "capture": 17,
+    "format_lint_types": "PASS"
+  },
+  "confirmed_repairs": [
+    "full local A+B selection context accepted atomically under revision guard",
+    "invalid actions preserve suggestions and enforce 8 POI limit",
+    "per-session advisor generation serialized for duplicate request IDs",
+    "invalid POI query returns typed 422 before provider search"
+  ],
+  "ci_delivery": "explicit full RepositoryVerification inherited; task readiness retained for development and formal modes",
+  "real_provider_calls": 0,
+  "remote_ci": "pending exact final head",
+  "original_source": "authenticated pre-F019 UI0 endpoint plus separately recorded review repairs"
+}

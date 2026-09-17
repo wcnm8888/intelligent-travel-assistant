@@ -1,5 +1,11 @@
 """Explicitly synthetic, programmable provider adapters for offline tests."""
 
+from intelligent_travel_assistant.adapters.fakes.f009 import (
+    SYNTHETIC_F009_POIS,
+    SyntheticF009MapProvider,
+    SyntheticF009NarrativeProvider,
+    SyntheticF014AdvisorProvider,
+)
 from intelligent_travel_assistant.adapters.fakes.planning_jobs import (
     SyntheticPlanningJobExecutor,
 )
@@ -19,5 +25,9 @@ __all__ = [
     "FakeOperation",
     "FakeQWeatherAdapter",
     "FakeScriptError",
+    "SYNTHETIC_F009_POIS",
+    "SyntheticF009MapProvider",
+    "SyntheticF009NarrativeProvider",
+    "SyntheticF014AdvisorProvider",
     "SyntheticPlanningJobExecutor",
 ]

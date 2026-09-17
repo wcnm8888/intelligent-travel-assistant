@@ -4,7 +4,12 @@ import { expect, it, vi } from "vitest";
 
 import { TripPlanResult } from "./TripPlanResult";
 import { TripRequestForm } from "./TripRequestForm";
-import { App } from "./App";
+import { App as UnifiedApp } from "./App";
+import type { ComponentProps } from "react";
+
+const App = (props: ComponentProps<typeof UnifiedApp>) => (
+  <UnifiedApp legacyCompatibilityMode {...props} />
+);
 import { multicityPlanningPayload } from "./test/multicityTripPlanningFixtures";
 import { parseTripPlanResponse, type TripPlanningApi } from "./tripPlanningApi";
 import { ACTIVE_V3_JOB_STORAGE_KEY } from "./useTripPlanningJob";

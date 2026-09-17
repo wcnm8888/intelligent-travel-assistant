@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import timedelta
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Response, status
+from pydantic import Discriminator, Tag
 
 from intelligent_travel_assistant.api.errors import (
     PlanningHttpError,
@@ -13,7 +16,13 @@ from intelligent_travel_assistant.api.errors import (
     job_not_found_error,
     repository_http_error,
 )
+from intelligent_travel_assistant.api.preplanning import preplanning_http_error
 from intelligent_travel_assistant.application.execution import PlanningJobExecutor
+from intelligent_travel_assistant.application.f009 import (
+    F009ServiceError,
+    F009ServiceErrorCode,
+    PreplanningService,
+)
 from intelligent_travel_assistant.application.repositories import (
     PlanningJob,
     PlanningJobRepository,
@@ -25,7 +34,6 @@ from intelligent_travel_assistant.application.repositories import (
 from intelligent_travel_assistant.contracts import (
     ApiErrorResponse,
     CityStaySummaryV3,
-    PlanningRequest,
     PlanningResponse,
     TripPlan,
     TripPlanRequest,
@@ -44,6 +52,76 @@ from intelligent_travel_assistant.contracts import (
     TripRequestSummaryV3,
     TripRequestSummaryV4,
 )
+from intelligent_travel_assistant.contracts.errors import ApiErrorCode
+from intelligent_travel_assistant.contracts.f009 import (
+    MapPlanV1,
+    NarrativeRetryRequestV5,
+    TripPlanRequestV5,
+    TripPlanResponseV5,
+)
+from intelligent_travel_assistant.contracts.f015 import (
+    NarrativeRetryRequestV6,
+    TripPlanRequestV6,
+    TripPlanResponseV6,
+)
+
+
+def _api_request_version(value: object) -> str | None:
+    if isinstance(value, TripPlanRequestV6):
+        return "v6"
+    if isinstance(value, TripPlanRequestV5):
+        return "v5"
+    if isinstance(value, TripPlanRequestV4):
+        return "v4"
+    if isinstance(value, TripPlanRequestV3):
+        return "v3"
+    if isinstance(value, TripPlanRequestV2):
+        return "v2"
+    if isinstance(value, TripPlanRequest):
+        return "legacy"
+    if isinstance(value, Mapping):
+        version = value.get("request_version")
+        return "legacy" if version is None else f"v{version}"
+    return None
+
+
+def _api_response_version(value: object) -> str | None:
+    if isinstance(value, TripPlanResponseV6):
+        return "v6"
+    if isinstance(value, TripPlanResponseV5):
+        return "v5"
+    if isinstance(value, TripPlanResponseV4):
+        return "v4"
+    if isinstance(value, TripPlanResponseV3):
+        return "v3"
+    if isinstance(value, TripPlanResponseV2):
+        return "v2"
+    if isinstance(value, TripPlanResponse):
+        return "legacy"
+    if isinstance(value, Mapping):
+        version = value.get("response_version")
+        return "legacy" if version is None else f"v{version}"
+    return None
+
+
+AnyPlanningRequest = Annotated[
+    Annotated[TripPlanRequest, Tag("legacy")]
+    | Annotated[TripPlanRequestV2, Tag("v2")]
+    | Annotated[TripPlanRequestV3, Tag("v3")]
+    | Annotated[TripPlanRequestV4, Tag("v4")]
+    | Annotated[TripPlanRequestV5, Tag("v5")]
+    | Annotated[TripPlanRequestV6, Tag("v6")],
+    Discriminator(_api_request_version),
+]
+AnyPlanningResponse = Annotated[
+    Annotated[TripPlanResponse, Tag("legacy")]
+    | Annotated[TripPlanResponseV2, Tag("v2")]
+    | Annotated[TripPlanResponseV3, Tag("v3")]
+    | Annotated[TripPlanResponseV4, Tag("v4")]
+    | Annotated[TripPlanResponseV5, Tag("v5")]
+    | Annotated[TripPlanResponseV6, Tag("v6")],
+    Discriminator(_api_response_version),
+]
 
 
 def _job_response(job: PlanningJob) -> PlanningResponse:
@@ -191,6 +269,7 @@ def _job_id(raw_job_id: str) -> UUID:
 def create_trip_plan_router(
     repository: PlanningJobRepository,
     executor: PlanningJobExecutor | None = None,
+    preplanning_service: PreplanningService | None = None,
 ) -> APIRouter:
     """Bind one application repository to a narrow HTTP adapter."""
 
@@ -199,7 +278,7 @@ def create_trip_plan_router(
     @router.post(
         "",
         status_code=status.HTTP_202_ACCEPTED,
-        response_model=PlanningResponse,
+        response_model=AnyPlanningResponse,
         responses={
             409: {"model": ApiErrorResponse},
             422: {"model": ApiErrorResponse},
@@ -208,10 +287,36 @@ def create_trip_plan_router(
         summary="Create or reuse a local planning job",
     )
     async def create_trip_plan(
-        request: PlanningRequest,
+        request: AnyPlanningRequest,
         response: Response,
         background_tasks: BackgroundTasks,
-    ) -> PlanningResponse:
+    ) -> AnyPlanningResponse:
+        if isinstance(request, TripPlanRequestV6):
+            if preplanning_service is None:
+                raise PlanningHttpError(
+                    409,
+                    ApiErrorCode.CONFIGURATION_MISSING,
+                    "V6 joint planning is unavailable.",
+                )
+            try:
+                v6_result = await preplanning_service.create_v6_job(request)
+            except F009ServiceError as error:
+                raise preplanning_http_error(error) from None
+            response.headers["Location"] = f"/api/trip-plans/{v6_result.job_id}"
+            return v6_result
+        if isinstance(request, TripPlanRequestV5):
+            if preplanning_service is None:
+                raise PlanningHttpError(
+                    409,
+                    ApiErrorCode.CONFIGURATION_MISSING,
+                    "F-009 preplanning is unavailable.",
+                )
+            try:
+                v5_result = await preplanning_service.create_v5_job(request)
+            except F009ServiceError as error:
+                raise preplanning_http_error(error) from None
+            response.headers["Location"] = f"/api/trip-plans/{v5_result.job_id}"
+            return v5_result
         try:
             reservation = await repository.get_or_create(request)
             result = _job_response(reservation.job)
@@ -230,15 +335,19 @@ def create_trip_plan_router(
 
     @router.get(
         "/{job_id}",
-        response_model=PlanningResponse,
+        response_model=AnyPlanningResponse,
         responses={
             404: {"model": ApiErrorResponse},
             500: {"model": ApiErrorResponse},
         },
         summary="Read a local planning job",
     )
-    async def get_trip_plan(job_id: str) -> PlanningResponse:
+    async def get_trip_plan(job_id: str) -> AnyPlanningResponse:
         identifier = _job_id(job_id)
+        if preplanning_service is not None and await preplanning_service.is_v6_job(identifier):
+            return await preplanning_service.get_v6_job(identifier)
+        if preplanning_service is not None and await preplanning_service.is_v5_job(identifier):
+            return await preplanning_service.get_v5_job(identifier)
         try:
             job = await repository.get(identifier)
             return _job_response(job)
@@ -260,6 +369,12 @@ def create_trip_plan_router(
     )
     async def delete_trip_plan(job_id: str) -> Response:
         identifier = _job_id(job_id)
+        if preplanning_service is not None and await preplanning_service.is_v6_job(identifier):
+            await preplanning_service.delete_v6_job(identifier)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        if preplanning_service is not None and await preplanning_service.is_v5_job(identifier):
+            await preplanning_service.delete_v5_job(identifier)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         try:
             await repository.delete(identifier)
         except PlanningJobRepositoryError as error:
@@ -269,6 +384,50 @@ def create_trip_plan_router(
         except Exception:
             raise internal_error() from None
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.post(
+        "/{job_id}/narrative-retries",
+        status_code=status.HTTP_200_OK,
+        response_model=TripPlanResponseV5 | TripPlanResponseV6,
+        responses={
+            404: {"model": ApiErrorResponse},
+            409: {"model": ApiErrorResponse},
+        },
+        summary="Retry only narrative for an in-memory V5 or V6 plan",
+    )
+    async def retry_trip_plan_narrative(
+        job_id: str,
+        request: NarrativeRetryRequestV5 | NarrativeRetryRequestV6,
+    ) -> TripPlanResponseV5 | TripPlanResponseV6:
+        identifier = _job_id(job_id)
+        if preplanning_service is None:
+            raise job_not_found_error()
+        try:
+            if isinstance(request, NarrativeRetryRequestV6):
+                return await preplanning_service.retry_v6_narrative(
+                    identifier,
+                    client_request_id=request.client_request_id,
+                )
+            return await preplanning_service.retry_v5_narrative(
+                identifier,
+                client_request_id=request.client_request_id,
+            )
+        except F009ServiceError as error:
+            if error.code is F009ServiceErrorCode.SESSION_NOT_FOUND:
+                raise job_not_found_error() from None
+            if error.code is F009ServiceErrorCode.NARRATIVE_RETRY_CONFLICT:
+                raise PlanningHttpError(
+                    409,
+                    ApiErrorCode.IDEMPOTENCY_CONFLICT,
+                    "The narrative retry id is already bound to another job.",
+                ) from None
+            if error.code is F009ServiceErrorCode.NARRATIVE_RETRY_NOT_ALLOWED:
+                raise PlanningHttpError(
+                    409,
+                    ApiErrorCode.RETRY_NOT_ALLOWED,
+                    "This narrative is not eligible for retry.",
+                ) from None
+            raise preplanning_http_error(error) from None
 
     @router.post(
         "/{job_id}/retry",
@@ -287,6 +446,15 @@ def create_trip_plan_router(
         background_tasks: BackgroundTasks,
     ) -> PlanningResponse:
         identifier = _job_id(job_id)
+        if preplanning_service is not None and (
+            await preplanning_service.is_v5_job(identifier)
+            or await preplanning_service.is_v6_job(identifier)
+        ):
+            raise PlanningHttpError(
+                409,
+                ApiErrorCode.RETRY_NOT_ALLOWED,
+                "Deterministic V5/V6 plans are not retryable.",
+            )
         try:
             current = await repository.get(identifier)
             job = await repository.retry(identifier, expected_version=current.version)
@@ -303,5 +471,22 @@ def create_trip_plan_router(
             background_tasks.add_task(executor.execute, job.job_id)
         response.headers["Location"] = f"/api/trip-plans/{result.job_id}"
         return result
+
+    @router.get(
+        "/{job_id}/map",
+        response_model=MapPlanV1,
+        responses={404: {"model": ApiErrorResponse}, 410: {"model": ApiErrorResponse}},
+        summary="Read ephemeral V5 map geometry",
+    )
+    async def get_trip_plan_map(job_id: str) -> MapPlanV1:
+        identifier = _job_id(job_id)
+        if preplanning_service is None:
+            raise job_not_found_error()
+        try:
+            return await preplanning_service.get_map_plan(identifier)
+        except F009ServiceError as error:
+            if error.code is F009ServiceErrorCode.SESSION_NOT_FOUND:
+                raise job_not_found_error() from None
+            raise preplanning_http_error(error) from None
 
     return router

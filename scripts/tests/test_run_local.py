@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import socket
 import subprocess
 import sys
 import unittest
@@ -27,17 +28,19 @@ def _process_is_active(process_id: int) -> bool:
 
 
 class LocalRunnerContractTest(unittest.TestCase):
-    def test_runner_has_fixed_offline_loopback_contract(self) -> None:
+    def test_runner_has_dynamic_offline_loopback_contract(self) -> None:
         text = RUNNER.read_text(encoding="utf-8")
 
         for required in (
             '"3.13.3"',
             '"22.16.0"',
             '"11.19.0"',
-            '"http://127.0.0.1:8000/api/health"',
-            '"http://127.0.0.1:5173/"',
+            "Get-AvailableLoopbackPort",
+            '"http://127.0.0.1:$BackendPort/api/health"',
+            '"http://127.0.0.1:$FrontendPort/"',
             '$env:COREPACK_ENABLE_NETWORK = "0"',
             '$env:UV_OFFLINE = "1"',
+            '$env:VITE_PROXY_API_PORT = "$BackendPort"',
             '"--strictPort"',
         ):
             self.assertIn(required, text)
@@ -90,22 +93,37 @@ class LocalRunnerContractTest(unittest.TestCase):
     def test_runner_preflight_uses_installed_offline_runtimes_without_starting_services(
         self,
     ) -> None:
-        completed = subprocess.run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(RUNNER),
-                "-PreflightOnly",
-            ],
-            cwd=PROJECT_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
+        listeners: list[socket.socket] = []
+        try:
+            for port in (8000, 5173):
+                listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    listener.bind(("127.0.0.1", port))
+                    listener.listen(1)
+                except OSError:
+                    listener.close()
+                else:
+                    listeners.append(listener)
+
+            completed = subprocess.run(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(RUNNER),
+                    "-PreflightOnly",
+                ],
+                cwd=PROJECT_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+        finally:
+            for listener in listeners:
+                listener.close()
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(completed.stdout.strip(), "Local runner preflight passed.")

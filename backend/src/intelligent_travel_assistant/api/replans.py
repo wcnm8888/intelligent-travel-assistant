@@ -20,6 +20,7 @@ from intelligent_travel_assistant.api.errors import (
     repository_http_error,
 )
 from intelligent_travel_assistant.api.trip_plans import _job_response
+from intelligent_travel_assistant.application.f009 import PreplanningService
 from intelligent_travel_assistant.application.replanning import (
     ReplanApplicationError,
     ReplanApplicationRequest,
@@ -114,6 +115,7 @@ _TERMINAL_ERROR_PROJECTIONS: Final[dict[str, tuple[ApiErrorCode, bool, str]]] = 
 def create_replan_router(
     planning_jobs: PlanningJobRepository,
     service: ReplanApplicationService | None,
+    preplanning_service: PreplanningService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/trip-plans/{job_id}/replans", tags=["replans"])
 
@@ -132,6 +134,11 @@ def create_replan_router(
     ) -> ReplanResponse:
         identifier = _identifier(job_id, job=True)
         try:
+            if preplanning_service is not None and (
+                await preplanning_service.is_v5_job(identifier)
+                or await preplanning_service.is_v6_job(identifier)
+            ):
+                raise replan_scope_not_supported_error()
             job = await planning_jobs.get(identifier)
             if isinstance(job.request, (TripPlanRequestV3, TripPlanRequestV4)) or (
                 isinstance(job.request, TripPlanRequestV2) and job.request.day_count > 2

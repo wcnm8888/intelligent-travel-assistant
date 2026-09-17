@@ -1,5 +1,99 @@
 # 验收证据索引
 
+## F-018 最终离线收口：DONE / IMPLEMENTED / PASS / OFFLINE（2026-09-16）
+
+- 真实测试确认三个核心缺口：顾问对明确推荐意图重复访谈；区域景点把等待用户选入口误写成持续计算；多个方案总交通相同但卡片不展示每日差异。
+- 基线：`output/f018/20260916-143834-baseline/`，包含实施前工作树状态和本轮目标文件 preimage；F-017 与更早证据未移动或覆盖。
+- 定向验证第一轮：后端 9 项、前端 9 项通过；第二轮后端 9 项、前端 10 项通过；Ruff、ESLint、TypeScript 通过。
+- 首个 synthetic desktop 批次在完成产品旅程后因脚本检查时点错误停止；首失败保留于 `output/f018/20260916-145500-browser/`，mobile 未启动。
+- 只修正验收脚本观察时点后，新批次 desktop 与 390px 均通过：推荐优先、确认式加入、区域锚点自动搜索、两地点保存、V6 方案每日摘要、空浏览器存储、零控制台错误、零横向溢出、零非 loopback 请求。
+- 恢复证据：`output/f018/20260916-150000-browser-recovery/`。真实地图、高德、DeepSeek 和和风调用均为 0。
+- 第一次 Development 仅最后的状态投影合同失败；精确诊断与最小修复后，新 Development 完整通过。状态更新后的最终文档合同单独通过，当前恢复为无活动任务。
+- 最终收口：`output/f018/20260916-151500-final-closeout/`；Git 交付未授权、未执行。
+
+## F-017 最终离线收口：DONE / IMPLEMENTED / PASS / OFFLINE
+
+- F-016 离线收口后由用户明确恢复目标并授权 F-017；F-017 已完成，当前无活动任务。
+- 基线固定分支、HEAD/main/origin、142 条既有 dirty 状态、staged 0、目标文件 preimage 哈希和选定视觉目标哈希；未复制 `.env*`。基线（本机历史证据：`output/f017/20260915-204833-baseline/README.md`）
+- 冻结为地图旁可折叠顾问抽屉、有界对话、快捷回答、已确认偏好和建议分层；真实地图、高德、DeepSeek、和风调用全部为 0。
+- 定向实现验证：后端顾问/适配器/固定评测 11 项通过；前端 API/Planner 14 项通过；Ruff 和 TypeScript 通过。一次 TypeScript 字面量推断失败仅命中新测试，完成 1 次最小修复后复验通过。
+- 历史失败均原位保留：首次 Development 的文档投影缺口、首次 desktop 脚本检查时点/三栏 class 错位，以及恢复批次的脚本解析失败均未改写为 PASS。首次浏览器失败（本机历史证据：`output/f017/20260915-221300-browser-first-failure/README.md`）、解析失败（本机历史证据：`output/f017/20260915-231041-offline-recovery/README.md`）
+- 最终 synthetic 批次 desktop 1440×1000 与 390×844 均通过：三地点完整安排、两日地图、对话连续性、偏好确认、抽屉折叠/恢复和 narrative-only retry 均成立；控制台、存储、横向溢出、非 loopback 请求均为 0。
+- Windows PowerShell 的原生 stderr 包装曾使 exit 0 的 Frontend typecheck 被误报；验证器现先提取原始错误消息，自检证明真实非零/显式错误/超时仍 fail closed，正常 stderr 可通过。最终完整 Development 全绿。
+- 最终设计 QA 为 PASS；真实地图、高德、DeepSeek、和风调用均为 0，真实 UAT 保持 `NOT_EXECUTED / NOT_AUTHORIZED`。最终证据：浏览器与收口（本机历史证据：`output/f017/20260915-233100-browser-recovery/README.md`）、[设计 QA](../../design-qa.md)。
+
+<a id="f016-frontend-lint-recovery-20260915"></a>
+
+## F-016 Frontend lint 恢复：PASS
+
+- 诊断定位 `F009Map.tsx` 的 effect 内同步 setState 和 `f009Api.ts` 的四个未使用解构变量；前者改为绑定 `plan_id` 的派生日选择，后者改为显式删除 V6-only 兼容字段。
+- 两文件 Prettier 无额外变化，完整 frontend lint 退出码 0；本恢复批次未运行测试、构建、浏览器、服务或真实 Provider。完整证据（本机历史证据：`output/diagnostics/f016-20260915-133440-frontend-lint-recovery/README.md`）。
+
+<a id="f016-frontend-format-recovery-20260915"></a>
+
+## F-016 Frontend format 恢复：PASS
+
+- 只读诊断仅列出 `f009Api.ts`、`F009Map.test.tsx`、`F009Planner.test.tsx`、`F009Planner.tsx` 四个 F-013—F-016 文件；仅对这四个文件执行一次 Prettier 机械格式化，随后一次定向 check 通过。
+- before/after SHA-256、命令和范围见证据目录；前端测试、构建、浏览器、服务和真实 Provider 调用均未在本恢复批次执行。完整证据（本机历史证据：`output/diagnostics/f016-20260915-132825-frontend-format-recovery/README.md`）。
+
+<a id="f016-multiday-v6-openapi-test-repair-20260915"></a>
+
+## F-016 multiday API V6 OpenAPI 陈旧断言修复：TARGETED PASS
+
+- 仅修改 `backend/tests/api/test_multiday_trip_plans_api.py`：保留实施前已有 V5 变化，将 `oneOf` 预期长度从 5 改为 6，并在预期集合加入 `TripPlanRequestV6`。before SHA-256=`B7899484BEE266DE5087BCD136403F18B9B008E6B626C09172B733EB4428BDA0`，after=`3D6B6A577B3261D5466BFE276AD2DC2A1BA212B4A10EA37BC09F56D470DE5678`。
+- 唯一目标测试使用 `APP_ENV=test`、offline/no-sync 运行一次，退出码 0，`1 passed in 1.45s`。其他测试、Development、documentation contracts、浏览器、服务和真实 Provider 调用均为 0。
+- 修复和定向复验额度累计均为 3/3；完整门禁未重跑，F-016 仍为 ACTIVE。唯一下一项是新的 Development 门禁，当前为 `PROPOSED / NOT_AUTHORIZED`。完整证据（本机历史证据：`output/diagnostics/f016-20260915-131638-multiday-v6-openapi-test-repair/README.md`）。
+
+<a id="f016-backend-third-failure-isolation-20260915"></a>
+
+## F-016 第三次后端首失败隔离：FAILURE CAPTURED / STOPPED
+
+- 唯一命令使用 `APP_ENV=test`、`UV_OFFLINE=1` 和 offline/no-sync `pytest -x -vv`，共收集 2626 项；在 297 项通过后捕获 `tests/api/test_multiday_trip_plans_api.py::test_openapi_keeps_a_typed_one_of_request_body`，位置为第 234 行，退出码 1。
+- 安全差异为测试仍要求 OpenAPI `oneOf` 长度 5，实际合法包含 legacy、V2、V3、V4、V5、V6 共 6 个分支。分类为 `F013_F016_RESPONSIBILITY`；V2 行为本身未失败。
+- 后端首失败隔离额度累计 3/3。本轮业务文件修改、修复、复验、Development、documentation contracts、浏览器、服务及真实 Provider 调用均为 0；最小修复为 `PROPOSED / NOT_AUTHORIZED`。完整证据（本机历史证据：`output/diagnostics/f016-20260915-130500-backend-third-failure-isolation/README.md`）。
+
+<a id="f016-development-final-revalidation-20260915"></a>
+
+## F-016 修复后完整 Development 门禁复验：FAIL / STOPPED
+
+- 唯一 Development 门禁通过 current-task readiness、运行时与依赖检查、Backend format、lint 和 strict typecheck，随后在 Backend tests 以未定位的 `AssertionError` 停止，退出码为 1；后续前端与文档子门禁均未执行。
+- `.env.local` 仅按存在性同卷隔离并在 `finally` 恢复，hold 残留为 0；未读取秘密，未启动服务或浏览器，真实地图、高德、DeepSeek、和风调用均为 0。
+- Development 额度累计 2/2；最终 documentation contracts 保持 0/1 且不可执行。失败后未诊断、修复或重跑；下一恢复范围为 `PROPOSED / NOT_AUTHORIZED`。完整证据（本机历史证据：`output/diagnostics/f016-20260915-124500-development-final-revalidation/README.md`）。
+
+<a id="f016-v6-agent-offline-acceptance-20260914"></a>
+
+## F-016 V6 顾问共同规划：BROWSER PASS / DEVELOPMENT BLOCKED（2026-09-14）
+
+- F-013 至 F-015 已实现 Marker 角色/选中态、选点与安排计数、逐日图层、受约束 narrative、V6 Advisor Session、最多三个可行方案、确认式恢复动作和天气覆盖边界。
+- Agent 定向评测 23 项通过；五类旅客、提示词注入、候选确认、stale revision、模型输出对齐和确定性事实保护均被覆盖。
+- synthetic narrative fixture 状态隔离测试 1 项通过，连续旅程均重复“生成失败、修复失败、单独重试成功”的有界周期。
+- 最终 synthetic 浏览器 1 批通过：desktop 与 390px 均完成三个独立地点选择和安排、顾问建议确认、方案选择、计划生成、说明降级/恢复、天气未知及第二日地图切换。
+- 两端控制台 error 0、localStorage/sessionStorage 0、横向溢出 0、非 loopback 请求 0、被拦截外部请求 0；真实地图、高德 Web Service、DeepSeek、和风调用均为 0。
+- synthetic 构建使用 fail-closed 假地图，浏览器在导航前额外安装非 loopback 拦截。最终截图与摘要：`output/f016/20260914-233459-offline-pass/`。
+- 三次历史失败分别保留在 `output/f016/20260914-225940-offline/`、`output/f016/20260914-232238-offline-recovery/` 和 `output/f016/20260914-232931-offline-final/`，未重命名或改写为 PASS。
+- 唯一 Development 门禁通过 readiness、运行时、锁文件与依赖检查后，在 Backend format check 首次失败并停止；dependent gates 和最终 documentation contracts 未执行。证据：`output/diagnostics/f016-20260914-234500-development/`。
+- 格式恢复后的新 Development 门禁通过 readiness、依赖、Backend format、lint 和 typecheck，在 Backend tests 的 `AssertionError` 停止；安全摘要未捕获具体测试名。证据：`output/diagnostics/f016-20260915-development-recovery/`。
+- 已批准的首失败隔离诊断在 278 项通过后定位到 `test_openapi_keeps_legacy_through_v4_and_adds_v5_as_fifth_strict_branch`：V6 已成为第六个严格 OpenAPI 分支，但测试仍只期待到 V5；仅更新该测试名称和预期集合，定向复验 1 项通过。
+- 随后唯一新 Development 门禁通过 readiness、依赖、Backend format、lint 和 typecheck，但完整 Backend tests 再次以 `AssertionError` 停止；结构化安全摘要仍未捕获测试名或位置，dependent gates 和最终 documentation contracts 未执行。证据：`output/diagnostics/f016-20260915-backend-test-recovery/`。
+- 第二次后端首失败隔离诊断 `1/1`（累计 `2/2`）使用 `APP_ENV=test` 与 `uv run --offline --no-sync --directory backend pytest -x -vv`，exit 1；在 290 项通过后捕获 `tests/api/test_multicity_trip_plans_api.py::test_openapi_and_strict_request_discriminator_expose_five_versioned_branches`，断言位置为第 106 行，错误类型为 `AssertionError`。安全差异仅为实际严格 OpenAPI 联合比旧预期多合法的 `TripPlanRequestV6`。
+- 归属：F-015 在共享 `/api/trip-plans` 严格联合中新增 V6，此测试是共享 API 的相邻兼容断言，因此完全属于 F-013—F-016 修改职责；多城市 V3 行为测试本身未失败。诊断当时未修改业务源码、测试或验证脚本；随后最小修复和定向复验已按独立授权完成，结果见下一条。新 Development 门禁仍为 `PROPOSED / NOT_AUTHORIZED`；最终 documentation contracts 保持 `0/1`。脱敏诊断证据：`output/diagnostics/f016-20260915-120621-backend-second-failure-isolation/`。
+- 多城市 API V6 OpenAPI 陈旧断言最小修复 `1/1`：仅把测试名称从 five 改为 six，并在既有 legacy 至 V5 集合后加入 `TripPlanRequestV6`；原非法 discriminator、422 和 V3 行为断言逐行保持。唯一目标测试使用 `APP_ENV=test`、offline/no-sync 运行一次，exit 0，`1 passed in 2.03s`。实施前 dirty preimage 与 SHA-256 已保存，before=`613BC438BD8AF6D1FA398FD4A55CC721B355E5A5937210E5819E750D88928303`，after=`669AF51E21C4710992185F8A699D55471B0FCE2CAE2BDBF3DAD42EB1D68710E2`。完整测试、Development 和 documentation contracts 未执行；证据：`output/diagnostics/f016-20260915-123135-multicity-v6-openapi-test-repair/`。
+- 真实 UAT 为 `NOT_EXECUTED / NOT_AUTHORIZED`；Git 交付未执行。
+
+<a id="f012-real-acceptance-interaction-fixes-20260914"></a>
+
+## F-012 真实验收交互缺陷修复：PASS / OFFLINE（2026-09-14）
+
+- 用户手工验收确认地图 Marker 角色/选中态不可辨认，以及两段保存后的 `selection_revision_conflict` 阻断。
+- 根因已通过前端代码路径确认：普通候选未携带 accommodation/visit 角色；`updateTrip` 返回的新 revision 未在第二段写入失败前保存。
+- 实施前基线：`output/f012/20260914-193721-baseline/`；14 个 dirty 范围文件已保存只读 preimage，F-008 至 F-011 共 537 个保护对象复核 0 mismatch。
+- 当前只授权本地离线修复和 loopback synthetic 验证；真实地图和高德、DeepSeek、和风调用预算均为 0，真实手工复验保持 `NOT_EXECUTED`。
+- RED 1/1 最初 6/15 失败；GREEN 2/2 最终 15/15 通过。typecheck、build 与 Development 门禁内前端 lint、前后端全量测试均通过。
+- 首次 Development 门禁在 Documentation checker tests 因固定 8000/5173 被既有用户服务占用而停止；旧失败完整保留于 `output/f012/20260914-195716-blocked/`，没有停止或接管用户服务。
+- 恢复批次先以 2 项 RED 合同复现固定端口根因，随后将本地 runner 与 Vite proxy 改为同进程动态 loopback 端口；定向合同 5/5 和新增 Development 门禁完整通过。
+- synthetic 浏览器 1/1（desktop 1、390px 1）通过：保存一次进入预检且 revision `0 -> 1`，Marker 图例区分住宿/景点/已选中；控制台 0 error/0 warning，网络仅 `127.0.0.1:18114`，浏览器持久存储为空，390px `scrollWidth=clientWidth=375`。
+- F-008 至 F-011 共 537 个保护对象复核 0 mismatch；真实地图及高德、DeepSeek、和风调用均为 0。证据：`output/f012/20260914-212707-recovery/` 与 `output/diagnostics/f012-20260914-212707-recovery/`。
+
 <a id="f008-playwright-evidence-boundary-diagnosis-20260912"></a>
 
 ## F-008 Playwright证据输出边界诊断：PASS / OFFLINE（2026-09-12）
@@ -3938,3 +4032,154 @@ R3-C唯一目标是“有证据变化可通过、无证据/越界变化仍拒绝
 - 历史保护：四批真实UAT和第四批文档路由修复证据保持原位、内容和SHA-256不变。
 - 归档任务卡：[F-008 archive](../archive/task-cards/F-008-real-uat-plan-fact-trust.md)。
 - 完整证据：final closeout report（本机历史证据：`output/diagnostics/20260912-f008-final-inconclusive-closeout/report.md`）。
+
+<a id="f009-offline-closeout-20260913"></a>
+
+## F-009 地图选点与空间可行旅行规划离线收口（2026-09-13）
+
+- 最终结果：`DONE / IMPLEMENTED / PASS / OFFLINE`；完成 Step 0–9 和冻结的 14 项 synthetic/offline 验收。Step 10 真实地图与 Provider UAT 为 `NOT_EXECUTED / NOT_AUTHORIZED`。
+- 实现范围：独立 V5 内存预规划 cohort、严格住宿/POI/组关系合同、POI 身份与类别过滤、revision/一次性 feasibility、Haversine 与真实路线预检、确定性 top-3 求解、受限 DeepSeek 叙述、严格 MapPlan、列表控制面和地图降级。
+- 治理收口：同查询单飞、全进程 Amap 2 QPS 无突发时间线、每 session 25/4/24/60 调用上限、Schema-only 单次模型 repair、Provider failure 与业务不可达分离、2 MB MapPlan 显式抽稀/降级、系统推荐仅可用同城同类 5 km 已验证点替代。
+- 完整门禁：Python 3.13.3、Node 22.16.0、pnpm 11.19.0；后端 2605 项测试全部通过，Ruff format/lint、strict mypy、前端 format/lint/typecheck/tests/build、依赖锁、文档检查器和仓库合同全部通过。
+- 浏览器：loopback-only synthetic 服务完成桌面和 390 px 创建会话、住宿/复杂 POI 锚点、选择、预检、V5 生成、日期图层、地图失败重试和完整列表；390 px 无横向溢出、键盘焦点可达、console error/warning 为 0，网络仅 `127.0.0.1`。
+- 工作树保护：branch=`feat/f-008-replan-error-recovery`、HEAD=`3032d49c4f46167445650c71f7a570fc2c609f4a` 保持；staged 路径 0；F-008 保护清单 365 项 SHA-256 复核 0 变化；未执行 stash/reset/clean、删除、Git 交付或 remote 修改。
+- 已知证据限制：实施前未跟踪的 baseline helper 只记录大小、未记录内容哈希；当前比基线大小多 1 byte，因此不能证明该文件逐字节未变。该限制不影响 365 项 F-008 保护散列结论，但必须保留在 change manifest 中。
+- 唯一 F-009 离线证据：offline evidence（本机历史证据：`output/f009/20260913-153600-offline/README.md`）、change manifest（本机历史证据：`output/f009/20260913-153600-offline/f009-change-manifest.json`）、desktop screenshot（本机历史证据：`output/f009/20260913-153600-offline/desktop-result.png`）、390 px screenshot（本机历史证据：`output/f009/20260913-153600-offline/mobile-390-result.png`）。
+
+<a id="f010-offline-closeout-20260913"></a>
+
+## F-010 地图优先统一规划流程与 DeepSeek 安全降级离线收口（2026-09-13）
+
+- 最终结果：`DONE / IMPLEMENTED / PASS / OFFLINE`；Step 0–6 全部完成。真实高德 Web Service、真实高德 JS 地图、真实 DeepSeek 和真实和风天气均为 `NOT_EXECUTED / NOT_AUTHORIZED`。
+- 用户旅程：默认入口统一为地图/列表选点 → 完善旅行信息 → revision 原子保存 → 空间预检 → 唯一 V5 计划 → MapPlan/完整列表；旧版本仅保留兼容测试入口，不再与地图流程互斥。
+- 安全降级：DeepSeek generation 和最多一次 repair 均经过身份、日期、顺序和严格 Schema 校验；最终非法时返回 `partial` 和闭集安全诊断，确定性计划与 MapPlan 保留，不暴露 Prompt、原始输出或 Provider body。
+- 地图体验：缺少 Web JS 配置时明确区分 `VITE_AMAP_JS_KEY`、`VITE_AMAP_JS_SECURITY_CODE` 与后端 `AMAP_API_KEY`；Loader/渲染失败只降级地图，列表、选择、预检和计划不丢失。
+- 完整门禁：`scripts/verify.ps1 -Phase Development` 一次通过；Python 3.13.3、Node 22.16.0、pnpm 11.19.0，后端 2608 项、前端 169 项测试全部通过，Ruff format/lint、mypy、Prettier、ESLint、typecheck、production build、文档和仓库合同全绿。
+- 浏览器：三条真实浏览器 synthetic 旅程覆盖地图成功、模型改变顺序/日期、Web JS 配置缺失；desktop/390px 无横向溢出，console error/warning 为 0，浏览器存储为空，网络只访问 `127.0.0.1`，所有临时浏览器、服务和端口已关闭。
+- 证据：浏览器与网络摘要（本机历史证据：`output/f010/20260913-223829-offline-browser/README.md`）、desktop（本机历史证据：`output/f010/20260913-223829-offline-browser/desktop.png`）、390 px（本机历史证据：`output/f010/20260913-223829-offline-browser/mobile-390.png`）、顺序篡改（本机历史证据：`output/f010/20260913-223829-offline-browser/order-scenario/order-final.png`）、缺配置（本机历史证据：`output/f010/20260913-223829-offline-browser/config-missing-scenario/config-missing-final.png`）。
+- Git 与历史边界：未执行 stage、commit、push、PR、CI、merge、stash、reset、clean 或 remote 修改；F-008/F-009 归档结论不变。
+
+<a id="f011-development-gate-blocked-20260914"></a>
+
+## F-011 Development 门禁阻塞（2026-09-14）
+
+- 结果：`BLOCKED / OFFLINE`；唯一 Development 门禁 `1/1` 已消费，`Frontend tests` 子门禁以 exit code 1、`explicit_error=true` 失败。门禁的安全摘要没有保留具体失败测试名，因此不得推断根因。
+- 失败前通过：current-task readiness；Python 3.13.3、Node 22.16.0、pnpm 11.19.0；后端 lock/sync、format、lint、mypy、全量测试；前端 frozen install、peer dependency、format、CI workflow format、lint、typecheck。
+- 未执行：frontend build、Documentation checker tests、Documentation and repository contracts，以及状态更新后的最终 documentation contracts。依照冻结规则未修复、未重跑、未拆分规避额度。
+- 历史证据保持：前端定向 `2/2` 最终 9/9 通过；后端定向 `2/2` 最终 26/26 通过并含 narrative retry 夹具专项；synthetic 浏览器 `1/1`（desktop 1/1、390px 1/1）仅如实覆盖 Slice A–D，未夸大 Slice E 浏览器覆盖。
+- 秘密与环境：只检查四个指定前端 `.env*` 文件是否存在；`.env.local` 同卷临时改名，内容未读取、复制或输出，`finally` 已恢复原名，临时 hold 残留为 0。
+- 外部边界：本轮真实地图、高德、DeepSeek、和风调用均为 0；历史手工真实调用仍为 `UNKNOWN_UNRECONCILED`；真实 UAT 保持 `NOT_EXECUTED / NOT_AUTHORIZED`。
+- 后续：F-011 不得标记为 `PASS / OFFLINE`。失败诊断、任何修复和新的 Development 门禁额度均需用户独立授权。
+- 证据：`output/f011/20260914-161507-closeout/`；浏览器历史证据：F-011 离线浏览器摘要（本机历史证据：`output/f011/20260914-154529-offline-browser/README.md`）。
+
+<a id="f011-development-gate-recovery-authorization-20260914"></a>
+
+## F-011 Development 门禁恢复授权（2026-09-14）
+
+- 用户明确批准：离线前端失败诊断 1 次、F-011 前端职责内修复 1 轮、修复后前端定向验证 1 次、新 Development 门禁 1 次、最终 documentation contracts 1 次。
+- 新增额度为 0：后端测试、synthetic 浏览器、真实地图以及高德、DeepSeek、和风 logical/HTTP 调用；旧失败门禁 `1/1` 和原始证据不得重置、覆盖或改写。
+- 允许业务文件：`frontend/src/F009Planner.tsx`、`F009Planner.test.tsx`、`F009Map.tsx`、`F009Map.test.tsx`、`styles.css`、`f009Api.ts`、`f009Api.test.ts`。根因落在其他业务职责时立即停止。
+- 恢复证据目录：`output/f011/20260914-163117-recovery/`；执行顺序为诊断、根因确认、最小修复、定向验证、新门禁、状态收口、最终文档合同。
+
+<a id="f011-frontend-timeout-diagnostic-20260914"></a>
+
+## F-011 前端超时诊断（2026-09-14）
+
+- 结果：`BLOCKED / OFFLINE`；唯一诊断 `1/1` 已消费。原门禁命令 `pnpm --filter @intelligent-travel-assistant/frontend test` 复现 exit 1。
+- 结果明细：16 个测试文件中 14 通过、2 失败；170 项中 168 通过、2 失败。`F009Planner.test.tsx:323` 和 `multicityPlanning.red.test.tsx:90` 均在 Vitest 默认 5000 ms 超时。
+- 根因状态：现有证据支持“全套并发负载下长流程触及默认超时”的假设，但尚未通过单文件/顺序运行区分 F-011 测试成本、V3 测试成本或全局 timeout 配置，因此不得声称根因已确认。
+- 停止原因：`multicityPlanning.red.test.tsx` 不在批准的 F-011 前端修改文件内。修复、定向验证、新 Development 门禁和最终文档合同均未执行、额度均未消费。
+- 环境：四个指定 `.env*` 只检查存在性；`.env.local` 同卷临时隔离后已恢复，内容未读取，临时 hold 残留 0。真实地图和所有 Provider 调用为 0。
+- 证据：`output/f011/20260914-163117-recovery/frontend-diagnostic.log`、`frontend-diagnostic-summary.json`、`frontend-diagnostic-env-restore.json`。
+
+<a id="f011-frontend-root-cause-isolation-authorization-20260914"></a>
+
+## F-011 前端根因隔离授权（2026-09-14）
+
+- 用户新增批准一个根因隔离批次：顺序单独运行 `F009Planner.test.tsx` 和 `multicityPlanning.red.test.tsx` 各 1 次。
+- 只有本批证据确认需要时，才可在既有唯一修复轮次中修改 `frontend/src/multicityPlanning.red.test.tsx` 或 `frontend/vite.config.ts`；未新增修复次数。
+- 保留额度：修复 0/1、前端定向验证 0/1、新 Development 门禁 0/1、最终 documentation contracts 0/1。后端测试、浏览器、真实地图及所有 Provider 调用新增额度均为 0。
+- 证据继续写入 `output/f011/20260914-163117-recovery/`，不建立新目录重置旧额度。
+
+<a id="f011-frontend-root-cause-isolation-result-20260914"></a>
+
+## F-011 前端根因隔离结果与最小修复（2026-09-14）
+
+- 隔离批次 `1/1`：`F009Planner.test.tsx` 单跑 exit 0、1/1 通过、用例 2019 ms；随后 `multicityPlanning.red.test.tsx` 单跑 exit 0、8/8 通过、最慢用例 1863 ms。
+- 环境：仅检查并同卷临时改名指定 `.env*`；恢复 1 个文件，hold 残留 0。未启动服务、浏览器、真实地图或 Provider 调用。
+- 根因：两个用例自身在单文件环境内均明显低于 5000 ms；失败只在 16 文件全套并发时出现，因此确认是并发 jsdom 负载触及 Vitest 默认测试超时，不是业务断言失败。
+- 修复 `1/1`：在已条件授权且实施前 dirty 的 `frontend/vite.config.ts` 增加 `testTimeout: 10_000`；先补录只读 preimage 与 SHA-256。未修改 V3/F-011 测试断言或产品代码。
+- 下一项：唯一前端定向验证 `1/1`；若失败立即停止，不消耗新 Development 门禁。
+- 证据：`output/f011/20260914-163117-recovery/isolation-f009planner.log`、`isolation-multicity.log`、`isolation-summary.json`。
+
+## F-011 修复后前端定向验证（2026-09-14）
+
+- 唯一新增前端定向验证 `1/1` 已消费：同一 Vitest 进程运行两个原失败文件，2/2 文件、9/9 测试通过，exit 0。
+- `F009Planner` 长流程 2255 ms，V3 提交流程 2003 ms，均低于显式 10000 ms 配置；没有改动测试断言。
+- `.env.local` 同卷临时隔离后已恢复，hold 残留 0；后端、浏览器、真实地图和 Provider 调用为 0。
+- 证据：`output/f011/20260914-163117-recovery/frontend-targeted-verification.log`、`frontend-targeted-verification-summary.json`。
+
+## F-011 Development readiness 预检拒绝（2026-09-14）
+
+- 调用在首个产品门禁前返回 `development_task_not_active_or_authorized`；验证脚本明确说明未创建正式批次，因此新增 Development 门禁仍为 `0/1`。
+- 原因是权威状态使用了不属于检查器闭集的 `ROOT_CAUSE_ISOLATION_AUTHORIZED`，不是源码、测试或产品失败。
+- 只把状态规范化为 `ACTIVE / IMPLEMENTATION_AUTHORIZED / OFFLINE_ONLY`；不修改检查器、不新增修复轮次或验证额度。
+- `.env.local` 已恢复，hold 残留 0；拒绝日志保留在 `output/f011/20260914-163117-recovery/development-gate.log`，正式门禁将写入不同日志文件。
+
+## F-011 恢复 Development 门禁阻塞（2026-09-14）
+
+- 正式新增 Development 门禁 `1/1` 已消费，exit 1。readiness、运行时、锁与依赖、后端格式/lint/typecheck/全量测试、前端格式/lint/typecheck/全量测试/build 和文档检查器测试均通过。
+- 首个且唯一失败为最后的 `Documentation and repository contracts`；门禁结构化安全摘要未保留具体合同条目、测试名或位置，因此不得推断根因。
+- 原前端超时已在正式全量门禁中验证修复；本次失败不推翻该证据，但阻止 F-011 形成 `PASS / OFFLINE`。
+- `.env.local` 同卷临时隔离后已恢复，hold 残留 0；未启动浏览器、真实地图或 Provider 调用。
+- 依照失败即停止，未执行最终 documentation contracts `0/1`，未诊断、修复或重跑。下一项只能由用户新增精确的文档合同诊断与修复授权。
+- 证据：`output/f011/20260914-163117-recovery/development-gate-formal.log`、`development-gate-summary.json`；预检拒绝日志独立保留为 `development-gate.log`。
+- 停止后只读复核：F-008/F-009/F-010 保护清单 431 项，missing 0、SHA-256 mismatch 0；staged path 0；前端环境 hold 残留 0。
+- 恢复期变更归因：`output/f011/20260914-163117-recovery/f011-recovery-change-manifest.json`。
+
+## F-011 Step 1C 完成授权（2026-09-14）
+
+- 用户批准完成当前任务卡所需的必要本地授权。本 Step 仅恢复文档合同并完成最终离线收口。
+- 有界执行：文档合同诊断 1 次、同根因修复最多 2 轮、定向验证最多 2 次、新 Development 门禁 1 次、状态更新后的最终文档合同 1 次。
+- 新增额度为 0：前后端定向测试、synthetic 浏览器、真实地图及所有 Provider 调用。仍禁止服务启动、新依赖、数据库变化、Git 交付和历史保护改写。
+- 证据继续写入 `output/f011/20260914-163117-recovery/`，不重置前两次失败门禁或其证据。
+
+## F-011 文档合同根因诊断与修复（2026-09-14）
+
+- 唯一诊断 `1/1` exit 1，精确报告 2 项：`current-task.md` 和 `docs/README.md` 均无法确定当前 Step。
+- 代码追踪确认检查器当前 Step 合同只接受数字并要求 current-task 使用 `Step <数字> -`；自造恢复标签 `Step 1C` 不符合合同。
+- 根因修复 `1/2`：所有当前状态投影回归正式 `Step 1`；`Step 1C` 仅作为任务卡/证据中的恢复说明标题，不修改检查器和旧历史。
+- 证据：`output/f011/20260914-163117-recovery/documentation-contract-diagnostic.log`、`documentation-contract-diagnostic-summary.json`。
+
+## F-011 文档合同定向验证（2026-09-14）
+
+- 定向验证 `1/2` exit 0：17 份必需文档、35 个 Markdown 文件，以及 CI、状态与安全合同全部有效。
+- 未运行前后端定向测试、浏览器、真实地图或 Provider；下一项为新 Development 门禁 `1/1`。
+- 证据：`output/f011/20260914-163117-recovery/documentation-contract-targeted-1.log`。
+
+## F-011 最终离线收口（2026-09-14）
+
+- 新 Development 门禁 `1/1` exit 0，耗时 266234 ms；readiness、运行时、锁/依赖、后端 format/lint/typecheck/全量测试、前端 format/lint/typecheck/全量测试/build、文档检查器测试和仓库文档合同全部通过。
+- `.env.local` 只按存在性同卷临时改名，内容未读取；恢复 1 个文件，hold 残留 0。未启动服务或浏览器，真实地图和 Provider 调用为 0。
+- F-011 状态更新为 `DONE / IMPLEMENTED / PASS / OFFLINE`，当前无活动任务。真实 UAT 保持 `NOT_EXECUTED / NOT_AUTHORIZED`，历史手工调用仍为 `UNKNOWN_UNRECONCILED`。
+- 最终收口目录：`output/f011/20260914-171918-final-closeout/`；Development 完整日志保留于 `output/f011/20260914-163117-recovery/development-gate-completion.log`。
+- 状态更新后的唯一 documentation contracts `1/1` exit 0：17 份必需文档、35 个 Markdown 文件及 CI、状态、安全合同有效；未重复 Development 门禁。
+
+<a id="f016-final-offline-closeout-20260915"></a>
+
+## F-016 最终离线收口（2026-09-15）
+
+- 结果：`DONE / IMPLEMENTED / PASS / OFFLINE`。23 项 Agent 定向评测、fixture 状态隔离、desktop/390px synthetic 浏览器旅程以及第 5 次完整 Development 门禁均通过。
+- 第 5 次 Development 门禁 `5/5` exit 0；readiness、运行时、依赖、后端 format/lint/typecheck/完整测试、前端 format/lint/typecheck/完整测试/build、文档检查器测试和仓库文档合同全部通过。
+- 状态更新后的唯一 documentation contracts `1/1` exit 0；当前无活动任务。历史失败批次和恢复证据保持原位，未改写为 PASS。
+- 离线边界：最终浏览器网络仅 loopback；本轮真实地图、高德 Web Service、DeepSeek 和和风调用均为 0。真实 UAT 保持 `NOT_EXECUTED / NOT_AUTHORIZED`。
+- Git 边界：未执行 stage、commit、push、PR、CI、merge、stash、reset、clean 或 remote 修改；staged 路径为 0。
+- 证据：离线浏览器与 Agent 验收（本机历史证据：`output/f016/20260914-233459-offline-pass/README.md`）、最终 Development（本机历史证据：`output/diagnostics/f016-20260915-133657-development-after-lint/README.md`）、最终收口（本机历史证据：`output/f016/20260915-134616-final-closeout/README.md`）。
+
+## F-017 离线恢复首失败（2026-09-15）
+
+- synthetic 恢复构建 `1/1` 通过，exit 0。
+- 恢复浏览器批次 `2/2` 在 desktop 加载验收脚本时失败：`SyntaxError: Unexpected token ';'`；尚未进入产品旅程，390px 未启动。
+- 依照失败即停止，未修复或重跑脚本，新的 Development 门禁和最终 documentation contracts 均未执行。
+- 浏览器与 loopback 服务已关闭；真实地图、高德、DeepSeek、和风调用均为 0。
+- 证据：F-017 offline recovery（本机历史证据：`output/f017/20260915-231041-offline-recovery/README.md`）。

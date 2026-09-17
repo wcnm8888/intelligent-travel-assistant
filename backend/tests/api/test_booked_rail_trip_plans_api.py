@@ -104,7 +104,7 @@ def test_v4_post_get_retry_delete_use_existing_uris_and_exact_shape() -> None:
     assert executor.job_ids == [partial.job_id, partial.job_id]
 
 
-def test_openapi_exposes_v4_as_the_fourth_strict_request_branch() -> None:
+def test_openapi_keeps_legacy_through_v5_and_adds_v6_as_sixth_strict_branch() -> None:
     app = create_app(planning_job_repository=InMemoryPlanningJobRepository())
     schema = app.openapi()["paths"]["/api/trip-plans"]["post"]["requestBody"]["content"][
         "application/json"
@@ -115,6 +115,8 @@ def test_openapi_exposes_v4_as_the_fourth_strict_request_branch() -> None:
         "TripPlanRequestV2",
         "TripPlanRequestV3",
         "TripPlanRequestV4",
+        "TripPlanRequestV5",
+        "TripPlanRequestV6",
     }
 
 
