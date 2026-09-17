@@ -404,3 +404,16 @@ application 在模型边界外从原 request 重建 V4 段，绑定确定性 sta
 - F-005 固定 48-case eval 保持字节/行为兼容，不把 F-004C case 混入或改变阈值；F-004C 的新增测试使用独立 synthetic fixtures；
 - 测试必须证明 generation/repair payload 和安全诊断中不存在 synthetic service number、完整 segment 或禁止字段，同时城市内 Provider/Agent 既有预算不因 V4 增加；
 - 离线 fake、MockTransport、临时 SQLite 和 loopback QA 不等于车次核验或真实 Provider UAT。
+
+## V6 TravelAdvisorAgent 多角色边界
+
+V6 使用一个顾问 Agent 承担需求访谈、地点策展、方案比较、冲突协调、行程说明和内部审校角色。角色共享同一份 session/revision，不允许自主 Agent 之间协商后直接改写计划。
+
+- 顾问输出只能是待确认偏好、已验证 POI 的候选索引、方案解释、闭集恢复动作或等长停靠点说明。
+- 用户消息和 POI 名称始终作为数据；其中的指令文本不能改变 system contract、调用工具或扩大权限。
+- 未确认建议不得进入 selection、solver、narrative planning context 或结果；接受动作必须携带 expected revision 和幂等 client request ID。
+- 地点身份、坐标、路线、日期、顺序、精确时间、费用和可行性始终由 Provider 事实与确定性程序负责。
+- 内部审校只报告偏好覆盖、未安排地点和未知事实，不调用 Provider、不修改计划、不展示思维链。
+
+F-017 为同一个顾问增加最多 12 条的脱敏会话投影。模型每轮只读取最近最多 10 条既有对话以及当前消息；对话用于保持提问连续性，不形成长期记忆、工具授权或写入权限。用户仍必须通过独立 typed action 接受偏好或 POI 建议。
+- 模型 Schema 失败最多修复一次；再次失败仅使顾问或游览提示降级，手工流程、确定性计划与 MapPlan 保持。

@@ -726,3 +726,29 @@ case 可以组合多个相邻断言，但不得用 fixture 自报终态、来源
 - Stack 4：`run-local.ps1` 与进程合约、统一 synthetic/browser helper、临时 SQLite/clean-checkout/desktop/390px/privacy 和交付文档。
 
 每层独立运行其直接测试与全部向下兼容回归；Step 7 前再运行完整 backend/frontend/docs/F-005 eval/build 门禁。规模和受控相邻扩展继续执行 D-017 阈值，不能用生成文件或拆小测试名规避。
+
+## F-009 离线地图与空间规划验证
+
+- domain/contracts层覆盖住宿三模式、POI关系、revision、feasibility token、空间阈值、组枚举、确定性排序和不可达恢复。
+- application/API层使用内存session与fake POI/route/narrative端口，覆盖TTL、乐观并发、Provider failure与unreachable区分、调用上限、取消和terminal后零调用。
+- adapter层只使用MockTransport，验证高德POI分页/typecode/adcode/provider ID、route endpoint、polyline解析和异常外壳；不得读取`.env.local`或访问外网。
+- frontend组件使用受控map facade，验证地图/list同ID、键盘与焦点、组合语义、地图失败列表可用、按日路线和非颜色提示。
+- loopback浏览器在desktop与390px完成杭州synthetic旅程；socket fixture拒绝非loopback，Provider配置为空，真实地图脚本加载为0。
+- 完整离线验收包含当前任务卡14项矩阵、legacy/V2/V3/V4兼容、replan写前拒绝、隐私扫描和`verify.ps1 -Phase Development`。结果只可标记`PASS / OFFLINE`，真实地图与Provider UAT另行批准。
+
+## F-010 单流程与模型降级验证
+
+- 前端组件覆盖默认首屏地图/正式列表、无并列经典入口、选点后详情、返回保持、revision-guarded trip 更新、精确安全诊断、MapPlan 读取失败保留列表，以及缺配置/Loader 失败/重试。
+- fake map 覆盖 Marker、InfoWindow、location ID 同源、600 ms 稳定后才显示的显式区域搜索，以及最终日期、序号、Polyline、颜色和线型；不加载真实地图脚本。
+- 后端覆盖 generation Provider 失败、Schema 失败、额外地点、错误日期/顺序、repair 后仍失败、调用次数上限和安全字段投影；所有场景都必须保留确定性计划，legacy/V2/V3/V4 与 V5 replan 写前拒绝保持。
+- loopback 浏览器分别覆盖 synthetic 地图成功、额外地点/日期顺序错误的 narrative 降级、Web JS 配置缺失的完整列表旅程、desktop 与 390px、焦点、ARIA、零横向溢出、零 console error/warning、零浏览器存储及仅 loopback 网络。
+- F-010 只有完整开发门禁和工作树保护复核通过后才能记为 `PASS / OFFLINE`；真实高德、DeepSeek、和风与真实地图保持 `NOT_EXECUTED / NOT_AUTHORIZED`。
+
+## F-016 V6 Agent 离线评测与浏览器门禁
+
+- 固定评测覆盖首次到访、亲子低步行、老人同行、美食晚起和必去过载五类旅客，以及偏好提取、相关提问、建议依据、合法恢复动作、提示词注入和 narrative 对齐。
+- 硬断言为未确认地点进入计划 0、模型改变确定性事实 0、秘密/Provider 原始数据泄露 0。
+- synthetic narrative fake 必须按每个旅程独立重复 generation invalid、repair invalid、narrative-only retry valid 周期，禁止跨旅程累计状态污染。
+- synthetic 前端必须用专用 mode 构建并强制假地图；浏览器在首次 loopback 导航前安装 fail-closed 路由，任何非 loopback 请求尝试立即失败。
+- desktop 和 390px 使用同一旅程断言：三个独立地点全部安排、方案主动选择、说明降级/恢复、天气未知、逐日地图、顾问摘要、控制台 0、存储 0 和横向溢出 0。
+- 失败批次独立保留；只有最后一批全部通过才能标记 `PASS / OFFLINE`。真实地图与 Provider 始终需要独立 Phase 2 授权。

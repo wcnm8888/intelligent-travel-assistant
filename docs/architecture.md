@@ -885,3 +885,43 @@ runner 的进程模型为：只读端口 preflight → 启动后端精确 Proces
 ### 分层交付依赖
 
 Stack 1 只建立安全 runtime；Stack 2 只建立产品语言和表现 foundation；Stack 3 在其上建立 canonical recovery/DELETE 与完整旅程；Stack 4 提供 runner、组合验收和交付文档。Stack 3 若必须为动作 props 或确认态样式追加修改 Stack 2 文件，必须保持为可审查的最小后层 diff，不能反向让 Stack 1/2 依赖后层 helper。
+
+## F-009 地图选点与空间可行规划
+
+F-009 为单城市请求增加独立、应用级内存 `PreplanningSession` 和严格 V5 合同。后端高德 Web Service 是 POI身份、GCJ-02坐标、行政区、路线与polyline的唯一事实入口；前端高德 JS API 2.0只渲染地图、Marker、InfoWindow和Polyline，不调用POI或路线Web Service。
+
+V5 数据流为：基础请求 → 已验证候选 → 用户选择revision → 空间预检 → 确定性分日/排序 → 一次性feasibility token → V5内存job → 受限DeepSeek叙述 → 确定性终检 → 文字计划和独立MapPlan。候选页、provider ID、坐标、路线和geometry不进入SQLite；进程重启后V5资源失效。legacy/V2/V3/V4保持原Repository和公开语义。
+
+预规划状态为 `draft → discovering → needs_confirmation → prechecking → feasible|conflicted|provider_unavailable|expired`。选择变化必须增加revision并清除旧feasibility与路线缓存。Provider失败不能映射为地点不可达；must_visit不得自动删除或替换。V5现阶段不支持局部replan，并在任何Provider调用或写入前返回既有scope错误。
+
+V5预检最多接收8个地点，先用Haversine初筛和组约束枚举保留3个候选，再以最多24个有向路线logical call复评分。每天从住宿锚点出发并返回；硬拒绝超200km、超240分钟、路线/直线比例异常或端点/geometry不一致的路线。DeepSeek接收固定日期、地点顺序和路线摘要，输出只允许叙述字段。
+
+## F-010 地图优先统一流程
+
+生产 `App` 默认只挂载 V5 地图优先流程；旧表单仅由测试兼容 prop 挂载，不是可见产品模式。页面内存状态贯穿城市确认、POI/住宿选择、详细需求、预检和结果；`PUT /api/preplanning-sessions/{session_id}/trip` 以 expected revision 原子替换同城市旅行参数，变更时清除旧 feasibility 与路线缓存但保留 selection，随后 selection 替换继续使用返回的 revision。该资源仍属于现有应用级内存 cohort，不进入数据库。
+
+V5 narrative 的失败只投影项目闭集诊断。generation 最多一次；只有结构/身份校验失败才进行一次 repair。最终无效时响应为 `partial`，包含 `model_output_invalid`、provider、diagnostic code 与 retryable，计划和 MapPlan 不变。前端由诊断码确定 generation/repair 阶段与安全调用计数，不接收 Prompt、模型原文或 Provider body。
+
+前端 Web JS 配置仅为浏览器可见的 `VITE_AMAP_JS_KEY` 与 `VITE_AMAP_JS_SECURITY_CODE`，与后端 `AMAP_API_KEY` 完全分离。缺失配置、Loader 或渲染失败时地图呈现可操作说明和手动重试，列表仍调用同一 V5 API。离线浏览器验收使用编译期 synthetic map facade 和进程级非 loopback socket gate，不读取本地秘密或加载真实高德脚本。
+
+## F-014 至 F-016 V6 TravelAdvisorAgent
+
+V6 在 V5 确定性空间规划之上增加一个受约束 `TravelAdvisorAgent`，以需求访谈、地点策展、方案比较、冲突协调、行程说明和内部审校角色共享同一内存 Session。它不是多个自主 Agent 的协商系统。
+
+F-017 将顾问呈现为地图旁可折叠抽屉，并在相同内存 Session 中保存最多 12 条 `user|advisor` 文本投影。Provider 输入进一步截断为最近 10 条既有消息加当前消息；幂等重放不追加历史。该上下文只帮助连续访谈，不改变既有 typed action、revision、候选索引和确定性事实边界。
+
+```text
+地图/列表与用户消息
+→ Advisor 严格建议（只读）
+→ 用户确认 typed action
+→ revision 更新并使旧 feasibility 失效
+→ 确定性求解器生成 1–3 个 PlanOption
+→ 用户选择 option_id
+→ V6 确定性计划 + MapPlan + 受约束 narrative
+```
+
+- Advisor turn 最多一次 generation、一次 Schema repair 和三个只读工具请求；任何选择写入都必须经过独立确认 action。
+- V6 feasibility set、option、job 和 MapPlan 与 PreplanningSession 共用应用级内存 TTL，不进入 SQLite。
+- Agent 不拥有地点身份、路线、日期、顺序、精确时间、费用或可行性裁决权；未确认地点不能进入 solver 或计划。
+- 天气只有证据覆盖行程日期时才参与建议；否则固定为未知，不使用季节经验伪装预报。
+- 离线验收采用 synthetic 专用构建与浏览器级 fail-closed 网络拦截；真实 UAT 是独立 Phase 2。

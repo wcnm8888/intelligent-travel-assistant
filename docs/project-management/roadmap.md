@@ -15,7 +15,7 @@
 
 ## 当前阶段
 
-目标：B-000 至 F-008 的已选任务已完成归档，F-004B2 保持 `BLOCKED / ARCHIVED`；F-008以R5 `PASS / OFFLINE`、Step 13 `DONE / INCONCLUSIVE`、真实UAT `4/4`且Step 14未执行的结论关闭。当前无活动任务，等待用户从roadmap选择候选任务。
+目标：F-018 已关闭真实测试中暴露的顾问推荐、路线锚点和方案比较缺口；真实地图和 Provider UAT 保持独立 Gate。
 
 | 顺序 | 任务 | 状态 | 用户价值 | 关键依赖 |
 | --- | --- | --- | --- | --- |
@@ -31,14 +31,22 @@
 | 9 | F-006 MVP 体验收口与本地验收 | DONE | 用户可稳定完成完整本地旅行决策流程，并获得可恢复、可本地运行、可离线验收的 MVP | F-001 至 F-005、F-004C、D-017、归档任务卡 |
 | 10 | F-007 高德路径规划 QPS 节流与真实调用稳定性 | DONE | 路径规划 attempt 使用单进程共享 0.5 秒 paced slot；真实 UAT 仍为 INCONCLUSIVE，不宣称 QPS PASS | F-005 attempt runtime、F-006、D-018、2026-08-30 FAIL、归档任务卡 |
 | 11 | F-008 真实 UAT 缺陷收口与计划事实可信度 | DONE | 重规划恢复与计划事实能力完成离线验收；真实Provider UAT最终为INCONCLUSIVE | D-019–D-030；R5 PASS / OFFLINE；Step 13 DONE / INCONCLUSIVE，真实UAT 4/4；Step 14未执行；[归档](../archive/task-cards/F-008-real-uat-plan-fact-trust.md) |
+| 12 | F-009 地图选点与空间可行旅行规划 | DONE | 用户可确认经过验证的住宿和景点，在生成前看到空间冲突，并以地图和完整列表查看确定性可行计划；离线门禁通过 | F-004A、F-007、D-031；[归档](../archive/task-cards/F-009-map-spatial-planning.md)；真实Provider UAT未授权 |
+| 13 | F-010 地图优先统一规划流程与 DeepSeek 安全降级 | DONE | 用户在一条连续 V5 流程中先选点、再完善需求、预检并查看同一地图/列表计划；模型失败不丢失确定性结果 | F-009、D-032；[归档](../archive/task-cards/F-010-map-first-unified-flow.md)；真实地图与 Provider UAT 未授权 |
+| 14 | F-011 旅行约束易用化、结果页重构与模型说明恢复 | DONE | 用户以地点名称建立约束、自然选择住宿，并在清晰时间轴中阅读或单独恢复 AI 游览提示 | `PASS / OFFLINE`；[任务卡](./f-011-travel-constraint-usability.md)；真实 UAT 未授权 |
+| 15 | F-012 真实验收交互缺陷修复：地图 Marker 语义与预检保存恢复 | DONE | 用户能区分住宿、景点与选中点，并在部分保存或 revision 冲突后可靠进入空间预检 | `PASS / OFFLINE`；[任务卡](./f-012-real-acceptance-interaction-fixes.md)；真实 UAT 未授权 |
+| 16 | F-013 真实测试缺陷稳定化 | DONE | 选点、实际安排、未采用原因与每日地图/说明严格一致 | [任务卡](./f-013-real-journey-stabilization.md)；`PASS / OFFLINE` |
+| 17 | F-014 V6 顾问基础 | DONE | 用受约束顾问协助访谈偏好和策展地点，所有变更由用户确认 | [任务卡](./f-014-v6-advisor-foundation.md)；`PASS / OFFLINE` |
+| 18 | F-015 完整共同规划闭环 | DONE | 比较最多三个可行方案并提供确认式冲突恢复和天气覆盖边界 | [任务卡](./f-015-joint-planning-loop.md)；`PASS / OFFLINE` |
+| 19 | F-016 离线验收与真实 UAT 准入 | DONE | 固定 Agent 评测和纵向验收收口，真实 UAT 仍单独批准 | [任务卡](./f-016-offline-agent-acceptance.md)；`PASS / OFFLINE` |
+| 20 | F-017 旅行顾问对话体验与上下文连续性 | DONE | 在地图旁通过有界对话、快捷回答和确认式建议协助旅客共同规划 | [任务卡](./f-017-advisor-conversation-experience.md)；`PASS / OFFLINE` |
+| 21 | F-018 推荐优先、路线锚点闭环与方案有效对比 | DONE | 用户可先获得景点推荐、明确完成区域锚点选择并真正看懂可行方案差异 | [任务卡](./f-018-advisor-discovery-anchor-option-clarity.md)；`PASS / OFFLINE` |
 
-B-000 至 F-008 的已选任务均已完成归档，F-004B2 保持阻塞归档。当前 `ACTIVE` 精确为 0、`CANDIDATE` 为 0；F-009 未激活。
+B-000 至 F-018 的已选任务均已完成，F-004B2 保持阻塞归档。当前无活动任务。
 
 ## 当前任务入口
 
-当前无活动任务。最近关闭任务为[F-008](../archive/task-cards/F-008-real-uat-plan-fact-trust.md)，最终证据见[evidence](./evidence.md#f008-final-inconclusive-closeout-20260912)。
-
-下一批准动作是用户从roadmap选择候选任务，再另行创建并批准`current-task.md`。F-009及其他任务均未自动激活；Step 14和Git交付未执行。
+当前无活动任务；最近完成为 [F-018 推荐优先、路线锚点闭环与方案有效对比](./f-018-advisor-discovery-anchor-option-clarity.md)。
 ## 外部服务就绪门禁
 
 F-001 的真实数据验收门禁包括：
@@ -73,7 +81,7 @@ MVP 只有在 F-001 至 F-006 中被用户实际选择、批准并完成的必�
 - 自动预订、支付、出票和订单；
 - 酒店、票务实时库存承诺；
 - 登录、复杂用户系统和多人实时协作；
-- 多 Agent；
+- 自主多 Agent 群；
 - 公网部署和生产运维；
 - 复杂地图、图片、PDF 和公开分享；
 - 境外旅行。
@@ -109,7 +117,7 @@ F-007 高德路径规划 QPS 节流（DONE / ARCHIVED）
   ↓
 F-008（DONE / ARCHIVED；R5 PASS / OFFLINE；Step 13 DONE / INCONCLUSIVE；Step 14 NOT_EXECUTED）
   ↓
-当前无活动任务；等待用户从 roadmap 选择候选任务
+F-009 地图选点与空间可行旅行规划（DONE / IMPLEMENTED / PASS / OFFLINE；真实 UAT 未授权）
 ```
 
 依赖图表达推荐顺序，不构成自动执行授权。用户可以调整候选任务、拆分范围或暂停项目。

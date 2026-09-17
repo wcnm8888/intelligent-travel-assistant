@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from time import monotonic
 from typing import Final, Literal
 
 from fastapi import FastAPI, Request
@@ -9,14 +10,24 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
+from intelligent_travel_assistant.adapters.providers import (
+    F009AmapProvider,
+    F009DeepSeekNarrativeProvider,
+    F014DeepSeekAdvisorProvider,
+)
 from intelligent_travel_assistant.api import (
     PlanningHttpError,
+    create_preplanning_router,
     create_replan_router,
     create_trip_plan_router,
     error_response,
     input_invalid_error,
 )
 from intelligent_travel_assistant.application.execution import PlanningJobExecutor
+from intelligent_travel_assistant.application.f009 import (
+    PreplanningService,
+    UnavailableF009MapProvider,
+)
 from intelligent_travel_assistant.application.replanning import ReplanApplicationService
 from intelligent_travel_assistant.application.repositories import PlanningJobRepository
 from intelligent_travel_assistant.bootstrap import (
@@ -49,6 +60,7 @@ def create_app(
     provider_adapters: ProviderAdapters | None = None,
     planning_job_executor: PlanningJobExecutor | None = None,
     replan_application_service: ReplanApplicationService | None = None,
+    preplanning_service: PreplanningService | None = None,
 ) -> FastAPI:
     """Create an application instance without requiring third-party credentials."""
 
@@ -117,6 +129,29 @@ def create_app(
     application.state.route_attempt_limiter = (
         default_services.route_attempt_limiter if default_services is not None else None
     )
+    if preplanning_service is not None:
+        resolved_preplanning_service = preplanning_service
+    elif resolved_adapters.amap is not None:
+        resolved_preplanning_service = PreplanningService(
+            F009AmapProvider(resolved_adapters.amap),
+            narrative=(
+                F009DeepSeekNarrativeProvider(resolved_adapters.deepseek)
+                if resolved_adapters.deepseek is not None
+                else None
+            ),
+            advisor=(
+                F014DeepSeekAdvisorProvider(resolved_adapters.deepseek)
+                if resolved_adapters.deepseek is not None
+                else None
+            ),
+            route_limiter=application.state.route_attempt_limiter,
+            monotonic_clock=(
+                monotonic if application.state.route_attempt_limiter is not None else None
+            ),
+        )
+    else:
+        resolved_preplanning_service = PreplanningService(UnavailableF009MapProvider())
+    application.state.preplanning_service = resolved_preplanning_service
 
     @application.exception_handler(PlanningHttpError)
     async def handle_planning_http_error(
@@ -142,9 +177,16 @@ def create_app(
     def health() -> HealthResponse:
         return HealthResponse()
 
-    application.include_router(create_trip_plan_router(repository, executor))
     application.include_router(
-        create_replan_router(repository, resolved_replan_application_service)
+        create_trip_plan_router(repository, executor, resolved_preplanning_service)
+    )
+    application.include_router(create_preplanning_router(resolved_preplanning_service))
+    application.include_router(
+        create_replan_router(
+            repository,
+            resolved_replan_application_service,
+            resolved_preplanning_service,
+        )
     )
     return application
 

@@ -614,3 +614,29 @@ F-006 不新增或修改任何 HTTP URI、method、status、header、公开顶�
 ### replan 兼容
 
 legacy 与 V2 恰好 2 日继续使用既有 F-003 replan URI；V2 3–7 日不显示控件并返回既有 `replan_scope_not_supported`。V3/V4 不显示控件且全链路写前拒绝保持。F-006 不以 UX 收口扩大或重定义 replan scope。
+
+## F-010 V5 统一流程增量契约
+
+- `PUT /api/preplanning-sessions/{session_id}/trip` 接收 exact `expected_revision + trip`。只允许同一 session 城市内更新日期、窗口、人数、预算、住宿/餐饮预算、节奏、交通与清洗后偏好；城市变化返回既有 422 `selection_invalid`。revision 不一致返回 409，Provider 与写入调用为 0。
+- trip 实际变化时 revision 增加，并清除旧 feasibility、路线缓存与 geometry；已确认 selection 保留。完全相同的 trip 为幂等 no-op。更新资源仍只在当前进程内存中。
+- `PreplanningTripInput` 新增可空 `one_night_cost` 与默认 CNY 100 的 `meal_budget_per_person_per_day`，只服务 V5 内存请求；legacy/V2/V3/V4 shape 不变。
+- V5 `partial` narrative 降级在既有 `errors: ApiError[]` 中返回 `code=model_output_invalid`、固定安全 message、`provider=deepseek`、闭集 `diagnostic_code` 与 `retryable`。前端严格拒绝额外键；Prompt、原始模型输出、错误 body、URL query 与秘密永不进入响应。
+- narrative 诊断以 `narrative_generation_*` 或 `narrative_repair_*` 表示阶段，generation 固定最多 1 次、repair 最多 1 次。此错误不改变 plan、日期、地点顺序、路线、时间或 MapPlan，也不开放 V5 replan。
+
+## F-014 至 F-015 V6 顾问与方案契约
+
+- `GET /api/preplanning-sessions/{id}/advisor` 返回顾问阶段、已确认偏好、待处理建议和脱敏安全摘要。
+- `POST /api/preplanning-sessions/{id}/advisor-turns` 接收 advisor version、client request ID、expected revision 和用户消息；只返回严格问题、偏好补丁与候选建议，不修改 selection。
+- `POST /api/preplanning-sessions/{id}/advisor-actions` 只执行用户明确接受或忽略的建议。旧 revision 返回 409，零 Provider 调用、零写入。
+- `POST /api/preplanning-sessions/{id}/advisor-recovery-actions` 执行闭集恢复动作；成功后 revision 增加，旧 V5/V6 feasibility、路线缓存与 geometry 失效。
+- `POST /api/preplanning-sessions/{id}/v6/preflight` 返回绑定 session/revision 的 feasibility set 和 1–3 个严格 `PlanOptionV6`。
+- `POST /api/trip-plans` 接受严格 `request_version="6"`，必须绑定 feasibility set 与用户主动选择的 option ID；响应为严格 `response_version="6"`。
+- V6 复用 `GET /api/trip-plans/{job_id}/map` 和 narrative-only retry；replan 与 V5 相同，在 Repository、Provider 和写入前返回既有 scope 错误。
+- 全部 V6 资源只在应用级内存中；不扩展 SQLite union、Schema 或 migration。legacy/V2/V3/V4/V5 discriminator 和 URI 行为保持。
+
+## F-017 顾问会话投影增量契约
+
+- `AdvisorSnapshotResponse` 新增严格 `conversation`，仅包含 `role=user|advisor` 和清洗后的 `text`，最多 12 条。
+- `advisor-turns` 向 Provider 只提供最近最多 10 条既有会话、当前消息、已确认偏好和已验证候选索引；不提供 location UUID、路线、坐标、Provider 原始响应或秘密。
+- 同一 `client_request_id` 的幂等响应不重复追加会话；旧 revision 仍在模型调用前返回 409。
+- 会话只在 PreplanningSession 内存 cohort 中，随 Session TTL 失效，不进入 SQLite、localStorage 或 sessionStorage。

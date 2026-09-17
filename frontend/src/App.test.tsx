@@ -5,7 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import failedCase from "../../backend/tests/fixtures/synthetic_hangzhou_failed.json";
 import needsInputCase from "../../backend/tests/fixtures/synthetic_hangzhou_needs_input.json";
 
-import { App } from "./App";
+import { App as UnifiedApp } from "./App";
+import type { ComponentProps } from "react";
+
+const App = (props: ComponentProps<typeof UnifiedApp>) => (
+  <UnifiedApp legacyCompatibilityMode {...props} />
+);
 import {
   FIXED_CLIENT_ID,
   FIXED_JOB_ID,

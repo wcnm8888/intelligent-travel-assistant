@@ -1,6 +1,15 @@
 # 项目决策记录
 
-本文件保存D-001–D-030的长期技术裁决和按日期记录的决策沿革，不维护当前执行状态。当前切片、有效规模授权以 [任务卡](./project-management/current-task.md#当前执行状态) 为准；实施/批准历史与本次纠偏证据见 [evidence](./project-management/evidence.md#f008-governance-20260905)。下文旧额度/准入/“当前”表述均限定于各自记录时点，不替代任务卡现值。本轮未新增决策编号或改变技术契约。
+## D-035 F-017 顾问采用有界单 Agent 对话抽屉，不采用自治多 Agent
+
+- 日期：2026-09-15；状态：`APPROVED / IMPLEMENTED / PASS / OFFLINE`。
+- 地图仍是选点主画布；顾问改为地图旁可折叠抽屉，在 390px 下回落为单栏可折叠区域。
+- 单个 `TravelAdvisorAgent` 共享最近最多 12 条脱敏会话投影、已确认偏好和已验证候选索引；不向模型发送 location UUID、路线、Provider 原始响应或秘密。
+- 顾问只返回待确认偏好补丁、候选地点建议和解释；所有写入继续经过类型化 action、revision 和幂等校验。
+- 地点、路线、日期、时间、预算与可行性仍由确定性代码拥有；F-017 不新增数据库、依赖或真实 Provider 调用。
+- desktop/390px synthetic 旅程、完整 Development 和设计 QA 已通过；真实 Provider UAT 仍为 `NOT_EXECUTED / NOT_AUTHORIZED`。
+
+本文件保存D-001–D-031的长期技术裁决和按日期记录的决策沿革，不维护当前执行状态。当前切片、有效规模授权以 [任务卡](./project-management/current-task.md#当前执行状态) 为准；实施/批准历史与本次纠偏证据见 [evidence](./project-management/evidence.md#f008-governance-20260905)。下文旧额度/准入/“当前”表述均限定于各自记录时点，不替代任务卡现值。
 
 本文件只保存长期有效的已批准决策、理由和后果。当前任务状态不在这里维护。
 
@@ -1172,3 +1181,53 @@ Step 6 的纵向验收补充实现后果：live memory cohort 的 `InMemoryRepla
 - 用户随后已批准D-030两文件实施；当前因完整规模超限保持APPROVED / BLOCKED_BY_SIZE / IMPLEMENTATION_NOT_STARTED，不重复索取技术范围授权。本轮只完成规模处置提案，D-030技术契约及全部矩阵保持。
 - 仅建议Stack1净新增7500→8500、任务累计9000→10000，文件上限30/68及其他数值不改；当前仍以7500/9000为有效上限。R3-E/R3各用满900/1500且R4/R5完整预测250/590不变时，8107/9413在候选额度下余393/587；不宣称任意后续增长已覆盖。
 - 先有两项明确数值批准及重新准入，再按用户恢复指令沿用既有R3-E授权；候选本身不授权代码/Provider/服务/Git交付，R3及后续阶段不自动执行。完整核算与审批Prompt以current-task本轮规模处置节为准。
+
+## D-031：F-009 采用内存预规划、确定性空间求解与受限叙述模型
+
+- 日期：2026-09-13；状态：`APPROVED / IMPLEMENTATION_ACTIVE`。
+- F-009 只覆盖单城市 2–7 日、最多 8 个用户候选地点和每天最多 4 个原子 POI。新增独立预规划资源与严格 V5；legacy/V2/V3/V4 的 URI、Schema、Repository和终态语义不变。
+- 高德 Web Service是地点身份、行政区、GCJ-02坐标、路线与polyline的事实入口；前端JS API只渲染地图。Web Service Key不得进入浏览器，Web JS使用独立配置。
+- Provider派生候选、provider ID、坐标、预检路线和geometry只存在于应用级内存和当前页面，不进入SQLite、localStorage、日志、文档或CI artifact；F-009不新增Schema或migration。
+- 用户选择revision绑定一次性feasibility token。选择变化使旧预检、路线和geometry失效。Provider失败与真实不可达分开；must_visit不得自动删除或替换。
+- V5由确定性程序验证身份、枚举组关系、分日、排序、计算时间窗口并执行不可达恢复。DeepSeek只接收已冻结日程和清洗后的名称、类别与路线摘要，只输出节奏、提示和解释；它不能改变地点、日期、顺序、时间、路线、费用或可达结论。
+- 地图不是唯一控制面。完整列表必须能独立完成选点、冲突处理和读取计划；地图或polyline失败不能清除选择或把有效文字计划改成failed。
+- 真实高德地图、高德Web Service、DeepSeek与和风UAT保持独立准入；离线、synthetic和loopback结果只能标记`PASS / OFFLINE`。
+
+## D-032：F-010 采用地图优先单流程并将模型失败降级为叙述缺失
+
+- 日期：2026-09-13；状态：`APPROVED / IMPLEMENTATION_ACTIVE / OFFLINE_ONLY`。
+- 默认产品入口不再把经典文字规划与地图选点表示为两个互斥生成方案。单一流程按地图/列表选点、完善需求、保存选择、空间预检、V5 计划和地图/完整列表结果推进；无地图列表是同一流程的展示降级。
+- 页面使用单一内存 `TripDraft` 和同一 preplanning session/revision/feasibility。步骤返回、Loader 失败和地图重试不得清空已确认地点；业务状态不进入 localStorage 或 SQLite。
+- 新默认前端只走 V5。地点身份、分日、顺序、时间、路线和可行性由确定性程序冻结；DeepSeek 只生成叙述。模型 generation/一次 repair 均失败时保留确定性计划和 MapPlan，以 `partial` 与安全诊断降级。
+- legacy/V2/V3/V4 后端合同和测试继续兼容，但不作为新地图用户旅程的主入口。诊断只公开闭集 code、阶段、调用计数、保留结论和 retryable，不公开 Prompt、原始模型内容或 Provider body。
+- Web JS Key/安全配置与后端 Web Service Key分离；配置模板只记录变量名和浏览器可见性边界。本任务不读取秘密、不加载真实地图、不调用真实 Provider、不新增依赖/数据库变化或执行 Git 交付。
+
+## D-033：F-011 以用户语言表达地点关系并允许独立恢复受限叙述
+
+- 日期：2026-09-14；状态：`APPROVED / IMPLEMENTATION_ACTIVE / OFFLINE_ONLY`。
+- 用户不再输入 either-or 或 visit-group 的内部 ID；界面通过地点名称建立“独立游览 / 二选一 / 一起游览”，程序确定性生成组 ID，既有后端不变量保持。
+- 住宿主界面使用“大概区域 / 已确定酒店 / 地图上选择”，技术 mode 和 confidence 只进入帮助或折叠详情，DTO 不变。
+- 结果页采用住宿首尾和活动/交通交错的每日时间轴。普通摘要不暴露 `partial`、Provider、Schema、诊断码、布尔值或内部调用计数；闭集诊断默认折叠。
+- 新增 V5 内存 narrative-only retry action。它只复用冻结计划调用 DeepSeek generation 一次、repair 最多一次；不得重跑 POI、逆地理、路线、solver 或 preflight，不改变确定性计划和 MapPlan，不写 SQLite。
+- 本决定仅授权本地离线实现、fake/synthetic 验收和 loopback 浏览器。真实地图、高德、DeepSeek、和风 UAT 仍需独立任务、调用与费用授权。
+- 执行状态补充（2026-09-14）：唯一 Development 门禁 `1/1` 在前端测试子门禁失败，F-011 当前阻塞；本决定的产品边界不变，失败诊断、修复与新门禁额度均未自动授权。
+- 恢复授权补充（2026-09-14）：用户另行批准一次离线前端诊断、一次 F-011 前端职责内修复、一次定向验证、一次新 Development 门禁和一次最终文档合同；未授权后端测试、浏览器、真实地图或 Provider 调用，D-033 产品边界不变。
+- 恢复诊断补充（2026-09-14）：唯一诊断同时发现 F-011 测试与授权范围外 V3 测试的默认 5000 ms 超时；依照范围停止条件未修改代码。是否扩大到 V3 测试或全局 Vitest 配置须由用户另行决定，D-033 产品行为不变。
+- 根因隔离授权补充（2026-09-14）：用户新增一个顺序单跑批次，分别执行 `F009Planner.test.tsx` 与 `multicityPlanning.red.test.tsx` 各一次；证据确认需要时，可在既有唯一修复轮次中纳入 V3 测试或 `frontend/vite.config.ts`。后端、浏览器、真实地图和 Provider 新增额度仍为 0。
+- 根因确认补充（2026-09-14）：两个测试文件单独运行均通过，确认全套并发 jsdom 负载与 Vitest 默认 5000 ms 超时不匹配；既有唯一修复只在 `frontend/vite.config.ts` 明确设置 10000 ms 测试超时，不改变产品行为、断言或 Provider 边界。
+- 恢复门禁结果补充（2026-09-14）：新增 Development 门禁 `1/1` 中前端全量测试和 build 已通过，但最后的 Documentation and repository contracts exit 1；安全摘要未保留具体合同条目。依照失败即停止，未运行最终 documentation contracts，F-011 保持阻塞且需新授权后才能诊断或修复。
+- 完成授权补充（2026-09-14）：用户随后批准完成当前 F-011 离线任务卡所需的必要授权。Step 1C 只恢复文档合同并完成离线门禁/状态收口，不扩大产品功能、真实地图/Provider、浏览器、依赖、数据库或 Git 交付边界。
+- 文档合同根因补充（2026-09-14）：诊断确认状态检查器只解析数字 Step，恢复标签 `Step 1C` 使 current-task 与 docs-map 无法确定当前 Step。最小修复保持正式 `Step 1`，恢复阶段只作说明，不放宽检查器。
+- 最终收口补充（2026-09-14）：文档合同修复后定向验证通过，新 Development 门禁完整通过。F-011 形成 `DONE / IMPLEMENTED / PASS / OFFLINE`；真实地图与 Provider UAT 仍为 `NOT_EXECUTED / NOT_AUTHORIZED`，Git 交付未执行。
+
+## D-034：V6 采用单 TravelAdvisorAgent 多角色与用户确认式共同规划
+
+- 日期：2026-09-14；状态：`APPROVED / IMPLEMENTED / PASS / OFFLINE`。
+- V5 保持兼容；新顾问能力进入严格 V6。单个 `TravelAdvisorAgent` 以需求访谈、地点策展、方案比较、冲突协调、行程说明和内部审校角色共享同一内存 session，不建立多个自主 Agent 协商系统。
+- Agent turn 只产生待确认偏好补丁、已验证 POI 候选索引、方案说明和闭集恢复动作。用户必须通过独立 typed action 接受；成功后 revision 增加并使旧 feasibility 与 option 失效。
+- 确定性求解器最多发布三个不重复且全部可行的 PlanOption；Agent 只解释交通、节奏和偏好覆盖差异，用户主动选择 option ID 后才创建 V6 计划。
+- 地点身份、路线、日期、顺序、精确时间、费用、天气证据和可行性不由模型裁决。模型只按日/停靠点索引返回等长说明；一次 repair 后仍无效则只降级说明。
+- 天气只有明确覆盖行程日期时才用于建议，远期或缺失数据固定为“天气尚不可核验”。
+- Advisor、V6 feasibility set、job 和 MapPlan 仅在应用级内存，不进入 SQLite 或浏览器持久化；legacy/V2/V3/V4/V5 与 replan 边界不变。
+- Phase 1 采用 synthetic 专用 fail-closed 构建和浏览器级非 loopback 拦截。F-016 最终 Agent 评测及 desktop/390px 旅程通过，但只支持 `PASS / OFFLINE`；真实高德、地图、DeepSeek 与和风 UAT 需独立授权。
+- F-016 的完整 Development 门禁与状态更新后的文档合同通过后关闭当前任务；这一离线完成不改变真实 Provider UAT 的 `NOT_EXECUTED / NOT_AUTHORIZED` 状态。

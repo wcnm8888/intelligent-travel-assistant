@@ -6,6 +6,8 @@ Intelligent Travel Assistant 是一个面向中国大陆境内自由行的本地
 
 `B-000：项目与工程基线` 已由 [PR #1](https://github.com/wcnm8888/intelligent-travel-assistant/pull/1) 交付，并由 [PR #2](https://github.com/wcnm8888/intelligent-travel-assistant/pull/2) 完成任务归档和文档收口。F-001 已由 [PR #5](https://github.com/wcnm8888/intelligent-travel-assistant/pull/5) 按 stacked 顺序合并至功能分支，再由 [PR #4](https://github.com/wcnm8888/intelligent-travel-assistant/pull/4) 合并至 `main`（merge commit `d05e997dbeaa676702704ce791287eb036c80a6c`）。项目已具备本地 Git 与文档基线、固定运行时和工作区配置、FastAPI 健康服务、统一本地门禁和 GitHub Actions CI。F-001 已交付但产品验收状态保留为 `PARTIAL`：Step 45T 取得完整双日 partial 的真实 UAT `PASS`，其中门票等非关键费用保持 `unknown`，不按 0 计算；Step 45M 历史 `FAIL` 保留。
 
+F-013 至 F-017 已完成 V6 旅行顾问共同规划并形成 `PASS / OFFLINE`：用户可确认顾问提取的偏好与候选地点、在地图旁通过有界对话和快捷回答共同规划、比较最多三个确定性可行方案、主动选择方案并安全恢复游览说明。desktop 与 390px synthetic 旅程通过；真实地图、高德、DeepSeek 和和风 UAT 仍为 `NOT_EXECUTED / NOT_AUTHORIZED`。
+
 - 运行边界：仅本地运行，后续允许经显式配置访问外部 API。
 - 当前任务状态：[current-task.md](./docs/project-management/current-task.md)
 - 当前实施计划：[implementation-plan.md](./docs/project-management/implementation-plan.md)
@@ -50,12 +52,12 @@ FastAPI Application API
     ├─ 日期 / 路线 / 时间 / 预算确定性校验
     ├─ Repository → SQLite
     └─ 外部服务端口
-       ├─ DeepSeek：需求理解、编排、规划与解释
+       ├─ DeepSeek：受约束偏好建议、方案解释与游览说明
        ├─ 高德：地理编码、POI、地图与路线
        └─ 和风天气：天气预报与预警
 ```
 
-LLM 不作为预算、日期、时间或路线约束的最终裁决者。外部服务由适配器隔离；默认测试不访问真实 API。
+LLM 不作为地点、预算、日期、时间、路线或可行性的最终裁决者。外部服务由适配器隔离；默认测试不访问真实 API。
 
 ## 工程基线
 

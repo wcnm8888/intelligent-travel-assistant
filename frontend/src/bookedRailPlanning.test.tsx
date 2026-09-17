@@ -2,7 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { App } from "./App";
+import { App as UnifiedApp } from "./App";
+import type { ComponentProps } from "react";
+
+const App = (props: ComponentProps<typeof UnifiedApp>) => (
+  <UnifiedApp legacyCompatibilityMode {...props} />
+);
 import { TripPlanResult } from "./TripPlanResult";
 import { TripRequestForm } from "./TripRequestForm";
 import { bookedRailPlanningPayload } from "./test/bookedRailTripPlanningFixtures";

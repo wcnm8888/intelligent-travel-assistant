@@ -12,6 +12,13 @@ from intelligent_travel_assistant.adapters.providers.deepseek import (
     DeepSeekAdapter,
     DeepSeekAdapterConfig,
 )
+from intelligent_travel_assistant.adapters.providers.f009_amap import F009AmapProvider
+from intelligent_travel_assistant.adapters.providers.f009_deepseek import (
+    F009DeepSeekNarrativeProvider,
+)
+from intelligent_travel_assistant.adapters.providers.f014_deepseek import (
+    F014DeepSeekAdvisorProvider,
+)
 from intelligent_travel_assistant.adapters.providers.qweather import (
     QWEATHER_TIMEOUT_SECONDS,
     QWeatherAdapter,
@@ -28,6 +35,9 @@ __all__ = [
     "AmapAdapterConfig",
     "DeepSeekAdapter",
     "DeepSeekAdapterConfig",
+    "F009AmapProvider",
+    "F009DeepSeekNarrativeProvider",
+    "F014DeepSeekAdvisorProvider",
     "QWeatherAdapter",
     "QWeatherAdapterConfig",
 ]

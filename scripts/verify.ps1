@@ -197,7 +197,7 @@ try {
         throw 'RepositoryVerification requires all quality gates.'
     }
     if ($MechanismOnly) {
-        $Targets = @('../scripts/check_docs.py', '../scripts/check_f008_readiness.py', '../scripts/tests/test_check_docs.py', '../scripts/tests/test_check_f008_readiness.py')
+        $Targets = @('../scripts/check_docs.py', '../scripts/check_current_task_readiness.py', '../scripts/check_f008_readiness.py', '../scripts/tests/test_check_docs.py', '../scripts/tests/test_check_current_task_readiness.py', '../scripts/tests/test_check_f008_readiness.py')
         Invoke-NativeGate 'Mechanism format' { uv run --offline --no-sync --directory backend ruff format --check @Targets }
         Invoke-NativeGate 'Mechanism lint' { uv run --offline --no-sync --directory backend ruff check @Targets }
         Invoke-NativeGate 'Mechanism strict types' { uv run --offline --no-sync --directory backend mypy --strict --no-incremental @Targets }
@@ -217,7 +217,7 @@ try {
         if ($PreflightOnly) { throw 'RepositoryVerification requires all quality gates.' }
     } else {
         $PhaseName = @{Development='development'; ToolReadiness='tool_readiness'; FormalAcceptance='formal_acceptance'}[$Phase]
-        & uv run --offline --no-sync --directory backend python -B ../scripts/check_f008_readiness.py --root $ProjectRoot --phase $PhaseName
+        & uv run --offline --no-sync --directory backend python -B ../scripts/check_current_task_readiness.py --root $ProjectRoot --phase $PhaseName
         if ($LASTEXITCODE -ne 0) { throw 'Preflight refused before product gates; no formal batch created.' }
         if ($PreflightOnly -or $Phase -eq 'ToolReadiness') { exit 0 }
     }

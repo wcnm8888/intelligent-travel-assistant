@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:synthetic": "tsc --noEmit && vite build --mode synthetic",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",
@@ -17,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@amap/amap-jsapi-loader": "^1.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

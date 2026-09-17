@@ -2,7 +2,11 @@
 param(
     [switch]$ContractSelfTest,
     [switch]$PreflightOnly,
-    [switch]$InterruptSelfTest
+    [switch]$InterruptSelfTest,
+    [ValidateRange(0, 65535)]
+    [int]$BackendPort = 0,
+    [ValidateRange(0, 65535)]
+    [int]$FrontendPort = 0
 )
 
 Set-StrictMode -Version Latest
@@ -12,16 +16,11 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ExpectedPython = "3.13.3"
 $ExpectedNode = "22.16.0"
 $ExpectedPnpm = "11.19.0"
-$BackendPort = 8000
-$FrontendPort = 5173
-$BackendHealthUri = "http://127.0.0.1:8000/api/health"
-$FrontendUri = "http://127.0.0.1:5173/"
 $StartupTimeoutSeconds = 30
 
 $env:COREPACK_ENABLE_NETWORK = "0"
 $env:UV_OFFLINE = "1"
 $env:API_HOST = "127.0.0.1"
-$env:API_PORT = "8000"
 
 function Test-ExactVersionOutput {
     param(
@@ -67,6 +66,30 @@ function Test-PortAvailable {
 
     $Listeners = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
     return -not ($Listeners | Where-Object { $_.Port -eq $Port })
+}
+
+function Get-AvailableLoopbackPort {
+    param(
+        [int[]]$ExcludedPorts = @()
+    )
+
+    for ($Attempt = 0; $Attempt -lt 32; $Attempt++) {
+        $Listener = [System.Net.Sockets.TcpListener]::new(
+            [System.Net.IPAddress]::Loopback,
+            0
+        )
+        try {
+            $Listener.Start()
+            $Port = ([System.Net.IPEndPoint]$Listener.LocalEndpoint).Port
+        }
+        finally {
+            $Listener.Stop()
+        }
+        if ($ExcludedPorts -notcontains $Port -and (Test-PortAvailable $Port)) {
+            return $Port
+        }
+    }
+    throw "A free loopback port could not be allocated safely."
 }
 
 function Stop-OwnedProcess {
@@ -236,15 +259,17 @@ function Get-SafeFailureMessage {
         "Frontend health did not become ready within 30 seconds.",
         "Backend stopped unexpectedly; the local session is closing.",
         "Frontend stopped unexpectedly; the local session is closing.",
-        "Local application child process cleanup did not complete."
+        "Local application child process cleanup did not complete.",
+        "Backend and frontend loopback ports must be different.",
+        "A free loopback port could not be allocated safely."
     )
     if ($ApprovedMessages -contains $Message) {
         return $Message
     }
-    if ($Message -match "^Local port (8000|5173) is already in use; no existing process was stopped\.$") {
+    if ($Message -match "^Local port [0-9]{1,5} is already in use; no existing process was stopped\.$") {
         return $Message
     }
-    return "Local application could not start safely. Check installed runtimes, fixed ports, and local storage permissions."
+    return "Local application could not start safely. Check installed runtimes, loopback ports, and local storage permissions."
 }
 
 function Invoke-ContractSelfTest {
@@ -264,42 +289,29 @@ function Invoke-ContractSelfTest {
         throw "Health parser accepted an extra field."
     }
 
-    $FixedListeners = @()
+    $FirstPort = Get-AvailableLoopbackPort
+    if ($FirstPort -lt 1 -or $FirstPort -gt 65535) {
+        throw "Dynamic loopback port allocation returned an invalid port."
+    }
+    $Listener = [System.Net.Sockets.TcpListener]::new(
+        [System.Net.IPAddress]::Loopback,
+        $FirstPort
+    )
     try {
-        foreach ($Port in @($BackendPort, $FrontendPort)) {
-            $WasAvailable = Test-PortAvailable $Port
-            $Listener = $null
-            if ($WasAvailable) {
-                $Listener = [System.Net.Sockets.TcpListener]::new(
-                    [System.Net.IPAddress]::Loopback,
-                    $Port
-                )
-                $Listener.Start()
-            }
-            $FixedListeners += [PSCustomObject]@{
-                Port = $Port
-                Listener = $Listener
-                WasAvailable = $WasAvailable
-            }
-            if (Test-PortAvailable $Port) {
-                throw "Port probe missed a fixed-port conflict."
-            }
+        $Listener.Start()
+        if (Test-PortAvailable $FirstPort) {
+            throw "Port probe missed a loopback conflict."
+        }
+        $SecondPort = Get-AvailableLoopbackPort -ExcludedPorts @($FirstPort)
+        if ($SecondPort -eq $FirstPort -or -not (Test-PortAvailable $SecondPort)) {
+            throw "Dynamic loopback port allocation did not honor exclusions."
         }
     }
     finally {
-        foreach ($Probe in $FixedListeners) {
-            if ($null -ne $Probe.Listener) {
-                $Probe.Listener.Stop()
-            }
-        }
+        $Listener.Stop()
     }
-    foreach ($Probe in $FixedListeners) {
-        if ($Probe.WasAvailable -and -not (Test-PortAvailable $Probe.Port)) {
-            throw "Port probe reported a stopped fixed listener."
-        }
-        if (-not $Probe.WasAvailable -and (Test-PortAvailable $Probe.Port)) {
-            throw "Port probe disturbed an existing fixed listener."
-        }
+    if (-not (Test-PortAvailable $FirstPort)) {
+        throw "Port probe reported a stopped loopback listener."
     }
 
     $PowerShell = (Get-Command "powershell.exe" -ErrorAction Stop).Source
@@ -503,11 +515,26 @@ try {
     Assert-ActualVersion "Node.js" $NodeExecutable @("--version") "v$ExpectedNode"
     Assert-ActualVersion "pnpm" $CorepackExecutable @("pnpm", "--version") $ExpectedPnpm
 
+    if ($BackendPort -eq 0) {
+        $BackendPort = Get-AvailableLoopbackPort
+    }
+    if ($FrontendPort -eq 0) {
+        $FrontendPort = Get-AvailableLoopbackPort -ExcludedPorts @($BackendPort)
+    }
+    if ($BackendPort -eq $FrontendPort) {
+        throw "Backend and frontend loopback ports must be different."
+    }
+
     foreach ($Port in @($BackendPort, $FrontendPort)) {
         if (-not (Test-PortAvailable $Port)) {
             throw "Local port $Port is already in use; no existing process was stopped."
         }
     }
+
+    $BackendHealthUri = "http://127.0.0.1:$BackendPort/api/health"
+    $FrontendUri = "http://127.0.0.1:$FrontendPort/"
+    $env:API_PORT = "$BackendPort"
+    $env:VITE_PROXY_API_PORT = "$BackendPort"
 
     if ($PreflightOnly) {
         Write-Output "Local runner preflight passed."
@@ -531,7 +558,7 @@ try {
         "--host",
         "127.0.0.1",
         "--port",
-        "5173",
+        "$FrontendPort",
         "--strictPort"
     ) -WorkingDirectory (Join-Path $ProjectRoot "frontend") -PassThru -WindowStyle Hidden
     $FrontendStatus = Wait-LoopbackEndpoint $FrontendProcess $FrontendUri "frontend"
