@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ReplanningClientError,
   type ReplanningApi,
+  type ReplanCommand,
   type ReplanResponseDto,
 } from "./replanningApi";
 import { ReplanPanel } from "./ReplanPanel";
@@ -80,6 +81,146 @@ function completedResponse(): ReplanResponseDto {
 }
 
 describe("ReplanPanel", () => {
+  it("does not claim the original plan is unchanged after a lost create response", async () => {
+    const user = userEvent.setup();
+    const baseline = readyPlanningResponse();
+    if (!baseline.plan) throw new Error("fixture plan missing");
+    const create = vi
+      .fn()
+      .mockRejectedValue(
+        new ReplanningClientError(
+          "network_unavailable",
+          "无法连接本机服务，原计划保持不变。",
+          true,
+        ),
+      );
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ReplanPanel
+        api={{ create, read: vi.fn(), decide: vi.fn() }}
+        baseline={{ ...baseline, plan: baseline.plan }}
+        command={{
+          operation: "delete_activity",
+          target_activity_id: baseline.plan.days[0].activities[0].item_id,
+        }}
+        commandLabel="删除活动"
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+        onRefresh={onRefresh}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "分析影响" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "最终状态尚待确认",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("原计划保持不变");
+    expect(screen.queryByRole("button", { name: "重新发起调整" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "刷新当前计划" }));
+    expect(onRefresh).toHaveBeenCalledOnce();
+    expect(create).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["needs_input", "data_missing", false, "修改调整内容"],
+    ["conflict", "version_conflict", false, "刷新当前计划"],
+    ["failed", "version_conflict", false, "刷新当前计划"],
+    ["expired", "confirmation_expired", false, "刷新当前计划"],
+    ["failed", "provider_unauthorized", true, "停止并保留原计划"],
+    ["failed", "internal_error", true, "停止并保留原计划"],
+    ["rejected", "replan_scope_not_supported", false, "停止并保留原计划"],
+  ] as const)(
+    "maps %s/%s to one working recovery action",
+    async (status, code, retryable, label) => {
+      const user = userEvent.setup();
+      const baseline = readyPlanningResponse();
+      if (!baseline.plan) throw new Error("fixture plan missing");
+      const onClose = vi.fn();
+      const onModify = vi.fn();
+      const onRefresh = vi.fn().mockResolvedValue(undefined);
+      const onCompleted = vi.fn();
+      render(
+        <ReplanPanel
+          api={{
+            create: vi.fn().mockResolvedValue({
+              ...awaitingConfirmationResponse(),
+              status,
+              errors: [{ code, retryable }],
+            }),
+            read: vi.fn(),
+            decide: vi.fn(),
+          }}
+          baseline={{ ...baseline, plan: baseline.plan }}
+          command={{
+            operation: "delete_activity",
+            target_activity_id: baseline.plan.days[0].activities[0].item_id,
+          }}
+          commandLabel="删除活动"
+          onClose={onClose}
+          onModify={onModify}
+          onRefresh={onRefresh}
+          onCompleted={onCompleted}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "分析影响" }));
+      const alert = await screen.findByRole("alert");
+      expect(within(alert).getByText("没有替换当前计划")).toHaveFocus();
+      expect(within(alert).getAllByRole("button")).toHaveLength(1);
+      await user.click(within(alert).getByRole("button", { name: label }));
+      expect(onCompleted).not.toHaveBeenCalled();
+      if (label === "刷新当前计划") expect(onRefresh).toHaveBeenCalledOnce();
+      else if (label === "修改调整内容")
+        expect(onModify).toHaveBeenCalledOnce();
+      else expect(onClose).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("offers one retry-new-request action for a transient terminal failure", async () => {
+    const user = userEvent.setup();
+    const baseline = readyPlanningResponse();
+    if (!baseline.plan) throw new Error("fixture plan missing");
+    const failed: ReplanResponseDto = {
+      ...awaitingConfirmationResponse(),
+      status: "failed",
+      impact: null,
+      errors: [
+        {
+          code: "provider_timeout",
+          message: "外部服务响应超时。",
+          field: null,
+          provider: "amap",
+          diagnostic_code: "provider_timeout",
+          retryable: true,
+        },
+      ],
+    };
+    const create = vi.fn().mockResolvedValue(failed);
+    render(
+      <ReplanPanel
+        api={{ create, read: vi.fn(), decide: vi.fn() }}
+        baseline={{ ...baseline, plan: baseline.plan }}
+        command={{
+          operation: "delete_activity",
+          target_activity_id: baseline.plan.days[0].activities[0].item_id,
+        }}
+        commandLabel="删除活动"
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "分析影响" }));
+    expect(
+      await screen.findByRole("button", { name: "重新发起调整" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("原计划未改变");
+    expect(screen.queryByRole("button", { name: "修改调整内容" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "重新发起调整" }));
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[0][1].replan_request_id).not.toBe(
+      create.mock.calls[1][1].replan_request_id,
+    );
+  });
+
   it("previews impact, does not auto-focus approve, and completes only after confirmation", async () => {
     const user = userEvent.setup();
     const pending = awaitingConfirmationResponse() as ReplanResponseDto;
@@ -165,9 +306,7 @@ describe("ReplanPanel", () => {
     await user.click(
       await screen.findByRole("button", { name: "取消并保留原计划" }),
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "原计划没有改变",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("原计划未改变");
     await user.click(screen.getByRole("button", { name: "关闭局部调整" }));
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -203,9 +342,7 @@ describe("ReplanPanel", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "分析影响" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "原计划仍可继续使用",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("原计划未改变");
     expect(
       within(screen.getByRole("alert")).queryByText(/token|provider body/i),
     ).toBeNull();
@@ -367,5 +504,62 @@ describe("ReplanPanel", () => {
     );
     await user.click(screen.getByRole("button", { name: "继续刷新局部调整" }));
     expect(await screen.findByText("本次版本变化")).toBeVisible();
+  });
+
+  it.each([
+    "replace_activity",
+    "delete_activity",
+    "adjust_activity_time",
+    "reorder_activities",
+  ] as const)("submits only the structured %s command", async (operation) => {
+    const user = userEvent.setup();
+    const baseline = readyPlanningResponse();
+    if (!baseline.plan) throw new Error("fixture plan missing");
+    const day = baseline.plan.days[0];
+    const target = day.activities[0];
+    let command: ReplanCommand;
+    if (operation === "replace_activity") {
+      command = {
+        operation,
+        target_activity_id: target.item_id,
+        replacement_categories: ["museum"],
+      };
+    } else if (operation === "delete_activity") {
+      command = { operation, target_activity_id: target.item_id };
+    } else if (operation === "adjust_activity_time") {
+      command = {
+        operation,
+        target_activity_id: target.item_id,
+        start_time: "10:00:00",
+        end_time: "11:00:00",
+      };
+    } else {
+      command = {
+        operation,
+        local_date: day.local_date,
+        ordered_activity_ids: day.activities
+          .map((item) => item.item_id)
+          .reverse(),
+      };
+    }
+    const create = vi.fn().mockResolvedValue({
+      ...awaitingConfirmationResponse(),
+      operation,
+    });
+    render(
+      <ReplanPanel
+        api={{ create, read: vi.fn(), decide: vi.fn() }}
+        baseline={{ ...baseline, plan: baseline.plan }}
+        command={command}
+        commandLabel={`结构化 ${operation}`}
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "分析影响" }));
+    expect(create).toHaveBeenCalledOnce();
+    expect(create.mock.calls[0][1].command).toEqual(command);
+    expect(JSON.stringify(create.mock.calls[0][1])).not.toMatch(/prompt/i);
   });
 });

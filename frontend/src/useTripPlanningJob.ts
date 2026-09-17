@@ -117,7 +117,7 @@ function rememberJob(response: TripPlanResponseDto): void {
     window.localStorage.removeItem(ACTIVE_V4_JOB_STORAGE_KEY);
     window.localStorage.removeItem(ACTIVE_V3_JOB_STORAGE_KEY);
   } catch {
-    // Storage is a convenience pointer; the SQLite job remains authoritative.
+    // Storage is only a pointer; the current server repository remains authoritative.
   }
 }
 
@@ -279,7 +279,8 @@ export function useTripPlanningJob(
       forgetJob();
       setState({
         phase: "idle",
-        notice: "上次本机任务无法恢复，已返回新建。",
+        notice:
+          "本地服务已重启或任务已不存在；真实服务结果无法恢复，已返回新建。",
       });
       return;
     }
@@ -302,7 +303,8 @@ export function useTripPlanningJob(
       if (!lookup.invalidDiscarded) return;
       setState({
         phase: "idle",
-        notice: "上次本机任务无法恢复，已返回新建。",
+        notice:
+          "本地服务已重启或任务已不存在；真实服务结果无法恢复，已返回新建。",
       });
       return;
     }

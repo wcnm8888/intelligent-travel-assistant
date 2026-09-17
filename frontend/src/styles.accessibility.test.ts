@@ -40,6 +40,21 @@ const cssVariable = (name: string): string => {
 };
 
 describe("status text accessibility", () => {
+  it("keeps all replan controls at least 44px in both dimensions", () => {
+    const rule = styles.match(
+      /\.day-replan-trigger,\s*\.activity-replan-actions button,\s*\.replan-composer button,\s*\.replan-panel button\s*{([^}]+)}/,
+    );
+    expect(rule).not.toBeNull();
+    expect(rule?.[1]).toMatch(/min-height:\s*44px;/);
+    expect(rule?.[1]).toMatch(/min-width:\s*44px;/);
+  });
+
+  it("keeps preference chips at least 44px high", () => {
+    const rule = styles.match(/\.choice-chip span\s*{([^}]+)}/);
+    expect(rule).not.toBeNull();
+    expect(rule?.[1]).toMatch(/min-height:\s*44px;/);
+  });
+
   it("keeps partial and unknown-validity text at WCAG AA contrast", () => {
     const foreground = cssVariable("--status-partial");
     const backgrounds = [cssVariable("--paper"), cssVariable("--paper-raised")];

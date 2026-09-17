@@ -10,7 +10,7 @@ from enum import StrEnum
 from pathlib import Path
 from random import uniform
 from time import monotonic
-from typing import Final
+from typing import Final, cast
 
 from intelligent_travel_assistant.adapters.persistence import (
     MigrationRunner,
@@ -26,18 +26,33 @@ from intelligent_travel_assistant.adapters.providers import (
     QWeatherAdapter,
     QWeatherAdapterConfig,
 )
-from intelligent_travel_assistant.adapters.repositories import InMemoryPlanningJobRepository
+from intelligent_travel_assistant.adapters.repositories import (
+    InMemoryPlanningJobRepository,
+    InMemoryReplanRepository,
+)
 from intelligent_travel_assistant.application.execution import PlanningJobExecutor
+from intelligent_travel_assistant.application.replanning import ReplanApplicationService
 from intelligent_travel_assistant.application.repositories import (
     PlanningJobMaintenanceRepository,
     PlanningJobRepository,
+    ReplanRepository,
 )
 from intelligent_travel_assistant.application.services import (
     ConfigurationMissingPlanningJobExecutor,
     MultiCityPlanningOrchestrator,
     OfflinePlanningOrchestrator,
+    ProviderNeutralReplanExecutor,
     ProviderPlanningJobExecutor,
 )
+from intelligent_travel_assistant.application.services.provider_replan_planner import (
+    ProviderReplanPlanner,
+)
+from intelligent_travel_assistant.application.services.provider_replanning import (
+    PlanSnapshotPort,
+    ReplanBudgetEffectPort,
+    ReplanImpactContextPort,
+)
+from intelligent_travel_assistant.application.services.replan_facts import ReplanFactProjector
 from intelligent_travel_assistant.application.tooling import (
     PacedAttemptLimiter,
     ProviderAttemptRuntime,
@@ -74,6 +89,13 @@ class ProviderActivationState(StrEnum):
     READY = "ready"
 
 
+class PlanningStorageMode(StrEnum):
+    """Non-sensitive production persistence selection for planning composition."""
+
+    LIVE_MEMORY_ONLY = "live_memory_only"
+    SAFE_UNAVAILABLE_SQLITE = "safe_unavailable_sqlite"
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderStartupReport:
     """Credential-free result of local provider composition."""
@@ -98,6 +120,8 @@ class PlanningPersistence:
     """Application-owned Repository plus optional SQLite lifecycle resources."""
 
     repository: PlanningJobRepository = field(repr=False)
+    replan_repository: ReplanRepository | None = field(default=None, repr=False)
+    storage_mode: PlanningStorageMode | None = None
     maintenance: PlanningJobMaintenanceRepository | None = field(default=None, repr=False)
     database: SqliteDatabase | None = field(default=None, repr=False)
     database_path: Path | None = field(default=None, repr=False)
@@ -127,8 +151,23 @@ class PlanningPersistence:
             self.database.close()
 
 
-def build_planning_persistence(settings: Settings) -> PlanningPersistence:
+@dataclass(frozen=True, slots=True)
+class ApplicationServices:
+    """App-owned execution services and the only shared mutable route limiter."""
+
+    planning_job_executor: PlanningJobExecutor
+    replan_application_service: ReplanApplicationService | None
+    route_attempt_limiter: PacedAttemptLimiter | None = field(default=None, repr=False)
+
+
+def build_planning_persistence(
+    settings: Settings,
+    adapters: ProviderAdapters | None = None,
+) -> PlanningPersistence:
     """Compose the default local Repository without opening or creating files."""
+
+    if adapters is not None and provider_adapters_are_complete(adapters):
+        return _build_live_memory_persistence()
 
     if settings.app_env == "test" and settings.sqlite_database_path is None:
         return PlanningPersistence(repository=InMemoryPlanningJobRepository())
@@ -141,9 +180,49 @@ def build_planning_persistence(settings: Settings) -> PlanningPersistence:
         raise StartupConfigurationError("sqlite_persistence_invalid") from None
     return PlanningPersistence(
         repository=repository,
+        storage_mode=PlanningStorageMode.SAFE_UNAVAILABLE_SQLITE,
         maintenance=repository,
         database=database,
         database_path=path,
+    )
+
+
+def provider_adapters_are_complete(adapters: ProviderAdapters) -> bool:
+    """Return whether production execution has every required Provider adapter."""
+
+    return (
+        adapters.deepseek is not None
+        and adapters.amap is not None
+        and adapters.qweather is not None
+    )
+
+
+def require_live_memory_repository(
+    repository: PlanningJobRepository,
+    adapters: ProviderAdapters,
+) -> None:
+    """Reject an injected persistence backdoor for a complete Provider composition."""
+
+    if provider_adapters_are_complete(adapters) and not isinstance(
+        repository, InMemoryPlanningJobRepository
+    ):
+        raise StartupConfigurationError("live_provider_persistence_must_be_memory")
+
+
+def _build_live_memory_persistence() -> PlanningPersistence:
+    try:
+        planning_repository = InMemoryPlanningJobRepository()
+        replan_repository = InMemoryReplanRepository(planning_jobs=planning_repository)
+    except Exception:
+        raise StartupConfigurationError("live_provider_persistence_must_be_memory") from None
+    if not isinstance(planning_repository, InMemoryPlanningJobRepository) or not isinstance(
+        replan_repository, InMemoryReplanRepository
+    ):
+        raise StartupConfigurationError("live_provider_persistence_must_be_memory")
+    return PlanningPersistence(
+        repository=planning_repository,
+        replan_repository=replan_repository,
+        storage_mode=PlanningStorageMode.LIVE_MEMORY_ONLY,
     )
 
 
@@ -168,6 +247,8 @@ def build_provider_adapters(settings: Settings) -> ProviderAdapters:
 def build_planning_job_executor(
     repository: PlanningJobRepository,
     adapters: ProviderAdapters,
+    *,
+    route_attempt_limiter: PacedAttemptLimiter | None = None,
 ) -> PlanningJobExecutor:
     """Compose live execution or a safe zero-call terminal executor."""
 
@@ -179,13 +260,14 @@ def build_planning_job_executor(
     )
     if route_pacing_policy is None:
         raise StartupConfigurationError("amap_route_pacing_policy_missing")
-    route_attempt_limiter = PacedAttemptLimiter(
-        provider=Provider.AMAP,
-        operation=ProviderOperation.CALCULATE_ROUTES,
-        policy=route_pacing_policy,
-        clock=monotonic,
-        sleeper=sleep,
-    )
+    if route_attempt_limiter is None:
+        route_attempt_limiter = PacedAttemptLimiter(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            policy=route_pacing_policy,
+            clock=monotonic,
+            sleeper=sleep,
+        )
     orchestrator = OfflinePlanningOrchestrator(
         adapters.amap,
         adapters.qweather,
@@ -224,6 +306,74 @@ def build_planning_job_executor(
             task_timeout_seconds=timeout,
             attempt_limiter=route_attempt_limiter,
         ),
+    )
+
+
+def build_application_services(
+    persistence: PlanningPersistence,
+    adapters: ProviderAdapters,
+) -> ApplicationServices:
+    """Compose default planning/replan services without transport or persistence I/O."""
+
+    if not provider_adapters_are_complete(adapters):
+        return ApplicationServices(
+            build_planning_job_executor(persistence.repository, adapters), None
+        )
+    if (
+        persistence.storage_mode is not PlanningStorageMode.LIVE_MEMORY_ONLY
+        or not isinstance(persistence.repository, InMemoryPlanningJobRepository)
+        or not isinstance(persistence.replan_repository, InMemoryReplanRepository)
+        or persistence.replan_repository._planning_jobs is not persistence.repository
+    ):
+        raise StartupConfigurationError("live_provider_persistence_must_be_memory")
+    route_pacing_policy = attempt_pacing_policy_for(
+        Provider.AMAP,
+        ProviderOperation.CALCULATE_ROUTES,
+    )
+    if route_pacing_policy is None:
+        raise StartupConfigurationError("amap_route_pacing_policy_missing")
+    route_attempt_limiter = PacedAttemptLimiter(
+        provider=Provider.AMAP,
+        operation=ProviderOperation.CALCULATE_ROUTES,
+        policy=route_pacing_policy,
+        clock=monotonic,
+        sleeper=sleep,
+    )
+    planning_job_executor = build_planning_job_executor(
+        persistence.repository,
+        adapters,
+        route_attempt_limiter=route_attempt_limiter,
+    )
+    if adapters.amap is None:
+        raise StartupConfigurationError("amap_configuration_invalid")
+    planner = ProviderReplanPlanner(
+        amap=adapters.amap,
+        deepseek=adapters.deepseek,
+        qweather=adapters.qweather,
+        route_limiter=route_attempt_limiter,
+        clock=lambda: datetime.now(UTC),
+        monotonic=monotonic,
+        sleeper=sleep,
+        jitter=lambda: uniform(0.0, 0.2),
+    )
+    facts = ReplanFactProjector()
+    replan_executor = ProviderNeutralReplanExecutor(
+        cast(ReplanImpactContextPort, facts),
+        cast(ReplanBudgetEffectPort, facts),
+        planner,
+        cast(PlanSnapshotPort, facts),
+        facts=facts,
+        clock=lambda: datetime.now(UTC),
+    )
+    replan_application_service = ReplanApplicationService(
+        persistence.repository,
+        persistence.replan_repository,
+        replan_executor,
+    )
+    return ApplicationServices(
+        planning_job_executor,
+        replan_application_service,
+        route_attempt_limiter,
     )
 
 

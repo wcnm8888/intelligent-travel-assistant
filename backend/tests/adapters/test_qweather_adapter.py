@@ -321,6 +321,53 @@ async def test_zero_result_is_a_successful_empty_current_alert_snapshot() -> Non
 
 
 @pytest.mark.anyio
+async def test_zero_result_current_alerts_accepts_missing_attributions() -> None:
+    response = _alert_response(zero_result=True)
+    metadata = cast(dict[str, object], response["metadata"])
+    metadata.pop("attributions")
+
+    result = await _adapter(
+        httpx2.MockTransport(lambda request: httpx2.Response(200, json=response))
+    ).get_current_weather_alerts(_alert_request())
+
+    assert result.status is ProviderResultStatus.OK
+    assert result.data is not None
+    assert result.data.alerts == ()
+    assert result.error is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"metadata": {"tag": "alert-test-tag", "zeroResult": False}, "alerts": []},
+        {
+            "metadata": {"tag": "alert-test-tag", "zeroResult": True},
+            "alerts": [_alert()],
+        },
+        {
+            "metadata": {
+                "tag": "alert-test-tag",
+                "zeroResult": True,
+                "attributions": [],
+            },
+            "alerts": [],
+        },
+    ],
+)
+async def test_missing_attribution_exception_rejects_other_alert_shapes(
+    response: dict[str, object],
+) -> None:
+    result = await _adapter(
+        httpx2.MockTransport(lambda request: httpx2.Response(200, json=response))
+    ).get_current_weather_alerts(_alert_request())
+
+    assert result.status is ProviderResultStatus.UNAVAILABLE
+    assert result.error is not None
+    assert result.error.category is ProviderErrorCategory.SCHEMA
+
+
+@pytest.mark.anyio
 async def test_missing_forecast_day_returns_partial_without_inventing_data() -> None:
     result = await _adapter(
         httpx2.MockTransport(

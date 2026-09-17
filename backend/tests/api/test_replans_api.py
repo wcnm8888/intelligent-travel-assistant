@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 
 from intelligent_travel_assistant.adapters.repositories import (
@@ -45,6 +46,10 @@ REPLAN_TRACE_ID = UUID("f0000000-0000-4000-8000-000000000004")
 DECISION_ID = UUID("f0000000-0000-4000-8000-000000000005")
 REPLAN_REQUEST_ID = UUID("f0000000-0000-4000-8000-000000000006")
 RESULT_PLAN_ID = UUID("f0000000-0000-4000-8000-000000000007")
+SECOND_REPLAN_ID = UUID("f0000000-0000-4000-8000-000000000008")
+SECOND_REPLAN_TRACE_ID = UUID("f0000000-0000-4000-8000-000000000009")
+SECOND_DECISION_ID = UUID("f0000000-0000-4000-8000-000000000010")
+SECOND_REPLAN_REQUEST_ID = UUID("f0000000-0000-4000-8000-000000000011")
 NOW = datetime(2026, 8, 16, 12, tzinfo=UTC)
 
 
@@ -184,14 +189,47 @@ class RejectingExecutor(ConfirmingExecutor):
         )
 
 
+class OutcomeExecutor(CommittingExecutor):
+    def __init__(self, outcome: ReplanOutcome) -> None:
+        super().__init__()
+        self.outcome = outcome
+
+    async def execute(self, job: PlanningJob, replan: ReplanRecord) -> ReplanExecutionResult:
+        self.execution_calls += 1
+        return ReplanExecutionResult(outcome=self.outcome)
+
+
+class RecoveringExecutor(CommittingExecutor):
+    async def execute(self, job: PlanningJob, replan: ReplanRecord) -> ReplanExecutionResult:
+        if self.execution_calls == 0:
+            self.execution_calls += 1
+            return ReplanExecutionResult(
+                outcome=ReplanOutcome(ReplanStatus.FAILED, "provider_timeout")
+            )
+        return await super().execute(job, replan)
+
+
 def _client(
     executor: ConfirmingExecutor | None = None,
     *,
     clock: Callable[[], datetime] | None = None,
 ) -> tuple[TestClient, PlanningJob, ConfirmingExecutor]:
     planning, job = asyncio.run(_ready_repository())
-    identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
-    replans = InMemoryReplanRepository(clock=clock, id_factory=identifiers.__next__)
+    identifiers = iter(
+        (
+            REPLAN_ID,
+            REPLAN_TRACE_ID,
+            DECISION_ID,
+            SECOND_REPLAN_ID,
+            SECOND_REPLAN_TRACE_ID,
+            SECOND_DECISION_ID,
+        )
+    )
+    replans = InMemoryReplanRepository(
+        clock=clock,
+        id_factory=identifiers.__next__,
+        planning_jobs=planning,
+    )
     selected_executor = executor or ConfirmingExecutor()
     service = ReplanApplicationService(planning, replans, selected_executor)
     return (
@@ -370,3 +408,137 @@ def test_confirmation_at_exact_expiry_is_409_and_persists_expired_state() -> Non
     assert expired.json()["error"]["code"] == "confirmation_expired"
     assert restored.status_code == 200 and restored.json()["status"] == "expired"
     assert executor.execution_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("status", "diagnostic", "public_code", "retryable", "message"),
+    (
+        (
+            ReplanStatus.FAILED,
+            "provider_timeout",
+            "provider_timeout",
+            True,
+            "The replan did not replace the current plan and can be retried with a new request.",
+        ),
+        (
+            ReplanStatus.NEEDS_INPUT,
+            "replacement_input_required",
+            "data_missing",
+            False,
+            "Update the requested input before creating a new replan.",
+        ),
+        (
+            ReplanStatus.NEEDS_INPUT,
+            "budget_incomplete",
+            "budget_incomplete",
+            False,
+            "Update the requested input before creating a new replan.",
+        ),
+        (
+            ReplanStatus.CONFLICT,
+            "replan_job_version_conflict",
+            "version_conflict",
+            False,
+            "Refresh the current plan before creating a new replan.",
+        ),
+        (
+            ReplanStatus.CONFLICT,
+            "replan_change_scope_conflict",
+            "constraint_conflict",
+            False,
+            "Refresh the current plan before creating a new replan.",
+        ),
+        (
+            ReplanStatus.REJECTED,
+            "replan_scope_not_supported",
+            "replan_scope_not_supported",
+            False,
+            "The replan did not replace the current plan.",
+        ),
+        (
+            ReplanStatus.FAILED,
+            "provider_unauthorized",
+            "provider_unauthorized",
+            False,
+            "The replan did not replace the current plan.",
+        ),
+        (
+            ReplanStatus.FAILED,
+            "replan_execution_failed",
+            "internal_error",
+            False,
+            "The replan did not replace the current plan.",
+        ),
+    ),
+)
+def test_terminal_replan_projects_closed_recovery_error_without_replacing_plan(
+    status: ReplanStatus,
+    diagnostic: str,
+    public_code: str,
+    retryable: bool,
+    message: str,
+) -> None:
+    client, job, executor = _client(OutcomeExecutor(ReplanOutcome(status, diagnostic)))
+
+    with client:
+        created = client.post(f"/api/trip-plans/{job.job_id}/replans", json=_payload(job))
+        restored = client.get(f"/api/trip-plans/{job.job_id}/replans/{created.json()['replan_id']}")
+        current = client.get(f"/api/trip-plans/{job.job_id}")
+
+    error = restored.json()["errors"][0]
+    assert error == {
+        "code": public_code,
+        "message": message,
+        "field": None,
+        "provider": None,
+        "diagnostic_code": diagnostic,
+        "retryable": retryable,
+    }
+    assert current.json()["plan"]["plan_id"] == str(job.result.plan.plan_id)  # type: ignore[union-attr]
+    assert executor.execution_calls == 1
+
+
+def test_unknown_safe_terminal_code_fails_closed_without_diagnostic_echo() -> None:
+    client, job, _ = _client(
+        OutcomeExecutor(ReplanOutcome(ReplanStatus.FAILED, "offline_execution_failed"))
+    )
+
+    with client:
+        created = client.post(f"/api/trip-plans/{job.job_id}/replans", json=_payload(job))
+        restored = client.get(f"/api/trip-plans/{job.job_id}/replans/{created.json()['replan_id']}")
+
+    error = restored.json()["errors"][0]
+    assert error["code"] == "internal_error"
+    assert error["retryable"] is False
+    assert "diagnostic_code" not in error
+
+
+def test_retryable_failure_recovers_with_new_request_and_preserves_old_resource() -> None:
+    client, job, executor = _client(RecoveringExecutor())
+    first_payload = _payload(job)
+    second_payload = {
+        **first_payload,
+        "replan_request_id": str(SECOND_REPLAN_REQUEST_ID),
+    }
+
+    with client:
+        first = client.post(f"/api/trip-plans/{job.job_id}/replans", json=first_payload)
+        first_url = f"/api/trip-plans/{job.job_id}/replans/{first.json()['replan_id']}"
+        first_terminal = client.get(first_url)
+        unchanged = client.get(f"/api/trip-plans/{job.job_id}")
+
+        second = client.post(f"/api/trip-plans/{job.job_id}/replans", json=second_payload)
+        second_url = f"/api/trip-plans/{job.job_id}/replans/{second.json()['replan_id']}"
+        recovered = client.get(second_url)
+        current = client.get(f"/api/trip-plans/{job.job_id}")
+        first_after_recovery = client.get(first_url)
+
+    assert first_terminal.json()["status"] == "failed"
+    assert first_terminal.json()["errors"][0]["code"] == "provider_timeout"
+    assert first_terminal.json()["errors"][0]["retryable"] is True
+    assert unchanged.json()["plan"]["plan_id"] == str(job.result.plan.plan_id)  # type: ignore[union-attr]
+    assert second.json()["replan_id"] == str(SECOND_REPLAN_ID)
+    assert recovered.json()["status"] == "completed"
+    assert current.json()["plan"]["plan_id"] == str(RESULT_PLAN_ID)
+    assert first_after_recovery.json() == first_terminal.json()
+    assert executor.execution_calls == 2

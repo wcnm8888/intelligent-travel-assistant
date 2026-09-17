@@ -1,5 +1,7 @@
 # 项目文档地图
 
+交付补充：[恢复来源、验证与边界](./delivery/f008-delivery.md)。原文所称Git未执行为历史端点状态；本次交付按对应PR的实际状态确认。
+
 ## 使用说明
 
 本文件是 Intelligent Travel Assistant 的唯一文档地图，说明每份权威文档的职责、更新触发条件、历史规则和读取入口。同一事实只在一份当前权威文档中维护；本表中标为“计划”的文件尚未创建，不能作为已交付能力的证据。
@@ -8,11 +10,11 @@
 
 - 项目规则：[AGENTS.md](../AGENTS.md)
 - 项目总览：[README.md](../README.md)
-- 当前任务：[current-task.md](./project-management/current-task.md)（当前无活动任务；F-007 已 `DONE / ARCHIVED`）
-- 最近归档：[F-007 archive](./archive/task-cards/F-007-amap-qps-policy-runtime.md)
-- 最近完整功能 main：`772e82628766e5e2659ae7c705ea9c6adade9abd`，main CI run `33382187643` success
-- 新增真实验收证据：2026-08-30 `FAIL / AMAP_QPS_EXCEEDED`；不覆盖 Step 45M/45T 或 F-006 本地验收
-- 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)
+- 当前活动任务：无
+- 最近归档：[F-008 archive](./archive/task-cards/F-008-real-uat-plan-fact-trust.md)
+- 方法论与执行策略：[testing-strategy.md](./testing-strategy.md#方法论接入与失败处理)（2026-09-07 接入；中央规则更新不解除已有暂停）
+- 当前证据：[evidence.md](./project-management/evidence.md#f008-final-inconclusive-closeout-20260912)（F-008 DONE / ARCHIVED；Step 13 DONE / INCONCLUSIVE；当前无活动任务）
+- 当前计划：[implementation-plan.md](./project-management/implementation-plan.md)（当前无活动任务）
 - 当前架构变更卡：[F-001-CR1](./project-management/f-001-cr1-deterministic-scheduling.md)
 - 最近进度：[progress.md](./project-management/progress.md)
 - 长期决策：[decisions.md](./decisions.md)
@@ -59,19 +61,34 @@ AGENTS.md
 | Agent 领域规格 | 当前 | 编排 Agent、状态机、领域工具、人机确认和 MCP 边界 | Agent 职责或工具边界变化 | 不保留历史正文 | [agent-domain-spec.md](./agent-domain-spec.md) |
 | 测试策略 | 当前 | 测试分层、替身策略、真实 API 隔离和质量门禁 | 风险或测试策略变化 | 不保留历史正文 | [testing-strategy.md](./testing-strategy.md) |
 | 项目路线 | 当前 | 候选任务、优先级、依赖和阶段目标 | 用户确认优先级或范围变化 | 只保留短摘要 | [roadmap.md](./project-management/roadmap.md) |
-| 当前任务 | 当前 | 当前/最近任务卡、批准范围、验收标准和 Step 地图 | 当前任务、批准状态或 Step 变化 | 关闭任务的完整卡片另存 archive | [current-task.md](./project-management/current-task.md) |
-| 当前计划 | 当前 | 当前/最近任务的可验证执行步骤、结果和停止条件 | 当前任务计划或 Step 结果变化 | 不追加逐轮日志 | [implementation-plan.md](./project-management/implementation-plan.md) |
+| 当前任务 | 当前 | 唯一活动任务、有效授权、验收标准和 Step 状态地图 | 当前任务、批准状态或 Step 变化 | 不保留逐轮历史，关闭任务的完整卡片另存 archive | [current-task.md](./project-management/current-task.md#当前执行状态) |
+| 当前计划 | 当前 | 当前任务执行依赖、可验证目标和验证入口，状态/额度引用任务卡 | 当前任务计划变化 | 不追加逐轮日志 | [implementation-plan.md](./project-management/implementation-plan.md) |
 | F-001-CR1 变更卡 | 已实现、已审查、已交付 | D-009 确定性排程迁移的职责、DTO、算法、失败策略、范围和实施证据 | 变更交付状态或任务关闭 | 作为 F-001 任务内变更控制记录并保留归档入口 | [f-001-cr1-deterministic-scheduling.md](./project-management/f-001-cr1-deterministic-scheduling.md) |
 | 项目进度 | 当前 | 当前状态、最近完成、阻塞和下一批准动作 | Step 收口或阻塞变化 | 只保留最近摘要 | [progress.md](./project-management/progress.md) |
 | 验收证据 | 当前 | 可复现的最终验证结论、环境和命令索引 | 产生可保留的验收证据 | 允许按任务保留 | [evidence.md](./project-management/evidence.md) |
 | 决策记录 | 当前 | 长期有效的重要决策、理由、取舍和后果 | 产生或废止重要决策 | 追加决策记录 | [decisions.md](./decisions.md) |
 | 历史归档 | 当前 | 已关闭任务卡和确需保留的阶段材料 | 任务或阶段关闭 | 只读归档 | [docs/archive/](./archive/) |
 
+## 项目管理文档合同
+
+本表约束 `docs/project-management/` 的内容归属。检查到篇幅或历史混入时先生成迁移清单，不因整理提醒暂停已经授权的业务开发；权威状态、授权或证据冲突仍属于阻断问题。
+
+| 文档 | 必须记录 | 禁止记录 | 更新方式 | 历史去向 | 当前健康判断 |
+| --- | --- | --- | --- | --- | --- |
+| `roadmap.md` | 候选任务、总体状态、优先级、依赖、一行完成摘要 | 当前 Step 细节、逐轮失败、运行日志、执行授权全文 | 产品优先级变化时覆盖 | 已关闭任务细节进入 archive/evidence | 当前篇幅可用 |
+| `current-task.md` | 前40行状态面板、唯一任务、当前Step、授权/额度、阻塞、唯一下一项、证据链接 | 已结束Step全文、历史测试矩阵、长期架构、详细Stack计划、旧Prompt和日志 | 状态变化时覆盖 | 完整历史进入archive；证据进入evidence或独立目录 | `WARNING`：783行/约96.8KB，历史参考约75% |
+| `implementation-plan.md` | 当前任务的Step顺序、依赖、文件职责、验证和完成条件 | 逐轮执行结果、旧授权、历史门禁流水 | 计划变化时覆盖 | 关闭任务时随任务卡归档 | 当前含历史Stack/长期边界，后续归属审查 |
+| `progress.md` | 当前Step、最近完成、阻塞、唯一下一批准动作 | 日期流水、完整证据、设计正文 | 每次收口压缩覆盖 | 重要结果由evidence/archive保留 | 当前简短可用 |
+| `evidence.md` | 结论、适用环境、版本/命令、证据目录链接和未覆盖范围 | 完整控制台日志、重复任务正文、秘密、无限机器事件 | 追加索引；按任务/阶段拆分 | 原始产物留独立证据目录，关闭阶段进入archive | `WARNING`：3675行/约632KB，应拆分索引 |
+| `f-001-cr1-deterministic-scheduling.md` | 该变更的稳定职责、契约、决策和最终结果 | F-008当前状态、无关执行流水 | 仅在该变更事实变化时更新 | 任务关闭后只读归档 | 应评估是否已具备归档条件 |
+
+更新这些文件前先列：`变化事实 → 本表唯一目标文档 → 覆盖/压缩/追加索引 → 其他文件只链接或无需修改`。
+
 ## 当前事实与历史分离
 
 - README、产品、架构、技术栈、设计、Agent 和测试文档只描述当前有效事实。
-- `current-task.md` 保存当前或最近关闭任务的状态指针；完整任务卡在关闭后另存 archive。
-- `implementation-plan.md` 保存当前任务的 Step 状态，不追加终端流水或聊天摘要。
+- `current-task.md` 保存唯一活动任务与执行合同；完整任务卡在关闭后另存 archive，当前无任务时明确空闲。
+- `implementation-plan.md` 保存当前任务执行依赖和验证入口；Step 状态/额度引用任务卡，不追加终端流水或聊天摘要。
 - `progress.md` 只保存最近结果、当前阻塞和下一批准动作。
 - `evidence.md` 只保存可复现结论、环境和命令，不保存完整原始日志或秘密。
 - `decisions.md` 可以追加长期决策，但被替代的决策必须明确标记状态和替代关系。
@@ -91,71 +108,10 @@ AGENTS.md
 
 代码或 Git 事实不能自行扩大已批准产品范围。若事实与批准范围冲突，应暂停实现、报告偏差并由用户决定修正方向。
 
-## 当前状态
+## 当前任务导航
 
 - 当前活动任务：无
-- F-007 已完成并归档：PR #43 与 clean-restack #45 已 squash merge，#44 由 #45 替代并关闭；完整功能 main `772e8262`、CI run `33382187643` success。Step 6 保持 `UAT_NOT_FORMALLY_PASSED / INCONCLUSIVE`，不得表述为 QPS UAT PASS
-- F-007 Step 8A 已完成：提交 `f87332c7` 修复初次 limiter waiter 取消被治理超时覆盖；后端 1426、前端 132 项与静态/docs 门禁、独立 review `NO_P0_P1`、#45 最终 head CI `33376777202` 均通过
-- F-007 Step 7 已完成：两层 Draft PR #43/#44 分别为 `main → policy-runtime → integration-delivery`；提交 `c73cd7f`/`273231a`，首次逐层 Windows offline CI runs `33363974674`/`33364033165` success；独立 review 最终 `FIXED`，累计 24 文件/净新增 1998 行，Schema/migration、依赖/lockfile 均未变化
-- F-007 Step 5A 已关闭 accessibility finding：`partial` 与 `unknown_validity` 状态文字改用专用 `#925d12`，实际渲染对比度为 `5.071:1`；前端 `132 passed`，desktop/390px 均无横向溢出，console 0 error/0 warning，28 条浏览器请求仅 loopback；原 Step 5 SQLite、浏览器和独立安全审查证据继续有效
-- F-007 Step 4 已完成：两个并发 planning job 的 walking/public transit 共用 process limiter，8 次 route starts 为 0–3.5 秒的连续 0.5 秒槽位；MockTransport 503/受控 429、timeout/5xx/不可重试矩阵、deadline/cancel/drain/budget 与全版本兼容通过；相关集合 299 项、后端 1446 项（因受保护服务占用端口精确 deselect 1 项）、前端 131 项通过
-- F-007 Step 3 已完成：完整配置 bootstrap 创建一个 process-shared limiter 并注入 legacy/V2/V3/V4 task runtimes，缺配置路径零 limiter/零调用；fake clock route starts 为 0/0.5/1.0/1.5，非路线操作不受影响；后端全量 1408 项通过
-- F-007 Step 2 已完成：exact Amap route policy、process-shareable 0.5 秒 paced limiter 和 task runtime 可选注入已按 TDD 实现；定向 102、相邻 257、后端全量 1406 项及 Ruff/mypy 通过；未接 bootstrap、planning service 或 Amap adapter
-- F-007 Step 1 已完成：exact Amap route 0.5 秒 policy、process-shared bootstrap 所有权、task runtime 注入、initial/retry 时序、deadline/terminal/cancel/budget/peer-drain、fake clock/MockTransport 测试矩阵及两层文件归属已冻结；Amap adapter 生产文件不在修改清单，尚未实现代码或测试
-- F-007 Step 0 已完成：main/origin/main、干净工作区、无开放 PR、CI run `32692800113` success 和 8000/5173 服务运行事实已复核；D-018、Step 0–8、两层 stack 与规模阈值已建立，当前分支为 `feat/f-007-amap-qps-policy-runtime`，无 commit/push/PR/远程 CI
-- 2026-08-30 高德真实本地验收新增 `FAIL / AMAP_QPS_EXCEEDED`：步行路径规划限制 3 QPS、最高 6 QPS、超限 3 次；本地安全终态包含 `provider_rate_limited`、`route_primary_unavailable` 和 `data_missing`；这不是月额度耗尽证据
-- 2026-08-31 的 0.50–0.52 秒间隔和未出现 `provider_rate_limited` 仅为积极补充证据；缺少同期高德控制台 QPS/超限记录，不能记为 PASS；F-007 不再执行新的真实 Provider UAT
-- F-006 Step 0–8 已全部完成并归档：PR #38/#39/#40/#41 依序 squash merge，#39/#40/#41 以普通 merge clean-restack 且无 force-push；完整功能 main `d82ca5c6`、CI run `32691778088` success；任务结论为 `DELIVERED / LOCAL_ACCEPTANCE_PASS / ARCHIVED`，但项目真实 Provider 就绪继续为 `PARTIAL`
-- F-006 Step 6 已完成：临时 schema v2 SQLite 与 14 个组合 journey、F-005 固定 48-case eval、loopback desktop/390px、network/console/accessibility、干净检出 frozen/offline 启动和独立 Codex Security 审查均通过；安全扫描 21/21、0 finding，未调用真实 Provider，证据不等同真实 UAT
-- F-006 Step 5 已完成：唯一 `scripts/run-local.ps1` 固定校验运行时、loopback 端口和 strict health，缺依赖不安装、端口冲突不杀进程；Ctrl+C/失败只收口自身精确 Python/Node Process，SQLite/未知异常使用固定脱敏诊断；仅运行离线 self-test/preflight，未启动业务服务或进入 SQLite/browser 验收
-- F-006 Step 4 已完成：canonical `ita.last-local-job` 只保存 UUID，legacy/V2/V3/V4 共用 GET/strict parser 恢复并兼容旧 V4/V3 pointer；失效清理、暂时错误保留、终态单任务 DELETE、inline 确认及确定性焦点均已通过离线测试；未进入 runner、SQLite 或 browser
-- F-006 Step 3 已完成：前端只显示三种批准的产品模式并继续按既有规则内部选择 legacy/V2/V3/V4；共享恢复动作已提升到摘要之后、预算/来源/诊断之前，状态语义仍由服务端提供；未进入 pointer、DELETE、runner、SQLite 或 browser
-- F-006 Step 2 已完成：production 组合根在必要 Provider adapter 不完整时装配零调用安全 executor；legacy/V2/V3/V4 均以既有 `configuration_missing` 和 typed result 经 `draft → normalizing → failed` 收口，完整配置和测试注入路径保持；未创建数据库、调用 Provider 或进入 UX
-- F-006 Step 1 已完成：无配置安全终态、三产品模式、legacy/V2 内部选择、canonical/旧 pointer、终态 DELETE、固定 loopback PowerShell runner、局部 UX/accessibility、组合式离线验收和四层文件归属已冻结；未修改生产源码、测试、fixture、Schema、migration、依赖或 lockfile
-- 最近归档：F-004C Step 0–6 已完成并归档
-- 最近关闭：F-004B2 Step 1 `DONE / BLOCKED`，完整任务卡已归档；高德回复禁止 SQLite 持久化且没有明确授权所需 rail 字段
-- 最近交付：独立 V4 只承载用户已购铁路段；没有城际 Provider，logical call/HTTP attempt 为 0；PR #34/#35/#36 已依序合并，归档 PR #37 已合并；最终归档 main `b99d5fc4c89b0f25ec89e4e12cd1755a7c3be46f`、CI run `32486428083` success
-- 最近完成：F-005 外部服务韧性、数据时效与 Agent 评估；Step 0–9 全部 DONE，完整任务卡已归档
-- F-005 Step 9 已完成：PR #27/#28/#29/#30/#31 依序 squash merge；#28–#31 改指向最新 main 后仍只含本层净差异，无需替代式 clean-restack 或 force-push；完整功能 main `fddd4e5`、CI run `32452988076` success；归档 PR #32 已合并，最终归档 main `96f73d9`、CI run `32453988289` success
-- F-005 Step 0 已完成：最终 Git/PR/CI 和无活动任务基线已复核，完整任务卡、Step 0–9、D-014、四层 stacked PR 与规模治理已收口；已创建首层本地分支，没有 commit、push、PR、远程 CI、源码、测试、数据库、秘密读取或 Provider 调用
-- F-005 Step 1 已完成设计冻结：逐能力失败/freshness 矩阵、显式 job-scoped attempt runtime、Amap/QWeather retry/deadline/取消、DeepSeek bounded proposal/repair、48-case 离线 eval、同 shape API/UI、分层测试和四层 stack 归属已收口；未修改生产源码、测试、Schema、migration、依赖或 lockfile，未进入 Step 2
-- F-005 Step 2 已按 TDD 实现纯领域安全扩展：`ProviderError` 支持仅限 rate-limit 的 `0..2s` 安全 Retry-After，新增 Provider/operation schedule、jitter/预算/deadline retry 决策、逐能力 freshness/失败处置和闭集诊断；定向 108 项、domain/contracts golden 342 项及全 backend Ruff/mypy 通过，尚未接入 adapter 或 application runtime
-- F-005 Step 3 已实现显式 task-scoped attempt runtime 与 Amap/QWeather 安全错误输入：runtime 覆盖 attempt timeout、额外预算、deadline、取消/异常 close、peer drain 和终态零新调用；adapter 仍为单次 HTTP exchange 且只保留规范化 `0..2s` Retry-After。定向 121 项、Provider/治理兼容 378 项、domain/contracts 164 项和全 backend Ruff/mypy 通过，尚未接入 application planning service
-- F-005 Step 4 已完成 legacy/V2/V3 application runtime 接线、deadline 前置拒绝、取消/peer drain、retry→fallback→stop 和同 shape 投影：stale required route failed、stale weather/alert 剔除并 partial、unknown-validity 不提升 ready；全 backend 1264 项及 Ruff/mypy 通过，未进入 Agent eval 或前端
-- F-005 Step 5 已实现 legacy/V2/V3 共用的 bounded `PlanRepairBrief`、generation/repair Provider 文本双层门禁和固定离线 Agent eval；48 case 两次运行一致、加权分 100、五类硬门禁失败均为 0，全 backend 1270 项及 Ruff/mypy 通过；该证据不构成真实 Provider/模型 UAT，未进入前端
-- F-005 Step 6 已按现有 shape 实现鉴权配置、暂时失败、stale、unknown-validity、固定错误排序和恢复动作展示；前端全量 99 项及 Prettier/ESLint/TypeScript/build 通过，未进入临时 SQLite 或浏览器 QA
-- F-005 Step 7 已完成临时 schema v2 SQLite `31 passed`、Edge desktop/390px loopback synthetic QA、network/console/accessibility 和独立隐私安全审查；浏览器 57 条请求全为 loopback，Codex Security 覆盖 8 个信任面且 0 finding。首次 Playwright CLI `npx` 探测可能查询 npm registry，后续全部离线；该过程偏差已披露并由用户接受，因此仍不把 Step 7 记为无条件 PASS
-- 最近完成：F-004B1 多城市领域、用户提供的城际段与离线约束；Step 0–8 全部 DONE，任务已归档
-- F-004B1 Step 0 已完成：归档基线、PR/CI、无活动任务和干净工作区已复核，任务卡/Step 0–8/roadmap/D-013 已收口，并已创建首层本地分支；没有提交、push、PR、源码、测试、数据库或外部调用
-- F-004B1 Step 1 已完成设计冻结：独立 V3 DTO、城市/夜数/用户段/缓冲/终态、同 URI API、Repository/schema v2、全 V3 replan 前置拒绝、Provider 治理、前端和测试矩阵已收口；尚未实现代码或测试
-- F-004B1 Step 2 已以 TDD 实现纯多城市领域和独立 V3 request/plan/response contracts：覆盖城市/夜数/相邻用户段、同日 +08:00 时间、三种方式缓冲、逐日/跨日连续性、住宿/活动/市内路线、用户费用/unknown、来源和五终态；该 Step 当时未接入 Planning unions、Repository/API、SQLite、Provider 或前端
-- F-004B1 Step 3 已实现 legacy/V2/V3 strict typed unions、独立 `PlanningJobResultV3`、内存/SQLite schema v2 typed JSON 往返、同 URI POST/GET/retry/DELETE、旧模型读取 V3 fail closed，以及所有 V3 replan 在 reserve/decision/executor/写入前拒绝；尚未实现 V3 planning、Provider 编排或前端
-- F-004B1 Step 4 已实现离线 V3 planning、按城市复用现有 Provider ports、确定性城市/转移/缓冲/预算/来源注入和调用治理；全部证据来自 fake/MockTransport，城际 Provider 调用为 0
-- F-004B1 Step 5 已实现默认单城市/显式多城市表单、2/3 城及相邻段编辑、严格 V3 parser、独立多城市结果和本机 job UUID 重启恢复；前端 95 项与静态/build 门禁通过，真实 desktop/390px 与临时 SQLite 纵向仍属于 Step 6
-- F-004B1 Step 6 已完成临时 SQLite create/read/restart/retry/delete、2/3 城与五终态纵向；真实 loopback 浏览器覆盖 desktop/390px、重启恢复、键盘焦点、零横向溢出、零 console error/warning、无障碍引用与仅 loopback 网络。独立隐私/兼容审查覆盖 36 个生产文件变更项且无可报告 finding；证据仍为 synthetic，不代表真实 Provider UAT
-- F-004B1 Step 7 已完成全量门禁和四层 stacked Draft PR #19/#20/#21/#22；最终 CI runs `32379371761`、`32379662820`、`32379802803`、`32379941695` 全部成功。首轮 #19/#20 分层 CI 失败已如实保留并以普通追加提交修正，无 force-push；Step 7 收口时四 PR 尚未 merge
-- F-004B1 Step 8 已完成 clean-restack、依序 squash merge、完整功能 main CI 与归档：PR #19/#23/#24/#25 已合并，#20/#21/#22 由干净替代 PR 替换并关闭；归档 PR #26 已合并，最终 main `c5f07e1`、归档 main CI run `32386260285` 通过
-- F-004B1 沿用“核心清单 + 受控相邻扩展”：一次 Step 批准覆盖直接依赖、对应测试/fixture、机械门禁修复和五份状态文档；产品/API 语义、Schema/migration、依赖、隐私、外部访问、跨 Step/stack 和规模扩张仍需新确认
-- F-004A 已完成多日领域基础、version 2 contracts、Repository/API 兼容、schema v2 SQLite 重启恢复、离线多日 Provider 编排、前端多日交互、临时 SQLite 纵向和真实本机 synthetic 浏览器验收；PR #13/#16/#17 已依序合并，完整功能 main CI run `32359762190` 通过；不包含多城市、城际 Provider、版本恢复或真实 Provider 验收
-- F-003 已交付并归档：单城市双日范围内支持四种结构化修改、确定性影响分析、15 分钟高影响确认、独立 replan lifecycle、migration v2、独立 Repository、三个窄 API 和结果页内影响预览/确认；PR #7、#10、#11 已合并，完整功能 main CI run `31939222646` 通过
-- F-002 已通过 PR #6 交付并归档。现有 POST/GET/retry API 默认装配本地 SQLite Repository，并新增单计划 DELETE；启动时完成 migration 和一次有界 30 天清理，内部可写入 typed acceptance record；临时数据库已覆盖重启、幂等、并发、冲突、删除、保留期和隐私边界
-- F-001 已交付并归档；产品状态保持 `PARTIAL`
-- 最近完成：B-000 由 PR #1 交付、由 PR #2 完成归档收口；归档提交和对应 Windows CI 已通过
-- 当前已完成 Step：F-001 Step 0 至 Step 47，以及补充 Step 45A–45X；D-009 已由 stacked PR #5 合并并由 PR #4 合并到 `main`，Step 45T 是最新 live UAT 且结论为 `PASS`
-- 当前归档结论：F-001 已交付，但产品验收状态保留为 `PARTIAL`；门票等非关键费用保持 `unknown`，不按 0 处理。Step 45M 历史 `FAIL` 保留，混合交通 fallback 仍只有离线证据
-- 当前产品 UI 已通过专用 synthetic executor 经真实本机 POST/GET/retry 严格渲染五种结果；三家配置齐备时任务 API 使用真实 provider 执行器，默认无凭证时执行器保持禁用，不会调用 provider
-- Step 38 已完成：一个杭州双日真实计划触达三家 provider 且 live 契约通过；计划经确定性校验进入 `conflict`，同一预算内的高德公交路线窄探针通过，全程无原始响应、持久缓存或真实高德截图
-- Step 45A 已执行：唯一真实任务因 DeepSeek 本地候选校验以 `model_output_invalid` 安全失败，失败态桌面/窄屏展示通过，但真实数据 UAT 结论仍为 `FAIL`，没有重试或第二次提交
-- Step 45B 已离线修复候选阶段/类别诊断与 generation/repair 规则一致性，并建立 adapter → resolver → executor → API 纵向回归；没有调用真实 provider，也没有产生新的 live 通过证据
-- Step 45C 的唯一真实任务生成完整双日候选，但最终两天各出现一项路线冲突，真实 UAT 仍为 `FAIL`
-- Step 45D 已离线修复候选未预检住宿往返和跨地点正数交通窗口的问题；没有调用真实 provider，也不产生新的 live 通过证据
-- Step 45E 的最后一次受控 live 回归在 generation 和唯一一次 repair 后仍以时间候选无效失败；没有计划或路线补全
-- Step 45F 已离线细分五类安全时间诊断并确认原有 Prompt、上下文和规则完整；用户随后批准 D-009，将精确时间骨架和排程迁移给确定性代码
-- Step 45H 已按 F-001-CR1 把生产编排迁移到无最终时间 proposal + 实际路线 + 确定性 scheduler；公开 API、Repository 和 UI Schema 未变化
-- Step 45K–45L 已完成 stacked PR #5 提交、推送、成功 CI 和独立远程 review；随后 PR #5 已合并至功能分支，PR #4 已复验并合并至 `main`
-- Step 45M 的唯一真实任务取得 proposal、天气和部分路线事实，但必要高德路线数据缺失后以无计划 `failed` 收口；静态复核同时发现双交通方式没有 fallback、路线错误缺少安全 diagnostic、前端状态边遗漏
-- Step 45N 已离线实现公交首选、失败路段步行降级、8 次硬预算、五类安全路线诊断和前端 `planning → needs_input` 对齐；没有新的 live 证据
-- Step 45O 发现 provider-wide fallback、deadline、数值和来源投影阻塞；Step 45P 已纯离线修复。Step 45Q 又发现混合批次停止与异常 peer 清理两个 P1，Step 45R 已完成最小离线修复；
-- Step 45S 未发现 P0/P1 并完成 live 准入；Step 45T 已取得完整双日 partial 的真实 UAT `PASS`，但没有自然触发步行 fallback
-- Step 45U 已把 fallback 批次 terminal、外部取消 peer 清理和架构 Step 归属固化为提交前离线证据；没有再次 live
-- F-006 完整任务卡已归档为 [F-006 archive](./archive/task-cards/F-006-mvp-local-acceptance.md)；F-004B2 保持 `BLOCKED / ARCHIVED`，F-001 `PARTIAL`、Step 45M `FAIL`、Step 45T `PASS`、unknown/null 和混合交通 fallback 仅离线均保持
+- 最近关闭任务：[F-008 archive](./archive/task-cards/F-008-real-uat-plan-fact-trust.md)，最终为`DONE / ARCHIVED`；R5保持`PASS / OFFLINE`，Step 13保持`DONE / INCONCLUSIVE`。
+- 当前核验和历史保留位置：[F-008最终收口证据](./project-management/evidence.md#f008-final-inconclusive-closeout-20260912)。
+- Step 14和Git交付未执行；F-009及其他任务未激活。
+- 下一步：等待用户从 roadmap 选择候选任务。

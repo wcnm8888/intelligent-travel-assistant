@@ -20,11 +20,14 @@ from intelligent_travel_assistant.application.execution import PlanningJobExecut
 from intelligent_travel_assistant.application.replanning import ReplanApplicationService
 from intelligent_travel_assistant.application.repositories import PlanningJobRepository
 from intelligent_travel_assistant.bootstrap import (
+    ApplicationServices,
     PlanningPersistence,
     ProviderAdapters,
+    build_application_services,
     build_planning_job_executor,
     build_planning_persistence,
     build_provider_adapters,
+    require_live_memory_repository,
 )
 from intelligent_travel_assistant.settings import Settings, get_settings
 
@@ -50,12 +53,18 @@ def create_app(
     """Create an application instance without requiring third-party credentials."""
 
     resolved_settings = settings or get_settings()
+    resolved_adapters = (
+        provider_adapters
+        if provider_adapters is not None
+        else build_provider_adapters(resolved_settings)
+    )
     persistence: PlanningPersistence | None = None
     if planning_job_repository is None:
-        persistence = build_planning_persistence(resolved_settings)
+        persistence = build_planning_persistence(resolved_settings, resolved_adapters)
         repository = persistence.repository
     else:
         repository = planning_job_repository
+        require_live_memory_repository(repository, resolved_adapters)
 
     @asynccontextmanager
     async def lifespan(_application: FastAPI) -> AsyncIterator[None]:
@@ -75,21 +84,39 @@ def create_app(
     application.state.settings = resolved_settings
     application.state.planning_persistence = persistence
     application.state.sqlite_database = persistence.database if persistence is not None else None
-    resolved_adapters = (
-        provider_adapters
-        if provider_adapters is not None
-        else build_provider_adapters(resolved_settings)
+    application.state.planning_storage_mode = (
+        persistence.storage_mode if persistence is not None else None
+    )
+    application.state.replan_repository = (
+        persistence.replan_repository if persistence is not None else None
     )
     application.state.provider_adapters = resolved_adapters
     application.state.planning_job_repository = repository
+    default_services: ApplicationServices | None = None
+    if (
+        persistence is not None
+        and planning_job_executor is None
+        and replan_application_service is None
+    ):
+        default_services = build_application_services(persistence, resolved_adapters)
     if planning_job_executor is not None:
         executor = planning_job_executor
+    elif default_services is not None:
+        executor = default_services.planning_job_executor
     elif planning_job_repository is None:
         executor = build_planning_job_executor(repository, resolved_adapters)
     else:
         executor = None
     application.state.planning_job_executor = executor
-    application.state.replan_application_service = replan_application_service
+    resolved_replan_application_service = (
+        default_services.replan_application_service
+        if default_services is not None
+        else replan_application_service
+    )
+    application.state.replan_application_service = resolved_replan_application_service
+    application.state.route_attempt_limiter = (
+        default_services.route_attempt_limiter if default_services is not None else None
+    )
 
     @application.exception_handler(PlanningHttpError)
     async def handle_planning_http_error(
@@ -116,7 +143,9 @@ def create_app(
         return HealthResponse()
 
     application.include_router(create_trip_plan_router(repository, executor))
-    application.include_router(create_replan_router(repository, replan_application_service))
+    application.include_router(
+        create_replan_router(repository, resolved_replan_application_service)
+    )
     return application
 
 

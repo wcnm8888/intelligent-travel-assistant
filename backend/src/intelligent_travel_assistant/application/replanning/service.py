@@ -43,6 +43,7 @@ class ReplanApplicationService:
         self._replans = replans
         self._executor = executor
         self._execution_locks: dict[UUID, asyncio.Lock] = {}
+        self._execution_users: dict[UUID, int] = {}
 
     async def create(
         self,
@@ -153,12 +154,22 @@ class ReplanApplicationService:
         if not isinstance(replan, ReplanRecord):
             raise ReplanApplicationError("replan_record_invalid")
         lock = self._execution_locks.setdefault(replan.replan_id, asyncio.Lock())
-        async with lock:
-            current_job = await self._planning_jobs.get(job.job_id)
-            current = await self._replans.get(job.job_id, replan.replan_id)
-            if current.status is not ReplanStatus.REPLANNING:
-                return ReplanApplicationResult(current)
-            return await self._execute_once(current_job, current)
+        self._execution_users[replan.replan_id] = self._execution_users.get(replan.replan_id, 0) + 1
+        try:
+            async with lock:
+                current_job = await self._planning_jobs.get(job.job_id)
+                current = await self._replans.get(job.job_id, replan.replan_id)
+                if current.status is not ReplanStatus.REPLANNING:
+                    return ReplanApplicationResult(current)
+                return await self._execute_once(current_job, current)
+        finally:
+            remaining = self._execution_users[replan.replan_id] - 1
+            if remaining == 0:
+                del self._execution_users[replan.replan_id]
+                if self._execution_locks.get(replan.replan_id) is lock:
+                    del self._execution_locks[replan.replan_id]
+            else:
+                self._execution_users[replan.replan_id] = remaining
 
     async def _execute_once(
         self, job: PlanningJob, replan: ReplanRecord

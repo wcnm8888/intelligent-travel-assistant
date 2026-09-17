@@ -226,6 +226,33 @@ class InMemoryPlanningJobRepository:
             del self._jobs[job.job_id]
             del self._job_id_by_client_request_id[job.client_request_id]
 
+    async def _commit_replan(
+        self,
+        job_id: UUID,
+        result: PlanningJobResult,
+        *,
+        expected_version: int,
+    ) -> PlanningJob:
+        """Atomically replace the current process-local plan for the paired replan store."""
+
+        async with self._lock:
+            current = self._get(job_id)
+            self._require_version(current, expected_version)
+            if current.status not in {PlanningStatus.READY, PlanningStatus.PARTIAL}:
+                self._raise(PlanningJobRepositoryErrorCode.TRANSITION_NOT_ALLOWED)
+            if not result_matches_request(result, current.request):
+                self._raise(PlanningJobRepositoryErrorCode.RESULT_REQUEST_MISMATCH)
+            updated = replace(
+                current,
+                status=result.status,
+                retryable=result.retryable,
+                result=result,
+                version=current.version + 1,
+                updated_at=self._now(not_before=current.updated_at),
+            )
+            self._jobs[job_id] = updated
+            return updated
+
     def _get(self, job_id: UUID) -> PlanningJob:
         if not isinstance(job_id, UUID):
             self._raise(PlanningJobRepositoryErrorCode.JOB_NOT_FOUND)
@@ -268,9 +295,11 @@ class InMemoryReplanRepository:
         *,
         clock: Callable[[], datetime] | None = None,
         id_factory: Callable[[], UUID] | None = None,
+        planning_jobs: InMemoryPlanningJobRepository | None = None,
     ) -> None:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._id_factory = id_factory or uuid4
+        self._planning_jobs = planning_jobs
         self._lock = asyncio.Lock()
         self._records: dict[UUID, ReplanRecord] = {}
         self._by_request: dict[tuple[UUID, UUID], UUID] = {}
@@ -557,6 +586,20 @@ class InMemoryReplanRepository:
                 change_set=commit.change_set,
                 updated_at=now,
             )
+            if self._planning_jobs is not None:
+                try:
+                    await self._planning_jobs._commit_replan(
+                        job_id,
+                        commit.result,
+                        expected_version=expected_job_version,
+                    )
+                except PlanningJobRepositoryError as error:
+                    if error.code in {
+                        PlanningJobRepositoryErrorCode.JOB_NOT_FOUND,
+                        PlanningJobRepositoryErrorCode.VERSION_CONFLICT,
+                    }:
+                        _raise_memory(ReplanRepositoryErrorCode.JOB_VERSION_CONFLICT)
+                    _raise_memory(ReplanRepositoryErrorCode.COMMIT_INVALID)
             self._records[replan_id] = updated
             self._job_versions[job_id] = expected_job_version + 1
             return ReplanCommitResult(

@@ -64,6 +64,8 @@ class ProviderErrorReason(StrEnum):
     RETRY_BUDGET_EXHAUSTED = "retry_budget_exhausted"
     RETRY_DEADLINE_EXHAUSTED = "retry_deadline_exhausted"
     RETRY_AFTER_INVALID = "retry_after_invalid"
+    ROUTE_BUSINESS_NO_RESULT = "route_business_no_result"
+    ROUTE_COUNT_ZERO = "route_count_zero"
 
 
 class DataFreshness(StrEnum):

@@ -151,6 +151,7 @@ def schedule_plan_proposal(
     _require_multiday_proposal(proposal)
     _require_day_windows(day_windows, len(proposal.days))
     location_categories = {item.location_id: item.category for item in locations}
+    location_names = {item.location_id: item.name for item in locations}
     resolved = _resolve_durations(proposal, location_categories)
     if resolved is None:
         return SchedulingResult(
@@ -203,6 +204,7 @@ def schedule_plan_proposal(
             accommodation_location_id,
             route_by_requirement,
             durations,
+            location_names,
         )
         if scheduled is None:
             adjusted = _omit_lowest_priority_optional(day)
@@ -327,6 +329,7 @@ def _schedule_day(
     accommodation_location_id: UUID,
     routes: dict[RouteRequirement, RouteLeg],
     durations: dict[tuple[int, int], _ResolvedDuration],
+    location_names: dict[UUID, str],
 ) -> CandidateDay | None:
     cursor = datetime.combine(day.local_date, window.start_time)
     window_end = datetime.combine(day.local_date, window.end_time)
@@ -348,7 +351,7 @@ def _schedule_day(
             CandidateActivity(
                 selection.location_id,
                 selection.local_date,
-                selection.title,
+                location_names[selection.location_id],
                 cursor.time(),
                 end.time(),
                 selection.source_ids,

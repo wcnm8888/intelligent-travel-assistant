@@ -59,6 +59,7 @@ from intelligent_travel_assistant.application.tooling import (
     ToolCallCapability,
     ToolCallGovernor,
 )
+from intelligent_travel_assistant.application.tooling.resilience import ProviderRunSession
 from intelligent_travel_assistant.contracts import (
     AccommodationRequirement,
     ApiErrorCode,
@@ -521,6 +522,8 @@ def test_real_executor_retry_appends_a_second_sqlite_plan_version(tmp_path: Path
 
 async def _execute(
     *,
+    run_session: ProviderRunSession | None = None,
+    executor_capture: list[ProviderPlanningJobExecutor] | None = None,
     model_output_invalid: bool = False,
     provider_schema_invalid: bool = False,
     deepseek_override: DeepSeekPort | None = None,
@@ -731,6 +734,9 @@ async def _execute(
         clock=executor_readings,
         attempt_runtime_factory=attempt_runtime_factory,
     )
+    if executor_capture is not None:
+        executor_capture.append(executor)
+    executor.run_session = run_session
     if cancel_when is None:
         await executor.execute(reserved.job.job_id)
     else:
@@ -840,6 +846,65 @@ def test_two_concurrent_planning_jobs_share_one_paced_route_timeline_without_bur
         )
     assert all(runtime.snapshot().closed for runtime in runtimes)
     assert all(runtime.snapshot().active_executions == 0 for runtime in runtimes)
+
+
+def test_shared_limiter_does_not_share_retry_budgets_between_task_runtimes() -> None:
+    async def scenario() -> tuple[ProviderAttemptRuntime, ProviderAttemptRuntime]:
+        clock = _ManualMonotonicClock()
+
+        async def advancing_sleep(delay: float) -> None:
+            clock.advance(delay)
+
+        policy = attempt_pacing_policy_for(
+            Provider.AMAP,
+            ProviderOperation.CALCULATE_ROUTES,
+        )
+        assert policy is not None
+        limiter = PacedAttemptLimiter(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.CALCULATE_ROUTES,
+            policy=policy,
+            clock=clock,
+            sleeper=advancing_sleep,
+        )
+
+        def runtime() -> ProviderAttemptRuntime:
+            return ProviderAttemptRuntime(
+                clock=clock,
+                sleeper=advancing_sleep,
+                jitter=lambda: 0.0,
+                task_timeout_seconds=90.0,
+                attempt_limiter=limiter,
+            )
+
+        first, second = runtime(), runtime()
+        timeout = ProviderResult[str](
+            ProviderResultStatus.UNAVAILABLE,
+            Provider.AMAP,
+            None,
+            None,
+            None,
+            (),
+            ProviderError(ProviderErrorCategory.TIMEOUT),
+            (),
+        )
+
+        async def unavailable() -> ProviderResult[str]:
+            return timeout
+
+        await first.execute(
+            provider=Provider.AMAP,
+            operation=ProviderOperation.SEARCH_POIS,
+            call=unavailable,
+        )
+        return first, second
+
+    first, second = asyncio.run(scenario())
+    assert first._attempt_limiter is second._attempt_limiter
+    assert first.snapshot().amap_extra_attempts == 1
+    assert second.snapshot().amap_extra_attempts == 0
+    asyncio.run(first.close())
+    asyncio.run(second.close())
 
 
 def test_route_pacing_waits_do_not_consume_each_attempt_timeout() -> None:
@@ -1427,6 +1492,10 @@ def test_executor_publishes_real_orchestration_shape_using_only_offline_ports() 
 
 
 def test_dual_transport_route_failure_publishes_safe_fallback_diagnostic() -> None:
+    from time import monotonic
+
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+
     unavailable_routes = tuple(
         ProviderResult[RouteLeg](
             ProviderResultStatus.UNAVAILABLE,
@@ -1441,8 +1510,12 @@ def test_dual_transport_route_failure_publishes_safe_fallback_diagnostic() -> No
         for _ in range(8)
     )
 
+    executors: list[ProviderPlanningJobExecutor] = []
+    session = ProviderRunSession(RunCallBudget(clock=monotonic), stop_on_failure=True)
     job, amap, repository = asyncio.run(
         _execute(
+            run_session=session,
+            executor_capture=executors,
             route_results_override=unavailable_routes,
             transport_modes=(TransportMode.WALKING, TransportMode.PUBLIC_TRANSIT),
         )
@@ -1463,6 +1536,19 @@ def test_dual_transport_route_failure_publishes_safe_fallback_diagnostic() -> No
     assert [cast(RouteCalculationRequest, call.request).mode for call in route_calls[4:]] == [
         RouteMode.WALKING
     ] * 4
+    observation = executors[0].last_route_observation
+    assert observation is not None
+    assert observation.route_data_diagnostic_code.value == "route_fallback_exhausted"
+    assert [item.mode.value for item in observation.lookups] == [
+        *(["public_transit"] * 4),
+        *(["walking"] * 4),
+    ]
+    assert [item.stage.value for item in observation.lookups] == [
+        *(["primary"] * 4),
+        *(["fallback"] * 4),
+    ]
+    assert [item.requirement_index for item in observation.lookups] == [1, 2, 3, 4] * 2
+    assert session.snapshot()["reason"] == "business_failure"
     with TestClient(create_app(planning_job_repository=repository)) as client:
         body = client.get(f"/api/trip-plans/{job.job_id}").json()
     assert body["errors"] == [
@@ -1977,6 +2063,26 @@ def test_dual_transport_fallback_is_projected_through_repository_and_api() -> No
     assert all(error["provider"] != "amap" for error in body["errors"])
 
 
+def test_public_activity_title_is_rebuilt_from_grounded_poi_not_model_text() -> None:
+    poi_source_id = _source(Provider.AMAP, "pois").source_id
+    proposal = json.loads(_candidate_json(poi_source_id))
+    proposal["days"][0]["selections"][0]["title"] = "模型声称的未核验活动标题"
+    deepseek = FakeDeepSeekAdapter(
+        generation_results=(
+            _result(
+                Provider.DEEPSEEK,
+                ModelTextOutput(json.dumps(proposal)),
+                "proposal",
+            ),
+        )
+    )
+
+    job, _, _ = asyncio.run(_execute(deepseek_override=deepseek))
+
+    assert job.result is not None and job.result.plan is not None
+    assert job.result.plan.days[0].activities[0].title == "西湖"
+
+
 def test_unknown_unmapped_duration_publishes_needs_input_without_route_calls() -> None:
     poi_source_id = _source(Provider.AMAP, "pois").source_id
     proposal = json.loads(_candidate_json(poi_source_id))
@@ -2333,3 +2439,127 @@ def test_mock_transport_rejects_exact_times_through_api() -> None:
     ]
     assert "08:00:00" not in response.text
     assert "18:00:00" not in response.text
+
+
+def test_default_production_run_observation_spans_planning_replan_and_stop(tmp_path: Path) -> None:
+    import json
+    import sys
+    from time import monotonic
+
+    from tests.api.test_production_replans_api import (
+        _approve_and_read,
+        _command,
+        _create_plan,
+        _create_replan,
+    )
+    from tests.browser_f008_production_support import create_production_app
+
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+    from uat_session import attach_run_session
+
+    application = create_production_app(tmp_path / "run-observation")
+    session = attach_run_session(application, enabled=True, budget=RunCallBudget(clock=monotonic))
+    with TestClient(application) as client:
+        url, initial = _create_plan(client)
+        count = session.snapshot()["http"]["amap"]
+        application.state.r5_transport.fail_next_amap_attempts()
+        _, pending = _create_replan(
+            client, url, initial, _command(initial["plan"], "replace_activity")
+        )
+        failed = _approve_and_read(client, url, pending)
+        assert failed["status"] == "failed"
+        assert client.get(url).json()["plan"] == initial["plan"]
+        assert session.snapshot()["http"]["amap"] == count + 2
+        _, pending = _create_replan(
+            client, url, initial, _command(initial["plan"], "replace_activity")
+        )
+        recovered = _approve_and_read(client, url, pending)
+        assert recovered["status"] == "completed"
+        current = client.get(url).json()
+        calls = len(application.state.r5_transport.calls)
+        session.budget.stop()
+        _, pending = _create_replan(
+            client, url, current, _command(current["plan"], "delete_activity")
+        )
+        assert _approve_and_read(client, url, pending)["status"] != "completed"
+        assert len(application.state.r5_transport.calls) == calls
+        assert client.get(url).json()["plan"] == current["plan"]
+    snap = session.snapshot()
+    assert [e["kind"] for e in snap["executions"]] == ["planning", "replan", "replan"]
+    assert snap["active_executions"] == 0
+    serialized = json.dumps(snap)
+    for forbidden in (
+        "合成",
+        "source_ids",
+        "coordinates",
+        "http://",
+        "https://",
+        "api_key",
+        "4000.00",
+    ):
+        assert forbidden not in serialized
+
+
+def test_run_deadline_publishes_planning_failure_once_without_terminal_rewrite() -> None:
+    from time import monotonic
+
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+
+    async def scenario() -> None:
+        session = ProviderRunSession(RunCallBudget(clock=monotonic, deadline_seconds=0.05))
+
+        async def wait_forever(_seconds: float) -> None:
+            await asyncio.Event().wait()
+
+        def factory(_request: object) -> ProviderAttemptRuntime:
+            return ProviderAttemptRuntime(
+                clock=monotonic, sleeper=wait_forever, jitter=lambda: 0.0, task_timeout_seconds=90
+            )
+
+        unavailable: ProviderResult[CityResolution] = ProviderResult(
+            ProviderResultStatus.UNAVAILABLE,
+            Provider.AMAP,
+            None,
+            None,
+            None,
+            ("synthetic timeout",),
+            ProviderError(ProviderErrorCategory.TIMEOUT),
+            (),
+        )
+        job, amap, _repository = await _execute(
+            run_session=session,
+            attempt_runtime_factory=factory,
+            resolve_city_results_override=(unavailable,),
+        )
+        assert job.status is PlanningStatus.FAILED
+        assert session.snapshot()["active_executions"] == 0
+        assert session.snapshot()["reason"] == "deadline"
+        assert session.snapshot()["http"]["amap"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_run_deadline_is_checked_before_planning_publication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from typing import Any
+
+    import intelligent_travel_assistant.application.services.provider_planning_jobs as jobs_module
+    from intelligent_travel_assistant.application.tooling.governance import RunCallBudget
+
+    readings = [0.0]
+    session = ProviderRunSession(RunCallBudget(clock=lambda: readings[0], deadline_seconds=1))
+    original = jobs_module._planning_result
+
+    def late_projection(*args: Any, **kwargs: Any) -> Any:
+        result = original(*args, **kwargs)
+        readings[0] = 2.0
+        return result
+
+    monkeypatch.setattr(jobs_module, "_planning_result", late_projection)
+    job, _amap, _repository = asyncio.run(_execute(run_session=session))
+    assert job.status is PlanningStatus.FAILED
+    assert job.result is not None and job.result.plan is None
+    assert session.snapshot()["reason"] == "deadline"

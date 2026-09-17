@@ -886,9 +886,22 @@ def _build_result(
         *_freshness_errors(cities, route_facts, evaluated_at=evaluated_at),
     )
     unknowns = tuple(item for item in cost_items if item.confidence is CostConfidence.UNKNOWN)
+    unknown_durations = tuple(
+        (day_offset, index)
+        for day_offset, day in enumerate(proposal.days)
+        for index, selection in enumerate(day.selections)
+        if selection.duration_class.value == "unknown"
+    )
     status = (
         PlanningStatus.PARTIAL
-        if provider_partial or freshness_partial or weather_missing or unknowns or errors
+        if (
+            provider_partial
+            or freshness_partial
+            or weather_missing
+            or unknowns
+            or unknown_durations
+            or errors
+        )
         else PlanningStatus.READY
     )
     if budget_summary.assessment is BudgetAssessment.OVER_BUDGET:
@@ -913,6 +926,18 @@ def _build_result(
         )
         for index, segment in enumerate(request.intercity_segments)
         if segment.fare is None
+    )
+    uncertainties = (
+        *uncertainties,
+        *tuple(
+            Uncertainty(
+                code="activity_duration_estimated_rule",
+                message="活动游览时长使用项目固定估算规则。",
+                affected_refs=(_id(job_id, f"activity:{day_offset}:{index}"),),
+                source_ids=(system_source_id,),
+            )
+            for day_offset, index in unknown_durations
+        ),
     )
     if weather_missing:
         uncertainties = (
@@ -1016,7 +1041,7 @@ def _schedule_days(
                 ItineraryItem(
                     item_id=_id(job_id, f"activity:{day_offset}:{index}"),
                     location_id=selection.location_id,
-                    title=selection.title,
+                    title=selection_pois[index].name,
                     start_time=cursor.time(),
                     end_time=activity_end.time(),
                     source_ids=selection.source_ids,

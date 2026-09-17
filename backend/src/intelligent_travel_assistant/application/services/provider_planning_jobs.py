@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import cast
@@ -39,6 +40,7 @@ from intelligent_travel_assistant.application.services.offline_planning import (
     OfflinePlanningOrchestrator,
     OfflinePlanningOutcome,
     OfflinePlanningRequest,
+    RouteLookupDiagnostic,
 )
 from intelligent_travel_assistant.application.tooling import (
     TASK_TIMEOUT_SECONDS,
@@ -46,6 +48,8 @@ from intelligent_travel_assistant.application.tooling import (
     multicity_task_timeout_seconds,
     multiday_task_timeout_seconds,
 )
+from intelligent_travel_assistant.application.tooling.governance import ToolCallGovernanceError
+from intelligent_travel_assistant.application.tooling.resilience import ProviderRunSession
 from intelligent_travel_assistant.contracts import (
     ApiError,
     ApiErrorCode,
@@ -122,6 +126,13 @@ _ISSUE_MESSAGES = {
     FinalValidationIssueCode.HARD_CONSTRAINT_UNVERIFIED: "硬约束尚不能由确定性规则完全验证。",
 }
 
+
+@dataclass(frozen=True, slots=True)
+class RouteTerminalObservation:
+    route_data_diagnostic_code: RouteDataDiagnosticCode
+    lookups: tuple[RouteLookupDiagnostic, ...]
+
+
 _PROVIDER_ERROR_MESSAGES = {
     ApiErrorCode.PROVIDER_UNAUTHORIZED: "外部服务凭证未通过验证。",
     ApiErrorCode.PROVIDER_RATE_LIMITED: "外部服务当前达到调用限制。",
@@ -161,6 +172,8 @@ class ProviderPlanningJobExecutor:
         "_multicity_orchestrator",
         "_orchestrator",
         "_repository",
+        "last_route_observation",
+        "run_session",
     )
 
     def __init__(
@@ -172,6 +185,8 @@ class ProviderPlanningJobExecutor:
         multicity_orchestrator: MultiCityPlanningOrchestrator | None = None,
         attempt_runtime_factory: Callable[[float], ProviderAttemptRuntime] | None = None,
     ) -> None:
+        self.last_route_observation: RouteTerminalObservation | None = None
+        self.run_session: ProviderRunSession | None = None
         self._repository = repository
         self._orchestrator = orchestrator
         self._multicity_orchestrator = multicity_orchestrator
@@ -179,6 +194,44 @@ class ProviderPlanningJobExecutor:
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def execute(self, job_id: UUID) -> None:
+        self.last_route_observation = None
+        session = self.run_session
+        if session is None:
+            await self._execute(job_id)
+            return
+        try:
+            async with session.execution("planning", job_id) as execution:
+                await self._execute(job_id, (session, execution))
+        except (ToolCallGovernanceError, TimeoutError):
+            job = await self._repository.get(job_id)
+            if job.status in {
+                PlanningStatus.READY,
+                PlanningStatus.PARTIAL,
+                PlanningStatus.CONFLICT,
+                PlanningStatus.NEEDS_INPUT,
+                PlanningStatus.FAILED,
+            }:
+                return
+            failure = (
+                _multicity_internal_failure_result(
+                    "multicity_internal_failure", request_version=job.request.request_version
+                )
+                if isinstance(job.request, (TripPlanRequestV3, TripPlanRequestV4))
+                else _internal_failure_result()
+            )
+            await self._repository.record_result(job_id, failure, expected_version=job.version)
+        finally:
+            final_job = await self._repository.get(job_id)
+            if final_job.status in {
+                PlanningStatus.FAILED,
+                PlanningStatus.CONFLICT,
+                PlanningStatus.NEEDS_INPUT,
+            }:
+                session.business_failure()
+
+    async def _execute(
+        self, job_id: UUID, observation: tuple[ProviderRunSession, UUID] | None = None
+    ) -> None:
         job = await self._repository.get(job_id)
         if job.status is PlanningStatus.DRAFT:
             job = await self._repository.advance(
@@ -224,7 +277,7 @@ class ProviderPlanningJobExecutor:
                     expected_version=job.version,
                 )
                 return
-            attempt_runtime = self._new_attempt_runtime(job.request)
+            attempt_runtime = self._new_attempt_runtime(job.request, observation)
             try:
                 multicity_result = await self._multicity_orchestrator.plan(
                     job.request,
@@ -256,6 +309,8 @@ class ProviderPlanningJobExecutor:
                 if attempt_runtime is not None:
                     await attempt_runtime.close()
             current = await self._repository.get(job_id)
+            if observation is not None:
+                observation[0].ensure_publishable(observation[1])
             await self._repository.record_result(
                 job_id,
                 multicity_result,
@@ -283,13 +338,14 @@ class ProviderPlanningJobExecutor:
             )
             return
 
-        attempt_runtime = self._new_attempt_runtime(job.request)
+        attempt_runtime = self._new_attempt_runtime(job.request, observation)
         try:
             outcome = await self._orchestrator.plan(
                 request,
                 state_observer=observe,
                 attempt_runtime=attempt_runtime,
             )
+            self.last_route_observation = _route_terminal_observation(outcome)
             result = _planning_result(
                 outcome,
                 job.request,
@@ -312,6 +368,8 @@ class ProviderPlanningJobExecutor:
             if attempt_runtime is not None:
                 await attempt_runtime.close()
         current = await self._repository.get(job_id)
+        if observation is not None:
+            observation[0].ensure_publishable(observation[1])
         await self._repository.record_result(
             job_id,
             result,
@@ -324,10 +382,15 @@ class ProviderPlanningJobExecutor:
             raise ValueError("executor_clock_invalid")
         return value
 
-    def _new_attempt_runtime(self, request: PlanningRequest) -> ProviderAttemptRuntime | None:
+    def _new_attempt_runtime(
+        self, request: PlanningRequest, observation: tuple[ProviderRunSession, UUID] | None = None
+    ) -> ProviderAttemptRuntime | None:
         if self._attempt_runtime_factory is None:
             return None
-        return self._attempt_runtime_factory(_task_timeout_seconds(request))
+        runtime = self._attempt_runtime_factory(_task_timeout_seconds(request))
+        if observation is not None:
+            runtime.bind_run(*observation)
+        return runtime
 
 
 def _task_timeout_seconds(request: PlanningRequest) -> float:
@@ -1029,6 +1092,17 @@ def _route_provider_results(
 
 def _provider_results(outcome: OfflinePlanningOutcome) -> tuple[ProviderResult[object], ...]:
     return (*_base_provider_results(outcome), *_route_provider_results(outcome))
+
+
+def _route_terminal_observation(
+    outcome: OfflinePlanningOutcome,
+) -> RouteTerminalObservation | None:
+    if outcome.route_diagnostic_code is None:
+        return None
+    return RouteTerminalObservation(
+        outcome.route_diagnostic_code,
+        outcome.route_lookup_diagnostics,
+    )
 
 
 def _provider_errors(

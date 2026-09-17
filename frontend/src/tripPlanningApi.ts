@@ -700,15 +700,19 @@ export function parseTripPlanResponse(value: unknown): TripPlanResponseDto {
 }
 
 function parseErrorEnvelope(value: unknown): ApiErrorDto | null {
+  if (!isRecord(value) || !isRecord(value.error)) return null;
+  // The existing backend omits nullable fields with exclude_none=True.
+  // Normalize only those optional fields; keep the closed error validation.
+  const envelope = { trace_id: null, ...value };
+  const error = { field: null, provider: null, ...value.error };
   if (
-    !isRecord(value) ||
-    !hasExactKeys(value, ["trace_id", "error"]) ||
-    !(value.trace_id === null || isPlanningJobId(value.trace_id)) ||
-    !isApiError(value.error)
+    !hasExactKeys(envelope, ["trace_id", "error"]) ||
+    !(envelope.trace_id === null || isPlanningJobId(envelope.trace_id)) ||
+    !isApiError(error)
   ) {
     return null;
   }
-  return value.error;
+  return error;
 }
 
 async function json(response: Response): Promise<unknown> {

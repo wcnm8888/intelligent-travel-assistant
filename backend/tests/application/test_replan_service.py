@@ -279,6 +279,16 @@ def test_auto_replan_analyzes_executes_and_commits_once() -> None:
     assert executor.analysis_calls == 1
     assert executor.execution_calls == 1
 
+    changed = replace(
+        _application_request(),
+        command=DeleteActivity(ACTIVITY_ID, reason_code="different_payload"),
+    )
+    with pytest.raises(ReplanRepositoryError) as conflict:
+        asyncio.run(service.create(changed))
+    assert conflict.value.code is ReplanRepositoryErrorCode.IDEMPOTENCY_CONFLICT
+    assert executor.analysis_calls == 1
+    assert executor.execution_calls == 1
+
 
 def test_multiday_create_is_rejected_before_reservation_or_analysis() -> None:
     identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
@@ -333,7 +343,7 @@ def test_multiday_decide_and_execute_are_rejected_without_state_change() -> None
 
 
 def test_concurrent_execute_calls_invoke_executor_once() -> None:
-    async def scenario() -> tuple[ReplanStatus, ReplanStatus, int]:
+    async def scenario() -> tuple[ReplanStatus, ReplanStatus, int, int, int]:
         identifiers = iter((REPLAN_ID, REPLAN_TRACE_ID, DECISION_ID))
         executor = BlockingExecutor(
             _impact(ImpactDisposition.AUTO), ReplanExecutionResult(commit=_commit())
@@ -349,9 +359,15 @@ def test_concurrent_execute_calls_invoke_executor_once() -> None:
         second = asyncio.create_task(service.execute(JOB_ID, pending.replan.replan_id))
         executor.release.set()
         first_result, second_result = await asyncio.gather(first, second)
-        return first_result.replan.status, second_result.replan.status, executor.execution_calls
+        return (
+            first_result.replan.status,
+            second_result.replan.status,
+            executor.execution_calls,
+            len(service._execution_locks),
+            len(service._execution_users),
+        )
 
-    assert asyncio.run(scenario()) == (ReplanStatus.COMPLETED, ReplanStatus.COMPLETED, 1)
+    assert asyncio.run(scenario()) == (ReplanStatus.COMPLETED, ReplanStatus.COMPLETED, 1, 0, 0)
 
 
 def test_cancelled_execution_is_persisted_as_failed() -> None:

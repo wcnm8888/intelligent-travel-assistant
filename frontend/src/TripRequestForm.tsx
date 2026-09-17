@@ -1303,7 +1303,12 @@ export function TripRequestForm({
           </span>
           <span aria-hidden="true">→</span>
         </button>
-        <p>请求仅发送至本机后端；自动刷新有次数上限，可随时手动继续。</p>
+        <div>
+          <p>请求仅发送至本机后端；自动刷新有次数上限，可随时手动继续。</p>
+          <p>
+            启用真实服务时，结果仅在本次本地服务运行期间可用；关闭或重启服务后无法恢复。
+          </p>
+        </div>
       </div>
     </form>
   );

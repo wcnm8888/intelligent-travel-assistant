@@ -32,6 +32,7 @@ from intelligent_travel_assistant.domain import (
     Provider,
     ProviderError,
     ProviderErrorCategory,
+    ProviderErrorReason,
     ProviderResult,
     ProviderResultStatus,
     RouteLeg,
@@ -247,7 +248,7 @@ class AmapAdapter:
         if isinstance(value, ProviderError):
             return _unavailable(value)
         parsed = _parse_route(value, request=request)
-        if isinstance(parsed, ProviderErrorCategory):
+        if isinstance(parsed, (ProviderErrorCategory, ProviderError)):
             return _unavailable(parsed)
         distance_meters, duration_minutes = parsed
 
@@ -318,7 +319,11 @@ class AmapAdapter:
 
         business_error = _business_error_category(value)
         if business_error is not None:
-            return ProviderError(business_error)
+            return (
+                business_error
+                if isinstance(business_error, ProviderError)
+                else ProviderError(business_error)
+            )
         return value
 
     def _available[T](
@@ -509,12 +514,15 @@ def _parse_route(
     value: dict[str, object],
     *,
     request: RouteCalculationRequest,
-) -> tuple[int, int] | ProviderErrorCategory:
+) -> tuple[int, int] | ProviderErrorCategory | ProviderError:
     count = _count(value.get("count"))
     if count is None:
         return ProviderErrorCategory.SCHEMA
     if count == 0:
-        return ProviderErrorCategory.EMPTY_RESULT
+        return ProviderError(
+            ProviderErrorCategory.EMPTY_RESULT,
+            ProviderErrorReason.ROUTE_COUNT_ZERO,
+        )
     route = value.get("route")
     if count != 1 or not isinstance(route, dict):
         return ProviderErrorCategory.SCHEMA
@@ -668,7 +676,9 @@ def _positive_integer(value: object) -> int | None:
     return parsed if parsed is not None and parsed > 0 else None
 
 
-def _business_error_category(value: dict[str, object]) -> ProviderErrorCategory | None:
+def _business_error_category(
+    value: dict[str, object],
+) -> ProviderErrorCategory | ProviderError | None:
     status = value.get("status")
     info = value.get("info")
     infocode = value.get("infocode")
@@ -687,7 +697,10 @@ def _business_error_category(value: dict[str, object]) -> ProviderErrorCategory 
     if infocode in _SCHEMA_INFOCODES:
         return ProviderErrorCategory.SCHEMA
     if infocode in _EMPTY_INFOCODES:
-        return ProviderErrorCategory.EMPTY_RESULT
+        return ProviderError(
+            ProviderErrorCategory.EMPTY_RESULT,
+            ProviderErrorReason.ROUTE_BUSINESS_NO_RESULT,
+        )
     return ProviderErrorCategory.UNKNOWN
 
 

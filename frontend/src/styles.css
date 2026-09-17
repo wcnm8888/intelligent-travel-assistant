@@ -353,7 +353,10 @@ input[type="checkbox"] {
 }
 
 .choice-chip span {
-  display: block;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
   padding: 9px 13px;
   border: 1px solid var(--line);
   background: #f6f1e6;
@@ -2125,6 +2128,8 @@ input[type="checkbox"] {
 .activity-replan-actions button,
 .replan-composer button,
 .replan-panel button {
+  min-height: 44px;
+  min-width: 44px;
   border: 1px solid var(--ink);
   background: transparent;
   color: var(--ink);

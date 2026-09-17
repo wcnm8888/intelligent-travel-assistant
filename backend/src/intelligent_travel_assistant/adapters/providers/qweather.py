@@ -157,7 +157,18 @@ class QWeatherAdapter:
         if isinstance(response, ProviderError):
             return _unavailable(response)
         value, fetched_at = response
-        attributions = _response_attributions(value)
+        metadata = value.get("metadata")
+        allow_missing_attributions = (
+            isinstance(metadata, dict)
+            and "attributions" not in metadata
+            and _valid_metadata(metadata, require_zero_result=True)
+            and metadata["zeroResult"] is True
+            and value.get("alerts") == []
+        )
+        attributions = _response_attributions(
+            value,
+            allow_missing=allow_missing_attributions,
+        )
         if isinstance(attributions, ProviderErrorCategory):
             return _unavailable(attributions)
         parsed = _parse_alerts(value, fetched_at=fetched_at)
@@ -271,10 +282,14 @@ class QWeatherAdapter:
 
 def _response_attributions(
     value: dict[str, object],
+    *,
+    allow_missing: bool = False,
 ) -> tuple[str, ...] | ProviderErrorCategory:
     metadata = value.get("metadata")
     if not isinstance(metadata, dict):
         return ProviderErrorCategory.SCHEMA
+    if allow_missing and "attributions" not in metadata:
+        return ()
     raw = metadata.get("attributions")
     if (
         not isinstance(raw, list)

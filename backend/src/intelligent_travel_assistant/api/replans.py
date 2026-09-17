@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Final
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Response, status
@@ -64,6 +65,50 @@ from intelligent_travel_assistant.domain import (
     ReplanCommand,
     ReplanStatus,
 )
+
+_RETRY_MESSAGE: Final = (
+    "The replan did not replace the current plan and can be retried with a new request."
+)
+_MODIFY_MESSAGE: Final = "Update the requested input before creating a new replan."
+_REFRESH_MESSAGE: Final = "Refresh the current plan before creating a new replan."
+_STOP_MESSAGE: Final = "The replan did not replace the current plan."
+
+_TERMINAL_ERROR_PROJECTIONS: Final[dict[str, tuple[ApiErrorCode, bool, str]]] = {
+    "provider_rate_limited": (ApiErrorCode.PROVIDER_RATE_LIMITED, True, _RETRY_MESSAGE),
+    "provider_timeout": (ApiErrorCode.PROVIDER_TIMEOUT, True, _RETRY_MESSAGE),
+    "provider_unavailable": (ApiErrorCode.PROVIDER_UNAVAILABLE, True, _RETRY_MESSAGE),
+    "data_stale": (ApiErrorCode.DATA_STALE, True, _RETRY_MESSAGE),
+    "replan_analysis_cancelled": (ApiErrorCode.INTERNAL_ERROR, True, _RETRY_MESSAGE),
+    "replan_execution_cancelled": (ApiErrorCode.INTERNAL_ERROR, True, _RETRY_MESSAGE),
+    "replacement_input_required": (ApiErrorCode.DATA_MISSING, False, _MODIFY_MESSAGE),
+    "data_missing": (ApiErrorCode.DATA_MISSING, False, _MODIFY_MESSAGE),
+    "budget_incomplete": (ApiErrorCode.BUDGET_INCOMPLETE, False, _MODIFY_MESSAGE),
+    "replan_job_version_conflict": (ApiErrorCode.VERSION_CONFLICT, False, _REFRESH_MESSAGE),
+    "replan_baseline_conflict": (ApiErrorCode.VERSION_CONFLICT, False, _REFRESH_MESSAGE),
+    "replan_version_conflict": (ApiErrorCode.VERSION_CONFLICT, False, _REFRESH_MESSAGE),
+    "replan_change_scope_conflict": (
+        ApiErrorCode.CONSTRAINT_CONFLICT,
+        False,
+        _REFRESH_MESSAGE,
+    ),
+    "constraint_conflict": (ApiErrorCode.CONSTRAINT_CONFLICT, False, _REFRESH_MESSAGE),
+    "confirmation_expired": (ApiErrorCode.CONFIRMATION_EXPIRED, False, _REFRESH_MESSAGE),
+    "replan_scope_not_supported": (
+        ApiErrorCode.REPLAN_SCOPE_NOT_SUPPORTED,
+        False,
+        _STOP_MESSAGE,
+    ),
+    "configuration_missing": (ApiErrorCode.CONFIGURATION_MISSING, False, _STOP_MESSAGE),
+    "provider_unauthorized": (ApiErrorCode.PROVIDER_UNAUTHORIZED, False, _STOP_MESSAGE),
+    "provider_schema_invalid": (ApiErrorCode.PROVIDER_SCHEMA_INVALID, False, _STOP_MESSAGE),
+    "model_output_invalid": (ApiErrorCode.MODEL_OUTPUT_INVALID, False, _STOP_MESSAGE),
+    "replan_analysis_failed": (ApiErrorCode.INTERNAL_ERROR, False, _STOP_MESSAGE),
+    "replan_execution_failed": (ApiErrorCode.INTERNAL_ERROR, False, _STOP_MESSAGE),
+    "replan_execution_result_invalid": (ApiErrorCode.INTERNAL_ERROR, False, _STOP_MESSAGE),
+    "replan_baseline_missing": (ApiErrorCode.INTERNAL_ERROR, False, _STOP_MESSAGE),
+    "replan_impact_missing": (ApiErrorCode.INTERNAL_ERROR, False, _STOP_MESSAGE),
+    "replan_result_missing": (ApiErrorCode.INTERNAL_ERROR, False, _STOP_MESSAGE),
+}
 
 
 def create_replan_router(
@@ -301,17 +346,32 @@ def _project(replan: ReplanRecord, result: object | None) -> ReplanResponse:
 
 
 def _terminal_errors(replan: ReplanRecord) -> tuple[ApiError, ...]:
-    mapping = {
+    fallback = {
         ReplanStatus.NEEDS_INPUT: ApiErrorCode.DATA_MISSING,
         ReplanStatus.CONFLICT: ApiErrorCode.CONSTRAINT_CONFLICT,
         ReplanStatus.FAILED: ApiErrorCode.INTERNAL_ERROR,
         ReplanStatus.REJECTED: ApiErrorCode.REPLAN_SCOPE_NOT_SUPPORTED,
         ReplanStatus.EXPIRED: ApiErrorCode.CONFIRMATION_EXPIRED,
     }
-    code = mapping.get(replan.status)
-    if code is None:
+    fallback_code = fallback.get(replan.status)
+    if fallback_code is None:
         return ()
-    return (ApiError(code=code, message="The replan did not replace the current plan."),)
+    projection = (
+        _TERMINAL_ERROR_PROJECTIONS.get(replan.error_code)
+        if replan.error_code is not None
+        else None
+    )
+    if projection is None:
+        return (ApiError(code=fallback_code, message=_STOP_MESSAGE),)
+    code, retryable, message = projection
+    return (
+        ApiError(
+            code=code,
+            message=message,
+            diagnostic_code=replan.error_code,
+            retryable=retryable,
+        ),
+    )
 
 
 def _command(request: ReplanRequest) -> ReplanCommand:

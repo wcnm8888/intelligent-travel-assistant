@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 
@@ -42,7 +42,17 @@ it("accepts a strict V3 response and renders a user-provided transfer", () => {
     screen.getByRole("heading", { name: /杭州.*上海.*3日旅笺/ }),
   ).toBeVisible();
   expect(screen.getByText("杭州站 → 上海站")).toBeVisible();
-  expect(screen.getByText("用户提供，未核验")).toBeVisible();
+  expect(
+    within(screen.getByRole("region", { name: "用户提供的城际段" })).getByText(
+      "用户提供，未核验",
+    ),
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole("region", { name: "来源与时效" })).getByText(
+      "用户提供，未核验",
+    ),
+  ).toBeVisible();
+  expect(screen.getByText("真实服务结果仅本次运行可用")).toBeVisible();
   expect(screen.getAllByText("金额未知").length).toBeGreaterThan(0);
   expect(screen.queryByText("¥0")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "替换活动" })).toBeNull();
