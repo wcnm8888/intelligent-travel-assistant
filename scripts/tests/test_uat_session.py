@@ -24,6 +24,10 @@ from uat_session import (  # noqa: E402
 
 
 class UatSupportTests(unittest.TestCase):
+    def setUp(self) -> None:
+        output = Path(__file__).resolve().parents[2] / "output" / "diagnostics"
+        output.mkdir(parents=True, exist_ok=True)
+
     def test_disabled_has_no_composition_side_effect(self) -> None:
         app = FastAPI()
         with self.assertRaisesRegex(ValueError, "not_enabled"):
@@ -37,7 +41,6 @@ class UatSupportTests(unittest.TestCase):
 
     def test_evidence_is_new_file_and_contains_only_snapshot(self) -> None:
         root = Path(__file__).resolve().parents[2] / "output" / "diagnostics"
-        root.mkdir(parents=True, exist_ok=True)
         folder = Path(tempfile.mkdtemp(prefix="uat-output-", dir=root))
         session = ProviderRunSession(RunCallBudget(clock=monotonic))
         target = folder / "counts.json"
@@ -49,6 +52,10 @@ class UatSupportTests(unittest.TestCase):
 
 
 class UatLifecycleTests(unittest.TestCase):
+    def setUp(self) -> None:
+        output = Path(__file__).resolve().parents[2] / "output" / "diagnostics"
+        output.mkdir(parents=True, exist_ok=True)
+
     def test_cli_exit_reflects_actual_lifespan_and_final_evidence(self) -> None:
         for mode in ("success", "partial_write", "collision", "startup_error", "shutdown_error"):
             with self.subTest(mode=mode):
@@ -66,7 +73,6 @@ class UatLifecycleTests(unittest.TestCase):
         from uvicorn.lifespan.on import LifespanOn
 
         output = Path(__file__).resolve().parents[2] / "output" / "diagnostics"
-        output.mkdir(parents=True, exist_ok=True)
         folder = Path(tempfile.mkdtemp(prefix="uat-cli-exit-", dir=output))
         target = folder / "final.json"
         app = create_production_app(Path(tempfile.mkdtemp(prefix="uat-synthetic-")))

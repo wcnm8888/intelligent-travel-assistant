@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import unittest
@@ -38,7 +39,15 @@ function corepack {
 
 
 class RepositoryVerificationTests(unittest.TestCase):
-    def run_coordinator(self, arguments: str, *, fail_backend: bool = False) -> str:
+    def run_coordinator(
+        self, arguments: str, *, fail_backend: bool = False, output_width: int | None = None
+    ) -> str:
+        command = f"& '{str(VERIFY).replace(chr(39), chr(39) * 2)}' {arguments}"
+        if output_width is not None:
+            command = (
+                f"try {{ {command} 2>&1 | Out-String -Width {output_width} }} "
+                f"catch {{ $_ | Out-String -Width {output_width}; exit 1 }}"
+            )
         result = subprocess.run(
             [
                 "powershell.exe",
@@ -46,7 +55,7 @@ class RepositoryVerificationTests(unittest.TestCase):
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                STUBS + f"\n& '{str(VERIFY).replace(chr(39), chr(39) * 2)}' {arguments}",
+                STUBS + "\n" + command,
             ],
             cwd=ROOT,
             env={**os.environ, "VERIFY_SYNTHETIC_FAIL": "1" if fail_backend else "0"},
@@ -101,11 +110,22 @@ class RepositoryVerificationTests(unittest.TestCase):
                 self.assertNotIn("All local verification gates passed", output)
 
     def test_failed_gate_stops_dependent_gates(self) -> None:
-        output = self.run_coordinator("-Phase RepositoryVerification", fail_backend=True)
-        self.assertNotEqual(self.last_returncode, 0, output)
-        self.assertIn("Backend tests failed", output)
-        self.assertNotIn("Frontend tests passed", output)
-        self.assertNotIn("All local verification gates passed", output)
+        for width in (None, 16, 40, 120):
+            with self.subTest(output_width=width):
+                output = self.run_coordinator(
+                    "-Phase RepositoryVerification", fail_backend=True, output_width=width
+                )
+                self.assertEqual(self.last_returncode, 1, output)
+                record, _ = json.JSONDecoder().raw_decode(output[output.index("\n{") + 1 :])
+                self.assertEqual(record["command"], "Backend tests")
+                self.assertEqual(record["exit_code"], 8)
+                self.assertIs(record["failed"], True)
+                self.assertEqual(record["scope"], "ProductTests")
+                self.assertEqual(record["actual"], "failed")
+                self.assertIn("dependent gates", record["not_run"])
+                self.assertNotIn("==> Frontend format check", output)
+                self.assertNotIn("Frontend tests passed", output)
+                self.assertNotIn("All local verification gates passed", output)
 
     def test_windows_powershell_guard_keeps_error_and_stderr_contracts(self) -> None:
         output = self.run_coordinator("-GateSelfTest")
