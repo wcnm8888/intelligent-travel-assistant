@@ -1,0 +1,380 @@
+{
+  "source": "F009Planner.test.tsx fakeApi synthetic fixtures; option total derived from day totals; map coordinates matched by location_id",
+  "preflight": {
+    "response_version": "6",
+    "session_id": "70000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "state": "feasible",
+    "feasibility_set_id": "70000000-0000-4000-8000-000000000012",
+    "options": [
+      {
+        "option_id": "70000000-0000-4000-8000-000000000013",
+        "kind": "less_transport",
+        "title": "可行方案",
+        "explanation": "按已选地点形成的离线示例安排。",
+        "days": [
+          {
+            "local_date": "2026-10-01",
+            "stops": [
+              {
+                "location_id": "70000000-0000-4000-8000-000000000003",
+                "route_anchor_location_id": "70000000-0000-4000-8000-000000000003",
+                "name": "西湖断桥",
+                "category": "风景名胜",
+                "importance": "must_visit",
+                "expected_duration_minutes": 90,
+                "start_time": "09:35:00",
+                "end_time": "11:05:00",
+                "preferred_day_satisfied": true,
+                "source": "user_selected"
+              }
+            ],
+            "routes": [
+              {
+                "route_id": "70000000-0000-4000-8000-000000000010",
+                "origin_location_id": "70000000-0000-4000-8000-000000000002",
+                "destination_location_id": "70000000-0000-4000-8000-000000000003",
+                "mode": "walking",
+                "straight_line_meters": 1200,
+                "distance_meters": 1500,
+                "duration_minutes": 20
+              },
+              {
+                "route_id": "70000000-0000-4000-8000-000000000011",
+                "origin_location_id": "70000000-0000-4000-8000-000000000003",
+                "destination_location_id": "70000000-0000-4000-8000-000000000002",
+                "mode": "walking",
+                "straight_line_meters": 1200,
+                "distance_meters": 1500,
+                "duration_minutes": 20
+              }
+            ],
+            "total_transport_minutes": 40
+          },
+          {
+            "local_date": "2026-10-02",
+            "stops": [
+              {
+                "location_id": "70000000-0000-4000-8000-000000000004",
+                "route_anchor_location_id": "70000000-0000-4000-8000-000000000004",
+                "name": "灵隐寺",
+                "category": "风景名胜",
+                "importance": "must_visit",
+                "expected_duration_minutes": 90,
+                "start_time": "09:35:00",
+                "end_time": "11:05:00",
+                "preferred_day_satisfied": true,
+                "source": "user_selected"
+              }
+            ],
+            "routes": [
+              {
+                "route_id": "70000000-0000-4000-8000-000000000020",
+                "origin_location_id": "70000000-0000-4000-8000-000000000002",
+                "destination_location_id": "70000000-0000-4000-8000-000000000004",
+                "mode": "walking",
+                "straight_line_meters": 1200,
+                "distance_meters": 1500,
+                "duration_minutes": 20
+              },
+              {
+                "route_id": "70000000-0000-4000-8000-000000000021",
+                "origin_location_id": "70000000-0000-4000-8000-000000000004",
+                "destination_location_id": "70000000-0000-4000-8000-000000000002",
+                "mode": "walking",
+                "straight_line_meters": 1200,
+                "distance_meters": 1500,
+                "duration_minutes": 20
+              }
+            ],
+            "total_transport_minutes": 40
+          }
+        ],
+        "omitted_location_ids": [],
+        "total_transport_minutes": 80,
+        "preferred_day_deviation": 0,
+        "preference_coverage_score": 100,
+        "weather_status": "not_covered",
+        "weather_message": "天气尚不可核验"
+      }
+    ],
+    "conflicts": [],
+    "calls": {
+      "poi_search": 2,
+      "reverse_geocode": 0,
+      "route": 6,
+      "total": 8
+    }
+  },
+  "result": {
+    "response_version": "6",
+    "job_id": "70000000-0000-4000-8000-000000000005",
+    "trace_id": "70000000-0000-4000-8000-000000000007",
+    "client_request_id": "70000000-0000-4000-8000-000000000008",
+    "status": "partial",
+    "attempt": 1,
+    "request_summary": {
+      "request_version": "6",
+      "city": "杭州",
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-02",
+      "travelers": 2,
+      "budget": {
+        "amount": "3000.00",
+        "currency": "CNY"
+      },
+      "selected_poi_count": 2
+    },
+    "plan": {
+      "plan_id": "70000000-0000-4000-8000-000000000006",
+      "plan_format_version": "6",
+      "city_adcode": "330100",
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-02",
+      "accommodation": {
+        "mode": "exact_poi",
+        "label": "龙翔桥住宿锚点",
+        "confidence": "exact",
+        "semantic_location_id": "70000000-0000-4000-8000-000000000002",
+        "route_anchor_location_id": "70000000-0000-4000-8000-000000000002"
+      },
+      "locations": [
+        {
+          "location_id": "70000000-0000-4000-8000-000000000002",
+          "name": "龙翔桥住宿锚点",
+          "category": "住宿服务",
+          "district_adcode": "330102",
+          "source": "accommodation"
+        },
+        {
+          "location_id": "70000000-0000-4000-8000-000000000003",
+          "name": "西湖断桥",
+          "category": "风景名胜",
+          "district_adcode": "330102",
+          "source": "user_selected"
+        },
+        {
+          "location_id": "70000000-0000-4000-8000-000000000004",
+          "name": "灵隐寺",
+          "category": "风景名胜",
+          "district_adcode": "330102",
+          "source": "user_selected"
+        }
+      ],
+      "days": [
+        {
+          "local_date": "2026-10-01",
+          "accommodation_location_id": "70000000-0000-4000-8000-000000000002",
+          "stops": [
+            {
+              "location_id": "70000000-0000-4000-8000-000000000003",
+              "visit_order": 1,
+              "start_time": "09:35:00",
+              "end_time": "11:05:00",
+              "importance": "must_visit",
+              "narrative": null
+            }
+          ],
+          "routes": [
+            {
+              "route_id": "70000000-0000-4000-8000-000000000010",
+              "origin_location_id": "70000000-0000-4000-8000-000000000002",
+              "destination_location_id": "70000000-0000-4000-8000-000000000003",
+              "mode": "walking",
+              "distance_meters": 1500,
+              "duration_minutes": 20
+            },
+            {
+              "route_id": "70000000-0000-4000-8000-000000000011",
+              "origin_location_id": "70000000-0000-4000-8000-000000000003",
+              "destination_location_id": "70000000-0000-4000-8000-000000000002",
+              "mode": "walking",
+              "distance_meters": 1500,
+              "duration_minutes": 20
+            }
+          ],
+          "pace_note": null,
+          "rationale": null
+        },
+        {
+          "local_date": "2026-10-02",
+          "accommodation_location_id": "70000000-0000-4000-8000-000000000002",
+          "stops": [
+            {
+              "location_id": "70000000-0000-4000-8000-000000000004",
+              "visit_order": 1,
+              "start_time": "09:35:00",
+              "end_time": "11:05:00",
+              "importance": "must_visit",
+              "narrative": null
+            }
+          ],
+          "routes": [
+            {
+              "route_id": "70000000-0000-4000-8000-000000000020",
+              "origin_location_id": "70000000-0000-4000-8000-000000000002",
+              "destination_location_id": "70000000-0000-4000-8000-000000000004",
+              "mode": "walking",
+              "distance_meters": 1500,
+              "duration_minutes": 20
+            },
+            {
+              "route_id": "70000000-0000-4000-8000-000000000021",
+              "origin_location_id": "70000000-0000-4000-8000-000000000004",
+              "destination_location_id": "70000000-0000-4000-8000-000000000002",
+              "mode": "walking",
+              "distance_meters": 1500,
+              "duration_minutes": 20
+            }
+          ],
+          "pace_note": null,
+          "rationale": null
+        }
+      ],
+      "global_notes": [],
+      "selected_option_id": "70000000-0000-4000-8000-000000000013",
+      "option_kind": "less_transport",
+      "weather_status": "not_covered",
+      "weather_message": "天气尚不可核验"
+    },
+    "conflicts": [],
+    "warnings": ["确定性计划已保留；模型说明不可用。"],
+    "errors": [
+      {
+        "code": "model_output_invalid",
+        "message": "DeepSeek 说明未通过受约束校验；确定性行程与路线已保留。",
+        "field": null,
+        "provider": "deepseek",
+        "diagnostic_code": "narrative_repair_identity_invalid",
+        "retryable": false
+      }
+    ],
+    "retryable": true,
+    "created_at": "2026-09-13T07:00:00Z",
+    "updated_at": "2026-09-13T07:00:00Z"
+  },
+  "map": {
+    "map_version": "1",
+    "job_id": "70000000-0000-4000-8000-000000000005",
+    "plan_id": "70000000-0000-4000-8000-000000000006",
+    "coordinate_system": "gcj02",
+    "accommodation": {
+      "location_id": "70000000-0000-4000-8000-000000000002",
+      "name": "龙翔桥住宿锚点",
+      "coordinate": {
+        "longitude": 120.16,
+        "latitude": 30.25
+      },
+      "visit_order": null
+    },
+    "days": [
+      {
+        "local_date": "2026-10-01",
+        "color_token": "day-1",
+        "markers": [
+          {
+            "location_id": "70000000-0000-4000-8000-000000000003",
+            "name": "西湖断桥",
+            "coordinate": {
+              "longitude": 120.17,
+              "latitude": 30.25
+            },
+            "visit_order": 1
+          }
+        ],
+        "routes": [
+          {
+            "route_id": "70000000-0000-4000-8000-000000000010",
+            "origin_location_id": "70000000-0000-4000-8000-000000000002",
+            "destination_location_id": "70000000-0000-4000-8000-000000000003",
+            "mode": "walking",
+            "distance_meters": 1500,
+            "duration_minutes": 20,
+            "points": [
+              {
+                "longitude": 120.16,
+                "latitude": 30.25
+              },
+              {
+                "longitude": 120.17,
+                "latitude": 30.25
+              }
+            ]
+          },
+          {
+            "route_id": "70000000-0000-4000-8000-000000000011",
+            "origin_location_id": "70000000-0000-4000-8000-000000000003",
+            "destination_location_id": "70000000-0000-4000-8000-000000000002",
+            "mode": "walking",
+            "distance_meters": 1500,
+            "duration_minutes": 20,
+            "points": [
+              {
+                "longitude": 120.17,
+                "latitude": 30.25
+              },
+              {
+                "longitude": 120.16,
+                "latitude": 30.25
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "local_date": "2026-10-02",
+        "color_token": "day-2",
+        "markers": [
+          {
+            "location_id": "70000000-0000-4000-8000-000000000004",
+            "name": "灵隐寺",
+            "coordinate": {
+              "longitude": 120.11,
+              "latitude": 30.25
+            },
+            "visit_order": 1
+          }
+        ],
+        "routes": [
+          {
+            "route_id": "70000000-0000-4000-8000-000000000020",
+            "origin_location_id": "70000000-0000-4000-8000-000000000002",
+            "destination_location_id": "70000000-0000-4000-8000-000000000004",
+            "mode": "walking",
+            "distance_meters": 1500,
+            "duration_minutes": 20,
+            "points": [
+              {
+                "longitude": 120.16,
+                "latitude": 30.25
+              },
+              {
+                "longitude": 120.11,
+                "latitude": 30.25
+              }
+            ]
+          },
+          {
+            "route_id": "70000000-0000-4000-8000-000000000021",
+            "origin_location_id": "70000000-0000-4000-8000-000000000004",
+            "destination_location_id": "70000000-0000-4000-8000-000000000002",
+            "mode": "walking",
+            "distance_meters": 1500,
+            "duration_minutes": 20,
+            "points": [
+              {
+                "longitude": 120.11,
+                "latitude": 30.25
+              },
+              {
+                "longitude": 120.16,
+                "latitude": 30.25
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "warnings": []
+  }
+}

@@ -5,6 +5,8 @@ export interface AMapInstance {
   add(value: unknown): void;
   remove?(value: unknown | unknown[]): void;
   setFitView(): void;
+  setCenter?(position: [number, number]): void;
+  setZoom?(zoom: number): void;
   on(event: string, listener: () => void): void;
   getCenter(): { getLng(): number; getLat(): number };
 }

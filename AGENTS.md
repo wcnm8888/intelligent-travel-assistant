@@ -55,7 +55,7 @@
 
 ## 执行入口
 
-- 仅活动区是当前执行合同；历史与长期合同参考按需读取，不用旧快照覆盖当前批准。实际阶段及唯一授权读取 current-task 的 `f008-execution` 合同；不要将数字 Step 13 指针当作执行阶段。
+- 仅current-task.md活动区是当前执行合同；无活动任务时不得按归档卡或旧数字Step恢复开发。授权与正式批次按当前任务读取，历史F008合同不作为后续任务的默认入口。
 - 机制完整定向验证（format/lint/type/tests/docs）：`pwsh -NoProfile -File scripts/verify.ps1 -MechanismOnly`；正式入口：`-Phase FormalAcceptance`，先核准备证据，缺项时产品门禁不启动。绕过入口直接启动正式 R5 不属于已批准执行方式。
 - 开发失败按 current-task 累计修复额度闭环；冻结正式批次保留原始结论。状态、阻塞或验证有实质变化时立即同步 current-task/progress/evidence，不等整个 R5 完成。
 - 暂停必须写具体规则、触发事实、证据和最小下一动作；不得以单个空白行机械审批代替已授权范围内修正。

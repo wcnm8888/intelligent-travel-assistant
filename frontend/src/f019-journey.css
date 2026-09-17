@@ -1,0 +1,318 @@
+/* UI-7 extends the approved tokens to existing journey stages; no legacy mode changes. */
+body:has(.f019-journey) {
+  background: #f6f8f6;
+}
+.product-shell:has(.f019-journey),
+.f009-workspace:has(.f019-journey) {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.product-shell:has(.f019-journey) > :is(.product-header, .product-footer) {
+  display: none;
+}
+.f019-journey:not([data-journey-step="selection"]) {
+  --ink: #19392f;
+  --ink-soft: #52675f;
+  --jade: #176b52;
+  --line: #d9e4dd;
+  --paper: #f6f8f6;
+  --paper-raised: #fff;
+  --focus: #176b52;
+  margin: 0;
+  padding: 0 0 24px;
+  border: 0;
+  box-shadow: none;
+  background: #f6f8f6;
+  color: var(--ink);
+  font:
+    400 14px/1.6 "Noto Sans SC",
+    sans-serif;
+  min-height: 100dvh;
+}
+.f019-journey > :is(.f009-heading, .f010-steps) {
+  display: none;
+}
+.f019-journey-header {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 24px;
+  background: white;
+}
+.f019-journey-header .f019-brand-mark {
+  background: #176b52;
+  color: white;
+}
+.f019-journey-header .f019-brand {
+  color: #19392f;
+  width: auto;
+}
+
+.f019-journey:not([data-journey-step="selection"]) .f011-timeline-stop strong {
+  font:
+    500 16px/24px "Noto Sans SC",
+    sans-serif;
+}
+.f019-journey:not([data-journey-step="selection"]) .f011-day {
+  grid-template-columns: minmax(0, 1fr);
+}
+.f019-journey:not([data-journey-step="selection"]) .f011-day-heading {
+  border-right: 0;
+  padding: 0;
+}
+.f019-journey:not([data-journey-step="selection"]) .f011-day-heading > span {
+  color: #52675f;
+  font-family: "Noto Sans SC", sans-serif;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(.f011-timeline-stop, .f013-plan-summary) {
+  border-radius: 12px;
+}
+.f019-journey:not([data-journey-step="selection"]) .f011-timeline-marker {
+  background: #176b52;
+}
+.f019-journey-header small {
+  color: #52675f;
+  font-size: 12px;
+}
+.f019-journey-steps {
+  display: flex;
+  gap: 8px;
+}
+.f019-journey-steps span {
+  min-width: 160px;
+  padding: 12px;
+  color: #52675f;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.f019-journey-steps [aria-current="step"] {
+  color: #176b52;
+  background: #ddf1e7;
+}
+.f019-journey-city {
+  font-size: 13px;
+  color: #176b52;
+}
+.f019-journey-context {
+  max-width: 1200px;
+  margin: auto;
+  padding: 28px 24px;
+}
+.f019-journey-context h2 {
+  margin: 0 0 4px;
+  font:
+    500 28px/40px "Noto Serif SC",
+    serif;
+  letter-spacing: 0;
+}
+.f019-journey-context p {
+  margin: 0;
+  color: #52675f;
+}
+.f019-journey:not([data-journey-step="selection"])
+  > :is(.f009-grid, .f010-details, .f010-preflight-layout) {
+  width: calc(100% - 48px);
+  max-width: 1152px;
+  margin: 0 auto;
+}
+.f019-journey:not([data-journey-step="selection"]) > .form-notice {
+  margin: 16px 24px;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(
+    .f010-destination,
+    .f010-details,
+    .f010-preflight-layout,
+    .f009-action-card,
+    .f009-result,
+    .f009-map-shell
+  ) {
+  border: 1px solid #d9e4dd;
+  border-radius: 16px;
+  box-shadow: none;
+  background: white;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(.f010-destination, .f009-action-card, .f009-result) {
+  padding: 24px;
+}
+.f019-journey:not([data-journey-step="selection"]) :is(h3, h4) {
+  font-family: "Noto Sans SC", sans-serif;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.f019-journey:not([data-journey-step="selection"]) h3 {
+  font-size: 20px;
+  line-height: 30px;
+}
+.f019-journey:not([data-journey-step="selection"]) .section-kicker {
+  display: none;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(button, input, select, textarea) {
+  font-family: inherit;
+  font-size: 14px;
+  border-radius: 8px;
+  box-shadow: none;
+  letter-spacing: 0;
+  max-width: 100%;
+}
+.f019-journey:not([data-journey-step="selection"]) button {
+  min-height: 44px;
+  background: #176b52;
+  border: 1px solid #176b52;
+  color: white;
+  padding: 10px 16px;
+  font-weight: 500;
+}
+.f019-journey:not([data-journey-step="selection"]) button.secondary-button {
+  background: white;
+  color: #176b52;
+  border-color: #d9e4dd;
+}
+.f019-journey:not([data-journey-step="selection"]) button:disabled {
+  background: #e8eee9;
+  border-color: #d9e4dd;
+  color: #52675f;
+  cursor: not-allowed;
+  opacity: 1;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(input, select, textarea) {
+  min-width: 0;
+  border-color: #d9e4dd;
+  color: #19392f;
+  accent-color: #176b52;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(input:not([type="radio"], [type="checkbox"]), select) {
+  min-height: 44px;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(
+    label,
+    small,
+    .f009-muted,
+    .f010-details-grid label,
+    .f018-option-help,
+    .f018-option-days li,
+    .f011-narrative-status p,
+    .f015-weather-status
+  ) {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.f019-journey:not([data-journey-step="selection"])
+  :is(
+    .f015-plan-options,
+    .f015-plan-option,
+    .f009-session,
+    .f009-preflight,
+    .f011-relationship-editor,
+    .f011-relationship-modes,
+    .f011-relationship-places,
+    .f010-model-diagnostic,
+    .f011-narrative-status
+  ) {
+  border-radius: 12px;
+}
+.f019-journey:not([data-journey-step="selection"])
+  .f015-plan-option[data-selected="true"] {
+  box-shadow: none;
+  background: #edf3ef;
+}
+.f019-journey:not([data-journey-step="selection"])
+  .f011-relationship-modes
+  input:checked
+  + span {
+  box-shadow: none;
+  border-color: #176b52;
+  background: #edf3ef;
+}
+.f019-journey:not([data-journey-step="selection"])
+  .f011-relationship-modes
+  label
+  > span {
+  border-radius: 8px;
+}
+.f019-journey:not([data-journey-step="selection"]) .f010-result-layout {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+}
+.f019-journey:not([data-journey-step="selection"]) .f009-visuals {
+  min-width: 0;
+}
+.f019-journey
+  :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid #176b52;
+  outline-offset: 3px;
+}
+@media (max-width: 900px) {
+  .f019-journey-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .f019-journey-steps {
+    width: 100%;
+    order: 3;
+  }
+  .f019-journey-steps span {
+    min-width: 0;
+    flex: 1;
+  }
+  .f019-journey:not([data-journey-step="selection"]) .f010-result-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 680px) {
+  .f019-journey-header {
+    padding: 12px 16px;
+  }
+  .f019-journey-context {
+    padding: 20px 16px;
+  }
+  .f019-journey-context h2 {
+    font-size: 24px;
+    line-height: 36px;
+  }
+  .f019-journey:not([data-journey-step="selection"])
+    > :is(.f009-grid, .f010-details, .f010-preflight-layout) {
+    width: calc(100% - 32px);
+  }
+  .f019-journey:not([data-journey-step="selection"])
+    :is(
+      .f010-destination,
+      .f010-details,
+      .f010-preflight-layout,
+      .f009-action-card,
+      .f009-result
+    ) {
+    padding: 16px;
+  }
+  .f019-journey:not([data-journey-step="selection"])
+    :is(
+      .f009-grid,
+      .f010-details-grid,
+      .f009-pin-fields,
+      .f011-relationship-modes,
+      .f011-relationship-places
+    ) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .f019-journey:not([data-journey-step="selection"])
+    :is(.f011-narrative-status, .f011-relationship-summary li) {
+    flex-wrap: wrap;
+  }
+  .f019-journey:not([data-journey-step="selection"]) .f018-option-days li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .f019-journey:not([data-journey-step="selection"])
+    :is(p, li, small, strong, label) {
+    overflow-wrap: anywhere;
+  }
+}

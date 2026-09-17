@@ -1,12 +1,11 @@
 # 当前任务
 
-交付补充：[恢复来源、验证与边界](../delivery/parent-delivery.md)。原文所称Git未执行为历史端点状态；本次交付按对应PR的实际状态确认。
-
 当前无活动任务。
 
-- 最近完成：`F-018 推荐优先、路线锚点闭环与方案有效对比`，结论为 `DONE / IMPLEMENTED / PASS / OFFLINE`。
-- 完成范围：推荐意图先发现候选、偏好可保持灵活、区域景点锚点自动搜索与恢复、具有真实取舍的 V6 方案以及每日差异展示。
-- 验证：后端定向 9 项、前端定向 10 项、锚点回归 1 项、synthetic desktop/390px 完整旅程和恢复 Development 门禁通过。
-- 最终证据：`output/f018/20260916-150000-browser-recovery/`、`output/f018/20260916-151500-final-closeout/`。
-- 真实地图、高德、DeepSeek、和风 UAT：`NOT_EXECUTED / NOT_AUTHORIZED`；本次真实外部调用均为 0。
-- Git 交付：`NOT_AUTHORIZED / NOT_EXECUTED`。
+- 最近完成：F-019 旅行顾问UI设计系统与核心旅程视觉重构。
+- 状态：DONE / OFFLINE_QA_PASSED；归档已准备，以本PR合并生效。
+- 任务卡：[F-019归档](../archive/task-cards/F-019-advisor-ui-design-system.md)。
+- 最终确认和证据：[交付报告](../delivery/f019-delivery.md)。
+- Git交付：最终HEAD的CI和审查通过后按用户授权合并；PR/main为事实权威。
+- 原工作区dirty内容及历史证据保留；不自动开始新任务。
+- 真实Provider、真实地图成功UAT及设备实机验收未执行。

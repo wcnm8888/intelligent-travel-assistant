@@ -41,8 +41,9 @@
 | 19 | F-016 离线验收与真实 UAT 准入 | DONE | 固定 Agent 评测和纵向验收收口，真实 UAT 仍单独批准 | [任务卡](./f-016-offline-agent-acceptance.md)；`PASS / OFFLINE` |
 | 20 | F-017 旅行顾问对话体验与上下文连续性 | DONE | 在地图旁通过有界对话、快捷回答和确认式建议协助旅客共同规划 | [任务卡](./f-017-advisor-conversation-experience.md)；`PASS / OFFLINE` |
 | 21 | F-018 推荐优先、路线锚点闭环与方案有效对比 | DONE | 用户可先获得景点推荐、明确完成区域锚点选择并真正看懂可行方案差异 | [任务卡](./f-018-advisor-discovery-anchor-option-clarity.md)；`PASS / OFFLINE` |
+| 22 | F-019 旅行顾问UI设计系统与核心旅程视觉重构 | DONE | 三栏选点与顾问、完整旅程状态及断点完成离线QA与最终确认 | [归档](../archive/task-cards/F-019-advisor-ui-design-system.md)；以本PR合并生效 |
 
-B-000 至 F-018 的已选任务均已完成，F-004B2 保持阻塞归档。当前无活动任务。
+B-000 至 F-019已选任务的离线范围已收口；F-004B2保留原阻塞。当前无活动任务。
 
 ## 当前任务入口
 
